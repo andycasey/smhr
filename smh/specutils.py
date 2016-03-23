@@ -1,29 +1,30 @@
-# coding: utf-8
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-""" Spectroscopy-related utilities """
+""" Spectroscopy-related utilities. """
 
-__author__ = "Andy Casey <andy@astrowizici.st>"
 
-# Standard library
+from __future__ import (division, print_function, absolute_import,
+                        unicode_literals)
+
+__all__ = ["Spectrum", "Spectrum1D"]
+
 import os
 import json
 import logging
-
 from shutil import copyfile
 
-# Third party
 import numpy as np
-import pyfits
+from astropy.io import fits
 
 from scipy import interpolate, ndimage, polyfit, poly1d
 from scipy.optimize import leastsq
 
-__all__ = ['Spectrum', 'Spectrum1D', 'stitch', "Extract"]
-
 logger = logging.getLogger(__name__)
 
+
 class Spectrum(object):
-    """ A class to deal with multi-dimensional spectra."""
+    """ A class to deal with multi-dimensional spectra. """
 
     def __init__(self, disp, flux, uncertainty=None, headers={}):
         """Initializes a `Spectrum` object with the given (multi-dimensional)
@@ -51,34 +52,6 @@ class Spectrum(object):
         self.num_orders = self.flux.shape[1] if len(self.flux.shape) > 1 else len(self.flux)
 
         return None
-
-    def remove_invalid_orders(self, band=None):
-        """Discards invalid orders
-
-        An invalid order is one without any finite flux values greater than 0
-
-        band : index to search for invalid orders on
-        """
-
-        if band > self.flux.shape[0]:
-            raise ValueError
-
-        remove_indices = []
-        for i in xrange(self.flux.shape[1]):
-            flux_values = self.flux[band, i, :]
-
-            if not np.any(np.isfinite(flux_values) * flux_values > 0):
-                remove_indices.append(i)
-
-        if len(remove_indices) > 0:
-            logger.warn("Invalid orders (%s) identified and discarded!" % (remove_indices, ))
-
-            cleaned_flux = np.delete(self.flux, remove_indices, axis=1)
-            cleaned_disp = np.delete(self.disp, remove_indices, axis=0)
-
-            return Spectrum1D(disp=cleaned_disp, flux=cleaned_flux, headers=self.headers)
-
-        return self
         
 
     @classmethod
@@ -1130,58 +1103,4 @@ def stitch(spectra, wl_ranges=None, mode='average'):
     idx_r = len(new_flux) - np.searchsorted(np.isfinite(new_flux)[::-1], True)
 
     return Spectrum1D(new_disp[idx_l:idx_r], new_flux[idx_l:idx_r], headers=headers)
-
-
-class Extract:
-
-    @staticmethod
-    def hermes(filename):
-
-        """
-        Returns a list of Spectrum1D objects with headers from the main image
-        and ones specific to that fibre (RA, DEC, X, Y, XERR, YERR, FIRE_NUM, etc)
-
-        Inputs
-        ------
-        filename : str
-            The reduced AAOmega multispec file to open.
-
-        fill_value : float, optional
-            A fill value to use for non-finite flux values.
-        """
-        
-        image = pyfits.open(filename)
-        
-        req_image_headers = ['MEANRA', 'MEANDEC', 'DATE', 'EPOCH', 'EXPOSED', 'TOTALEXP', 'UTDATE',
-            'UTSTART', 'UTEND', 'EXPOSED', 'ELAPSED', 'TOTALEXP', 'RO_GAIN', 'RO_NOISE', 'TELESCOP',
-            'ALT_OBS', 'LAT_OBS', 'LONG_OBS', 'OBJECT' ]
-        req_fibre_headers = ['NAME', 'RA', 'DEC', 'X', 'Y', 'XERR', 'YERR', 'MAGNITUDE', 'COMMENT']
-        
-        base_headers = {}
-        for header in req_image_headers:
-            try:
-                base_headers[header] = image[0].header[header]
-            except KeyError:
-                logging.info('Could not find "{keyword}" keyword in the headers of filename {filename}'
-                    .format(keyword=header, filename=filename))
-        
-        dispersion = image[0].header['CRVAL1'] \
-            + (np.arange(image[0].header['NAXIS1']) - image[0].header['CRPIX1']) * image[0].header['CDELT1']
-        
-        spectra = []    
-        columns = image[2].columns.names
-
-        for i, star in enumerate(image[2].data):
-            
-            if star['TYPE'] == 'P': # Program object
-                headers = base_headers.copy()
-                headers['FIBRE_NUM'] = i + 1
-                
-                for header in req_fibre_headers:
-                    headers[header] = star[header]
-                
-                spectra.append(Spectrum1D(dispersion, image[0].data[i], headers=headers))
-        
-        return spectra
-
 
