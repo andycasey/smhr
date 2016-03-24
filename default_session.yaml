@@ -1,2 +1,18 @@
 rv:
-  template_spectrum: "HD140283.fits"
+  wavelength_regions:
+    - [8450, 8750]
+    - [5100, 5200]
+    - [6510, 6610]
+    - [4810, 4910]
+    - [4290, 4390]
+  resample: template
+  apodize: 0
+  normalization:
+    knot_spacing: 200
+    sigma_clip: [1.0, 0.2]
+    max_iterations: 3
+    order: 3
+    exclude: null
+    include: null
+    function: spline
+    scale: 1.0

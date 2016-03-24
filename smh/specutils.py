@@ -118,11 +118,12 @@ class Spectrum1D(object):
             except:
                 logger.exception("Exception in trying to load {0} with {1}:"\
                     .format(path, method))
-
             else:
                 orders = [cls(dispersion=d, flux=f, ivar=i, metadata=metadata) \
                     for d, f, i in zip(dispersion, flux, ivar)]
                 break
+        else:
+            raise ValueError("cannot read spectrum from path {}".format(path))
 
         # If it's a single order, just return that instead of a 1-length list.
         orders = orders if len(orders) > 1 else orders[0]
@@ -241,7 +242,7 @@ class Spectrum1D(object):
             The path of the FITS filename to read.
         """
 
-        image = fits.open(filename)
+        image = fits.open(path)
 
         # Merge headers into a metadata dictionary.
         metadata = OrderedDict()
@@ -264,17 +265,25 @@ class Spectrum1D(object):
         else:
             # Build a simple linear dispersion map from the headers.
             # See http://iraf.net/irafdocs/specwcs.php
-            crval = header["CRVAL1"]
-            naxis = header["NAXIS1"]
-            crpix = header.get("CRPIX1", 0)
-            cdelt = header["CDELT"]
-            ltv = header.get("LTV1", 0)
+            crval = image[0].header["CRVAL1"]
+            naxis = image[0].header["NAXIS1"]
+            crpix = image[0].header.get("CRPIX1", 0)
+            cdelt = image[0].header["CDELT1"]
+            ltv = image[0].header.get("LTV1", 0)
 
             dispersion = \
                 crval + (np.arange(naxis) - crpix) * cdelt - ltv * cdelt
 
             flux = image[0].data
-            ivar = image[1].data
+            if len(image) == 1:
+                # HACK TODO: Issue 4
+                ivar = np.nan * np.ones_like(flux)
+            else:
+                ivar = image[1].data
+
+        dispersion = np.atleast_2d(dispersion)
+        flux = np.atleast_2d(flux)
+        ivar = np.atleast_2d(ivar)
 
         return (dispersion, flux, ivar, metadata)
 
@@ -301,7 +310,11 @@ class Spectrum1D(object):
             kwds.setdefault("skiprows", 1)
             dispersion, flux, ivar = np.loadtxt(path, **kwds)
 
+        dispersion = np.atleast_2d(dispersion)
+        flux = np.atleast_2d(flux)
+        ivar = np.atleast_2d(ivar)
         metadata = { "smh_read_path": path }
+        
         return (dispersion, flux, ivar, metadata)
 
 
@@ -494,12 +507,12 @@ class Spectrum1D(object):
             
             if isinstance(exclude[0], float) and len(exclude) == 2:
                 # Only two floats given, so we only have one region to exclude
-                exclude_indices.extend(range(*np.searchsorted(self.disp, exclude)))
+                exclude_indices.extend(range(*np.searchsorted(self.dispersion, exclude)))
                 
             else:
                 # Multiple regions provided
                 for exclude_region in exclude:
-                    exclude_indices.extend(range(*np.searchsorted(self.disp, exclude_region)))
+                    exclude_indices.extend(range(*np.searchsorted(self.dispersion, exclude_region)))
         
             continuum_indices = np.sort(list(set(continuum_indices).difference(np.sort(exclude_indices))))
             
@@ -509,12 +522,12 @@ class Spectrum1D(object):
             
             if isinstance(include[0], float) and len(include) == 2:
                 # Only two floats given, so we can only have one region to include
-                include_indices.extend(range(*np.searchsorted(self.disp, include)))
+                include_indices.extend(range(*np.searchsorted(self.dispersion, include)))
                 
             else:
                 # Multiple regions provided
                 for include_region in include:
-                    include_indices.extend(range(*np.searchsorted(self.disp, include_region)))
+                    include_indices.extend(range(*np.searchsorted(self.dispersion, include_region)))
         
 
         # We should exclude non-finite numbers from the fit
@@ -533,20 +546,20 @@ class Spectrum1D(object):
         else:
             knot_spacing = abs(knot_spacing)
             
-            end_spacing = ((self.disp[-1] - self.disp[0]) % knot_spacing) /2.
+            end_spacing = ((self.dispersion[-1] - self.dispersion[0]) % knot_spacing) /2.
         
             if knot_spacing/2. > end_spacing: end_spacing += knot_spacing/2.
                 
-            knots = np.arange(self.disp[0] + end_spacing, self.disp[-1] - end_spacing + knot_spacing, knot_spacing)
-            if len(knots) > 0 and knots[-1] > self.disp[continuum_indices][-1]:
-                knots = knots[:knots.searchsorted(self.disp[continuum_indices][-1])]
+            knots = np.arange(self.dispersion[0] + end_spacing, self.dispersion[-1] - end_spacing + knot_spacing, knot_spacing)
+            if len(knots) > 0 and knots[-1] > self.dispersion[continuum_indices][-1]:
+                knots = knots[:knots.searchsorted(self.dispersion[continuum_indices][-1])]
                 
-            if len(knots) > 0 and knots[0] < self.disp[continuum_indices][0]:
-                knots = knots[knots.searchsorted(self.disp[continuum_indices][0]):]
+            if len(knots) > 0 and knots[0] < self.dispersion[continuum_indices][0]:
+                knots = knots[knots.searchsorted(self.dispersion[continuum_indices][0]):]
 
         for iteration in xrange(max_iterations):
             
-            splrep_disp = self.disp[continuum_indices]
+            splrep_disp = self.dispersion[continuum_indices]
             splrep_flux = self.flux[continuum_indices]
 
             splrep_weights = np.ones(len(splrep_disp))
@@ -569,12 +582,12 @@ class Spectrum1D(object):
                 tck = interpolate.splrep(splrep_disp, splrep_flux,
                     k=order, task=-1, t=knots, w=splrep_weights)
 
-                continuum = interpolate.splev(self.disp, tck)
+                continuum = interpolate.splev(self.dispersion, tck)
 
             elif function in ("poly", "polynomial"):
             
                 p = poly1d(polyfit(splrep_disp, splrep_flux, order))
-                continuum = p(self.disp)
+                continuum = p(self.dispersion)
 
             else:
                 raise ValueError("Unknown function type: only spline or poly available (%s given)" % (function, ))
@@ -611,10 +624,11 @@ class Spectrum1D(object):
             left_index = np.max([left_index, np.min(original_continuum_indices)])
             right_index = np.min([right_index, np.max(original_continuum_indices)])
             
-
         # Apply flux scaling
         continuum *= scale
-        return self.__class__(disp=self.disp[left_index:right_index], flux=continuum[left_index:right_index], headers=self.headers)
+        return continuum
+
+        #return self.__class__(disp=self.dispersion[left_index:right_index], flux=continuum[left_index:right_index], headers=self.headers)
     
 
     
@@ -961,6 +975,75 @@ def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
     dispersion = weight * (dispersion + offset) / (1 + redshift)
     return dispersion
 
+
+def calculate_fractional_overlap(interest_range, comparison_range):
+    """
+    Calculate how much of the range of interest overlaps with the comparison
+    range.
+    """
+
+    if not (interest_range[-1] >= comparison_range[0] \
+        and comparison_range[-1] >= interest_range[0]):
+        return 0.0 # No overlap
+
+    elif   (interest_range[0] >= comparison_range[0] \
+        and interest_range[-1] <= comparison_range[-1]):
+        return 1.0 # Total overlap 
+
+    else:
+        # Some overlap. Which side?
+        if interest_range[0] < comparison_range[0]:
+            # Left hand side
+            width = interest_range[-1] - comparison_range[0]
+
+        else:
+            # Right hand side
+            width = comparison_range[-1] - interest_range[0]
+
+        return width/np.ptp(interest_range)
+
+
+
+
+def find_overlaps(spectra, dispersion_range, return_indices=False):
+    """
+    Find spectra that overlap with the dispersion range given. Spectra are
+    returned in order of how much they overlap with the dispersion range.
+
+    :param spectra:
+        A list of spectra.
+
+    :param dispersion_range:
+        A two-length tuple containing the start and end wavelength.
+
+    :param return_indices: [optional]
+        In addition to the overlapping spectra, return their corresponding
+        indices.
+
+    :returns:
+        The spectra that overlap with the dispersion range provided, ranked by
+        how much they overlap. Optionally, also return the indices of those
+        spectra.
+    """
+
+    fractions = np.array([
+        calculate_fractional_overlap(s.dispersion, dispersion_range) \
+            for s in spectra])
+
+    N = (fractions > 0).sum()
+    indices = np.argsort(fractions)[::-1]
+    overlaps = [spectra[index] for index in indices[:N]]
+
+    """
+    A faster, alternative method if sorting is not important:
+    # http://stackoverflow.com/questions/325933/determine-whether-two-date-ranges-overlap/325964#325964    
+    overlaps, indices = zip(*[(spectrum, i) \
+        for i, spectrum in enumerate(spectra) \
+            if  spectrum.dispersion[-1] >= dispersion_range[0] \
+            and dispersion_range[-1] >= spectrum.dispersion[0]])
+    """
+
+    return overlaps if not return_indices else (overlaps, indices[:N])
 
 
 

@@ -21,6 +21,8 @@ class BaseSession(object):
     """
     pass
 
+ 
+
 
 class Session(BaseSession):
     """
@@ -121,14 +123,54 @@ class Session(BaseSession):
 
         # Read in everything from defaults as necessary.
         template_spectrum = \
-            _default(template_spectrum, ("rv", "template_spectrum"))
+            self._default(template_spectrum, ("rv", "template_spectrum"))
+        wavelength_region = \
+            self._default(wavelength_region, ("rv", "wavelength_regions"))
+        resample = self._default(resample, ("rv", "resample"))
+        apodize = self._default(apodize, ("rv", "apodize"))
+        normalization_kwargs = \
+            self._default(normalization_kwargs, ("rv", "normalization"))
+
+        # Is the template spectrum actually a filename?
+        if isinstance(template_spectrum, string_types):
+            template_spectrum = specutils.Spectrum1D.read(template_spectrum,
+                debug=True)
 
         # Check to see if wavelength region is a list of entries.
+        try:
+            int(wavelength_region[0])
+        except (TypeError, ValueError):
+            # It is (probably) a list of 2-length tuples.
+            None
+        else:
+            wavelength_region = [wavelength_region]
 
         # Find the order best suitable for the preferred wavelength region.
+        for wl_start, wl_end in wavelength_region:
+            # Does the template cover this range?
+            if  not (wl_start > template_spectrum.dispersion[0] \
+                and  wl_end   < template_spectrum.dispersion[-1]):
+                continue
+
+            # Do any observed orders cover any part of this range?
+            overlaps, indices = specutils.find_overlaps(
+                self.input_spectra, (wl_start, wl_end), return_indices=True)
+            if not overlaps:
+                continue
+
+            # The first spectral index has the most overlap with the range.
+            overlap_index = indices[0]
+            overlap_order = overlaps[0]
+            break
+
+        else:
+            raise ValueError("no wavelength regions are common to the template "
+                             "and the observed spectra")
 
         # Normalize that order using the normalization settings supplied.
+        continuum = overlap_order.fit_continuum(**normalization_kwargs)
 
+        raise a
         # Perform cross-correlation with the template spectrum.
 
         # Store the measured information as part of the session.
