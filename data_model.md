@@ -20,12 +20,30 @@ Top-level dictionary containing the following keys:
 
 Other stuff that will need to be in there, but for which nomenclature and data structure needs to be determined:
 
-- RV measurements:
-  - RV measured, RV applied
-  - heliocentric and barycentric velocity calculated (either based on the input spectrum headers, or based on information supplied by the user)
-  - with what spectrum? (the basename should be listed in session.pkl and that file should exist in the session tar ball)
-  - over what spectral range? what options used (e.g., apodisation, etc -- all of this is currently under the hood in SMH)
-  - Store the resulting CCF
+- `rv`: Radial velocity
+  - **Measurements and related information that was not explicitly inputted**
+  - `rv_applied`: The radial velocity that was actually applied
+  - `rv_measured`: The last radial velocity that was measured (all other items like the `CCF`, etc will refer to this measurement)
+  - `rv_uncertainty`: The uncertainty in the measured radial velocity.
+  - `order_index`: The zero-th indexed order used for RV determination by CCF
+  - `order_continuum`: The determined continuum array for each pixel in order number `order_index`.
+  - `ccf`: The CCF.
+  - `heliocentric_correction`: The heliocentric correction calculated based on header information.
+  - `barycentric_correction`: The barycentric correction calculated based on header information.
+  - **Input settings**
+  - `template_spectrum`: The `Spectrum1D` object used to perform the cross-correlation.
+  - `wavelength_region`: The (start, end) region used for CCF.
+  - `resample`: Whether the 'template' or 'observed' spectrum was resampled.
+  - `apodize`: The apodization fraction employed.
+  - `normalization`:
+    - `knot_spacing`: The knot spacing
+    - `sigma_clip`: The low- and high-sigma clipping limits used.
+    - `max_iterations`: The maximum number of iterations employed for normalization.
+    - `order`: The order of the function used for normalization.
+    - `exclude`: Regions that were excluded from the normalization.
+    - `include`: Regions that should *always* be included (e.g., additional points), even if they exist within a larger excluded region.
+    - `function`: The function used for continuum normalization.
+    - `scale`: The scaling factor applied to additional points.
 
 
 - Continuum (for each order in the input spectra -- do not overlook discarded orders! they are just ignored, not deleted):
