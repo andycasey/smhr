@@ -26,186 +26,6 @@ from scipy.optimize import leastsq
 logger = logging.getLogger(__name__)
 
 
-class Spectrum(object):
-    """ A class to deal with multi-dimensional spectra. """
-
-    def __init__(self, disp, flux, uncertainty=None, headers={}):
-        """Initializes a `Spectrum` object with the given (multi-dimensional)
-        dispersion and flux arrays.
-
-        Inputs
-        ----
-        disp : `np.ndarray`
-            Dispersion of the spectra.
-
-        flux : `np.ndarray`
-            Flux values for each dispersion point.
-
-        uncertainty : `np.ndarray`
-            Uncertainty values for each dispersion point.
-
-        headers : `dict`
-            Headers.
-        """
-
-        self.disp = disp
-        self.flux = flux
-        self.uncertainty = uncertainty
-        self.headers = headers
-        self.num_orders = self.flux.shape[1] if len(self.flux.shape) > 1 else len(self.flux)
-
-        return None
-        
-
-    @classmethod
-    def load_multispec(cls, filename):
-        """Reads in a FITS multispec file into a `Spectrum` object.
-
-        Inputs
-        ----
-        filename : str
-            Multi-spec FITS filename to read.
-        """
-
-        if not os.path.exists(filename):
-            raise IOError, "Filename '%s' does not exist." % (filename, )
-
-        with pyfits.open(filename) as image:
-            headers = image[0].header
-            flux = image[0].data
-
-        headers_dict = {}
-        for k, v in headers.iteritems():
-
-            try:
-                str(v)
-                json.dumps(v)
-
-            except TypeError:
-                continue
-
-            if headers_dict.has_key(k):
-                headers_dict[k] += v
-
-            else:
-                headers_dict[k] = v
-
-
-        # Determine number of orders
-        num_pixels = flux.shape[-1]
-        num_orders = 1 if len(flux.shape) == 1 else flux.shape[-2]
-
-        # Try linear dispersion
-        try:
-            crval = headers['crval1']
-            crpix = headers['crpix1']
-            cd = headers['cd1_1']
-            ctype = headers['ctype1']
-
-            if ctype.strip() == 'LINEAR':
-                dispersion = np.zeros((num_orders, num_pixels), dtype=np.float)
-
-                dispersion_base = (np.arange(num_pixels) + 1 - crpix) * cd + crval
-                for i in xrange(num_orders):
-                    dispersion[i, :] = dispersion_base
-
-                dcflag = headers['dc-flag']
-                if dcflag == 1:
-                    dispersion = 10.0 ** dispersion
-
-                elif dcflag != 0:
-                    raise ValueError, "Dispersion is not linear or logarithmic (DC-FLAG = %s)" % (dcflag, )
-
-                if num_orders == 1:
-                    dispersion.shape = (num_pixels, )
-                    flux = np.squeeze(flux)
-
-
-                return cls(dispersion, flux, headers=headers_dict)
-        
-        except KeyError:
-            pass
-
-        # Get multi-spec headers
-        try:
-            wat = headers['wat2_*']
-            num_wat_headers = len(wat)
-
-        except KeyError:
-            raise ValueError, "Cannot decipher header: need either WAT2_* or CRVAL keywords."
-
-        # Concatenate headers
-        wat_str = ''
-        _ = 67 if "he0533-5340red_multi" in filename else 68
-        for i in xrange(num_wat_headers):
-            # Apparently this is a hack to fix a problem in
-            # older PyFits versions (< 3.1) where trailing blanks are stripped
-            value = wat[i]
-            if hasattr(value, 'value'): value = value.value
-            value = value + (" " * (_ - len(value)))
-            wat_str += value
-
-        # Find all the spec#="..." strings
-        spec_str = [''] * num_orders
-        for i in xrange(num_orders):
-            name = 'spec%i' % (i + 1, )
-
-            p0 = wat_str.find(name)
-            p1 = wat_str.find('"', p0)
-            p2 = wat_str.find('"', p1 + 1)
-            if p0 < 0 or p2 < 0 or p2 < 0:
-                raise ValueError, "Cannot find '%s' in WAT2_* keyword" % (name, )
-
-            spec_str[i] = wat_str[p1 + 1:p2]
-
-        # Get wavelength calibration information
-        z_params = np.zeros(num_orders)
-        w_params = np.zeros((num_orders, 9))
-        w = np.zeros(9)
-        for i in xrange(num_orders):
-            w = np.asarray(spec_str[i].split(), dtype=np.float)
-            w_params[i, :] = w
-            if w[2] == -1:
-                raise ValueError, "Spectrum %i has no wavelength calibration (type = %d)" % (i + 1, w[2], )
-
-            elif w[6] != 0:
-                z_params[i] = w[6]
-
-        dispersion = np.zeros((num_orders, num_pixels), dtype=np.float)
-        disp_fields = [None] * num_orders
-        for i in xrange(num_orders):
-            if w_params[i, 2] in (0, 1):
-                
-                # Simple linear or logarithmic spacing
-                dispersion[i, :] = np.arange(num_pixels) * w_params[i, 4] + w_params[i, 3]
-                if w_params[i, 2] == 1:
-                    dispersion[i, :] = 10. ** dispersion[i, :]
-
-            else:
-                dispersion[:, i], disp_fields[i] = compute_non_linear_disp(num_pixels, spec_str[i])
-
-            # Apply z-correction for this order
-            dispersion[i, :] *= (1 - z_params[i])
-
-        if num_orders == 1:
-            flux = np.squeeze(flux)
-            dispersion.shape = (num_pixels, )
-
-        # Check blue to red orders
-        if np.min(dispersion[0]) > np.min(dispersion[-1]):
-            
-            dispersion = dispersion[::-1]
-            if len(flux.shape) > 2:
-                flux = flux[:, ::-1]
-
-            else: flux = flux[::-1]
-
-        return cls(disp=dispersion, flux=flux, headers=headers_dict)
-
-
-
-
-
 class Spectrum1D(object):
     """ A one-dimensional spectrum. """
 
@@ -485,7 +305,27 @@ class Spectrum1D(object):
         return (dispersion, flux, ivar, metadata)
 
 
+    # State functionality for serialization.
+    def __getstate__(self):
+        """ Return the spectrum state. """
+        return (self.dispersion, self.flux, self.ivar, self.metadata)
 
+
+    def __setstate__(self, state):
+        """
+        Set the state of the spectrum.
+
+        :param state:
+            A four-length tuple containing the dispersion array, flux array, the
+            inverse variance of the fluxes, and a metadata dictionary.
+        """
+        
+        dispersion, flux, ivar, metadata = state
+        self._dispersion = dispersion
+        self._flux = flux
+        self._ivar = ivar
+        self.metadata = metadata
+        return None
 
 
     def gaussian_smooth(self, fwhm, **kwargs):
