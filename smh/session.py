@@ -194,8 +194,8 @@ class Session(BaseSession):
 
         # Perform cross-correlation with the template spectrum.
         rv, rv_uncertainty, ccf = specutils.cross_correlate(
-            observed_spectrum, template_spectrum,
-            (wl_start, wl_end), apodize=apodize, resample=resample)
+            observed_spectrum, template_spectrum, (wl_start, wl_end), 
+            apodize=apodize, resample=resample)
 
         # Store the measured information as part of the session.
         # TODO: Should we store these as a NamedTuple instead?
