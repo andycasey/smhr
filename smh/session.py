@@ -11,8 +11,7 @@ __all__ = ["Session"]
 
 from six import string_types
 
-import specutils
-
+from . import specutils
 
 class BaseSession(object):
     """
@@ -38,19 +37,29 @@ class Session(BaseSession):
             spectrum_paths = (spectrum_paths, )
 
         # Load the spectra and flatten all orders into a single list.
-        input_spectra = list(map(specutils.Spectrum1D.read, spectrum_paths))
-        input_spectra = sum([], input_spectra)
+        input_spectra = \
+            sum(list(map(specutils.Spectrum1D.read, spectrum_paths)), [])
 
         # Sort orders from blue to red.
+        input_spectra.sort(key=lambda order: order.dispersion.mean())
 
-        # Store the path names internally for provenance.
+        # TODO: Store the path names internally for provenance?
 
         # Extract basic metadata information from the spectrum headers if
         # possible: RA, DEC, OBJECT
+        # TODO: Include UTDATE, etc to calculate helio/bary-centric corrections.
+        common_metadata = {}
+        common_metadata_keys = ["RA", "DEC", "OBJECT"] \
+            + kwargs.pop("common_metadata_keys", [])
 
-        # Load default session settings.
+        for key in common_metadata_keys:
+            for order in input_spectra:
+                if key in order.metadata:
+                    common_metadata[key] = order.metadata[key]
+                    break
 
-        raise NotImplementedError
+        self.input_spectra = input_spectra
+        return None
 
 
     @classmethod
@@ -60,3 +69,4 @@ class Session(BaseSession):
         """
 
         raise NotImplementedError
+
