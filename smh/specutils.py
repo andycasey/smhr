@@ -12,6 +12,9 @@ __all__ = ["Spectrum", "Spectrum1D"]
 import os
 import json
 import logging
+import re
+from collections import OrderedDict
+from hashlib import md5
 from shutil import copyfile
 
 import numpy as np
@@ -204,32 +207,203 @@ class Spectrum(object):
 
 
 class Spectrum1D(object):
-    """This is a temporary class holder for a Spectrum1D object until the
-    astropy.specutils.Spectrum1D module has advanced sufficiently to replace it."""
-    
-    def __init__(self, disp, flux, uncertainty=None, headers={}):
-        """Initializes a `Spectrum1D` object with the given dispersion and flux
-        arrays.
-        
-        Parameters
-        ----
-        disp : `np.array`
-            Dispersion of the spectrum (i.e. the wavelength points).
-            
-        flux : `np.array`
-            Flux points for each `disp` point.
+    """ A one-dimensional spectrum. """
 
-        uncertainty : `np.array`
-            Uncertainty in flux points for each dispersion point.
+    def __init__(self, dispersion, flux, ivar, metadata=None):
         """
+        Initialie a `Spectrum1D` object with the given dispersion, flux and
+        inverse variance arrays.
+
+        :param dispersion:
+            An array containing the dispersion values for every pixel.
+
+        :param flux:
+            An array containing flux values for all pixels.
+
+        :param ivar:
+            An array containing the inverse variances for the flux values in all
+            pixels.
+
+        :param metadata: [optional]
+            A dictionary containing metadata for this spectrum.
+        """
+
+        dispersion = np.array(dispersion)
+        flux = np.array(flux)
+        ivar = np.array(ivar)
+
+        if max([len(_.shape) for _ in (dispersion, flux, ivar)]) > 1:
+            raise ValueError(
+                "dispersion, flux and ivar must be one dimensional arrays")
         
-        self.disp = disp
-        self.flux = flux
-        self.uncertainty = uncertainty
-        self.headers = headers
-        
+        if flux.size != dispersion.size:
+            raise ValueError(
+                "dispersion and flux arrays must have the same "
+                "size ({0} != {1})".format(dispersion.size, flux.size, ))
+
+        if ivar.size != dispersion.size:
+            raise ValueError(
+                "dispersion and ivar arrays must have the same "
+                "size ({0} != {1})".format(dispersion.size, ivar.size, ))
+
+        self.metadata = metadata or {}
+        self._dispersion = dispersion
+        self._flux = flux
+        self._ivar = ivar
+
         return None
     
+
+    @property
+    def dispersion(self):
+        """ Return the dispersion points for all pixels. """
+        return self._dispersion
+
+
+    @property
+    def flux(self):
+        """ Return the flux for all pixels. """
+        return self._flux
+
+
+    @property
+    def ivar(self):
+        """ Return the inverse variance of the flux for all pixels. """
+        return self._ivar
+
+
+    @classmethod
+    def read(cls, path, **kwargs):
+        """
+        Create a Spectrum1D class from a path on disk.
+
+        :param path:
+            The path of the filename to load.
+        """
+
+        if not os.path.exists(path):
+            raise IOError("filename '{}' does not exist".format(path))
+
+
+        # Try and al
+
+        # Try multi-spec.
+        dispersion, flux, ivar, metadata = \
+            cls._read_multispec_fits(path, **kwargs)
+
+        # Return a list of Spectrum1D objects.
+        orders = [cls(dispersion=d, flux=f, ivar=i, metadata=metadata) \
+            for d, f, i in zip(dispersion, flux, ivar)]
+
+
+        # Try and load as FITS first.
+        dispersion, flux, ivar, metadata = cls._read_fits(path, **kwargs)
+
+        raise NotImplementedError
+
+
+    @classmethod
+    def _read_multispec_fits(cls, path, flux_ext=None, ivar_ext=None, **kwargs):
+        """
+        Create multiple Spectrum1D classes from a multi-spec file on disk.
+
+        :param path:
+            The path of the multi-spec filename to load.
+
+        :param flux_ext: [optional]
+            The zero-indexed extension number containing flux values.
+
+        :param ivar_ext: [optional]
+            The zero-indexed extension number containing the inverse variance of
+            the flux values.
+        """
+
+        image = fits.open(path)
+
+        # Merge headers into a metadata dictionary.
+        metadata = OrderedDict()
+        for key, value in image[0].header.items():
+
+            # NOTE: In the old SMH we did a try-except block to string-ify and
+            #       JSON-dump the header values, and if they could not be
+            #       forced to a string we didn't keep that header.
+
+            #       I can't remember what types caused that problem, but it was
+            #       to prevent SMH being unable to save a session.
+            
+            #       Since we are pickling now, that shouldn't be a problem
+            #       anymore, but this note is here to speed up debugging in case
+            #       that issue returns.
+
+            if key in metadata:
+                metadata[key] += value
+            else:
+                metadata[key] = value
+
+        flux = image[0].data
+        N_pixels = flux.shape[-1]
+        N_orders = 1 if len(flux.shape) == 1 else flux.shape[-2]
+
+        assert metadata["CTYPE1"].upper().startswith("MULTISPE") \
+            or metadata["WAT0_001"].lower() == "system=multispec"
+
+        # Join the WAT keywords for dispersion mapping.
+        i, concatenated_wat, key_fmt = (1, str(""), "WAT2_{0:03d}")
+        while key_fmt.format(i) in metadata:
+            # .ljust(68, " ") had str/unicode issues across Python 2/3
+            value = metadata[key_fmt.format(i)]
+            concatenated_wat += value + (" "  * (68 - len(value)))
+            i += 1
+
+        # Split the concatenated header into individual orders.
+        order_mapping = np.array([map(float, each.rstrip('" ').split()) \
+                for each in re.split('spec[0-9]+ ?= ?"', concatenated_wat)[1:]])
+
+        # Parse the order mapping into dispersion values.
+        dispersion = np.array(
+            [compute_dispersion(*mapping) for mapping in order_mapping])
+
+        # Get the flux and inverse variance arrays.
+        # NOTE: Most multi-spec data previously used with SMH have been from
+        #       Magellan/MIKE, and reduced with CarPy.
+        md5_hash = md5(";".join([v for k, v in metadata.items() \
+            if k.startswith("BANDID")])).hexdigest()
+        is_carpy_product = (md5_hash == "0da149208a3c8ba608226544605ed600")
+
+        if is_carpy_product:
+            # CarPy gives a 'noise' spectrum, which we must convert to an
+            # inverse variance array
+            flux_ext = flux_ext or 1
+            noise_ext = ivar_ext or 2
+
+            flux = image[0].data[flux_ext]
+            ivar = image[0].data[noise_ext]**(-2)
+
+        else:
+            raise ValueError("could not identify flux and ivar extensions")
+
+        dispersion = np.atleast_2d(dispersion)
+        flux = np.atleast_2d(flux)
+        ivar = np.atleast_2d(ivar)
+
+        # Ensure dispersion maps from blue to red direction.
+        if np.min(dispersion[0]) > np.min(dispersion[-1]):
+
+            dispersion = dispersion[::-1]
+            if len(flux.shape) > 2:
+                flux = flux[:, ::-1]
+                ivar = ivar[:, ::-1]
+            else:
+                flux = flux[::-1]
+                ivar = ivar[::-1]
+
+        # Do something sensible regarding zero or negative fluxes.
+        ivar[0 >= flux] = 0
+
+        return (dispersion, flux, ivar, metadata)
+
+
+
     @classmethod
     def load(cls, filename, **kwargs):
         """Load a Spectrum1D from a given filename.
@@ -923,86 +1097,150 @@ def cross_correlate(observed, template, wl_region, full_output=False):
     return [measured_vrad, measured_verr]
 
 
-def compute_non_linear_disp(nwave, specstr, verbose=False):
-    """Compute non-linear wavelengths from multispec string
-    
-    Returns wavelength array and dispersion fields.
-    Raises a ValueError if it can't understand the dispersion string.
+def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
+    mean_dispersion_delta, num_pixels, redshift, aperture_low, aperture_high,
+    weight=1, offset=0, function_type=None, order=None, Pmin=None, Pmax=None,
+    coefficients=None):
+    """
+    Compute a dispersion mapping from a IRAF multi-spec description.
+
+    :param aperture:
+        The aperture number.
+
+    :param beam:
+        The beam number.
+
+    :param dispersion_type:
+        An integer representing the dispersion type:
+
+        0: linear dispersion
+        1: log-linear dispersion
+        2: non-linear dispersion
+
+    :param dispersion_start:
+        The value of the dispersion at the first physical pixel.
+
+    :param mean_dispersion_delta:
+        The mean difference between dispersion pixels.
+
+    :param num_pixels:
+        The number of pixels.
+
+    :param redshift:
+        The redshift of the object. This is accounted for by adjusting the
+        dispersion scale without rebinning:
+
+        >> dispersion_adjusted = dispersion / (1 + redshift)
+
+    :param aperture_low:
+        The lower limit of the spatial axis used to compute the dispersion.
+
+    :param aperture_high:
+        The upper limit of the spatial axis used to compute the dispersion.
+
+    :param weight: [optional]
+        A multiplier to apply to all dispersion values.
+
+    :param offset: [optional]
+        A zero-point offset to be applied to all the dispersion values.
+
+    :param function_type: [optional]
+        An integer representing the function type to use when a non-linear 
+        dispersion mapping (i.e. `dispersion_type = 2`) has been specified:
+
+        1: Chebyshev polynomial
+        2: Legendre polynomial
+        3: Cubic spline
+        4: Linear spline
+        5: Pixel coordinate array
+        6: Sampled coordinate array
+
+    :param order: [optional]
+        The order of the Legendre or Chebyshev function supplied.
+
+    :param Pmin: [optional]
+        The minimum pixel value, or lower limit of the range of physical pixel
+        coordinates.
+
+    :param Pmax: [optional]
+        The maximum pixel value, or upper limit of the range of physical pixel
+        coordinates.
+
+    :param coefficients: [optional]
+        The `order` number of coefficients that define the Legendre or Chebyshev
+        polynomial functions.
+
+    :returns:
+        An array containing the computed dispersion values.
     """
 
-    fields = specstr.split()
-    if int(fields[2]) != 2:
-        raise ValueError('Not nonlinear dispersion: dtype=' + fields[2])
-    if len(fields) < 12:
-        raise ValueError('Bad spectrum format (only %d fields)' % len(fields))
-    wt = float(fields[9])
-    w0 = float(fields[10])
-    ftype = int(fields[11])
-    if ftype == 3:
+    if dispersion_type in (0, 1):
+        # Simple linear or logarithmic spacing
+        dispersion = \
+            dispersion_start + np.arange(num_pixels) * mean_dispersion_delta
 
-        # cubic spline
+        if dispersion_start == 1:
+            dispersion = 10.**dispersion
 
-        if len(fields) < 15:
-            raise ValueError('Bad spline format (only %d fields)' % len(fields))
-        npieces = int(fields[12])
-        pmin = float(fields[13])
-        pmax = float(fields[14])
-        if verbose:
-            print 'Dispersion is order-%d cubic spline' % npieces
-        if len(fields) != 15+npieces+3:
-            raise ValueError('Bad order-%d spline format (%d fields)' % (npieces,len(fields)))
-        coeff = np.asarray(fields[15:],dtype=float)
-        # normalized x coordinates
-        s = (np.arange(nwave,dtype=float)+1-pmin)/(pmax-pmin)*npieces
-        j = s.astype(int).clip(0, npieces-1)
-        a = (j+1)-s
-        b = s-j
-        x0 = a**3
-        x1 = 1+3*a*(1+a*b)
-        x2 = 1+3*b*(1+a*b)
-        x3 = b**3
-        wave = coeff[j]*x0 + coeff[j+1]*x1 + coeff[j+2]*x2 + coeff[j+3]*x3
+    elif dispersion_type == 2:
+        # Non-linear mapping.
+        if function_type is None:
+            raise ValueError("function type required for non-linear mapping")
+        elif function_type not in range(1, 7):
+            raise ValueError(
+                "function type {0} not recognised".format(function_type))
 
-    elif ftype == 1 or ftype == 2:
+        if function_type in (1, 2):
+            # Chebyshev or Legendre polynomial.
+            if None in (order, Pmin, Pmax, coefficients):
+                raise TypeError("order, Pmin, Pmax and coefficients required "
+                                "for a Chebyshev or Legendre polynomial")
 
-        # chebyshev or legendre polynomial
-        # legendre not tested yet
+            Pmean = (Pmax + Pmin)/2
+            Pptp = Pmax - Pmin
+            x = (np.arange(num_pixels) + 1 - Pmean)/(Pptp/2)
+            p0 = np.ones(N_pixels)
 
-        if len(fields) < 15:
-            raise ValueError('Bad polynomial format (only %d fields)' % len(fields))
-        order = int(fields[12])
-        pmin = float(fields[13])
-        pmax = float(fields[14])
-        if verbose:
-            if ftype == 1:
-                print 'Dispersion is order-%d Chebyshev polynomial' % order
-            else:
-                print 'Dispersion is order-%d Legendre polynomial (NEEDS TEST)' % order
-        if len(fields) != 15+order:
-            raise ValueError('Bad order-%d polynomial format (%d fields)' % (order, len(fields)))
-        coeff = np.asarray(fields[15:],dtype=float)
-        # normalized x coordinates
-        pmiddle = (pmax+pmin)/2
-        prange = pmax-pmin
-        x = (np.arange(nwave,dtype=float)+1-pmiddle)/(prange/2)
-        p0 = np.ones(nwave,dtype=float)
-        p1 = x
-        wave = p0*coeff[0] + p1*coeff[1]
-        for i in range(2, order):
-            if ftype == 1:
-                # chebyshev
-                p2 = 2*x*p1 - p0
-            else:
-                # legendre
-                p2 = ((2*i-1)*x*p1-(i-1)*p0) / i
-            wave = wave + p2*coeff[i]
-            p0 = p1
-            p1 = p2
+            dispersion = coefficients[0] * p0 + coefficients[1] * p1
+            for i in range(2, order):
+                if function_type == 1:
+                    # Chebyshev
+                    p2 = 2 * x * p1 - p0
+                else:
+                    # Legendre
+                    p2 = ((2*i - 1)*x*p1 - (i - 1)*p0) / i
+
+                dispersion += p2 * coefficients[i]
+                p0, p1 = (p1, p2)
+
+        elif function_type == 3:
+            # Cubic spline.
+            if None in (order, Pmin, Pmax, coefficients):
+                raise TypeError("order, Pmin, Pmax and coefficients required "
+                                "for a cubic spline mapping")
+            s = (np.arange(num_pixels, dtype=float) + 1 - Pmin)/(Pmax - Pmin) \
+              * order
+            j = s.astype(int).clip(0, order - 1)
+            a, b = (j + 1 - s, s - j)
+            x = np.array([
+                a**3,
+                1 + 3*a*(1 + a*b),
+                1 + 3*b*(1 + a*b),
+                b**3])
+            dispersion = np.dot(np.array(coefficients), x.T)
+
+        else:
+            raise NotImplementedError("function type not implemented yet")
 
     else:
-        raise ValueError('Cannot handle dispersion function of type %d' % ftype)
+        raise ValueError(
+            "dispersion type {0} not recognised".format(dispersion_type))
 
-    return wave, fields
+    # Apply redshift correction.
+    dispersion = weight * (dispersion + offset) / (1 + redshift)
+    return dispersion
+
+
 
 
 def stitch(spectra, wl_ranges=None, mode='average'):
