@@ -26,7 +26,7 @@ Other stuff that will need to be in there, but for which nomenclature and data s
   - `rv_measured`: The last radial velocity that was measured (all other items like the `CCF`, etc will refer to this measurement)
   - `rv_uncertainty`: The uncertainty in the measured radial velocity.
   - `order_index`: The zero-th indexed order used for RV determination by CCF
-  - `order_continuum`: The determined continuum array for each pixel in order number `order_index`.
+  - `normalized_order`: Normalized echelle order used to measure radial velocity.
   - `ccf`: The CCF.
   - `heliocentric_correction`: The heliocentric correction calculated based on header information.
   - `barycentric_correction`: The barycentric correction calculated based on header information.
