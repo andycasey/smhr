@@ -10,6 +10,9 @@ from __future__ import (division, print_function, absolute_import,
 from PySide import QtCore, QtGui
 
 
+# NB dialogs/tabdialog
+
+
 class MainWindow(QtGui.QMainWindow):
 
     def __init__(self):
@@ -31,8 +34,18 @@ class MainWindow(QtGui.QMainWindow):
         bottomFiller.setSizePolicy(QtGui.QSizePolicy.Expanding,
                 QtGui.QSizePolicy.Expanding)
 
+        tabWidget = QtGui.QTabWidget()
+        tabWidget.addTab(SummaryTab("something"), "Summary")
+        tabWidget.addTab(RVTab("something"), "Radial Velocity")
+
+
+
+
+
+
         vbox = QtGui.QVBoxLayout()
-        vbox.setContentsMargins(5, 5, 5, 5)
+        vbox.setContentsMargins(5, 25, 5, 5)
+        vbox.addWidget(tabWidget)
         vbox.addWidget(topFiller)
         vbox.addWidget(self.context)
         vbox.addWidget(bottomFiller)
@@ -119,6 +132,61 @@ class MainWindow(QtGui.QMainWindow):
         # Help menu.
         self.helpMenu = self.menuBar().addMenu("&Help")
         self.helpMenu.addAction(about)
+
+
+
+class SummaryTab(QtGui.QWidget):
+    def __init__(self, something, parent=None):
+        super(SummaryTab, self).__init__(parent)
+
+        mainLayout = QtGui.QVBoxLayout()
+
+        topFiller = QtGui.QWidget()
+        topFiller.setSizePolicy(QtGui.QSizePolicy.Expanding,
+            QtGui.QSizePolicy.Expanding)
+
+        context = QtGui.QLabel("Summary",
+                alignment=QtCore.Qt.AlignCenter)
+        context.setFrameStyle(
+            QtGui.QFrame.StyledPanel | QtGui.QFrame.Sunken)
+
+        bottomFiller = QtGui.QWidget()
+        bottomFiller.setSizePolicy(QtGui.QSizePolicy.Expanding,
+                QtGui.QSizePolicy.Expanding)
+
+        vbox = QtGui.QVBoxLayout()
+        vbox.setContentsMargins(5, 5, 5, 5)
+        vbox.addWidget(topFiller)
+        vbox.addWidget(context)
+        vbox.addWidget(bottomFiller)
+        self.setLayout(vbox)
+
+
+class RVTab(QtGui.QWidget):
+    def __init__(self, something, parent=None):
+        super(RVTab, self).__init__(parent)
+
+        mainLayout = QtGui.QVBoxLayout()
+
+        topFiller = QtGui.QWidget()
+        topFiller.setSizePolicy(QtGui.QSizePolicy.Expanding,
+            QtGui.QSizePolicy.Expanding)
+
+        context = QtGui.QLabel("RV",
+                alignment=QtCore.Qt.AlignCenter)
+        context.setFrameStyle(
+            QtGui.QFrame.StyledPanel | QtGui.QFrame.Sunken)
+
+        bottomFiller = QtGui.QWidget()
+        bottomFiller.setSizePolicy(QtGui.QSizePolicy.Expanding,
+                QtGui.QSizePolicy.Expanding)
+
+        vbox = QtGui.QVBoxLayout()
+        vbox.setContentsMargins(5, 5, 5, 5)
+        vbox.addWidget(topFiller)
+        vbox.addWidget(context)
+        vbox.addWidget(bottomFiller)
+        self.setLayout(vbox)
 
 
 
