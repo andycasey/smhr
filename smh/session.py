@@ -59,6 +59,8 @@ class Session(BaseSession):
                     break
 
         self.input_spectra = input_spectra
+        self.input_spectra_paths = spectrum_paths
+
         return None
 
 

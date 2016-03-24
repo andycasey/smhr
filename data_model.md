@@ -13,7 +13,7 @@ Overview
 
 Top-level dictionary containing the following keys:
 
-- `input_spectra_filenames`: A list of basenames which should be in the session tar ball.
+- `input_spectra_paths`: A list of basenames which should be in the session tar ball.
 - `discarded_orders`: indices of any orders (read from `input_spectrum_filenames`) that were ignored/deleted.
 
 
