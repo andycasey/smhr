@@ -284,22 +284,29 @@ class Spectrum1D(object):
         if not os.path.exists(path):
             raise IOError("filename '{}' does not exist".format(path))
 
+        # Try multi-spec first since this is currently the most common use case.
+        methods = (
+            cls._read_multispec_fits,
+            cls._read_spectrum1d_fits,
+            cls._read_spectrum1d_ascii
+        )
 
-        # Try and al
+        for method in methods:
+            try:
+                dispersion, flux, ivar, metadata = method(path, **kwargs)
 
-        # Try multi-spec.
-        dispersion, flux, ivar, metadata = \
-            cls._read_multispec_fits(path, **kwargs)
+            except:
+                logger.exception("Exception in trying to load {0} with {1}:"\
+                    .format(path, method))
 
-        # Return a list of Spectrum1D objects.
-        orders = [cls(dispersion=d, flux=f, ivar=i, metadata=metadata) \
-            for d, f, i in zip(dispersion, flux, ivar)]
+            else:
+                orders = [cls(dispersion=d, flux=f, ivar=i, metadata=metadata) \
+                    for d, f, i in zip(dispersion, flux, ivar)]
+                break
 
-
-        # Try and load as FITS first.
-        dispersion, flux, ivar, metadata = cls._read_fits(path, **kwargs)
-
-        raise NotImplementedError
+        # If it's a single order, just return that instead of a 1-length list.
+        orders = orders if len(orders) > 1 else orders[0]
+        return orders
 
 
     @classmethod
@@ -339,6 +346,8 @@ class Spectrum1D(object):
                 metadata[key] += value
             else:
                 metadata[key] = value
+
+        metadata["smh_read_path"] = path
 
         flux = image[0].data
         N_pixels = flux.shape[-1]
@@ -403,209 +412,81 @@ class Spectrum1D(object):
         return (dispersion, flux, ivar, metadata)
 
 
+    @classmethod
+    def _read_spectrum1d_fits(cls, path, **kwargs):
+        """
+        Read Spectrum1D data from a binary FITS file.
+
+        :param path:
+            The path of the FITS filename to read.
+        """
+
+        image = fits.open(filename)
+
+        # Merge headers into a metadata dictionary.
+        metadata = OrderedDict()
+        for key, value in image[0].header.items():
+            if key in metadata:
+                metadata[key] += value
+            else:
+                metadata[key] = value
+        metadata["smh_read_path"] = path
+
+        # Find the first HDU with data in it.
+        for hdu_index, hdu in enumerate(image):
+            if hdu.data is not None: break
+
+        if len(image) == 2 and hdu_index == 1:            
+            dispersion = image[hdu_index].data["dispersion"]
+            flux = image[hdu_index].data["flux"]
+            ivar = image[hdu_index].data["ivar"]
+
+        else:
+            # Build a simple linear dispersion map from the headers.
+            # See http://iraf.net/irafdocs/specwcs.php
+            crval = header["CRVAL1"]
+            naxis = header["NAXIS1"]
+            crpix = header.get("CRPIX1", 0)
+            cdelt = header["CDELT"]
+            ltv = header.get("LTV1", 0)
+
+            dispersion = \
+                crval + (np.arange(naxis) - crpix) * cdelt - ltv * cdelt
+
+            flux = image[0].data
+            ivar = image[1].data
+
+        return (dispersion, flux, ivar, metadata)
+
 
     @classmethod
-    def load(cls, filename, **kwargs):
-        """Load a Spectrum1D from a given filename.
-        
-        Parameters
-        ----
-        filename : str
-            Path of the filename to load. Can be either simple FITS extension
-            or an ASCII filename.
-            
-        Notes
-        ----
-        If you are loading from an non-standard ASCII file, you can pass
-        kwargs to `np.loadtxt` through this function.
+    def _read_spectrum1d_ascii(cls, path, **kwargs):
         """
-        
-        if not os.path.exists(filename):
-            raise IOError("Filename '%s' does not exist." % (filename, ))
-        
-        uncertainty = None
+        Read Spectrum1D data from an ASCII-formatted file on disk.
 
-        if filename.endswith('.fits'):
-            image = pyfits.open(filename, **kwargs)
-            
-            header = image[0].header
-            
-            # Check for a tabular data structure
-            if len(image) > 1 and image[0].data is None:
-
-                names = [name.lower() for name in image[1].data.names]
-                dispersion_key = 'wave' if 'wave' in names else 'disp'
-                
-                disp, flux = image[1].data[dispersion_key], image[1].data['flux']
-
-                if 'error' in names or 'uncertainty' in names:
-                    uncertainty_key = 'error' if 'error' in names else 'uncertainty'
-
-                    uncertainty = image[1].data[uncertainty_key]
-
-            else:
-
-                # According to http://iraf.net/irafdocs/specwcs.php ....
-                #li = a.headers['LTM1_1'] * np.arange(a.headers['NAXIS1']) + a.headers['LTV1']
-                #a.headers['CRVAL1'] + a.headers['CD1_1'] * (li - a.headers['CRPIX1'])
-
-                if np.all([key in header.keys() for key in ('CDELT1', 'NAXIS1', 'CRVAL1')]):
-                    disp = header['CRVAL1'] + (np.arange(header['NAXIS1']) - header.get("CRPIX1", 0)) * header['CDELT1']
-            
-                if "LTV1" in header.keys():
-                    disp -= header['LTV1'] * header['CDELT1']
-
-                #disp -= header['LTV1'] if header.has_key('LTV1') else 0
-                flux = image[0].data
-            
-
-            # Add the headers in
-            headers = {}
-            for key, value in header.iteritems():
-                
-                # Check the value is valid
-                try:
-                    str(value)
-                    json.dumps(value)
-
-                except TypeError:
-                    continue
-
-                if len(key) == 0 or len(str(value)) == 0: continue
-                
-                if headers.has_key(key):
-                    if not isinstance(headers[key], list):
-                        headers[key] = [headers[key]]
-                    
-                    headers[key].append(value)
-
-                else:
-                    headers[key] = value
-
-            for key, value in headers.iteritems():
-                if isinstance(value, list):
-                    headers[key] = "\n".join(map(str, value))
-
-        else:
-            headers = {}
-            # Try with first line
-            try:
-                disp, flux = np.loadtxt(filename, unpack=True, usecols=(0, 1), **kwargs)
-            except:
-                disp, flux = np.loadtxt(filename, unpack=True, usecols=(0, 1), skiprows=1, **kwargs)
-
-        if np.max(disp) < 1000:
-            logger.warn("Assuming dispersion units are nanometers. Converting to Angstroms.")
-            disp *= 10
-
-        return cls(disp, flux, uncertainty=uncertainty, headers=headers)
-
-
-    def save(self, filename, clobber=True, output_verify="warn"):
-        """Saves the `Spectrum1D` object to the specified filename.
-        
-        Parameters
-        ----
-        filename : str
-            The filename to save the `Spectrum1D` object to.
-            
-        clobber : bool, optional
-            Whether to overwite the `filename` if it already exists.
-        
-        Raises
-        ----
-        IOError
-            If the filename exists and we are not asked to clobber it.
-            
-        ValueError
-            If the ``Spectrum1D`` object does not have a linear dispersion map.
+        :param path:
+            The path of the ASCII filename to read.
         """
-        
-        if os.path.exists(filename) and not clobber:
-            raise IOError("Filename '%s' already exists and we have been asked not to clobber it." % (filename, ))
-        
-        if not filename.endswith('fits'):
-            # ASCII
-            
-            data = np.hstack([self.disp.reshape(len(self.disp), 1), self.flux.reshape(len(self.disp), 1)])
-            
-            assert len(data.shape) == 2
-            assert data.shape[1] == 2
-            
-            np.savetxt(filename, data)
-            
-        else:
-            # FITS
-            crpix1, crval1 = 1, self.disp.min()
-            
-            cdelt1 = np.mean(np.diff(self.disp))
-            
-            test_disp = (crval1 + np.arange(len(self.disp), dtype=self.disp.dtype) * cdelt1).astype(self.disp.dtype)
-            
-            if np.max(self.disp - test_disp) > 10e-2 or self.uncertainty is not None:
 
-                # Non-linear dispersion map, or we have uncertainty information too
-                # Create a tabular FITS format.
+        kwds = kwargs.copy()
+        kwds.update({
+            "unpack": True
+        })
+        kwds.setdefault("usecols", (0, 1, 2))
 
-                col_disp = pyfits.Column(name='disp', format='1D', array=self.disp)
-                col_flux = pyfits.Column(name='flux', format='1D', array=self.flux)
+        try:
+            dispersion, flux, ivar = np.loadtxt(path, **kwds)
+        except:
+            # Try by ignoring the first row.
+            kwds.setdefault("skiprows", 1)
+            dispersion, flux, ivar = np.loadtxt(path, **kwds)
 
-                if self.uncertainty is not None:
-                    col_uncertainty = pyfits.Column(name='uncertainty', format='1D', array=self.uncertainty)
+        metadata = { "smh_read_path": path }
+        return (dispersion, flux, ivar, metadata)
 
-                    table_hdu = pyfits.new_table([col_disp, col_flux, col_uncertainty])
 
-                else:
-                    table_hdu = pyfits.new_table([col_disp, col_flux])
 
-                # Create Primary HDU
-                hdu = pyfits.PrimaryHDU()
 
-                # Update primary HDU with headers
-                for key, value in self.headers.iteritems():
-                    if len(key) > 8:
-                        # To deal with ESO compatibility
-                        hdu.header.update('HIERARCH %s' % (key, ), value)
-                    
-                    try:
-                        hdu.header.update(key, value)
-
-                    except ValueError:
-                        logger.warn("Could not save header key/value combination: %s = %s" % (key, value, ))
-                    
-                # Create HDU list with our tables
-                hdulist = pyfits.HDUList([hdu, table_hdu])
-
-                hdulist.writeto(filename, output_verify=output_verify, clobber=clobber)
-
-            else:
-                # Linear dispersion map.
-                # Create a PrimaryHDU file.
-
-                # Ensure we have an array!
-                hdu = pyfits.PrimaryHDU(np.array(self.flux))
-                
-                headers = self.headers.copy()
-                headers.update({
-                    'CRVAL1': crval1,
-                    'CRPIX1': crpix1,
-                    'CDELT1': cdelt1
-                })
-                
-                for key, value in headers.iteritems():
-                    if len(key) > 8:
-                        # To deal with ESO compatibility
-                        hdu.header.update('HIERARCH %s' % (key, ), value)
-                    
-                    else:
-                        try:
-                            hdu.header.update(key, value)
-
-                        except ValueError:
-                            logger.warn("Could not save header key/value combination: %s = %s" % (key, value, ))
-                
-                hdu.writeto(filename, output_verify=output_verify, clobber=clobber)
-    
 
     def gaussian_smooth(self, fwhm, **kwargs):
         
