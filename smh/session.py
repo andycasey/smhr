@@ -113,11 +113,33 @@ class Session(BaseSession):
         resample=None, apodize=None, normalization_kwargs=None):
         """
         Measure the observed radial velocity by cross-correlating an individual
-        echelle order with a normalized rest-frame template spectrum.
+        echelle order with a normalized rest-frame template spectrum. The most
+        suitable order is determined by the `wavelength_region` given.
 
-        The most suitable order is determined by the `wavelength_region` given.
+        :param template_spectrum: [optional]
+            The rest-frame template spectrum to cross-correlate against. This
+            should be a `specutils.Spectrum1D` object or a `str`-type pointing
+            to a spectrum path.
 
-        If not specified, defaults for these parameters are read from the
+        :param wavelength_region: [optional]
+            The preferred wavelength region(s) to use for cross-correlation. The
+            most suitable input spectrum will be determined from this supplied
+            range.
+
+        :param resample: [optional]
+            Re-sample to the 'template' or 'observed' spectrum.
+
+        :param apodize: [optional]
+            What fraction of the pixels to apodize (on both ends) before
+            performing the cross-correlation.
+
+        :param normalization_kwargs: [optional]
+            Keyword arguments that are passed directly to the 
+            `Spectrum1D.fit_continuum` function.
+
+        Note
+        ----
+        If these parameters are not specified, then defaults are read from the
         session defaults file.
         """
 
@@ -168,15 +190,35 @@ class Session(BaseSession):
                              "and the observed spectra")
 
         # Normalize that order using the normalization settings supplied.
-        continuum = overlap_order.fit_continuum(**normalization_kwargs)
+        observed_spectrum = overlap_order.fit_continuum(**normalization_kwargs)
 
-        raise a
         # Perform cross-correlation with the template spectrum.
+        rv, rv_uncertainty, ccf = specutils.cross_correlate(
+            observed_spectrum, template_spectrum,
+            (wl_start, wl_end), apodize=apodize, resample=resample)
 
         # Store the measured information as part of the session.
+        # TODO: Should we store these as a NamedTuple instead?
+        self.rv = {
+            # Measurements
+            "rv_measured": rv,
+            "rv_uncertainty": rv_uncertainty,
+            "order_index": overlap_index,
+            "normalized_order": observed_spectrum,
+            "ccf": ccf,
+            "heliocentric_correction": np.nan, # TODO
+            "barycentric_correction": np.nan, #TODO
 
+            # Input settings
+            "template_spectrum": template_spectrum,
+            "wavelength_region": [wl_start, wl_end],
+            "resample": resample,
+            "apodize": apodize,
+            "normalization": normalization_kwargs.copy()
+        }
 
-        raise NotImplementedError
+        return (rv, rv_uncertainty)
+
 
     def rv_apply(self, rv):
         """
@@ -186,7 +228,7 @@ class Session(BaseSession):
             The radial velocity correction (in km/s) to apply.
         """
 
-        self.rv.rv_applied = rv
+        self.rv["rv_applied"] = rv
         return None
 
 

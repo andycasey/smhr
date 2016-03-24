@@ -11,3 +11,4 @@ a = Session([
     "/Users/arc/codes/smh/hd44007blue_multi.fits",
     ])
 
+a.rv_measure("hd140283.fits")

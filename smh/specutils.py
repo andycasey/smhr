@@ -498,8 +498,8 @@ class Spectrum1D(object):
         #print "finite flux", np.any(finite_positive_flux), finite_positive_flux
         #print "where flux", np.where(finite_positive_flux)
         #print "flux is...", self.flux
-        left_index = np.where(finite_positive_flux)[0][0]
-        right_index = np.where(finite_positive_flux)[0][-1]
+        left = np.where(finite_positive_flux)[0][0]
+        right = np.where(finite_positive_flux)[0][-1]
 
         # See if there are any regions we need to exclude
         if exclude is not None and len(exclude) > 0:
@@ -618,18 +618,27 @@ class Spectrum1D(object):
         # Snip the edges based on exclude regions
         if exclude is not None and len(exclude) > 0:
 
-            # If there are exclusion regions that extend past the left_index/right_index,
-            # then we will need to adjust left_index/right_index accordingly
+            # If there are exclusion regions that extend past the left/right,
+            # then we will need to adjust left/right accordingly
 
-            left_index = np.max([left_index, np.min(original_continuum_indices)])
-            right_index = np.min([right_index, np.max(original_continuum_indices)])
+            left = np.max([left, np.min(original_continuum_indices)])
+            right = np.min([right, np.max(original_continuum_indices)])
             
         # Apply flux scaling
         continuum *= scale
-        return continuum
 
-        #return self.__class__(disp=self.dispersion[left_index:right_index], flux=continuum[left_index:right_index], headers=self.headers)
-    
+        normalized_spectrum = self.__class__(
+            dispersion=self.dispersion[left:right],
+            flux=(self.flux/continuum)[left:right], 
+            ivar=(continuum * self.ivar * continuum)[left:right],
+            metadata=self.metadata)
+
+        # Return a normalized spectrum.
+        if kwargs.get("full_output", False):
+            return (normalized_spectrum, continuum, left, right)
+        return normalized_spectrum
+
+
 
     
     def interpolate(self, new_disp, mode='linear', bounds_error=False,
@@ -709,65 +718,95 @@ def ccf(x, y, axis=None):
     return iFxy/varxy
 
 
-def cross_correlate(observed, template, wl_region, full_output=False):
-    """Performs a cross-correlation between the observed and template spectrum and
-    provides a radial velocity and associated uncertainty.
 
-    Parameters
-    ----------
-    observed : `Spectrum1D`
-        The normalised observed spectrum.
 
-    template : `Spectrum1D`
-        The normalised template spectrum.
+def cross_correlate(observed_spectrum, template_spectrum, dispersion_range=None,
+    apodize=0, resample="template"):
+    """
+    Cross-correlate the observed spectrum against a rest-frame template spectrum
+    and measure the radial velocity of the source.
 
-    wl_region : two length list containing floats [start, end]
-        The starting and end wavelength to perform the cross-correlation on.
+    :param observed_spectrum:
+        The observed spectrum.
 
-    full_output : `bool`, default False
-        Whether or not to return the full output of the cross-correlation. If set to True
-        then the output is as follows:
+    :type observed_spectrum:
+        :class:`specutils.Spectrum1D`
 
-        v_rad, v_err, fft, profile
+    :param template_spectrum:
+        A rest-frame template spectrum.
 
-        where fft is a `np.ndarray` of shape (2, *) containing the Fourier transform
-        and profile is a length 3 list containing the central peak point, peak height, and
-        standard deviation.
+    :type template_spectrum:
+        :class:`specutils.Spectrum1D`
+
+    :param dispersion_range: [optional]
+        A two-length tuple containing the start and end wavelengths to consider.
+        If not provided, then the overlap of the `observed_spectrum` and the
+        `template_spectrum` will be used.
+
+    :param apodize: [optional]
+        The fraction of pixels to apodize on either side of the spectrum.
+
+    :param resample: [optional]
+        Whether to resample the 'template' onto the observed spectrum, or
+        resample the 'observed' spectrum onto the template.
+
+    :returns:
+        The radial velocity, uncertainty in radial velocity, and the CCF.
     """
 
-    if not isinstance(observed, Spectrum1D):
-        raise TypeError("input observed spectrum must be a `specutils.Spectrum1D` object")
+    if not isinstance(observed_spectrum, Spectrum1D):
+        raise TypeError(
+            "observed_spectrum must be a `specutils.Spectrum1D` object")
 
-    if not isinstance(template, Spectrum1D):
-        raise TypeError("template spectrum must be a `specutils.Spectrum1D` object")
+    if not isinstance(template_spectrum, Spectrum1D):
+        raise TypeError(
+            "template_spectrum must be a `spectuils.Spectrum1D` object")
 
-    if not isinstance(wl_region, (tuple, list, np.ndarray)) or len(wl_region) != 2:
+    if dispersion_range is None:
+        # Use the common ranges.
+        dispersion_range = (
+            np.max([
+                observed_spectrum.dispersion[0],
+                template_spectrum.dispersion[0]
+            ]),
+            np.min([
+                observed_spectrum.dispersion[-1],
+                template_spectrum.dispersion[-1]
+            ])
+        )
+
+    if not isinstance(dispersion_range, (tuple, list, np.ndarray)) \
+    or len(dispersion_range) != 2:
         raise TypeError("wavelength region must be a two length list-type")
 
-    try:
-        wl_region = map(float, wl_region)
+    if apodize != 0:
+        raise NotImplementedError("apodization not implemented yet")
+        
+    resample = resample.lower()
+    if resample == "template":
+        idx = np.searchsorted(observed_spectrum.dispersion, dispersion_range)
+        finite = np.isfinite(observed_spectrum.flux[idx[0]:idx[1]])
 
-    except:
-        raise TypeError("wavelength regions must be float-like")
+        dispersion = observed_spectrum.dispersion[idx[0]:idx[1]][finite]
+        observed_flux = observed_spectrum.flux[idx[0]:idx[1]][finite]
 
-    # The following line of code will be supported until the end of the universe.
-    c = 299792458e-3 # km/s
+        func = interpolate.interp1d(
+            template_spectrum.dispersion, template_spectrum.flux,
+            bounds_error=False, fill_value=0.0)
+        template_flux = func(dispersion)
 
-    # Splice the observed spectrum
-    idx = np.searchsorted(observed.disp, wl_region)
-    finite_values = np.isfinite(observed.flux[idx[0]:idx[1]])
+    elif resample == "observed":
+        raise NotImplementedError("why would you do this?")
 
-    observed_slice = Spectrum1D(disp=observed.disp[idx[0]:idx[1]][finite_values], flux=observed.flux[idx[0]:idx[1]][finite_values])
+    else:
+        raise ValueError("resample must be 'template' or 'observed'")
 
-
-    # Ensure the template and observed spectra are on the same scale
-    template_func = interpolate.interp1d(template.disp, template.flux, bounds_error=False, fill_value=0.0)
-    template_slice = Spectrum1D(disp=observed_slice.disp, flux=template_func(observed_slice.disp))
 
     # Perform the cross-correlation
-    padding = observed_slice.flux.size + template_slice.flux.size
-    x_norm = (observed_slice.flux - observed_slice.flux[np.isfinite(observed_slice.flux)].mean(axis=None))
-    y_norm = (template_slice.flux - template_slice.flux[np.isfinite(template_slice.flux)].mean(axis=None))
+    padding = observed_flux.size + template_flux.size
+    # Is this necessary?: # TODO
+    x_norm = observed_flux - np.mean(observed_flux[np.isfinite(observed_flux)])
+    y_norm = template_flux - np.mean(template_flux[np.isfinite(template_flux)])
 
     Fx = np.fft.fft(x_norm, padding, )
     Fy = np.fft.fft(y_norm, padding, )
@@ -776,60 +815,54 @@ def cross_correlate(observed, template, wl_region, full_output=False):
 
     fft_result = iFxy/varxy
 
-    # Put around symmetry
+    # Put around symmetry axis.
     num = len(fft_result) - 1 if len(fft_result) % 2 else len(fft_result)
 
     fft_y = np.zeros(num)
-
     fft_y[:num/2] = fft_result[num/2:num]
     fft_y[num/2:] = fft_result[:num/2]
 
     fft_x = np.arange(num) - num/2
 
-    # Get initial guess of peak
+    # Get initial guess of peak.
     p0 = np.array([fft_x[np.argmax(fft_y)], np.max(fft_y), 10])
 
-    gaussian_profile = lambda p, x: p[1] * np.exp(-(x - p[0])**2 / (2.0 * p[2]**2))
-    errfunc = lambda p, x, y: y - gaussian_profile(p, x)
+    gaussian = lambda p, x: p[1] * np.exp(-(x - p[0])**2 / (2.0 * p[2]**2))
+    errfunc = lambda p, x, y: y - gaussian(p, x)
 
     try:
         p1, ier = leastsq(errfunc, p0.copy(), args=(fft_x, fft_y))
 
     except:
+        logger.exception("Exception in measuring peak of CCF:")
         raise
 
-    # Uncertainty
-    sigma = np.mean(2.0*(fft_y.real)**2)**0.5
 
     # Create functions for interpolating back onto the dispersion map
-    points = (0, p1[0], sigma)
+    fft_points = (0, p1[0])
     interp_x = np.arange(num/2) - num/4
 
-    functions = []
-    for point in points:
+    wl_points = []
+    for point in fft_points:
         idx = np.searchsorted(interp_x, point)
-        f = interpolate.interp1d(interp_x[idx-3:idx+3], observed_slice.disp[idx-3:idx+3], bounds_error=True, kind='cubic')
-
-        functions.append(f)
-
-    # 0, p1, sigma
-    f, g, h = [func(point) for func, point in zip(functions, points)]
-
+        f = interpolate.interp1d(interp_x[idx-3:idx+3], dispersion[idx-3:idx+3],
+            bounds_error=True, kind='cubic')
+        wl_points.append(f(point))
 
     # Calculate velocity 
-    measured_vrad = c * (1 - g/f)
+    c = 299792458e-3 # km/s
+    f, g = wl_points
+    rv = c * (1 - g/f)
 
     # Uncertainty
-    measured_verr = np.abs(c * (1 - h/f))
+    rv_uncertainty = np.nan # TODO
 
-    
-    if full_output:
-        results = [measured_vrad, measured_verr, np.vstack([fft_x, fft_y])]
-        results.extend(p1)
+    # Create a CCF spectrum.
+    # TODO: Convert to velocity x-axis.
+    ccf = np.array([fft_x, fft_y])
 
-        return results
+    return (rv, rv_uncertainty, ccf)
 
-    return [measured_vrad, measured_verr]
 
 
 def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
