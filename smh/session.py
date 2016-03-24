@@ -8,10 +8,12 @@ from __future__ import (division, print_function, absolute_import,
 
 __all__ = ["Session"]
 
-
+import os
+import yaml
 from six import string_types
 
 from . import specutils
+
 
 class BaseSession(object):
     """
@@ -24,6 +26,9 @@ class Session(BaseSession):
     """
     An object to manage a session in SMH.
     """
+
+    # The default settings path is only defined (hard-coded) here.
+    _default_settings_path = os.path.expanduser("~/.smh_session.defaults")
 
     def __init__(self, spectrum_paths, **kwargs):
         """
@@ -64,6 +69,35 @@ class Session(BaseSession):
         return None
 
 
+    def _default(self, input_value, default_key_tree):
+        """
+        Return the input value if it is valid (i.e., not `None`), or return the
+        default session value.
+
+        :param input_value:
+            The value provided by the user.
+
+        :param default_key_tree:
+            A tuple containing a tree of dictionary keys.
+        """
+
+        if input_value is not None:
+            return input_value
+
+        with open(self._default_settings_path, "rb") as fp:
+            default = yaml.load(fp)
+
+        for key in default_key_tree:
+            try:
+                default = default[key]
+            except KeyError:
+                raise KeyError("no default session value found for {0}".format(
+                    default_key_tree))
+                
+        return default
+
+
+
     @classmethod
     def from_filename(cls, session_path, **kwargs):
         """
@@ -71,4 +105,46 @@ class Session(BaseSession):
         """
 
         raise NotImplementedError
+
+
+    def rv_measure(self, template_spectrum=None, wavelength_region=None,
+        resample=None, apodize=None, normalization_kwargs=None):
+        """
+        Measure the observed radial velocity by cross-correlating an individual
+        echelle order with a normalized rest-frame template spectrum.
+
+        The most suitable order is determined by the `wavelength_region` given.
+
+        If not specified, defaults for these parameters are read from the
+        session defaults file.
+        """
+
+        # Read in everything from defaults as necessary.
+        template_spectrum = \
+            _default(template_spectrum, ("rv", "template_spectrum"))
+
+        # Check to see if wavelength region is a list of entries.
+
+        # Find the order best suitable for the preferred wavelength region.
+
+        # Normalize that order using the normalization settings supplied.
+
+        # Perform cross-correlation with the template spectrum.
+
+        # Store the measured information as part of the session.
+
+
+        raise NotImplementedError
+
+    def rv_apply(self, rv):
+        """
+        Apply a radial velocity correction to the input spectra.
+        
+        :param rv:
+            The radial velocity correction (in km/s) to apply.
+        """
+
+        self.rv.rv_applied = rv
+        return None
+
 
