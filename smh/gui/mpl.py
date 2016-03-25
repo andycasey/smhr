@@ -6,15 +6,11 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+import os
 import matplotlib
 
-matplotlib.use("Qt4Agg")
-# HACK TODO: Use a .matplotlibrc file
-#matplotlib.rcParams["backend.qt4"] = "PySide"
-matplotlib.rcParams["lines.antialiased"] = True
-matplotlib.rcParams["text.antialiased"] = True
-
-import matplotlib.pyplot as plt
+# Load our matplotlibrc file.
+matplotlib.rc_file(os.path.join(os.path.dirname(__file__), "matplotlibrc"))
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure

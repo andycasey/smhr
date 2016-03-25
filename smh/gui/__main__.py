@@ -160,7 +160,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         cw_vbox.addWidget(self.tabs)
         self.setCentralWidget(cw)
 
-        self.tabs.setCurrentIndex(1)
+        self.tabs.setCurrentIndex(0)
         #QtCore.QMetaObject.connectSlotsByName(self)
 
 
