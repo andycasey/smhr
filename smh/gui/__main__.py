@@ -69,6 +69,11 @@ class Ui_MainWindow(QtGui.QMainWindow):
                 statusTip="Show the application's about box",
                 triggered=self.about)
 
+
+        self.statusbar = QtGui.QStatusBar(self)
+        self.statusbar.setObjectName("statusbar")
+        self.setStatusBar(self.statusbar)
+
         return True
 
 
