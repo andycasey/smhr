@@ -345,25 +345,15 @@ def initialise_tab(tabs):
     blank_widget.setSizePolicy(sp)
     blank_widget.setObjectName("blank_widget")
 
-    figure = mpl.MPLWidget(blank_widget)
+    rv_plot = mpl.MPLWidget(blank_widget)
     layout = QtGui.QVBoxLayout(blank_widget)        
-    layout.addWidget(figure, 1)
+    layout.addWidget(rv_plot, 1)
 
     rv_tab_layout.addWidget(blank_widget)
 
-    figure.axes.plot([0, 1], [0, 1],'bo-')
-    figure.draw()
-
-    """
-    sp = QtGui.QSizePolicy(
-        QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
-    sp.setHorizontalStretch(0)
-    sp.setVerticalStretch(0)
-    sp.setHeightForWidth(rv_figure.sizePolicy().hasHeightForWidth())
-    rv_figure.setSizePolicy(sp)
-    rv_figure.setObjectName("rv_figure")
-    """
-    #rv_tab_layout.addWidget(canvas)
+    rv_plot.axes = rv_plot.figure.add_subplot(311, axisbg="#FFFFFF")
+    rv_plot.axes.plot([0, 1], [0, 1],'bo-')
+    rv_plot.draw()
 
     # Add the tab to the application.
     tabs.addTab(rv_tab, "Radial velocity")

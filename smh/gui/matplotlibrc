@@ -1,24 +1,19 @@
-backend : qt4agg
+backend     : qt4agg
 backend.qt4 : PySide
 
-lines.linewidth : 1.5
+axes.labelsize  : 9.0  # fontsize of the x any y labels  
 
-text.usetex : False
-font.family : serif
-#mathtext.fontset : custom
-#mathtext.default : rm
+xtick.labelsize : 9.0  # fontsize of the tick labels  
+ytick.labelsize : 9.0  # fontsize of the tick labels  
 
-font.size : 16.0
-axes.formatter.use_mathtext : False
-axes.linewidth: 1.5
-axes.labelsize : 16.0
-axes.unicode_minus : False
-xtick.major.size : 6
-xtick.minor.size : 3
-xtick.major.width : 1.5
-xtick.minor.width : 1.0
+legend.fontsize : 9.0  
 
-ytick.major.size : 6
-ytick.minor.size : 3
-ytick.major.width : 1.5
-ytick.minor.width : 1.0
+font.family     : serif  
+font.serif      : Computer Modern Roman  
+
+text.antialiased : True
+text.dvipnghack  : None
+#text.usetex     : True  # use latex for all text handling  
+
+figure.figsize  : 7.3, 4.2  
+figure.dpi      : 80

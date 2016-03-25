@@ -13,19 +13,27 @@ import matplotlib
 matplotlib.rc_file(os.path.join(os.path.dirname(__file__), "matplotlibrc"))
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt4agg \
+    import NavigationToolbar2QTAgg as NavigationToolbar
+
 from matplotlib.figure import Figure
 
 from PySide import QtGui
 
-class MPLWidget(FigureCanvas):
 
-    def __init__(self, parent=None ,xlabel='x',ylabel='y',title='Title'):
+class MPLWidget(FigureCanvas):
+    """
+    A widget to contain a matplotlib figure.
+    """
+
+    def __init__(self, parent=None, toolbar=False):
         super(MPLWidget, self).__init__(Figure())
 
         self.setParent(parent)
 
-        self.figure = Figure(dpi=72, tight_layout=True)
+        self.figure = Figure(tight_layout=True)
         self.canvas = FigureCanvas(self.figure)
+        self.toolbar = None if not toolbar else NavigationToolbar(self, parent)
 
         # Get background of parent widget.
 
@@ -38,7 +46,13 @@ class MPLWidget(FigureCanvas):
                 parent.palette().color(QtGui.QPalette.Window).getRgb()[:3]]
             self.figure.patch.set_facecolor(bg_color)
 
+        return None
+
+        """
         self.axes = self.figure.add_subplot(111, axisbg="#FFFFFF")
         self.axes.set_xlabel(xlabel)
         self.axes.set_ylabel(ylabel)
         self.axes.set_title(title)
+
+        self.mpl_connect("button_press_event", onclick)
+        """
