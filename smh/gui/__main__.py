@@ -160,7 +160,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         cw_vbox.addWidget(self.tabs)
         self.setCentralWidget(cw)
 
-        #self.tabs.setCurrentIndex(0)
+        self.tabs.setCurrentIndex(1)
         #QtCore.QMetaObject.connectSlotsByName(self)
 
 
@@ -172,8 +172,12 @@ if __name__ == '__main__':
     if sys.platform == "darwin":
             
         # See http://successfulsoftware.net/2013/10/23/fixing-qt-4-for-mac-os-x-10-9-mavericks/
-        QtGui.QFont.insertSubstitution(".Lucida Grande UI", "Lucida Grande")
-        QtGui.QFont.insertSubstitution(".Helvetica Neue DeskInterface", "Helvetica Neue")
+        substitutes = [
+            (".Lucida Grande UI", "Lucida Grande"),
+            (".Helvetica Neue DeskInterface", "Helvetica Neue")
+        ]
+        for substitute in substitutes:
+            QtGui.QFont.insertSubstitution(*substitute)
 
     app = QtGui.QApplication(sys.argv)
     window = Ui_MainWindow()

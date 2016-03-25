@@ -7,9 +7,13 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
 import sys
+
 from PySide import QtCore, QtGui
 
+import mpl
+
 __all__ = ["initialise_tab"]
+
 
 
 def initialise_tab(tabs):
@@ -332,7 +336,25 @@ def initialise_tab(tabs):
     rv_tab_layout.addLayout(rv_settings_vbox)
 
     # Create a matplotlib widget.
-    rv_figure = QtGui.QWidget(rv_tab)
+    blank_widget = QtGui.QWidget(rv_tab)
+    sp = QtGui.QSizePolicy(
+        QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+    sp.setHorizontalStretch(0)
+    sp.setVerticalStretch(0)
+    sp.setHeightForWidth(blank_widget.sizePolicy().hasHeightForWidth())
+    blank_widget.setSizePolicy(sp)
+    blank_widget.setObjectName("blank_widget")
+
+    figure = mpl.MPLWidget(blank_widget)
+    layout = QtGui.QVBoxLayout(blank_widget)        
+    layout.addWidget(figure, 1)
+
+    rv_tab_layout.addWidget(blank_widget)
+
+    figure.axes.plot([0, 1], [0, 1],'bo-')
+    figure.draw()
+
+    """
     sp = QtGui.QSizePolicy(
         QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
     sp.setHorizontalStretch(0)
@@ -340,10 +362,14 @@ def initialise_tab(tabs):
     sp.setHeightForWidth(rv_figure.sizePolicy().hasHeightForWidth())
     rv_figure.setSizePolicy(sp)
     rv_figure.setObjectName("rv_figure")
-    rv_tab_layout.addWidget(rv_figure)
+    """
+    #rv_tab_layout.addWidget(canvas)
 
     # Add the tab to the application.
     tabs.addTab(rv_tab, "Radial velocity")
+
+
+    # HACK TODO:
 
 
     # Read in the default settings from the SMH session file.
