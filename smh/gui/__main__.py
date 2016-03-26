@@ -23,6 +23,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
     def __init__(self):
         super(Ui_MainWindow, self).__init__()
 
+        self.unsaved_session_changes = False
+        self.session = None
+
         self.setWindowTitle("Spectroscopy Made Harder")
         self.setObjectName("smh")
         self.resize(1200, 600)
@@ -35,8 +38,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Set up the UI.
         self.__init_ui__()
 
-        self.unsaved_session_changes = False
-        self.session = None
 
 
     def __init_menus__(self):
@@ -110,6 +111,10 @@ class Ui_MainWindow(QtGui.QMainWindow):
         for i, enabled in enumerate(enable):
             self.tabs.setTabEnabled(i, enabled)
 
+
+        self.rv_tab.redraw_order()
+
+
         return None
 
 
@@ -180,8 +185,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
         summary.initialise_tab(self.tabs, self)
 
         # Create radial velocity tab
-        rv.initialise_tab(self.tabs, self)
-        self.tabs.setTabEnabled(1, False)
+        self.rv_tab = rv.initialise_tab(self.tabs, self)
+        # HACK: uncomment later
+        #self.tabs.setTabEnabled(1, False)
 
         # Add remaining disabled (filler) tabs.
         disabled_tab_names = \

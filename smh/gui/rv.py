@@ -6,12 +6,15 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+import numpy as np
 import sys
 import yaml
 from PySide import QtCore, QtGui
 
 import mpl
-from smh.session import Session
+from matplotlib import (gridspec, pyplot as plt)
+
+from smh import (Session, specutils)
 
 __all__ = ["initialise_tab"]
 
@@ -291,10 +294,10 @@ class RVTab(QtGui.QWidget):
         hbox.addWidget(self.rv_applied)
 
         # Units/uncertainty label.
-        rv_measured_units_label = QtGui.QLabel(self)
-        rv_measured_units_label.setObjectName("rv_measured_units_label")
-        rv_measured_units_label.setText("km/s")
-        hbox.addWidget(rv_measured_units_label)
+        label = QtGui.QLabel(self)
+        label.setObjectName("rv_measured_units_label")
+        label.setText("km/s")
+        hbox.addWidget(label)
 
         # Correct for radial velocity button.
         rv_correct_btn = QtGui.QPushButton(self)
@@ -344,15 +347,41 @@ class RVTab(QtGui.QWidget):
         blank_widget.setSizePolicy(sp)
         blank_widget.setObjectName("blank_widget")
 
-        rv_plot = mpl.MPLWidget(blank_widget)
+        self.rv_plot = mpl.MPLWidget(blank_widget)
         layout = QtGui.QVBoxLayout(blank_widget)        
-        layout.addWidget(rv_plot, 1)
+        layout.addWidget(self.rv_plot, 1)
 
         rv_tab_layout.addWidget(blank_widget)
 
-        rv_plot.axes = rv_plot.figure.add_subplot(311, axisbg="#FFFFFF")
-        rv_plot.axes.plot([0, 1], [0, 1],'bo-')
-        rv_plot.draw()
+
+        gs = gridspec.GridSpec(3, 1, height_ratios=[3, 1, 1])
+        self.ax_order = self.rv_plot.figure.add_subplot(gs[0])
+        self.ax_order_norm = self.rv_plot.figure.add_subplot(gs[1])
+        self.ax_ccf = self.rv_plot.figure.add_subplot(gs[2])
+
+        # Ticks, etc
+        self.ax_order.set_xticklabels([])
+        self.ax_order_norm.set_yticks([0, 1])
+        self.ax_order_norm.set_ylim(0, 1.2)
+
+        self.ax_order_norm.set_xlabel(u"Wavelength (Å)")
+        self.ax_order.set_ylabel("Flux")
+
+        # Draw an initial line for data and continuum.
+        self.ax_order.plot([], [], c='k', drawstyle='steps-mid')
+        self.ax_order.plot([], [], c='r', zorder=2)
+
+
+        self.ax_order_norm.axhline(1, linestyle=":", c="#666666", zorder=-1)
+        self.ax_order_norm.plot([], [], c='k', drawstyle='steps-mid')
+        self.ax_order_norm.plot([], [], c='b') # Template.
+
+
+        self.ax_ccf.plot([0, 1], [0, 1], 'ro-')
+
+        self.rv_plot.draw()
+
+        
 
         # Add the tab to the application.
 
@@ -363,6 +392,7 @@ class RVTab(QtGui.QWidget):
         rv_correct_btn.clicked.connect(self.correct_radial_velocity)
         rv_ccc_btn.clicked.connect(self.cross_correlate_and_correct)
 
+        self.wl_region.currentIndexChanged.connect(self.redraw_order)
 
         # Read in the default settings from the SMH session file.
 
@@ -479,6 +509,100 @@ class RVTab(QtGui.QWidget):
         return None
 
 
+    def redraw_order(self):
+        """
+        Re-draw the order selected and the continuum fit, as well as the preview
+        of the normalized spectrum.
+        """
+
+        if self.parent.session is None: return
+
+        print("redrawing order")
+
+        wavelength_region = [float(_) \
+            for _ in self.wl_region.currentText().split(" ")[0].split("-")]
+
+        self._overlap_order, overlap_index, _ = \
+            self.parent.session._get_overlap_order([wavelength_region]) 
+
+        self.ax_order.lines[0].set_data([
+            self._overlap_order.dispersion,
+            self._overlap_order.flux,
+        ])
+
+        # Limits
+        self.ax_order.set_xlim(wavelength_region)
+
+        # Add 10% peak-to-peak.
+        flux_limits = (
+            np.nanmin(self._overlap_order.flux),
+            np.nanmax(self._overlap_order.flux)
+        )
+        self.ax_order.set_ylim(
+            flux_limits[0],
+            flux_limits[1] + (np.ptp(flux_limits) * 0.10)
+        )
+
+        #self.redraw_continuum(self)
+
+        self.rv_plot.draw()
+
+        print("Assuming that the session has not just been loaded and it has a CCF/norm order, etc")
+
+        # Normalize that order using the normalization settings supplied.
+        #observed_spectrum = overlap_order.fit_continuum(**normalization_kwargs)
+
+        self.redraw_continuum()
+
+        return None
+
+
+    def redraw_continuum(self):
+
+        kwds = {
+            "function": self.norm_function.currentText(),
+            "order": int(self.norm_order.currentText()),
+            "max_iterations": int(self.norm_max_iter.currentText()),
+            "sigma_clip": [
+                float(self.norm_low_sigma.text()),
+                float(self.norm_high_sigma.text())
+            ],
+            "knot_spacing": float(self.norm_knot_spacing.text()),
+            "full_output": True
+        }
+        normalized_order, continuum, _, __ = \
+            self._overlap_order.fit_continuum(**kwds)
+
+        self.ax_order.lines[1].set_data([
+            self._overlap_order.dispersion,
+            continuum
+        ])
+
+        self.ax_order_norm.lines[1].set_data([
+            normalized_order.dispersion,
+            normalized_order.flux,
+        ])
+
+        wavelength_region = [float(_) \
+            for _ in self.wl_region.currentText().split(" ")[0].split("-")]
+        self.ax_order_norm.set_xlim(wavelength_region)
+
+
+        self.draw_template()
+
+
+    def draw_template(self):
+
+        template = specutils.Spectrum1D.read(self.template_path.text())
+        self.ax_order_norm.lines[2].set_data([
+            template.dispersion,
+            template.flux
+        ])
+
+        self.rv_plot.draw()
+
+
+
 def initialise_tab(tabs, parent):
     """
     Create a radial velocity tab and add it to the application tabs.
@@ -493,4 +617,4 @@ def initialise_tab(tabs, parent):
     tab = RVTab(parent)
 
     tabs.addTab(tab, "Radial velocity")
-
+    return tab

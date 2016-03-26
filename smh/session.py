@@ -110,6 +110,59 @@ class Session(BaseSession):
         raise NotImplementedError
 
 
+    def _get_overlap_order(self, wavelength_regions, template_spectrum=None):
+        """
+        Find the order (and order index) that most overlaps with the template
+        spectrum in any of the wavelength_regions provided.
+
+        :param wavelength_regions:
+            A list of the wavelength regions to search for overlap between the 
+            template spectrum and the input spectra.
+
+        :param template_spectrum: [optional]
+            An optional template spectrum that should also overlap with the
+            requested ranges. The should be a `specutils.Spectrum1D` object.
+
+        :returns:
+            The overlapping order, the overlap index, and the wavelength_region
+            that matched.
+        """
+
+        # Check to see if wavelength region is a list of entries.
+        try:
+            int(wavelength_regions[0])
+        except (TypeError, ValueError):
+            # It is (probably) a list of 2-length tuples.
+            None
+        else:
+            wavelength_regions = [wavelength_regions]
+
+        # Find the order best suitable for the preferred wavelength region.
+        for wl_start, wl_end in wavelength_regions:
+            # Does the template cover this range?
+            if template_spectrum is not None and \
+                not (wl_start > template_spectrum.dispersion[0] \
+                and  wl_end   < template_spectrum.dispersion[-1]):
+                continue
+
+            # Do any observed orders cover any part of this range?
+            overlaps, indices = specutils.find_overlaps(
+                self.input_spectra, (wl_start, wl_end), return_indices=True)
+            if not overlaps:
+                continue
+
+            # The first spectral index has the most overlap with the range.
+            overlap_index = indices[0]
+            overlap_order = overlaps[0]
+            break
+
+        else:
+            raise ValueError("no wavelength regions are common to the template "
+                             "and the observed spectra")
+
+        return (overlap_order, overlap_index, (wl_start, wl_end))
+
+
     def rv_measure(self, template_spectrum=None, wavelength_region=None,
         resample=None, apodize=None, normalization_kwargs=None):
         """
@@ -159,43 +212,15 @@ class Session(BaseSession):
             template_spectrum = specutils.Spectrum1D.read(template_spectrum,
                 debug=True)
 
-        # Check to see if wavelength region is a list of entries.
-        try:
-            int(wavelength_region[0])
-        except (TypeError, ValueError):
-            # It is (probably) a list of 2-length tuples.
-            None
-        else:
-            wavelength_region = [wavelength_region]
-
-        # Find the order best suitable for the preferred wavelength region.
-        for wl_start, wl_end in wavelength_region:
-            # Does the template cover this range?
-            if  not (wl_start > template_spectrum.dispersion[0] \
-                and  wl_end   < template_spectrum.dispersion[-1]):
-                continue
-
-            # Do any observed orders cover any part of this range?
-            overlaps, indices = specutils.find_overlaps(
-                self.input_spectra, (wl_start, wl_end), return_indices=True)
-            if not overlaps:
-                continue
-
-            # The first spectral index has the most overlap with the range.
-            overlap_index = indices[0]
-            overlap_order = overlaps[0]
-            break
-
-        else:
-            raise ValueError("no wavelength regions are common to the template "
-                             "and the observed spectra")
+        overlap_order, overlap_index, wavelength_region = \
+            self._get_overlap_order(wavelength_region, template_spectrum) 
 
         # Normalize that order using the normalization settings supplied.
         observed_spectrum = overlap_order.fit_continuum(**normalization_kwargs)
 
         # Perform cross-correlation with the template spectrum.
         rv, rv_uncertainty, ccf = specutils.cross_correlate(
-            observed_spectrum, template_spectrum, (wl_start, wl_end), 
+            observed_spectrum, template_spectrum, wavelength_region, 
             apodize=apodize, resample=resample)
 
         # Store the measured information as part of the session.
@@ -212,7 +237,7 @@ class Session(BaseSession):
 
             # Input settings
             "template_spectrum": template_spectrum,
-            "wavelength_region": [wl_start, wl_end],
+            "wavelength_region": wavelength_region,
             "resample": resample,
             "apodize": apodize,
             "normalization": normalization_kwargs.copy()
