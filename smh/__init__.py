@@ -3,6 +3,10 @@
 import os
 from shutil import copyfile
 
+
+__version__ = "0.1"
+
+
 # Get the location for the Session defaults file.
 from session import Session
 

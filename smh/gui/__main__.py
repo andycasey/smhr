@@ -12,7 +12,7 @@ from PySide import QtCore, QtGui
 import rv, summary
 
 
-from smh import Session
+from .smh import Session
 
 
 class Ui_MainWindow(QtGui.QMainWindow):

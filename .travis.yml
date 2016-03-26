@@ -1,0 +1,29 @@
+language: python
+python:
+  - 2.7
+  - 3.4
+notifications:
+  email: true
+
+sudo: false
+before_install:
+  - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
+  - chmod +x miniconda.sh
+  - ./miniconda.sh -b
+  - export PATH=/home/travis/miniconda2/bin:$PATH
+  - conda update --yes conda
+  # The next couple lines fix a crash with multiprocessing on Travis and are not
+  # specific to using Miniconda.
+  # (Note: I have commented these out because this repository is not using 
+  #        multiprocessing in testing at the moment and if we can get away
+  #        without using sudo then we can use Travis containers, which are
+  #        way betterrer)
+  #- sudo rm -rf /dev/shm
+  #- sudo ln -s /run/shm /dev/shm
+install: 
+  - conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib nose six coverage pyside
+  - pip install coveralls
+script:
+  - nosetests --with-coverage --cover-package=smh
+after_success:
+  coveralls
