@@ -112,7 +112,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
             self.tabs.setTabEnabled(i, enabled)
 
 
-        self.rv_tab.redraw_order()
+        self.rv_tab.update_from_new_session()
 
 
         return None

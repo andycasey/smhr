@@ -7,6 +7,7 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
 import numpy as np
+import os
 import sys
 import yaml
 from PySide import QtCore, QtGui
@@ -18,6 +19,8 @@ from smh import (Session, specutils)
 
 __all__ = ["initialise_tab"]
 
+
+c = 299792458e-3 # km/s
 
 class RVTab(QtGui.QWidget):
 
@@ -248,8 +251,7 @@ class RVTab(QtGui.QWidget):
         # Knot spacing.
         label = QtGui.QLabel(norm_tab_widget)
         norm_tab_grid_layout.addWidget(label, 5, 0, 1, 1)
-        label.setText("Knot spacing (A)")
-        # TODO: Put unicode Angstroms character in
+        label.setText(u"Knot spacing (Å)")
 
         # Put the knot spacing lint edit box in a horizontal layout with a spacer
         hbox = QtGui.QHBoxLayout()
@@ -379,22 +381,41 @@ class RVTab(QtGui.QWidget):
 
         self.ax_ccf.plot([0, 1], [0, 1], 'ro-')
 
-        self.rv_plot.draw()
-
         
+        # Keep an input cache.
+        self._populate_widgets()
 
-        # Add the tab to the application.
-
-
-        # Create signals
-        rv_select_template_btn.clicked.connect(self.select_template) 
+        # Create signals for buttons.
         rv_cross_correlate_btn.clicked.connect(self.cross_correlate) 
         rv_correct_btn.clicked.connect(self.correct_radial_velocity)
         rv_ccc_btn.clicked.connect(self.cross_correlate_and_correct)
 
-        self.wl_region.currentIndexChanged.connect(self.redraw_order)
+        # Create signals for when any of these things change.
+        rv_select_template_btn.clicked.connect(self.select_template)
+        self.wl_region.currentIndexChanged.connect(self.update_wl_region)
+        self.norm_low_sigma.textChanged.connect(
+            self.update_normalization_low_sigma)
+        self.norm_high_sigma.textChanged.connect(
+            self.update_normalization_high_sigma)
+        self.norm_knot_spacing.textChanged.connect(
+            self.update_normalization_knot_spacing)
+        self.norm_function.currentIndexChanged.connect(
+            self.update_normalization_function)
+        self.norm_order.currentIndexChanged.connect(
+            self.update_normalization_order)
+        self.norm_max_iter.currentIndexChanged.connect(
+            self.update_normalization_max_iterations)
 
-        # Read in the default settings from the SMH session file.
+        # Draw the template straight up if we can.
+        self.draw_template(refresh=True)
+
+        return None
+
+
+    def _populate_widgets(self):
+        """
+        Populate widgets with default values from the local SMH settings file.
+        """
 
         # TODO: Put the default I/O somewhere else since it will be common to many
         #       tabs.
@@ -403,7 +424,7 @@ class RVTab(QtGui.QWidget):
 
         # Template filename.
         self.template_path.setReadOnly(False)
-        self.template_path.setText(defaults["template_path"])
+        self.template_path.setText(defaults["template_spectrum"])
         self.template_path.setReadOnly(True)
 
         # Wavelength regions.
@@ -411,16 +432,22 @@ class RVTab(QtGui.QWidget):
             self.wl_region.addItem(u"{0:.0f}-{1:.0f} Å".format(*each))
 
         # Normalization function.
-        self.norm_function.setCurrentIndex(
-            norm_functions.index(defaults["normalization"]["function"].lower()))
+        norm_functions = [self.norm_function.itemText(i).lower() \
+            for i in range(self.norm_function.count())]
+        self.norm_function.setCurrentIndex(norm_functions.index(
+            defaults["normalization"]["function"].lower()))
 
         # Normalization order.
-        self.norm_order.setCurrentIndex(
-            norm_orders.index(defaults["normalization"]["order"]))
+        norm_orders = [int(self.norm_order.itemText(i)) \
+            for i in range(self.norm_order.count())]
+        self.norm_order.setCurrentIndex(norm_orders.index(
+            defaults["normalization"]["order"]))
 
         # Normalization maximum iterations.
-        self.norm_max_iter.setCurrentIndex(
-            norm_max_iters.index(defaults["normalization"]["max_iterations"]))
+        norm_max_iters = [int(self.norm_max_iter.itemText(i)) \
+            for i in range(self.norm_max_iter.count())]
+        self.norm_max_iter.setCurrentIndex(norm_max_iters.index(
+            defaults["normalization"]["max_iterations"]))
 
         # Normalization low and high sigma clip:
         low, high = defaults["normalization"]["sigma_clip"]
@@ -430,6 +457,125 @@ class RVTab(QtGui.QWidget):
         # Normalization knot spacing.
         self.norm_knot_spacing.setText(
             str(defaults["normalization"]["knot_spacing"]))
+
+        # The cache allows us to store things that won't necessarily go into the
+        # session, but will update views, etc. For example, previewing continua
+        # before actually using it in cross-correlation, etc.
+        self._cache = {
+            "input": defaults.copy()
+        }
+
+        # Wavelength regions should just be a single range.
+        self._cache["input"]["wavelength_region"] \
+            = self._cache["input"]["wavelength_regions"][0]
+        del self._cache["input"]["wavelength_regions"]
+        return None
+
+
+    def update_normalization_function(self):
+        """ Update the normalization function. """
+        self._cache["input"]["normalization"]["function"] \
+            = self.norm_function.currentText()
+        self.fit_and_redraw_normalized_order()
+
+
+    def update_normalization_order(self):
+        """ Update the normalization order. """
+        self._cache["input"]["normalization"]["order"] \
+            = int(self.norm_order.currentText())
+        self.fit_and_redraw_normalized_order()
+
+
+    def update_normalization_max_iterations(self):
+        """ Update the maximum number of iterations during normalization. """
+        self._cache["input"]["normalization"]["max_iterations"] \
+            = int(self.norm_max_iter.currentText())
+        self.fit_and_redraw_normalized_order()
+
+
+    def update_normalization_low_sigma(self):
+        """ Update the low sigma clipping during normalization. """
+        self._cache["input"]["normalization"]["sigma_clip"][0] \
+            = float(self.norm_low_sigma.text())
+        self.fit_and_redraw_normalized_order()
+
+
+    def update_normalization_high_sigma(self):
+        """ Update the high sigma clipping during normalization. """
+        self._cache["input"]["normalization"]["sigma_clip"][1] \
+            = float(self.norm_high_sigma.text())
+        self.fit_and_redraw_normalized_order()
+
+
+    def update_normalization_knot_spacing(self):
+        """ Update the knot spacing used for normalization. """
+        self._cache["input"]["normalization"]["knot_spacing"] \
+            = float(self.norm_knot_spacing.text())
+        self.fit_and_redraw_normalized_order()
+
+
+
+    def fit_and_redraw_normalized_order(self):
+        """
+        Fit and redraw the continuum, and the normalized order.
+        """
+
+        self.fit_continuum()
+        self.redraw_continuum()
+        self.redraw_normalized_order(True)
+        return None
+
+
+    def fit_continuum(self):
+        """
+        Fit and draw the continuum.
+        """
+
+        self._cache["normalized_order"], self._cache["continuum"], _, __ \
+            = self._cache["overlap_order"].fit_continuum(full_output=True,
+                **self._cache["input"]["normalization"])
+        return None
+
+
+    def redraw_continuum(self, refresh=False):
+        """
+        Redraw the continuum.
+
+        :param refresh: [optional]
+            Force the figure to update.
+        """
+
+        self.ax_order.lines[1].set_data([
+            self._cache["overlap_order"].dispersion,
+            self._cache["continuum"]
+        ])
+        if refresh:
+            self.rv_plot.draw()
+        return None
+
+
+    def redraw_normalized_order(self, refresh=False):
+        """
+        Redraw the normalized order.
+
+        :param refresh: [optional]
+            Force the figure to update.
+        """
+
+        # Redshift the normalized order by the 'RV-applied', if it exists.
+        try:
+            rv_applied = self.parent.session.rv["rv_applied"]
+        except (AttributeError, KeyError):
+            rv_applied = 0
+
+        self.ax_order_norm.lines[1].set_data([
+            self._cache["normalized_order"].dispersion * (1 - rv_applied/c),
+            self._cache["normalized_order"].flux,
+        ])
+        self.ax_order_norm.set_xlim(self._cache["input"]["wavelength_region"])
+
+        if refresh:
+            self.rv_plot.draw()
 
         return None
 
@@ -447,6 +593,12 @@ class RVTab(QtGui.QWidget):
         self.template_path.setReadOnly(False)
         self.template_path.setText(path)
         self.template_path.setReadOnly(True)
+
+        # Update the data cache.
+        self._cache["input"]["template_spectrum"] = path
+
+        # Update the figure containing the template.
+        self.draw_template(refresh=True)
         
         return None
 
@@ -455,25 +607,9 @@ class RVTab(QtGui.QWidget):
         """
         Normalize and cross-correlate the observed spectrum with the template.
         """
-
-        # Get all the inputs.
-        kwds = {
-            "template_spectrum": self.template_path.text(),
-            "wavelength_region": [float(_) \
-                for _ in self.wl_region.currentText().split(" ")[0].split("-")],
-            "resample": "template",
-            "apodize": 0,
-            "normalization_kwargs": {
-                "function": self.norm_function.currentText(),
-                "order": int(self.norm_order.currentText()),
-                "max_iterations": int(self.norm_max_iter.currentText()),
-                "sigma_clip": [
-                    float(self.norm_low_sigma.text()),
-                    float(self.norm_high_sigma.text())
-                ],
-                "knot_spacing": float(self.norm_knot_spacing.text())
-            }
-        }
+        
+        kwds = self._cache["input"].copy()
+        kwds["normalization_kwargs"] = kwds.pop("normalization")
 
         # Perform the cross-correlation.
         rv, rv_uncertainty = self.parent.session.rv_measure(**kwds)
@@ -490,6 +626,9 @@ class RVTab(QtGui.QWidget):
         """
 
         self.parent.session.rv["rv_applied"] = float(self.rv_applied.text())
+
+        # Redshift the normalized order.
+        self.redraw_normalized_order(True)
 
         # Enable the next tab.
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 1, True)
@@ -509,7 +648,16 @@ class RVTab(QtGui.QWidget):
         return None
 
 
-    def redraw_order(self):
+    def update_from_new_session(self):
+        # Update cache.
+        # Update plots.
+
+        self.draw_template()
+        self.update_wl_region()
+        self.rv_plot.draw()
+
+
+    def update_wl_region(self):
         """
         Re-draw the order selected and the continuum fit, as well as the preview
         of the normalized spectrum.
@@ -517,90 +665,60 @@ class RVTab(QtGui.QWidget):
 
         if self.parent.session is None: return
 
-        print("redrawing order")
-
+        # Parse and cache the wavelength region.
         wavelength_region = [float(_) \
             for _ in self.wl_region.currentText().split(" ")[0].split("-")]
+        self._cache["input"]["wavelength_region"] = wavelength_region
 
-        self._overlap_order, overlap_index, _ = \
-            self.parent.session._get_overlap_order([wavelength_region]) 
+        # Get the right order.
+        self._cache["overlap_order"], _, __ = \
+            self.parent.session._get_overlap_order([wavelength_region])
 
+        # Draw this order in the top axes.
         self.ax_order.lines[0].set_data([
-            self._overlap_order.dispersion,
-            self._overlap_order.flux,
+            self._cache["overlap_order"].dispersion,
+            self._cache["overlap_order"].flux,
         ])
 
-        # Limits
+        # Update the limits for this axis.
         self.ax_order.set_xlim(wavelength_region)
-
-        # Add 10% peak-to-peak.
         flux_limits = (
-            np.nanmin(self._overlap_order.flux),
-            np.nanmax(self._overlap_order.flux)
+            np.nanmin(self._cache["overlap_order"].flux),
+            np.nanmax(self._cache["overlap_order"].flux)
         )
         self.ax_order.set_ylim(
             flux_limits[0],
             flux_limits[1] + (np.ptp(flux_limits) * 0.10)
         )
 
-        #self.redraw_continuum(self)
-
-        self.rv_plot.draw()
-
+        # TODO: This may require some updating.
         print("Assuming that the session has not just been loaded and it has a CCF/norm order, etc")
 
-        # Normalize that order using the normalization settings supplied.
-        #observed_spectrum = overlap_order.fit_continuum(**normalization_kwargs)
-
-        self.redraw_continuum()
+        # Update the continuum fit.
+        self.fit_and_redraw_normalized_order()
 
         return None
 
 
-    def redraw_continuum(self):
 
-        kwds = {
-            "function": self.norm_function.currentText(),
-            "order": int(self.norm_order.currentText()),
-            "max_iterations": int(self.norm_max_iter.currentText()),
-            "sigma_clip": [
-                float(self.norm_low_sigma.text()),
-                float(self.norm_high_sigma.text())
-            ],
-            "knot_spacing": float(self.norm_knot_spacing.text()),
-            "full_output": True
-        }
-        normalized_order, continuum, _, __ = \
-            self._overlap_order.fit_continuum(**kwds)
+    def draw_template(self, refresh=False):
+        """
+        Draw the template spectrum in the figure.
+        """
 
-        self.ax_order.lines[1].set_data([
-            self._overlap_order.dispersion,
-            continuum
-        ])
+        path = self.template_path.text()
+        if not os.path.exists(path): return
 
-        self.ax_order_norm.lines[1].set_data([
-            normalized_order.dispersion,
-            normalized_order.flux,
-        ])
-
-        wavelength_region = [float(_) \
-            for _ in self.wl_region.currentText().split(" ")[0].split("-")]
-        self.ax_order_norm.set_xlim(wavelength_region)
-
-
-        self.draw_template()
-
-
-    def draw_template(self):
-
-        template = specutils.Spectrum1D.read(self.template_path.text())
+        template = specutils.Spectrum1D.read(path)
         self.ax_order_norm.lines[2].set_data([
             template.dispersion,
             template.flux
         ])
 
-        self.rv_plot.draw()
+        if refresh:
+            self.rv_plot.draw()
 
+        return None
 
 
 def initialise_tab(tabs, parent):

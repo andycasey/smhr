@@ -216,7 +216,8 @@ class Session(BaseSession):
             self._get_overlap_order(wavelength_region, template_spectrum) 
 
         # Normalize that order using the normalization settings supplied.
-        observed_spectrum = overlap_order.fit_continuum(**normalization_kwargs)
+        observed_spectrum, continuum, _, __ = overlap_order.fit_continuum(
+            full_output=True, **normalization_kwargs)
 
         # Perform cross-correlation with the template spectrum.
         rv, rv_uncertainty, ccf = specutils.cross_correlate(
@@ -231,6 +232,7 @@ class Session(BaseSession):
             "rv_uncertainty": rv_uncertainty,
             "order_index": overlap_index,
             "normalized_order": observed_spectrum,
+            "continuum": continuum,
             "ccf": ccf,
             "heliocentric_correction": np.nan, # TODO
             "barycentric_correction": np.nan, #TODO
