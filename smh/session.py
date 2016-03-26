@@ -68,6 +68,9 @@ class Session(BaseSession):
 
         self.input_spectra = input_spectra
         self.input_spectra_paths = spectrum_paths
+        
+        # Initialize measurements and metadata.
+        self.rv = {}
 
         return None
 
@@ -226,7 +229,7 @@ class Session(BaseSession):
 
         # Store the measured information as part of the session.
         # TODO: Should we store these as a NamedTuple instead?
-        self.rv = {
+        self.rv.update({
             # Measurements
             "rv_measured": rv,
             "rv_uncertainty": rv_uncertainty,
@@ -243,7 +246,7 @@ class Session(BaseSession):
             "resample": resample,
             "apodize": apodize,
             "normalization": normalization_kwargs.copy()
-        }
+        })
 
         return (rv, rv_uncertainty)
 

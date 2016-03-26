@@ -856,8 +856,7 @@ def cross_correlate(observed_spectrum, template_spectrum, dispersion_range=None,
     rv_uncertainty = np.nan # TODO
 
     # Create a CCF spectrum.
-    # TODO: Convert to velocity x-axis.
-    ccf = np.array([fft_x, fft_y])
+    ccf = np.array([fft_x * (rv/p1[0]), fft_y])
 
     return (rv, rv_uncertainty, ccf)
 

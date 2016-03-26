@@ -187,7 +187,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Create radial velocity tab
         self.rv_tab = rv.initialise_tab(self.tabs, self)
         # HACK: uncomment later
-        #self.tabs.setTabEnabled(1, False)
+        self.tabs.setTabEnabled(1, False)
 
         # Add remaining disabled (filler) tabs.
         disabled_tab_names = \

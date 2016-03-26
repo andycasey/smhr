@@ -372,14 +372,17 @@ class RVTab(QtGui.QWidget):
         # Draw an initial line for data and continuum.
         self.ax_order.plot([], [], c='k', drawstyle='steps-mid')
         self.ax_order.plot([], [], c='r', zorder=2)
-
+        self.ax_order.set_ylim([0, 1])
 
         self.ax_order_norm.axhline(1, linestyle=":", c="#666666", zorder=-1)
         self.ax_order_norm.plot([], [], c='k', drawstyle='steps-mid')
         self.ax_order_norm.plot([], [], c='b') # Template.
 
 
-        self.ax_ccf.plot([0, 1], [0, 1], 'ro-')
+        self.ax_ccf.plot([], [], c='k')
+        self.ax_ccf.set_xlabel("Velocity (km/s)")
+        self.ax_ccf.set_ylabel("CCF")
+        self.ax_ccf.set_yticks([0, 0.5, 1.0])
 
         
         # Keep an input cache.
@@ -617,6 +620,33 @@ class RVTab(QtGui.QWidget):
         # Update the measured radial velocity in the GUI.
         self.rv_applied.setText("{0:+.1f}".format(rv))
 
+        # Draw the CCF in the bottom panel.
+        self.redraw_ccf(refresh=True)
+
+        return None
+
+
+    def redraw_ccf(self, refresh=False):
+        """
+        Draw the CCF stored in the session.
+        """
+
+        try:
+            v, ccf = self.parent.session.rv["ccf"]
+        except (AttributeError, KeyError):
+            return None
+
+        self.ax_ccf.lines[0].set_data([v, ccf])
+
+        rv_measured = self.parent.session.rv["rv_measured"]
+        
+        self.ax_ccf.set_xlim(rv_measured - 1000, rv_measured + 1000)
+        self.ax_ccf.set_ylim(0, 1.2)
+
+        self.ax_ccf.axvline(rv_measured, c='r')
+
+        if refresh:
+            self.rv_plot.draw()
         return None
 
 
@@ -649,6 +679,7 @@ class RVTab(QtGui.QWidget):
 
 
     def update_from_new_session(self):
+
         # Update cache.
         # Update plots.
 
