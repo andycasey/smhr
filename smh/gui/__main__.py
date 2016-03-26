@@ -12,6 +12,9 @@ from PySide import QtCore, QtGui
 import rv, summary
 
 
+from smh import Session
+
+
 class Ui_MainWindow(QtGui.QMainWindow):
     """
     The main GUI window for Spectroscopy Made Hard.
@@ -79,7 +82,18 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
     def new_session(self):
         """ Initialise new session. """
-        print("New session")
+
+        filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(self,
+            caption="Select input spectra", dir="")
+        if not filenames: return
+
+        # HACK: Do we already have an active session? Should we save this one
+        #       before starting a new one.
+
+
+        # Create a session.
+        self.session = Session(filenames)
+        print(self.session)
         return None
 
 

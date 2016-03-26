@@ -13,8 +13,8 @@ import matplotlib
 matplotlib.rc_file(os.path.join(os.path.dirname(__file__), "matplotlibrc"))
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt4agg \
-    import NavigationToolbar2QTAgg as NavigationToolbar
+#from matplotlib.backends.backend_qt4agg \
+#    import NavigationToolbar2QTAgg as NavigationToolbar
 
 from matplotlib.figure import Figure
 
@@ -33,7 +33,7 @@ class MPLWidget(FigureCanvas):
 
         self.figure = Figure(tight_layout=True)
         self.canvas = FigureCanvas(self.figure)
-        self.toolbar = None if not toolbar else NavigationToolbar(self, parent)
+        self.toolbar = None #if not toolbar else NavigationToolbar(self, parent)
 
         # Get background of parent widget.
 
