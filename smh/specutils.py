@@ -495,9 +495,7 @@ class Spectrum1D(object):
         # Snip left and right
         finite_positive_flux = np.isfinite(self.flux) * self.flux > 0
 
-        #print "finite flux", np.any(finite_positive_flux), finite_positive_flux
-        #print "where flux", np.where(finite_positive_flux)
-        #print "flux is...", self.flux
+        function = str(function).lower()
         left = np.where(finite_positive_flux)[0][0]
         right = np.where(finite_positive_flux)[0][-1]
 

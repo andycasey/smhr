@@ -11,7 +11,7 @@ from PySide import QtCore, QtGui
 __all__ = ["initialise_tab"]
 
 
-def initialise_tab(tabs):
+def initialise_tab(tabs, parent=None):
     """
     Create a summary tab and add it to the application tabs.
 

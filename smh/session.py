@@ -8,6 +8,7 @@ from __future__ import (division, print_function, absolute_import,
 
 __all__ = ["Session"]
 
+import numpy as np
 import os
 import yaml
 from six import string_types

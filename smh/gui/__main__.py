@@ -12,7 +12,7 @@ from PySide import QtCore, QtGui
 import rv, summary
 
 
-from .smh import Session
+from smh import Session
 
 
 class Ui_MainWindow(QtGui.QMainWindow):
@@ -34,6 +34,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         # Set up the UI.
         self.__init_ui__()
+
+        self.unsaved_session_changes = False
+        self.session = None
 
 
     def __init_menus__(self):
@@ -83,17 +86,30 @@ class Ui_MainWindow(QtGui.QMainWindow):
     def new_session(self):
         """ Initialise new session. """
 
+        # Do we already have a session open with unsaved changes?
+        if self.session is not None and self.unsaved_session_changes:
+            response = QtGui.QMessageBox.question(self, "Are you sure?",
+                "You have unsaved changes.\n\n"
+                "Are you sure you want to start a new session?", 
+                QtGui.QMessageBox.StandardButton.Yes \
+                | QtGui.QMessageBox.StandardButton.No)
+
+            if not response == QtGui.QMessageBox.Yes:
+                return
+
+        # Get filenames of input spectra.
         filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(self,
             caption="Select input spectra", dir="")
         if not filenames: return
 
-        # HACK: Do we already have an active session? Should we save this one
-        #       before starting a new one.
-
-
         # Create a session.
         self.session = Session(filenames)
-        print(self.session)
+
+        # Disable all tabs except for Summary and RV.
+        enable = (True, True, False, False, False)
+        for i, enabled in enumerate(enable):
+            self.tabs.setTabEnabled(i, enabled)
+
         return None
 
 
@@ -161,12 +177,13 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
     
         # Create summary tab.
-        summary.initialise_tab(self.tabs)
+        summary.initialise_tab(self.tabs, self)
 
         # Create radial velocity tab
-        rv.initialise_tab(self.tabs)
+        rv.initialise_tab(self.tabs, self)
+        self.tabs.setTabEnabled(1, False)
 
-        # Add remaining disabled tabs.
+        # Add remaining disabled (filler) tabs.
         disabled_tab_names = \
             ("Normalization", "Stellar parameters", "Chemical abundances")
 
