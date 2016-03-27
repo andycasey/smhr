@@ -71,12 +71,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
         file_menu.addAction(save_session)
         file_menu.addAction(save_session_as)
 
-        # About.
-        about = QtGui.QAction("&About", self,
-                statusTip="Show the application's about box",
-                triggered=self.about)
-
-
         self.statusbar = QtGui.QStatusBar(self)
         self.statusbar.setObjectName("statusbar")
         self.setStatusBar(self.statusbar)
@@ -136,17 +130,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
         return None
 
 
-    def about(self):
-        """ Show an about box for the application. """
-        QtGui.QMessageBox.about(self, "About Menu",
-            """
-            SMHr
-            
-            Gotta pay back that tech debt.
-            """)
-
-
-
     def __init_ui__(self):
         """
         Set up the primary user interface (not the stuff in tabs).
@@ -180,9 +163,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
         sp.setHeightForWidth(self.tabs.sizePolicy().hasHeightForWidth())
         self.tabs.setSizePolicy(sp)
 
-    
         # Create summary tab.
-        summary.initialise_tab(self.tabs, self)
+        summary_tab = summary.SummaryTab(self)
+        self.tabs.addTab(summary_tab, "Summary")
 
         # Create radial velocity tab
         self.rv_tab = rv.initialise_tab(self.tabs, self)

@@ -31,7 +31,6 @@ class RVTab(QtGui.QWidget):
         self.parent = parent
 
         # Create the overall RV tab.
-        rv_tab = self #QtGui.QWidget()
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.MinimumExpanding)
         sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())

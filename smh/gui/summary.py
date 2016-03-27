@@ -8,28 +8,20 @@ from __future__ import (division, print_function, absolute_import,
 
 from PySide import QtCore, QtGui
 
-__all__ = ["initialise_tab"]
+__all__ = ["SummaryTab"]
 
 
-def initialise_tab(tabs, parent=None):
-    """
-    Create a summary tab and add it to the application tabs.
+class SummaryTab(QtGui.QWidget):
 
-    :param tabs:
-        The application tab widget to add a summary tab to.
+    def __init__(self, parent=None):
+        super(SummaryTab, self).__init__(parent)
 
-    :type tabs:
-        :class:`QtGui.QTabWidget`
-    """
+        self.setObjectName("summary_tab")
 
-    # Create a tab and add a single text edit object.
-    summary_tab = QtGui.QWidget()
-    summary_tab.setObjectName("summary_tab")
-
-    text_edit = QtGui.QPlainTextEdit(summary_tab)
-    text_edit.setObjectName("summary_text")
-    text_edit.setGeometry(QtCore.QRect(80, 80, 401, 181))
-    text_edit.setPlainText(
+        text_edit = QtGui.QPlainTextEdit(self)
+        text_edit.setObjectName("summary_text")
+        text_edit.setGeometry(QtCore.QRect(80, 80, 401, 181))
+        text_edit.setPlainText(
 """
 - position
 - UTdate
@@ -38,6 +30,5 @@ def initialise_tab(tabs, parent=None):
 - simbad/DSS image cutout?
 - link to vizier for this object? (or retrieve info from vizier?)""")
 
-    tabs.addTab(summary_tab, "Summary")
+        return None
 
-    return summary_tab
