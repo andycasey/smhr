@@ -19,6 +19,9 @@ __all__ = ["NormalizationTab"]
 
 c = 299792458e-3 # km/s
 
+
+
+
 class NormalizationTab(QtGui.QWidget):
 
     def __init__(self, parent=None):
@@ -117,6 +120,9 @@ class NormalizationTab(QtGui.QWidget):
         self.norm_low_sigma.setMaximumSize(QtCore.QSize(40, 16777215))
         self.norm_low_sigma.setAlignment(QtCore.Qt.AlignCenter)
         self.norm_low_sigma.setObjectName("rv_norm_low_sigma")
+        self.norm_low_sigma.setValidator(
+            QtGui.QDoubleValidator(0, 1000, 2, self.norm_low_sigma))
+
         hbox.addWidget(self.norm_low_sigma)
         settings_grid_layout.addLayout(hbox, 3, 1, 1, 1)
 
@@ -135,6 +141,8 @@ class NormalizationTab(QtGui.QWidget):
         self.norm_high_sigma.setMaximumSize(QtCore.QSize(40, 16777215))
         self.norm_high_sigma.setAlignment(QtCore.Qt.AlignCenter)
         self.norm_high_sigma.setObjectName("rv_norm_high_sigma")
+        self.norm_high_sigma.setValidator(
+            QtGui.QDoubleValidator(0, 1000, 2, self.norm_high_sigma))
         hbox.addWidget(self.norm_high_sigma)
         settings_grid_layout.addLayout(hbox, 4, 1, 1, 1)
         
@@ -152,6 +160,8 @@ class NormalizationTab(QtGui.QWidget):
         self.norm_knot_spacing = QtGui.QLineEdit(self)
         self.norm_knot_spacing.setMaximumSize(QtCore.QSize(40, 16777215))
         self.norm_knot_spacing.setAlignment(QtCore.Qt.AlignCenter)
+        self.norm_knot_spacing.setValidator(
+            QtGui.QIntValidator(0, 10000, self.norm_knot_spacing))
         self.norm_knot_spacing.setObjectName("rv_norm_knot_spacing")
         hbox.addWidget(self.norm_knot_spacing)
         settings_grid_layout.addLayout(hbox, 5, 1, 1, 1)
@@ -265,7 +275,34 @@ class NormalizationTab(QtGui.QWidget):
         self.norm_plot.canvas.mpl_connect(
             "key_press_event", self.figure_key_press)
 
+
+        self.norm_knot_spacing.textChanged.connect(self.check_state)
+        self.norm_knot_spacing.textChanged.connect(self.update_knot_spacing)
+
+        self.norm_low_sigma.textChanged.connect(
+            self.update_low_sigma_clip)
+
+        self.norm_high_sigma.textChanged.connect(
+            self.update_high_sigma_clip)
+
+
+
         return None
+
+
+    def check_state(self, *args, **kwargs):
+
+        sender = self.sender()
+        validator = sender.validator()
+        state = validator.validate(sender.text(), 0)[0]
+        if state == QtGui.QValidator.Acceptable:
+            color = 'none' # normal background color
+        elif state == QtGui.QValidator.Intermediate:
+            color = '#fff79a' # yellow
+        else:
+            color = '#f6989d' # red
+        sender.setStyleSheet('QLineEdit { background-color: %s }' % color)
+
 
 
     def figure_key_press(self, event):
@@ -278,12 +315,12 @@ class NormalizationTab(QtGui.QWidget):
         if event.key in ("left", "right"):
             offset = 1 if event.key == "right" else -1
 
-            self.update_order_index(self.current_order_index + offset)
+            self.update_order_index(np.clip(self.current_order_index + offset,
+                0, len(self.parent.session.input_spectra) - 1))
             self.draw_order()
             self.update_continuum()
             self.draw_continuum(True)
 
-            print("DID IT", self.current_order_index)
             return None
 
         # TODO: deal with discarded order indices, etc.
@@ -299,15 +336,54 @@ class NormalizationTab(QtGui.QWidget):
             # SMH file because these will be updated when a session is loaded.
             return
 
+        self.update_order_index(0)
+
+        keys = ("function", "order", "sigma_clip", "knot_spacing")
         self._cache = {
             "input": {}
         }
+        for key in keys:
+            self._cache["input"][key] = self.parent.session._default(
+                None, ("normalization", key))
 
-        # A session exists. Load up everything.
-        self.update_order_index(0)
+        # Put these values into the widgets.
+        self.norm_low_sigma.setText(str(self._cache["input"]["sigma_clip"][0]))
+        self.norm_high_sigma.setText(str(self._cache["input"]["sigma_clip"][1]))
+        self.norm_knot_spacing.setText(str(
+            self._cache["input"]["knot_spacing"]))
+        
+        # Draw the widgets.
         self.update_continuum()
         self.draw_order()
         self.draw_continuum(True)
+        return None
+
+
+    def update_knot_spacing(self):
+        """ Update the knot spacing. """
+        self._cache["input"]["knot_spacing"] \
+            = float(self.norm_knot_spacing.text())
+        self.update_continuum()
+        self.draw_continuum(True)
+        return None
+        
+
+    def update_high_sigma_clip(self):
+        """ Update the high sigma clip value. """
+        self._cache["input"]["sigma_clip"][1] \
+            = float(self.norm_high_sigma.text())
+        self.update_continuum()
+        self.draw_continuum(True)
+        return None
+
+
+    def update_low_sigma_clip(self):
+        """ Update the low sigma clip value. """
+        self._cache["input"]["sigma_clip"][0] \
+            = float(self.norm_low_sigma.text())
+        self.update_continuum()
+        self.draw_continuum(True)
+        return None
 
 
     def update_order_index(self, index=None):

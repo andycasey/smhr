@@ -30,7 +30,7 @@ class MPLWidget(FigureCanvas):
         autofocus=False):
         """
         A widget to contain a matplotlib figure.
-        
+
         :param autofocus: [optional]
             If set to `True`, the figure will be in focus when the mouse hovers
             over it so that keyboard shortcuts/matplotlib events can be used.
@@ -41,12 +41,9 @@ class MPLWidget(FigureCanvas):
         self.canvas = FigureCanvas(self.figure)
         self.canvas.setParent(parent)
 
-        # Focus the canvas at first.
+        # Focus the canvas initially.
         self.canvas.setFocusPolicy(QtCore.Qt.WheelFocus)
         self.canvas.setFocus()
-
-        #if autofocus:
-        #    self.installEventFilter(self)
 
         self.toolbar = None #if not toolbar else NavigationToolbar(self, parent)
 
@@ -62,7 +59,8 @@ class MPLWidget(FigureCanvas):
             self.figure.patch.set_facecolor(bg_color)
 
         if autofocus:
-            self.canvas.mpl_connect("figure_enter_event", self._focus)
+            self._autofocus_cid = self.canvas.mpl_connect(
+                "figure_enter_event", self._focus)
 
         return None
 

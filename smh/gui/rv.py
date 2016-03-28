@@ -226,6 +226,8 @@ class RVTab(QtGui.QWidget):
         self.norm_low_sigma.setMaximumSize(QtCore.QSize(40, 16777215))
         self.norm_low_sigma.setAlignment(QtCore.Qt.AlignCenter)
         self.norm_low_sigma.setObjectName("rv_norm_low_sigma")
+        self.norm_low_sigma.setValidator(
+            QtGui.QDoubleValidator(0, 1000, 2, self.norm_low_sigma))
         hbox.addWidget(self.norm_low_sigma)
         norm_tab_grid_layout.addLayout(hbox, 3, 1, 1, 1)
 
@@ -244,6 +246,8 @@ class RVTab(QtGui.QWidget):
         self.norm_high_sigma.setMaximumSize(QtCore.QSize(40, 16777215))
         self.norm_high_sigma.setAlignment(QtCore.Qt.AlignCenter)
         self.norm_high_sigma.setObjectName("rv_norm_high_sigma")
+        self.norm_high_sigma.setValidator(
+            QtGui.QDoubleValidator(0, 1000, 2, self.norm_high_sigma))
         hbox.addWidget(self.norm_high_sigma)
         norm_tab_grid_layout.addLayout(hbox, 4, 1, 1, 1)
         
@@ -262,6 +266,8 @@ class RVTab(QtGui.QWidget):
         self.norm_knot_spacing.setMaximumSize(QtCore.QSize(40, 16777215))
         self.norm_knot_spacing.setAlignment(QtCore.Qt.AlignCenter)
         self.norm_knot_spacing.setObjectName("rv_norm_knot_spacing")
+        self.norm_knot_spacing.setValidator(
+            QtGui.QIntValidator(0, 10000, self.norm_knot_spacing))
         hbox.addWidget(self.norm_knot_spacing)
         norm_tab_grid_layout.addLayout(hbox, 5, 1, 1, 1)
 
