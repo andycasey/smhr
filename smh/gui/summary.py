@@ -15,6 +15,7 @@ class SummaryTab(QtGui.QWidget):
 
     def __init__(self, parent=None):
         super(SummaryTab, self).__init__(parent)
+        self.parent = parent
 
         self.setObjectName("summary_tab")
 

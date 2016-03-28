@@ -17,7 +17,7 @@ from matplotlib import (gridspec, pyplot as plt)
 
 from smh import (Session, specutils)
 
-__all__ = ["initialise_tab"]
+__all__ = ["RVTab"]
 
 
 c = 299792458e-3 # km/s
@@ -39,6 +39,7 @@ class RVTab(QtGui.QWidget):
         # Create a top-level horizontal layout to contain a matplotlib figure and
         # a vertical layout of settings..
         rv_tab_layout = QtGui.QHBoxLayout(self)
+        rv_tab_layout.setContentsMargins(10, 10, 10, 10)
 
         # This vertical layout will be for input settings.
         rv_settings_vbox = QtGui.QVBoxLayout()
@@ -661,7 +662,7 @@ class RVTab(QtGui.QWidget):
 
         # Enable the next tab.
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 1, True)
-
+        
         return None
 
 
@@ -749,20 +750,3 @@ class RVTab(QtGui.QWidget):
             self.rv_plot.draw()
 
         return None
-
-
-def initialise_tab(tabs, parent):
-    """
-    Create a radial velocity tab and add it to the application tabs.
-
-    :param tabs:
-        The application tab widget to add a radial velocity tab to.
-
-    :type tabs:
-        :class:`QtGui.QTabWidget`
-    """
-
-    tab = RVTab(parent)
-
-    tabs.addTab(tab, "Radial velocity")
-    return tab

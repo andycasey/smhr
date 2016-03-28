@@ -9,7 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 from PySide import QtCore, QtGui
 
 # Import functionality related to each tab
-import rv, summary
+import rv, normalization, summary
 
 
 from smh import Session
@@ -20,11 +20,15 @@ class Ui_MainWindow(QtGui.QMainWindow):
     The main GUI window for Spectroscopy Made Hard.
     """
 
-    def __init__(self):
+    def __init__(self, session_path=None):
         super(Ui_MainWindow, self).__init__()
 
         self.unsaved_session_changes = False
         self.session = None
+
+        # Load a session already?
+        if session_path is not None:
+            self.open_session(session_path)
 
         self.setWindowTitle("Spectroscopy Made Harder")
         self.setObjectName("smh")
@@ -101,21 +105,29 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.session = Session(filenames)
 
         # Disable all tabs except for Summary and RV.
-        enable = (True, True, False, False, False)
-        for i, enabled in enumerate(enable):
-            self.tabs.setTabEnabled(i, enabled)
+        for i in range(self.tabs.count()):
+            self.tabs.setTabEnabled(i, i < 2)
 
 
         self.rv_tab.update_from_new_session()
-
+        self.normalization_tab._populate_widgets()
 
         return None
 
 
-    def open_session(self):
+    def open_session(self, path=None):
         """ Open existing session. """
+
+        if path is None:
+            path, _ = QtGui.QFileDialog.getOpenFileName(self,
+                caption="Select session", dir="", filter="*.smh")
+            if not path: return
+
+        raise NotImplementedError
+
         print("Open session")
         return None
+
 
 
     def save_session(self):
@@ -168,19 +180,24 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.addTab(summary_tab, "Summary")
 
         # Create radial velocity tab
-        self.rv_tab = rv.initialise_tab(self.tabs, self)
-        # HACK: uncomment later
-        self.tabs.setTabEnabled(1, False)
+        self.rv_tab = rv.RVTab(self)
+        self.tabs.addTab(self.rv_tab, "Radial velocity")
+        
+        # Create normalization tab.
+        self.normalization_tab = normalization.NormalizationTab(self)
+        self.tabs.addTab(self.normalization_tab, "Normalization")
 
-        # Add remaining disabled (filler) tabs.
-        disabled_tab_names = \
-            ("Normalization", "Stellar parameters", "Chemical abundances")
+        # Add remaining empty tabs.
+        extra_tab_names = \
+            ("Stellar parameters", "Chemical abundances")
 
-        for disabled_tab_name in disabled_tab_names:
+        for tab_name in extra_tab_names:
             tab = QtGui.QWidget()
-            self.tabs.addTab(tab, disabled_tab_name)
-            self.tabs.setTabEnabled(self.tabs.indexOf(tab), False)
-
+            self.tabs.addTab(tab, tab_name)
+        
+        # Disable all tabs except the first one.
+        #for i in range(self.tabs.count()):
+        #    self.tabs.setTabEnabled(i, i == 0)
 
         cw_vbox.addWidget(self.tabs)
         self.setCentralWidget(cw)
