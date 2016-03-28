@@ -417,8 +417,11 @@ class RVTab(QtGui.QWidget):
 
     def _populate_widgets(self):
         """
-        Populate widgets with default values from the local SMH settings file.
+        Populate widgets with values from the current SMH session, or the
+        default SMH settings file.
         """
+
+
 
         # TODO: Put the default I/O somewhere else since it will be common to many
         #       tabs.

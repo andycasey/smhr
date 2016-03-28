@@ -73,7 +73,10 @@ class Session(BaseSession):
         # Initialize metadata dictionary.
         self.metadata = {
             "discarded_orders": [],
-            "rv": {}
+            "rv": {},
+            "normalization": {
+                "continuum": [None] * len(self.input_spectra)
+            }
         }
 
         return None
@@ -284,11 +287,6 @@ class Session(BaseSession):
         """
         Continuum-normalize all orders in the input spectra.
         """
-
-        self.metadata["normalization"] = {
-            "continuum": [None] * len(self.input_spectra)
-        }
-
 
         for i, order in enumerate(self.input_spectra):
             if i in self.metadata.get("discarded_orders", []): continue

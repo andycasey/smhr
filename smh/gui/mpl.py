@@ -18,7 +18,7 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 
 from matplotlib.figure import Figure
 
-from PySide import QtGui
+from PySide import QtCore, QtGui
 
 
 class MPLWidget(FigureCanvas):
@@ -26,13 +26,28 @@ class MPLWidget(FigureCanvas):
     A widget to contain a matplotlib figure.
     """
 
-    def __init__(self, parent=None, toolbar=False, tight_layout=True):
+    def __init__(self, parent=None, toolbar=False, tight_layout=True,
+        autofocus=False):
+        """
+        A widget to contain a matplotlib figure.
+        
+        :param autofocus: [optional]
+            If set to `True`, the figure will be in focus when the mouse hovers
+            over it so that keyboard shortcuts/matplotlib events can be used.
+        """
         super(MPLWidget, self).__init__(Figure())
-
-        self.setParent(parent)
-
+        
         self.figure = Figure(tight_layout=tight_layout)
         self.canvas = FigureCanvas(self.figure)
+        self.canvas.setParent(parent)
+
+        # Focus the canvas at first.
+        self.canvas.setFocusPolicy(QtCore.Qt.WheelFocus)
+        self.canvas.setFocus()
+
+        #if autofocus:
+        #    self.installEventFilter(self)
+
         self.toolbar = None #if not toolbar else NavigationToolbar(self, parent)
 
         # Get background of parent widget.
@@ -46,4 +61,13 @@ class MPLWidget(FigureCanvas):
                 parent.palette().color(QtGui.QPalette.Window).getRgb()[:3]]
             self.figure.patch.set_facecolor(bg_color)
 
+        if autofocus:
+            self.canvas.mpl_connect("figure_enter_event", self._focus)
+
         return None
+
+
+    def _focus(self, event):
+        """ Set the focus of the canvas. """
+        self.canvas.setFocus()
+

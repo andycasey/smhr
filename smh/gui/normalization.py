@@ -224,17 +224,19 @@ class NormalizationTab(QtGui.QWidget):
         blank_widget.setSizePolicy(sp)
         blank_widget.setObjectName("norm_plot")
 
-        self.norm_plot = mpl.MPLWidget(blank_widget, tight_layout=False)
+
+        self.norm_plot = mpl.MPLWidget(blank_widget, tight_layout=True,
+            autofocus=True)
+
         layout = QtGui.QVBoxLayout(blank_widget)
         layout.addWidget(self.norm_plot, 1)
-
         tab_layout.addWidget(blank_widget)
 
         # Set up the plot.
         gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
         self.ax_order = self.norm_plot.figure.add_subplot(gs[0])
         # Line for the data.
-        self.ax_order.plot([], [], c='k', zorder=3, drawstyle='steps-mid')
+        self.ax_order.plot([], [], c='k', zorder=3)#, drawstyle='steps-mid')
         # Line for the continuum.
         self.ax_order.plot([], [], c='r', zorder=4)
 
@@ -256,10 +258,35 @@ class NormalizationTab(QtGui.QWidget):
         self.ax_order_norm.set_yticks([0, 0.5, 1.0])
         self.ax_order_norm.set_xlabel(u"Wavelength (Å)")
 
-        self.norm_plot.figure.tight_layout(w_pad=0, h_pad=0, pad=0.4)
+        #self.norm_plot.figure.tight_layout(w_pad=0, h_pad=0, pad=0.4)
         self.norm_plot.draw()
 
+        # Create signals.
+        self.norm_plot.canvas.mpl_connect(
+            "key_press_event", self.figure_key_press)
+
         return None
+
+
+    def figure_key_press(self, event):
+        """
+        Key press event in the normalization figure.
+        """
+
+        print(event, event.key)
+
+        if event.key in ("left", "right"):
+            offset = 1 if event.key == "right" else -1
+
+            self.update_order_index(self.current_order_index + offset)
+            self.draw_order()
+            self.update_continuum()
+            self.draw_continuum(True)
+
+            print("DID IT", self.current_order_index)
+            return None
+
+        # TODO: deal with discarded order indices, etc.
 
 
     def _populate_widgets(self):
@@ -272,27 +299,89 @@ class NormalizationTab(QtGui.QWidget):
             # SMH file because these will be updated when a session is loaded.
             return
 
-        # A session exists. Load up everything.
-        self.order_index = 0
+        self._cache = {
+            "input": {}
+        }
 
-        self.draw_order(True)
+        # A session exists. Load up everything.
+        self.update_order_index(0)
+        self.update_continuum()
+        self.draw_order()
+        self.draw_continuum(True)
+
+
+    def update_order_index(self, index=None):
+        """
+        Update the currently selected order.
+        """
+        if index is None:
+            index = self.current_order_index
+
+        self.current_order_index = index
+        self.current_order \
+            = self.parent.session.input_spectra[self.current_order_index].copy()
+
+        # Apply any RV correction.
+        try:
+            rv_applied = self.parent.session.metadata["rv"]["rv_applied"]
+        except (AttributeError, KeyError):
+            rv_applied = 0
+
+        self.current_order._dispersion *= (1 - rv_applied/c)
+
+        return None
+
 
 
     def draw_order(self, refresh=False):
         """
         Draw the current order.
         """
-        print("Drawing order")
-        try:
-            rv_applied = self.parent.session.metadata["rv"]["rv_applied"]
-        except (AttributeError, KeyError):
-            rv_applied = 0
 
-        order = self.parent.session.input_spectra[self.order_index]
-        x, y = order.dispersion * (1 - rv_applied/c), order.flux
+        x, y = self.current_order.dispersion, self.current_order.flux
         self.ax_order.lines[0].set_data([x, y])
         self.ax_order.set_xlim(x[0], x[-1])
         self.ax_order.set_ylim(np.nanmin(y), np.nanmax(y))
 
+        self.ax_order.set_title("Order {0} of {1}".format(
+            1 + self.current_order_index, 
+            len(self.parent.session.input_spectra)))
+
         if refresh:
             self.norm_plot.draw()
+        return None
+
+
+    def update_continuum(self):
+        """
+        Update continuum for the current order.
+        """
+
+        kwds = self._cache["input"].copy()
+        kwds["full_output"] = True
+
+        normalized_spectrum, continuum, left, right \
+            = self.current_order.fit_continuum(**kwds)
+
+        index = self.current_order_index
+        self.parent.session.metadata["normalization"]["continuum"][index] \
+            = continuum
+
+        return None
+
+
+    def draw_continuum(self, refresh=False):
+        """
+        Draw the continuum for the current order.
+        """
+
+        meta = self.parent.session.metadata["normalization"]
+        continuum = meta["continuum"][self.current_order_index]
+
+        self.ax_order.lines[1].set_data([
+            self.current_order.dispersion, continuum])
+
+        if refresh:
+            self.norm_plot.draw()
+        return None
+

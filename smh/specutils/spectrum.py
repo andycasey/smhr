@@ -333,6 +333,16 @@ class Spectrum1D(object):
         return None
 
 
+    def copy(self):
+        """
+        Create a copy of the spectrum.
+        """
+        return self.__class__(
+            dispersion=self.dispersion.copy(),
+            flux=self.flux.copy(), ivar=self.ivar.copy(),
+            metadata=self.metadata.copy())
+
+
     def gaussian_smooth(self, fwhm, **kwargs):
         
         profile_sigma = fwhm / (2 * (2*np.log(2))**0.5)
@@ -397,8 +407,8 @@ class Spectrum1D(object):
 
 
     def fit_continuum(self, knot_spacing=200, sigma_clip=(1.0, 0.2), \
-                      max_iterations=3, order=3, exclude=None, include=None, \
-                      additional_points=None, function='spline', scale=1.0, **kwargs):
+        max_iterations=3, order=3, exclude=None, include=None, 
+        additional_points=None, function='spline', scale=1.0, rv=0, **kwargs):
         """Fits the continuum for a given `Spectrum1D` spectrum.
         
         Parameters
@@ -437,8 +447,14 @@ class Spectrum1D(object):
         include : list of tuple-types containing floats, optional
             A list of wavelength regions to always include when determining the
             continuum.
+
+        :param rv:
+            A radial velocity correction (in km/s) to apply to the spectrum.
         """
-        
+
+        dispersion = self.dispersion.copy()
+        dispersion *= (1. - rv/299792458e-3)
+
         exclusions = []
         continuum_indices = range(len(self.flux))
 
@@ -455,12 +471,12 @@ class Spectrum1D(object):
             
             if isinstance(exclude[0], float) and len(exclude) == 2:
                 # Only two floats given, so we only have one region to exclude
-                exclude_indices.extend(range(*np.searchsorted(self.dispersion, exclude)))
+                exclude_indices.extend(range(*np.searchsorted(dispersion, exclude)))
                 
             else:
                 # Multiple regions provided
                 for exclude_region in exclude:
-                    exclude_indices.extend(range(*np.searchsorted(self.dispersion, exclude_region)))
+                    exclude_indices.extend(range(*np.searchsorted(dispersion, exclude_region)))
         
             continuum_indices = np.sort(list(set(continuum_indices).difference(np.sort(exclude_indices))))
             
@@ -470,12 +486,12 @@ class Spectrum1D(object):
             
             if isinstance(include[0], float) and len(include) == 2:
                 # Only two floats given, so we can only have one region to include
-                include_indices.extend(range(*np.searchsorted(self.dispersion, include)))
+                include_indices.extend(range(*np.searchsorted(dispersion, include)))
                 
             else:
                 # Multiple regions provided
                 for include_region in include:
-                    include_indices.extend(range(*np.searchsorted(self.dispersion, include_region)))
+                    include_indices.extend(range(*np.searchsorted(dispersion, include_region)))
         
 
         # We should exclude non-finite numbers from the fit
@@ -494,20 +510,20 @@ class Spectrum1D(object):
         else:
             knot_spacing = abs(knot_spacing)
             
-            end_spacing = ((self.dispersion[-1] - self.dispersion[0]) % knot_spacing) /2.
+            end_spacing = ((dispersion[-1] - dispersion[0]) % knot_spacing) /2.
         
             if knot_spacing/2. > end_spacing: end_spacing += knot_spacing/2.
                 
-            knots = np.arange(self.dispersion[0] + end_spacing, self.dispersion[-1] - end_spacing + knot_spacing, knot_spacing)
-            if len(knots) > 0 and knots[-1] > self.dispersion[continuum_indices][-1]:
-                knots = knots[:knots.searchsorted(self.dispersion[continuum_indices][-1])]
+            knots = np.arange(dispersion[0] + end_spacing, dispersion[-1] - end_spacing + knot_spacing, knot_spacing)
+            if len(knots) > 0 and knots[-1] > dispersion[continuum_indices][-1]:
+                knots = knots[:knots.searchsorted(dispersion[continuum_indices][-1])]
                 
-            if len(knots) > 0 and knots[0] < self.dispersion[continuum_indices][0]:
-                knots = knots[knots.searchsorted(self.dispersion[continuum_indices][0]):]
+            if len(knots) > 0 and knots[0] < dispersion[continuum_indices][0]:
+                knots = knots[knots.searchsorted(dispersion[continuum_indices][0]):]
 
         for iteration in range(max_iterations):
             
-            splrep_disp = self.dispersion[continuum_indices]
+            splrep_disp = dispersion[continuum_indices]
             splrep_flux = self.flux[continuum_indices]
 
             splrep_weights = np.ones(len(splrep_disp))
@@ -530,12 +546,12 @@ class Spectrum1D(object):
                 tck = interpolate.splrep(splrep_disp, splrep_flux,
                     k=order, task=-1, t=knots, w=splrep_weights)
 
-                continuum = interpolate.splev(self.dispersion, tck)
+                continuum = interpolate.splev(dispersion, tck)
 
             elif function in ("poly", "polynomial"):
             
                 p = poly1d(polyfit(splrep_disp, splrep_flux, order))
-                continuum = p(self.dispersion)
+                continuum = p(dispersion)
 
             else:
                 raise ValueError("Unknown function type: only spline or poly available (%s given)" % (function, ))
@@ -576,7 +592,7 @@ class Spectrum1D(object):
         continuum *= scale
 
         normalized_spectrum = self.__class__(
-            dispersion=self.dispersion[left:right],
+            dispersion=dispersion[left:right],
             flux=(self.flux/continuum)[left:right], 
             ivar=(continuum * self.ivar * continuum)[left:right],
             metadata=self.metadata)
