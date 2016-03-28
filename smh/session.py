@@ -25,8 +25,6 @@ class BaseSession(object):
     """
     pass
 
- 
-
 
 class Session(BaseSession):
     """
@@ -72,8 +70,11 @@ class Session(BaseSession):
         self.input_spectra = input_spectra
         self.input_spectra_paths = spectrum_paths
         
-        # Initialize measurements and metadata.
-        self.rv = {}
+        # Initialize metadata dictionary.
+        self.metadata = {
+            "discarded_orders": [],
+            "rv": {}
+        }
 
         return None
 
@@ -244,8 +245,8 @@ class Session(BaseSession):
         else:
             v_helio = v_helio.to("km/s").value
             v_bary = v_bary.to("km/s").value
-        
-        self.rv.update({
+
+        self.metadata["rv"].update({
             # Measurements
             "rv_measured": rv,
             "rv_uncertainty": rv_uncertainty,
@@ -275,7 +276,7 @@ class Session(BaseSession):
             The radial velocity correction (in km/s) to apply.
         """
 
-        self.rv["rv_applied"] = rv
+        self.metadata["rv"]["rv_applied"] = rv
         return None
 
 
@@ -283,6 +284,15 @@ class Session(BaseSession):
         """
         Continuum-normalize all orders in the input spectra.
         """
+
+        self.metadata["normalization"] = {
+            "continuum": [None] * len(self.input_spectra)
+        }
+
+
+        for i, order in enumerate(self.input_spectra):
+            if i in self.metadata.get("discarded_orders", []): continue
+
 
         # Fit & store continuum for all input spectra.
         raise NotImplementedError

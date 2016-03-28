@@ -567,7 +567,7 @@ class RVTab(QtGui.QWidget):
 
         # Redshift the normalized order by the 'RV-applied', if it exists.
         try:
-            rv_applied = self.parent.session.rv["rv_applied"]
+            rv_applied = self.parent.session.metadata["rv"]["rv_applied"]
         except (AttributeError, KeyError):
             rv_applied = 0
 
@@ -632,13 +632,13 @@ class RVTab(QtGui.QWidget):
         """
 
         try:
-            v, ccf = self.parent.session.rv["ccf"]
+            v, ccf = self.parent.session.metadata["rv"]["ccf"]
         except (AttributeError, KeyError):
             return None
 
         self.ax_ccf.lines[0].set_data([v, ccf])
 
-        rv_measured = self.parent.session.rv["rv_measured"]
+        rv_measured = self.parent.session.metadata["rv"]["rv_measured"]
         
         self.ax_ccf.set_xlim(rv_measured - 1000, rv_measured + 1000)
         self.ax_ccf.set_ylim(0, 1.2)
@@ -655,7 +655,8 @@ class RVTab(QtGui.QWidget):
         Correct the radial velocity of the observed spectra.
         """
 
-        self.parent.session.rv["rv_applied"] = float(self.rv_applied.text())
+        self.parent.session.metadata["rv"]["rv_applied"] \
+            = float(self.rv_applied.text())
 
         # Redshift the normalized order.
         self.redraw_normalized_order(True)

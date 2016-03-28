@@ -284,7 +284,7 @@ class NormalizationTab(QtGui.QWidget):
         """
         print("Drawing order")
         try:
-            rv_applied = self.parent.session.rv["rv_applied"]
+            rv_applied = self.parent.session.metadata["rv"]["rv_applied"]
         except (AttributeError, KeyError):
             rv_applied = 0
 
