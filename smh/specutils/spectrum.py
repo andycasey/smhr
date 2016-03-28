@@ -221,6 +221,7 @@ class Spectrum1D(object):
 
         # Do something sensible regarding zero or negative fluxes.
         ivar[0 >= flux] = 0
+        flux[0 >= flux] = np.nan
 
         return (dispersion, flux, ivar, metadata)
 
@@ -598,6 +599,8 @@ class Spectrum1D(object):
             metadata=self.metadata)
 
         # Return a normalized spectrum.
+        continuum[:left] = np.nan
+        continuum[right:] = np.nan
         if kwargs.get("full_output", False):
             return (normalized_spectrum, continuum, left, right)
         return normalized_spectrum

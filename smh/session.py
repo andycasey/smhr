@@ -71,11 +71,13 @@ class Session(BaseSession):
         self.input_spectra_paths = spectrum_paths
         
         # Initialize metadata dictionary.
+        N = len(self.input_spectra)
         self.metadata = {
             "discarded_orders": [],
             "rv": {},
             "normalization": {
-                "continuum": [None] * len(self.input_spectra)
+                "continuum": [None] * N,
+                "normalization_kwargs": [{}] * N
             }
         }
 

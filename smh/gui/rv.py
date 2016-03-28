@@ -299,6 +299,8 @@ class RVTab(QtGui.QWidget):
         self.rv_applied.setMinimumSize(QtCore.QSize(50, 16777215))
         self.rv_applied.setAlignment(QtCore.Qt.AlignCenter)
         self.rv_applied.setObjectName("rv_applied")
+        self.rv_applied.setValidator(
+            QtGui.QDoubleValidator(-1e6, 1e6, 2, self.rv_applied))
         hbox.addWidget(self.rv_applied)
 
         # Units/uncertainty label.
@@ -415,10 +417,35 @@ class RVTab(QtGui.QWidget):
         self.norm_max_iter.currentIndexChanged.connect(
             self.update_normalization_max_iterations)
 
+        # Update the background to show whether certain items are valid.
+        self.norm_low_sigma.textChanged.connect(self.check_state)
+        self.norm_high_sigma.textChanged.connect(self.check_state)
+        self.norm_knot_spacing.textChanged.connect(self.check_state)
+        
         # Draw the template straight up if we can.
         self.draw_template(refresh=True)
 
         return None
+
+
+
+    def check_state(self, *args, **kwargs):
+        """
+        Update the background color of a QLineEdit object based on whether the
+        input is valid.
+        """
+
+        sender = self.sender()
+        validator = sender.validator()
+        state = validator.validate(sender.text(), 0)[0]
+        if state == QtGui.QValidator.Acceptable:
+            color = 'none' # normal background color
+        elif state == QtGui.QValidator.Intermediate:
+            color = '#fff79a' # yellow
+        else:
+            color = '#f6989d' # red
+        sender.setStyleSheet('QLineEdit { background-color: %s }' % color)
+
 
 
     def _populate_widgets(self):
@@ -507,23 +534,29 @@ class RVTab(QtGui.QWidget):
 
     def update_normalization_low_sigma(self):
         """ Update the low sigma clipping during normalization. """
-        self._cache["input"]["normalization"]["sigma_clip"][0] \
-            = float(self.norm_low_sigma.text())
-        self.fit_and_redraw_normalized_order()
+        low_sigma = self.norm_low_sigma.text()
+        if low_sigma:
+            self._cache["input"]["normalization"]["sigma_clip"][0] \
+                = float(low_sigma)
+            self.fit_and_redraw_normalized_order()
 
 
     def update_normalization_high_sigma(self):
         """ Update the high sigma clipping during normalization. """
-        self._cache["input"]["normalization"]["sigma_clip"][1] \
-            = float(self.norm_high_sigma.text())
-        self.fit_and_redraw_normalized_order()
+        high_sigma = self.norm_high_sigma.text()
+        if high_sigma:
+            self._cache["input"]["normalization"]["sigma_clip"][1] \
+                = float(high_sigma)
+            self.fit_and_redraw_normalized_order()
 
 
     def update_normalization_knot_spacing(self):
         """ Update the knot spacing used for normalization. """
-        self._cache["input"]["normalization"]["knot_spacing"] \
-            = float(self.norm_knot_spacing.text())
-        self.fit_and_redraw_normalized_order()
+        knot_spacing = self.norm_knot_spacing.text()
+        if knot_spacing:
+            self._cache["input"]["normalization"]["knot_spacing"] \
+                = float(knot_spacing)
+            self.fit_and_redraw_normalized_order()
 
 
 

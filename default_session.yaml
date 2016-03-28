@@ -8,11 +8,17 @@ rv:
   resample: template
   apodize: 0
   normalization:
-    knot_spacing: 200
+    knot_spacing: 100
     sigma_clip: [1.0, 0.2]
-    max_iterations: 3
-    order: 3
+    max_iterations: 5
+    order: 6
     exclude: null
     include: null
-    function: spline
+    function: spline 
     scale: 1.0
+normalization:
+  function: spline
+  order: 6
+  max_iterations: 5
+  sigma_clip: [1.0, 0.2]
+  knot_spacing: 100

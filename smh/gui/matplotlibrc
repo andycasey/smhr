@@ -1,6 +1,7 @@
 backend     : qt4agg
 backend.qt4 : PySide
 
+axes.titlesize  : 9.0
 axes.labelsize  : 9.0  # fontsize of the x any y labels  
 
 xtick.labelsize : 9.0  # fontsize of the tick labels  
