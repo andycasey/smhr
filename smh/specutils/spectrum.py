@@ -407,9 +407,10 @@ class Spectrum1D(object):
     
 
 
-    def fit_continuum(self, knot_spacing=200, sigma_clip=(1.0, 0.2), \
-        max_iterations=3, order=3, exclude=None, include=None, 
-        additional_points=None, function='spline', scale=1.0, rv=0, **kwargs):
+    def fit_continuum(self, knot_spacing=200, low_sigma_clip=1.0, \
+        high_sigma_clip=0.2, max_iterations=3, order=3, exclude=None, \
+        include=None, additional_points=None, function='spline', scale=1.0,
+        **kwargs):
         """Fits the continuum for a given `Spectrum1D` spectrum.
         
         Parameters
@@ -454,7 +455,6 @@ class Spectrum1D(object):
         """
 
         dispersion = self.dispersion.copy()
-        dispersion *= (1. - rv/299792458e-3)
 
         exclusions = []
         continuum_indices = range(len(self.flux))
@@ -561,8 +561,8 @@ class Spectrum1D(object):
             sigma_difference = difference / np.std(difference[np.isfinite(self.flux)])
 
             # Clipping
-            upper_exclude = np.where(sigma_difference > sigma_clip[1])[0]
-            lower_exclude = np.where(sigma_difference < -sigma_clip[0])[0]
+            upper_exclude = np.where(sigma_difference > high_sigma_clip)[0]
+            lower_exclude = np.where(sigma_difference < -low_sigma_clip)[0]
             
             exclude_indices = list(upper_exclude)
             exclude_indices.extend(lower_exclude)

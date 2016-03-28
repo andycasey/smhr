@@ -489,9 +489,10 @@ class RVTab(QtGui.QWidget):
             defaults["normalization"]["max_iterations"]))
 
         # Normalization low and high sigma clip:
-        low, high = defaults["normalization"]["sigma_clip"]
-        self.norm_low_sigma.setText(str(low))
-        self.norm_high_sigma.setText(str(high))
+        self.norm_low_sigma.setText(
+            str(defaults["normalization"]["low_sigma_clip"]))
+        self.norm_high_sigma.setText(
+            str(defaults["normalization"]["high_sigma_clip"]))
         
         # Normalization knot spacing.
         self.norm_knot_spacing.setText(
@@ -536,7 +537,7 @@ class RVTab(QtGui.QWidget):
         """ Update the low sigma clipping during normalization. """
         low_sigma = self.norm_low_sigma.text()
         if low_sigma:
-            self._cache["input"]["normalization"]["sigma_clip"][0] \
+            self._cache["input"]["normalization"]["low_sigma_clip"] \
                 = float(low_sigma)
             self.fit_and_redraw_normalized_order()
 
@@ -545,7 +546,7 @@ class RVTab(QtGui.QWidget):
         """ Update the high sigma clipping during normalization. """
         high_sigma = self.norm_high_sigma.text()
         if high_sigma:
-            self._cache["input"]["normalization"]["sigma_clip"][1] \
+            self._cache["input"]["normalization"]["high_sigma_clip"] \
                 = float(high_sigma)
             self.fit_and_redraw_normalized_order()
 

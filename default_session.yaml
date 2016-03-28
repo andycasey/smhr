@@ -9,7 +9,8 @@ rv:
   apodize: 0
   normalization:
     knot_spacing: 100
-    sigma_clip: [1.0, 0.2]
+    low_sigma_clip: 1.0
+    high_sigma_clip: 0.2
     max_iterations: 5
     order: 6
     exclude: null
@@ -20,5 +21,6 @@ normalization:
   function: spline
   order: 6
   max_iterations: 5
-  sigma_clip: [1.0, 0.2]
+  low_sigma_clip: 1.0
+  high_sigma_clip: 0.2
   knot_spacing: 100

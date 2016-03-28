@@ -53,48 +53,47 @@ class NormalizationTab(QtGui.QWidget):
         settings_grid_layout = QtGui.QGridLayout()
 
         # Normalization function.
-        self.norm_function_label = QtGui.QLabel(self)
-        self.norm_function_label.setText("Function")
-        settings_grid_layout.addWidget(self.norm_function_label, 0, 0, 1, 1)
+        self.function_label = QtGui.QLabel(self)
+        self.function_label.setText("Function")
+        settings_grid_layout.addWidget(self.function_label, 0, 0, 1, 1)
         
         # Put the normalization function combo box in a horizontal layout with 
         # a spacer.
         hbox = QtGui.QHBoxLayout()
         hbox.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
-        self.norm_function = QtGui.QComboBox(self)
-        self.norm_function.setObjectName("rv_norm_function")
-        hbox.addWidget(self.norm_function)
+        self.function = QtGui.QComboBox(self)
+        self.function.setObjectName("norm_function")
+        hbox.addWidget(self.function)
         settings_grid_layout.addLayout(hbox, 0, 1, 1, 1)
 
-        norm_functions = ("polynomial", "spline")
-        for each in norm_functions:
-            self.norm_function.addItem(each.title())
+        for each in ("polynomial", "spline"):
+            self.function.addItem(each.title())
 
         # Normalization function order.
-        self.norm_order_label = QtGui.QLabel(self)
-        self.norm_order_label.setText("Order")
-        settings_grid_layout.addWidget(self.norm_order_label, 1, 0, 1, 1)
+        self.order_label = QtGui.QLabel(self)
+        self.order_label.setText("Order")
+        settings_grid_layout.addWidget(self.order_label, 1, 0, 1, 1)
         
         # Put the normalization order combo box in a horizontal layout with a
         # spacer
         hbox = QtGui.QHBoxLayout()
         hbox.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
-        self.norm_order = QtGui.QComboBox(self)
-        self.norm_order.setMaximumSize(QtCore.QSize(50, 16777215))
-        self.norm_order.setObjectName("rv_norm_order")
-        hbox.addWidget(self.norm_order)
+        self.order = QtGui.QComboBox(self)
+        self.order.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.order.setObjectName("norm_order")
+        hbox.addWidget(self.order)
         settings_grid_layout.addLayout(hbox, 1, 1, 1, 1)
 
-        norm_orders = range(1, 10)
-        for order in norm_orders:
-            self.norm_order.addItem("{0:.0f}".format(order))
+        orders = range(1, 10)
+        for order in orders:
+            self.order.addItem("{0:.0f}".format(order))
 
         # Maximum number of iterations.
-        self.norm_max_iter_label = QtGui.QLabel(self)
-        self.norm_max_iter_label.setText("Maximum iterations")
-        settings_grid_layout.addWidget(self.norm_max_iter_label, 2, 0, 1, 1)
+        self.max_iter_label = QtGui.QLabel(self)
+        self.max_iter_label.setText("Maximum iterations")
+        settings_grid_layout.addWidget(self.max_iter_label, 2, 0, 1, 1)
 
         # Put the maxium number of iterations in a horizontal layout with a 
         # spacer.
@@ -103,7 +102,7 @@ class NormalizationTab(QtGui.QWidget):
             40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
         self.norm_max_iter = QtGui.QComboBox(self)
         self.norm_max_iter.setMaximumSize(QtCore.QSize(50, 16777215))
-        self.norm_max_iter.setObjectName("rv_norm_max_iter")
+        self.norm_max_iter.setObjectName("norm_norm_max_iter")
         hbox.addWidget(self.norm_max_iter)
         settings_grid_layout.addLayout(hbox, 2, 1, 1, 1)
 
@@ -113,63 +112,63 @@ class NormalizationTab(QtGui.QWidget):
 
 
         # Low sigma clipping.
-        label = QtGui.QLabel(self)
-        label.setText("Low sigma clip")
-        settings_grid_layout.addWidget(label, 3, 0, 1, 1)
+        self.low_sigma_clip_label = QtGui.QLabel(self)
+        self.low_sigma_clip_label.setText("Low sigma clip")
+        settings_grid_layout.addWidget(self.low_sigma_clip_label, 3, 0, 1, 1)
 
         # Put the low sigma line edit box in a horizontal layout with a spacer.
         hbox = QtGui.QHBoxLayout()
         hbox.setContentsMargins(-1, -1, 5, -1)
         hbox.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
-        self.norm_low_sigma = QtGui.QLineEdit(self)
-        self.norm_low_sigma.setMaximumSize(QtCore.QSize(40, 16777215))
-        self.norm_low_sigma.setAlignment(QtCore.Qt.AlignCenter)
-        self.norm_low_sigma.setObjectName("rv_norm_low_sigma")
-        self.norm_low_sigma.setValidator(
-            QtGui.QDoubleValidator(0, 1000, 2, self.norm_low_sigma))
+        self.low_sigma_clip = QtGui.QLineEdit(self)
+        self.low_sigma_clip.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.low_sigma_clip.setAlignment(QtCore.Qt.AlignCenter)
+        self.low_sigma_clip.setObjectName("norm_low_sigma_clip")
+        self.low_sigma_clip.setValidator(
+            QtGui.QDoubleValidator(0, 1000, 2, self.low_sigma_clip))
 
-        hbox.addWidget(self.norm_low_sigma)
+        hbox.addWidget(self.low_sigma_clip)
         settings_grid_layout.addLayout(hbox, 3, 1, 1, 1)
 
 
         # High sigma clipping.
-        label = QtGui.QLabel(self)
-        label.setText("High sigma clip")
-        settings_grid_layout.addWidget(label, 4, 0, 1, 1)
+        self.high_sigma_clip_label = QtGui.QLabel(self)
+        self.high_sigma_clip_label.setText("High sigma clip")
+        settings_grid_layout.addWidget(self.high_sigma_clip_label, 4, 0, 1, 1)
 
         # Put the high sigma line edit box in a horizontal layout with a spacer.
         hbox = QtGui.QHBoxLayout()
         hbox.setContentsMargins(-1, -1, 5, -1)
         hbox.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
-        self.norm_high_sigma = QtGui.QLineEdit(self)
-        self.norm_high_sigma.setMaximumSize(QtCore.QSize(40, 16777215))
-        self.norm_high_sigma.setAlignment(QtCore.Qt.AlignCenter)
-        self.norm_high_sigma.setObjectName("rv_norm_high_sigma")
-        self.norm_high_sigma.setValidator(
-            QtGui.QDoubleValidator(0, 1000, 2, self.norm_high_sigma))
-        hbox.addWidget(self.norm_high_sigma)
+        self.high_sigma_clip = QtGui.QLineEdit(self)
+        self.high_sigma_clip.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.high_sigma_clip.setAlignment(QtCore.Qt.AlignCenter)
+        self.high_sigma_clip.setObjectName("norm_high_sigma_clip")
+        self.high_sigma_clip.setValidator(
+            QtGui.QDoubleValidator(0, 1000, 2, self.high_sigma_clip))
+        hbox.addWidget(self.high_sigma_clip)
         settings_grid_layout.addLayout(hbox, 4, 1, 1, 1)
         
 
         # Knot spacing.
-        self.norm_knot_spacing_label = QtGui.QLabel(self)
-        settings_grid_layout.addWidget(self.norm_knot_spacing_label, 5, 0, 1, 1)
-        self.norm_knot_spacing_label.setText(u"Knot spacing (Å)")
+        self.knot_spacing_label = QtGui.QLabel(self)
+        settings_grid_layout.addWidget(self.knot_spacing_label, 5, 0, 1, 1)
+        self.knot_spacing_label.setText(u"Knot spacing (Å)")
 
         # Put the knot spacing lint edit box in a horizontal layout with a spacer
         hbox = QtGui.QHBoxLayout()
         hbox.setContentsMargins(-1, -1, 5, -1)
         hbox.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
-        self.norm_knot_spacing = QtGui.QLineEdit(self)
-        self.norm_knot_spacing.setMaximumSize(QtCore.QSize(40, 16777215))
-        self.norm_knot_spacing.setAlignment(QtCore.Qt.AlignCenter)
-        self.norm_knot_spacing.setValidator(
-            QtGui.QIntValidator(0, 10000, self.norm_knot_spacing))
-        self.norm_knot_spacing.setObjectName("rv_norm_knot_spacing")
-        hbox.addWidget(self.norm_knot_spacing)
+        self.knot_spacing = QtGui.QLineEdit(self)
+        self.knot_spacing.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.knot_spacing.setAlignment(QtCore.Qt.AlignCenter)
+        self.knot_spacing.setValidator(
+            QtGui.QIntValidator(0, 10000, self.knot_spacing))
+        self.knot_spacing.setObjectName("norm_knot_spacing")
+        hbox.addWidget(self.knot_spacing)
         settings_grid_layout.addLayout(hbox, 5, 1, 1, 1)
 
 
@@ -286,21 +285,21 @@ class NormalizationTab(QtGui.QWidget):
 
         
 
-        self.norm_function.currentIndexChanged.connect(
+        self.function.currentIndexChanged.connect(
             self.update_normalization_function)
-        self.norm_order.currentIndexChanged.connect(
+        self.order.currentIndexChanged.connect(
             self.update_normalization_order)
         self.norm_max_iter.currentIndexChanged.connect(
             self.update_normalization_max_iterations)
-        self.norm_low_sigma.textChanged.connect(
-            self.update_low_sigma_clip)
-        self.norm_high_sigma.textChanged.connect(
+        self.low_sigma_clip.textChanged.connect(
+            self.uplow_sigma_clip)
+        self.high_sigma_clip.textChanged.connect(
             self.update_high_sigma_clip)
-        self.norm_knot_spacing.textChanged.connect(self.update_knot_spacing)
+        self.knot_spacing.textChanged.connect(self.update_knot_spacing)
 
-        self.norm_low_sigma.textChanged.connect(self.check_state)
-        self.norm_high_sigma.textChanged.connect(self.check_state)
-        self.norm_knot_spacing.textChanged.connect(self.check_state)
+        self.low_sigma_clip.textChanged.connect(self.check_state)
+        self.high_sigma_clip.textChanged.connect(self.check_state)
+        self.knot_spacing.textChanged.connect(self.check_state)
         
 
 
@@ -332,11 +331,12 @@ class NormalizationTab(QtGui.QWidget):
         Key press event in the normalization figure.
         """
 
-        print(event, event.key)
-
+        # Show a new order.
         if event.key in ("left", "right"):
             offset = 1 if event.key == "right" else -1
 
+            # TODO: deal with discarded order indices, etc.
+            
             self.update_order_index(np.clip(self.current_order_index + offset,
                 0, len(self.parent.session.input_spectra) - 1))
             self.draw_order()
@@ -345,7 +345,17 @@ class NormalizationTab(QtGui.QWidget):
 
             return None
 
-        # TODO: deal with discarded order indices, etc.
+        # Scale the continuum up/down.
+        if event.key in ("up", "down"):
+            scale = self._cache["input"].get("scale", 1.0)
+            sign = +1 if event.key == "up" else -1
+
+            self._cache["input"]["scale"] = scale + sign * 0.01
+
+            self.fit_continuum(True)
+            self.draw_continuum(True)
+
+            return None
 
 
     def _populate_widgets(self):
@@ -358,8 +368,8 @@ class NormalizationTab(QtGui.QWidget):
             # SMH file because these will be updated when a session is loaded.
             return
 
-        keys = ("function", "order", "sigma_clip", "knot_spacing",
-            "max_iterations")
+        keys = ("function", "order", "low_sigma_clip", "high_sigma_clip",
+            "knot_spacing", "max_iterations")
         self._cache = {
             "input": {}
         }
@@ -368,20 +378,22 @@ class NormalizationTab(QtGui.QWidget):
                 None, ("normalization", key))
 
         # Put these values into the widgets.
-        self.norm_low_sigma.setText(str(self._cache["input"]["sigma_clip"][0]))
-        self.norm_high_sigma.setText(str(self._cache["input"]["sigma_clip"][1]))
-        self.norm_knot_spacing.setText(str(
+        self.low_sigma_clip.setText(
+            str(self._cache["input"]["low_sigma_clip"]))
+        self.high_sigma_clip.setText(
+            str(self._cache["input"]["high_sigma_clip"]))
+        self.knot_spacing.setText(str(
             self._cache["input"]["knot_spacing"]))
 
-        norm_functions = [self.norm_function.itemText(i).lower() \
-            for i in range(self.norm_function.count())]
-        self.norm_function.setCurrentIndex(norm_functions.index(
+        functions = [self.function.itemText(i).lower() \
+            for i in range(self.function.count())]
+        self.function.setCurrentIndex(functions.index(
             self._cache["input"]["function"]))
 
         # Normalization order.
-        norm_orders = [int(self.norm_order.itemText(i)) \
-            for i in range(self.norm_order.count())]
-        self.norm_order.setCurrentIndex(norm_orders.index(
+        orders = [int(self.order.itemText(i)) \
+            for i in range(self.order.count())]
+        self.order.setCurrentIndex(orders.index(
             self._cache["input"]["order"]))
 
         # Normalization maximum iterations.
@@ -400,53 +412,53 @@ class NormalizationTab(QtGui.QWidget):
 
     def update_knot_spacing(self):
         """ Update the knot spacing. """
-        knot_spacing = self.norm_knot_spacing.text()
+        knot_spacing = self.knot_spacing.text()
         if knot_spacing:
             self._cache["input"]["knot_spacing"] = float(knot_spacing)
             self.fit_continuum(True)
             self.draw_continuum(True)
-            self.reset_font_weights()
+            self.reset_input_style_defaults()
 
         return None
         
 
     def update_high_sigma_clip(self):
         """ Update the high sigma clip value. """
-        high_sigma = self.norm_high_sigma.text()
+        high_sigma = self.high_sigma_clip.text()
         if high_sigma:
-            self._cache["input"]["sigma_clip"][1] = float(high_sigma)
+            self._cache["input"]["high_sigma_clip"] = float(high_sigma)
             self.fit_continuum(True)
             self.draw_continuum(True)
-            self.reset_font_weights()
+            self.reset_input_style_defaults()
         return None
 
 
-    def update_low_sigma_clip(self):
+    def uplow_sigma_clip(self):
         """ Update the low sigma clip value. """
-        low_sigma = self.norm_low_sigma.text()
+        low_sigma = self.low_sigma_clip.text()
         if low_sigma:
-            self._cache["input"]["sigma_clip"][0] = float(low_sigma)
+            self._cache["inpulow_sigma_clip"] = float(low_sigma)
             self.fit_continuum(True)
             self.draw_continuum(True)
-            self.reset_font_weights()
+            self.reset_input_style_defaults()
         return None
 
 
     def update_normalization_function(self):
         """ Update the normalization function. """
-        self._cache["input"]["function"] = self.norm_function.currentText()
+        self._cache["input"]["function"] = self.function.currentText()
         self.fit_continuum(True)
         self.draw_continuum(True)
-        self.reset_font_weights()
+        self.reset_input_style_defaults()
         return None
 
 
     def update_normalization_order(self):
         """ Update the normalization order. """
-        self._cache["input"]["order"] = int(self.norm_order.currentText())
+        self._cache["input"]["order"] = int(self.order.currentText())
         self.fit_continuum(True)
         self.draw_continuum(True)
-        self.reset_font_weights()
+        self.reset_input_style_defaults()
         return None
 
 
@@ -456,7 +468,7 @@ class NormalizationTab(QtGui.QWidget):
             = int(self.norm_max_iter.currentText())
         self.fit_continuum(True)
         self.draw_continuum(True)
-        self.reset_font_weights()
+        self.reset_input_style_defaults()
         return None
 
 
@@ -509,12 +521,13 @@ class NormalizationTab(QtGui.QWidget):
         # If so, are the current normalization keywords different to the ones
         # used for this one?
         input_items = {
-            "function": [self.norm_function_label, self.norm_function],
-            "order": [self.norm_order_label, self.norm_order],
-            "knot_spacing": \
-                [self.norm_knot_spacing, self.norm_knot_spacing_label],
-            "max_iterations": [self.norm_max_iter_label, self.norm_max_iter],
-
+            "function": [self.function_label, self.function],
+            "order": [self.order_label, self.order],
+            "max_iterations": [self.max_iter_label, self.norm_max_iter],
+            "low_sigma_clip": [self.low_sigma_clip_label, self.low_sigma_clip],
+            "high_sigma_clip": \
+                [self.high_sigma_clip_label, self.high_sigma_clip],
+            "knot_spacing": [self.knot_spacing, self.knot_spacing_label],
         }
 
         diff = dict_updated(self._cache["input"], normalization_kwargs)
@@ -531,18 +544,22 @@ class NormalizationTab(QtGui.QWidget):
                             .format(1 + index, key, used, current))
         else:
             # Ensure all the things are styled normally.
-            self.reset_font_weights(sum(input_items.values(), []))
+            self.reset_input_style_defaults(sum(input_items.values(), []))
 
         return None
 
 
-    def reset_font_weights(self, items=None):
-
+    def reset_input_style_defaults(self, items=None):
+        """
+        Reset the styling inputs.
+        """
         items = items or (
-            self.norm_function_label, self.norm_function,
-            self.norm_order_label, self.norm_order,
-            self.norm_knot_spacing_label, self.norm_knot_spacing,
-            self.norm_max_iter_label, self.norm_max_iter,
+            self.function_label, self.function,
+            self.order_label, self.order,
+            self.max_iter_label, self.norm_max_iter,
+            self.low_sigma_clip_label, self.low_sigma_clip,
+            self.high_sigma_clip_label, self.high_sigma_clip,
+            self.knot_spacing_label, self.knot_spacing,
         )
         # Ensure all the things are styled normally.
         for item in items:
