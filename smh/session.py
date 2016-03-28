@@ -8,12 +8,15 @@ from __future__ import (division, print_function, absolute_import,
 
 __all__ = ["Session"]
 
+import logging
 import numpy as np
 import os
 import yaml
 from six import string_types
 
 from . import specutils
+
+logger = logging.getLogger(__name__)
 
 
 class BaseSession(object):
@@ -229,6 +232,19 @@ class Session(BaseSession):
 
         # Store the measured information as part of the session.
         # TODO: Should we store these as a NamedTuple instead?
+
+        try:
+            v_helio, v_bary = specutils.motions.corrections_from_headers(
+                overlap_order.metadata)
+        except:
+            logger.exception(
+                "Exception in calculating heliocentric and barycentric motions")
+            v_helio, v_bary = (np.nan, np.nan)
+
+        else:
+            v_helio = v_helio.to("km/s").value
+            v_bary = v_bary.to("km/s").value
+        
         self.rv.update({
             # Measurements
             "rv_measured": rv,
@@ -237,8 +253,8 @@ class Session(BaseSession):
             "normalized_order": observed_spectrum,
             "continuum": continuum,
             "ccf": ccf,
-            "heliocentric_correction": np.nan, # TODO
-            "barycentric_correction": np.nan, #TODO
+            "heliocentric_correction": v_helio,
+            "barycentric_correction": v_bary,
 
             # Input settings
             "template_spectrum": template_spectrum,
@@ -261,5 +277,14 @@ class Session(BaseSession):
 
         self.rv["rv_applied"] = rv
         return None
+
+
+    def normalize_input_spectra(self, **kwargs):
+        """
+        Continuum-normalize all orders in the input spectra.
+        """
+
+        # Fit & store continuum for all input spectra.
+        raise NotImplementedError
 
 

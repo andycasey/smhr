@@ -1,10 +1,22 @@
 
-
+import logging
 import os
 from shutil import copyfile
 
-
 __version__ = "0.1"
+
+# Set up logging.
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter(
+    "%(asctime)s [%(levelname)-8s] %(message)s"))
+
+#handler.setFormatter(logging.Formatter(
+#    "%(asctime)s [%(levelname)-8s] (%(name)s/%(lineno)d): %(message)s"))
+
+logger.addHandler(handler)
 
 
 # Get the location for the Session defaults file.
