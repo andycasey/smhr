@@ -12,11 +12,10 @@ This file will be shipped with SMH, but can be edited by the user.
     - [4810, 4910] # H-beta
     - [4290, 4390] # H-gamma
   - `template_path`: A SMH-relative path containing a normalized spectrum to use for comparison
-  - `resample`: `template` # or `observed`
-  - `apodize`: 0.10 # TODO: Currently not implemented in SMH but maybe not needed?
   - `normalization`:
     - `knot_spacing`: 200
-    - `sigma_clip`: (1.0, 0.2)
+    - `low_sigma_clip`: 1.0
+    - `high_sigma_clip`: 0.2
     - `max_iterations`: 3
     - `order`: 3
     - `exclude`: None
