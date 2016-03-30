@@ -2,6 +2,7 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
 import numpy as np
+import astropy.units as u
 from astropy.io import ascii,fits
 from astropy.table import Table, Column, MaskedColumn
 from astropy import table
@@ -47,6 +48,8 @@ class LineList():
                 # use self.pick_best_line to find best line
                 lines_with_multiple_matches.append(new_line)
                 index = self.pick_best_line(new_line,thresh)
+                # index < 0 is the convention that you should just skip the line rather than overwriting
+                if index < 0: continue 
                 if override_current:
                     self.data[index] = new_line
             elif index >= 0:
@@ -66,9 +69,16 @@ class LineList():
         
     def pick_best_line(self,new_line,thresh):
         """
-        Given a line and assuming there are multiple matches,
+        Given a line and assuming there are multiple matches, pick the best line.
+        By default picks line closest in wavelength.
+
+        The convention is to return -1 if you want to skip the line.
+        This is so if you replace this function with some sort of interactive
+        line picking, you can choose to not replace any lines.
         """
         indices = self.find_match(new_line,thresh=thresh,return_multiples=True)
+        if isinstance(indices,int): return -1
+        assert len(indices) >= 2
         matches = self.data[indices]
         if self.verbose:
             print("----{} Matches----".format(len(matches)))
@@ -137,7 +147,8 @@ class LineList():
 
     @classmethod
     def read(cls,filename):
-        for reader in [cls.read_moog, cls.read_GES]:
+        fixed_width_reader = lambda x: ascii.read(x,format='fixed_width_two_line')
+        for reader in [cls.read_moog, cls.read_GES, fixed_width_reader]:
             try:
                 return reader(filename)
             except IOError:
@@ -175,7 +186,7 @@ class LineList():
                     has_header_line = True
                     continue
                 else:
-                    raise ValueError("Invalid line: {}".format(line))
+                    raise IOError("Invalid line: {}".format(line))
             if len(s) > 4:
                 try: damping[i] = float(line[40:50])
                 except: pass
@@ -195,8 +206,8 @@ class LineList():
             # TODO this is the MOOG default, but it may not be a good idea...
             print("Warning: no lines with loggf < 0 in {}, assuming input is gf".format(filename))
         
-        # Cite the filename as the reference for now
         # TODO
+        # Cite the filename as the reference for now
         refs = [filename for x in wl]
     
         # Fill required non-MOOG fields with nan
@@ -205,13 +216,17 @@ class LineList():
             data = [wl,species,EP,loggf,damping,dissoc,comments,
                     nans,nans,nans,nans,nans,nans,refs]
         else:
-            data = [wl,species,EP,loggf,damping,dissoc,comments,refs]
+            data = [wl*u.angstrom,species,EP*u.eV,loggf,damping,dissoc*u.eV,comments,refs]
     
         return cls(Table(data,names=colnames,dtype=dtypes))
 
     @classmethod
     def read_GES(cls,filename):
-        raise NotImplementedError
+        raise IOError("Not implemented")
+
+    def write(self,filename):
+        # Some default ascii output format that is easily read/writable
+        self.data.write(filename,format='ascii.fixed_width_two_line')
 
     def write_moog(self,filename):
         #TODO untested
