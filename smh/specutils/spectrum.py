@@ -700,11 +700,27 @@ def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
             raise ValueError(
                 "function type {0} not recognised".format(function_type))
 
-        if function_type in (1, 2):
-            # Chebyshev or Legendre polynomial.
+        if function_type == 1:
             if None in (order, Pmin, Pmax, coefficients):
                 raise TypeError("order, Pmin, Pmax and coefficients required "
-                                "for a Chebyshev or Legendre polynomial")
+                                "for a Chebyshev polynomial")
+            order = int(order)
+            n = np.linspace(-1, 1, Pmax - Pmin + 1)
+            temp = np.zeros((Pmax - Pmin + 1, order), dtype=float)
+            temp[:, 0] = coefficients[0]
+            temp[:, 1] = n * coefficients[1]
+            for i in range(2, order):
+                temp[:, i] = \
+                    coefficients[i] * (2.0 * n * temp[:, i-1] - temp[:, i-2]) 
+            
+            dispersion = temp.sum(axis=1)
+
+
+        elif function_type == 2:
+            # Legendre polynomial.
+            if None in (order, Pmin, Pmax, coefficients):
+                raise TypeError("order, Pmin, Pmax and coefficients required "
+                                "for a Legendre polynomial")
 
             Pmean = (Pmax + Pmin)/2
             Pptp = Pmax - Pmin
