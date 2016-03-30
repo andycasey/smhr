@@ -14,7 +14,7 @@ from .marcs import Interpolator as marcs_interp
 from .stagger import Interpolator as stagger_interp
 from . import utils
 
-logger = logging.getLogger("oracle")
+logger = logging.getLogger(__name__)
 
 def interpolator(kind="castelli/kurucz", **kwargs):
 

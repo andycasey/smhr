@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
@@ -26,7 +27,7 @@ class Photosphere(astropy.table.Table):
 # MOOG writer and identifier.
 def _moog_writer(photosphere, filename, **kwargs):
     """
-    Writes an :class:`oracle.photospheres.photosphere` to file in a MOOG-friendly
+    Writes an :class:`photospheres.photosphere` to file in a MOOG-friendly
     format.
     """
 

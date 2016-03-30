@@ -16,7 +16,7 @@ from collections import Counter
 import numpy as np
 
 # Module-specific.
-from oracle.photospheres.interpolator import BaseInterpolator
+from interpolator import BaseInterpolator
 
 # Create logger.
 logger = logging.getLogger(__name__)
