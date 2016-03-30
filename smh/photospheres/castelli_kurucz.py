@@ -16,7 +16,7 @@ import warnings
 import numpy as np
 
 # Module-specific.
-from interpolator import BaseInterpolator
+from .interpolator import BaseInterpolator
 
 # Create logger.
 logger = logging.getLogger(__name__)
