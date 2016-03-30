@@ -202,7 +202,8 @@ class Spectrum1D(object):
             ivar = image[0].data[noise_ext]**(-2)
 
         else:
-            raise ValueError("could not identify flux and ivar extensions")
+            ivar = np.nan * np.ones_like(flux)
+            #raise ValueError("could not identify flux and ivar extensions")
 
         dispersion = np.atleast_2d(dispersion)
         flux = np.atleast_2d(flux)
@@ -609,7 +610,7 @@ class Spectrum1D(object):
 def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
     mean_dispersion_delta, num_pixels, redshift, aperture_low, aperture_high,
     weight=1, offset=0, function_type=None, order=None, Pmin=None, Pmax=None,
-    coefficients=None):
+    *coefficients):
     """
     Compute a dispersion mapping from a IRAF multi-spec description.
 
@@ -712,7 +713,7 @@ def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
             p1 = mean_dispersion_delta
 
             dispersion = coefficients[0] * p0 + coefficients[1] * p1
-            for i in range(2, order):
+            for i in range(2, int(order)):
                 if function_type == 1:
                     # Chebyshev
                     p2 = 2 * x * p1 - p0
