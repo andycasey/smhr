@@ -196,8 +196,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
             self.tabs.addTab(tab, tab_name)
         
         # Disable all tabs except the first one.
-        #for i in range(self.tabs.count()):
-        #    self.tabs.setTabEnabled(i, i == 0)
+        for i in range(self.tabs.count()):
+            self.tabs.setTabEnabled(i, i == 0)
 
         cw_vbox.addWidget(self.tabs)
         self.setCentralWidget(cw)

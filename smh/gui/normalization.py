@@ -6,6 +6,7 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+import logging
 import numpy as np
 import sys
 from PySide import QtCore, QtGui
@@ -16,6 +17,7 @@ import mpl
 
 __all__ = ["NormalizationTab"]
 
+logger = logging.getLogger(__name__)
 
 c = 299792458e-3 # km/s
 
@@ -292,7 +294,7 @@ class NormalizationTab(QtGui.QWidget):
         self.norm_max_iter.currentIndexChanged.connect(
             self.update_normalization_max_iterations)
         self.low_sigma_clip.textChanged.connect(
-            self.uplow_sigma_clip)
+            self.update_low_sigma_clip)
         self.high_sigma_clip.textChanged.connect(
             self.update_high_sigma_clip)
         self.knot_spacing.textChanged.connect(self.update_knot_spacing)
@@ -336,7 +338,7 @@ class NormalizationTab(QtGui.QWidget):
             offset = 1 if event.key == "right" else -1
 
             # TODO: deal with discarded order indices, etc.
-            
+
             self.update_order_index(np.clip(self.current_order_index + offset,
                 0, len(self.parent.session.input_spectra) - 1))
             self.draw_order()
@@ -433,11 +435,11 @@ class NormalizationTab(QtGui.QWidget):
         return None
 
 
-    def uplow_sigma_clip(self):
+    def update_low_sigma_clip(self):
         """ Update the low sigma clip value. """
         low_sigma = self.low_sigma_clip.text()
         if low_sigma:
-            self._cache["inpulow_sigma_clip"] = float(low_sigma)
+            self._cache["input"]["low_sigma_clip"] = float(low_sigma)
             self.fit_continuum(True)
             self.draw_continuum(True)
             self.reset_input_style_defaults()
@@ -604,9 +606,12 @@ class NormalizationTab(QtGui.QWidget):
         kwds["full_output"] = True
 
         # Add in any additonal points/masked region to kwds.
-
-        normalized_spectrum, continuum, left, right \
-            = self.current_order.fit_continuum(**kwds)
+        try:
+            normalized_spectrum, continuum, left, right \
+                = self.current_order.fit_continuum(**kwds)
+        except:
+            logger.exception("No continuum could be fit.")
+            continuum = np.nan
 
         session.metadata["normalization"]["continuum"][index] = continuum
         session.metadata["normalization"]["normalization_kwargs"][index] = kwds
