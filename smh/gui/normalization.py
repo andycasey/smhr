@@ -18,7 +18,7 @@ from matplotlib import gridspec
 import mpl
 
 # This is a bad idea, but it's April 1st.
-from .style_utils import wavelength_to_hex
+from style_utils import wavelength_to_hex
 
 
 logger = logging.getLogger(__name__)
@@ -366,6 +366,23 @@ class NormalizationTab(QtGui.QWidget):
             self.draw_continuum(True)
 
             return None
+
+
+        # 'd': No normalization for this order.
+        if event.key in ("d", "D"):
+            try:
+                idx, session = self.current_order_index, self.parent.session
+
+            except AttributeError:
+                return None
+
+            session.metadata["normalization"]["continuum"][idx] = 1
+            session.metadata["normalization"]["normalization_kwargs"][idx] = {}
+
+            self.draw_continuum(True)
+
+            return None
+
 
 
     def _populate_widgets(self):
