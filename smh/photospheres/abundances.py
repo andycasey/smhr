@@ -8,7 +8,7 @@ from __future__ import division, absolute_import, print_function
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 from numpy import array
-from oracle.utils import element
+from .utils import element
 
 
 def asplund_2009(elements):

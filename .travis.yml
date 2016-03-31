@@ -21,9 +21,17 @@ before_install:
   #- sudo rm -rf /dev/shm
   #- sudo ln -s /run/shm /dev/shm
 install: 
-  - conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib nose six coverage pyside
+  - conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy astropy matplotlib nose six coverage
+  # Pyside is not natively supported in conda yet for Python 3
+  # See https://groups.google.com/a/continuum.io/forum/#!topic/anaconda/6q1StqOb_Vc
+  - if [[ $TRAVIS_PYTHON_VERSION == 2* ]]; then conda install --yes python=$TRAVIS_PYTHON_VERSION pyside; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == '3.4' ]]; then pip install pyside; fi
   - pip install coveralls
 script:
   - nosetests --with-coverage --cover-package=smh
 after_success:
   coveralls
+
+branches:
+  only:
+    - master

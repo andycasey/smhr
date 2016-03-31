@@ -6,10 +6,11 @@ from smh.session import Session
 3. Apply that radial velocity measurement to the session.
 """
 
+"""
 a = Session([
     "/Users/arc/codes/smh/hd44007red_multi.fits",
     "/Users/arc/codes/smh/hd44007blue_multi.fits",
     ])
 
 rv, rv_uncertainty = a.rv_measure("hd140283.fits")
-
+"""

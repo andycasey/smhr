@@ -202,7 +202,8 @@ class Spectrum1D(object):
             ivar = image[0].data[noise_ext]**(-2)
 
         else:
-            raise ValueError("could not identify flux and ivar extensions")
+            ivar = np.nan * np.ones_like(flux)
+            #raise ValueError("could not identify flux and ivar extensions")
 
         dispersion = np.atleast_2d(dispersion)
         flux = np.atleast_2d(flux)
@@ -609,7 +610,7 @@ class Spectrum1D(object):
 def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
     mean_dispersion_delta, num_pixels, redshift, aperture_low, aperture_high,
     weight=1, offset=0, function_type=None, order=None, Pmin=None, Pmax=None,
-    coefficients=None):
+    *coefficients):
     """
     Compute a dispersion mapping from a IRAF multi-spec description.
 
@@ -699,8 +700,23 @@ def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
             raise ValueError(
                 "function type {0} not recognised".format(function_type))
 
-        if function_type in (1, 2):
-            # Chebyshev or Legendre polynomial.
+        if function_type == 1:
+            order = int(order)
+            n = np.linspace(-1, 1, Pmax - Pmin + 1)
+            temp = np.zeros((Pmax - Pmin + 1, order), dtype=float)
+            temp[:, 0] = 1
+            temp[:, 1] = n
+            for i in range(2, order):
+                temp[:, i] = 2 * n * temp[:, i-1] - temp[:, i-2]
+            
+            for i in range(0, order):
+                temp[:, i] *= coefficients[i]
+
+            dispersion = temp.sum(axis=1)
+
+
+        elif function_type == 2:
+            # Legendre polynomial.
             if None in (order, Pmin, Pmax, coefficients):
                 raise TypeError("order, Pmin, Pmax and coefficients required "
                                 "for a Chebyshev or Legendre polynomial")
@@ -712,7 +728,7 @@ def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
             p1 = mean_dispersion_delta
 
             dispersion = coefficients[0] * p0 + coefficients[1] * p1
-            for i in range(2, order):
+            for i in range(2, int(order)):
                 if function_type == 1:
                     # Chebyshev
                     p2 = 2 * x * p1 - p0
