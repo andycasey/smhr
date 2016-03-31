@@ -8,7 +8,7 @@ from astropy.table import Table, Column, MaskedColumn
 from astropy import table
 from utils import element_to_species, species_to_element
 
-class LineList():
+class LineList(Table):
     full_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments',
                      'E_hi','E_lo','lande_hi','lande_lo','damp_stark','damp_rad','references']
     full_dtypes = [np.float,np.float,np.float,np.float,np.float,np.float,str,
@@ -16,13 +16,47 @@ class LineList():
     moog_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments','references']
     moog_dtypes = [np.float,np.float,np.float,np.float,np.float,np.float,str,str]
 
-    def __init__(self,data,verbose=False):
-        # check required columns in data
-        self.data = data
-        self.verbose = verbose
-        self.default_thresh = 0.01
+    def __init__(self,*args,**kwargs):
+        # Pull out some default kwargs
+        if 'verbose' in kwargs: 
+            self.verbose = kwargs.pop('verbose')
+        else:
+            self.verbose = False
+        if 'moog_columns' in kwargs: 
+            self.moog_columns = kwargs.pop('moog_columns')
+        else:
+            self.moog_columns = False
+        if 'default_thresh' in kwargs:
+            self.default_thresh = kwargs.pop('default_thresh')
+        else:
+            self.default_thresh = 0.01
 
-    def merge(self,new_ll,thresh=None,override_current=True):
+        super(LineList, self).__init__(*args,**kwargs)
+
+        self.validate_colnames()
+
+    def validate_colnames(self,error=True):
+        ## This has to be included b'c table.vstack() creates an empty list
+        if len(self.columns)==0: return False
+
+        if self.moog_columns:
+            colnames = self.moog_colnames
+        else:
+            colnames = self.full_colnames
+        badcols = []
+        for col in colnames:
+            if col not in self.columns: badcols.append(col)
+        
+        error_msg = "Missing columns: {}".format(badcols)
+        if len(badcols) == 0: return True
+        if error:
+            raise IOError(error_msg)
+        else:
+            print(error_msg)
+        return False
+
+    def merge(self,new_ll,thresh=None,override_current=True,
+              in_place=True):
         """
         new_ll: 
             new LineList object to merge into this one
@@ -34,13 +68,17 @@ class LineList():
         override_current: 
             If True (default), uses new lines whenever duplicate lines are found.
             If False, keep current lines whenever duplicate lines are found.
+        
+        in_place:
+            If True, merge new lines into this object
+            If False, return a new LineList
         """
         if thresh==None: thresh = self.default_thresh
 
         num_in_list = 0
         lines_to_add = []
         lines_with_multiple_matches = []
-        for new_line in new_ll.data:
+        for new_line in new_ll:
             index = self.find_match(new_line,thresh)
             if index==-1:
                 lines_to_add.append(new_line)
@@ -51,21 +89,33 @@ class LineList():
                 # index < 0 is the convention that you should just skip the line rather than overwriting
                 if index < 0: continue 
                 if override_current:
-                    self.data[index] = new_line
+                    #self.data[index] = new_line
+                    self[index] = new_line
             elif index >= 0:
                 num_in_list += 1
                 if override_current:
-                    self.data[index] = new_line
+                    self[index] = new_line
         num_lines_added = len(lines_to_add)
         if len(lines_to_add) > 0:
-            new_lines = Table(rows=lines_to_add,names=lines_to_add[0].colnames)
-            self.data = table.vstack([self.data,new_lines])
+            if in_place:
+                for line in lines_to_add:
+                    self.add_row(line)
+            else:
+                new_lines = Table(rows=lines_to_add,names=lines_to_add[0].colnames)
+                old_lines = self.copy()
+                # During the vstack creates an empty LineList and warns
+                new_data = table.vstack([old_lines,new_lines])
         
         if self.verbose:
             print("Num lines added: {}".format(num_lines_added))
             print("Num lines {}: {}".format('replaced' if override_current else 'ignored', num_in_list))
             num_lines_with_multiple_matches = len(lines_with_multiple_matches)
             print("Num lines with multiple matches: {}".format(num_lines_with_multiple_matches))
+
+        if not in_place:
+            return LineList(new_data)
+        else:
+            return None
         
     def pick_best_line(self,new_line,thresh):
         """
@@ -79,7 +129,7 @@ class LineList():
         indices = self.find_match(new_line,thresh=thresh,return_multiples=True)
         if isinstance(indices,int): return -1
         assert len(indices) >= 2
-        matches = self.data[indices]
+        matches = self[indices]
         if self.verbose:
             print("----{} Matches----".format(len(matches)))
             print(new_line)
@@ -105,9 +155,9 @@ class LineList():
             < -1: that number of matches
         """
         if thresh==None: thresh = self.default_thresh
-        ii1 = self.data['species']==line['species']
-        ii2 = np.abs(self.data['wavelength']-line['wavelength']) < thresh
-        ii3 = np.abs(self.data['expot']-line['expot']) < 0.01
+        ii1 = self['species']==line['species']
+        ii2 = np.abs(self['wavelength']-line['wavelength']) < thresh
+        ii3 = np.abs(self['expot']-line['expot']) < 0.01
         ii = np.logical_and(np.logical_and(ii1,ii2),ii3)
         num_match = np.sum(ii)
         if num_match==0: return -1
@@ -123,17 +173,16 @@ class LineList():
     def find_duplicates(self,thresh=None):
         # The idea here is that you can increase the threshold to see if you were too weak in finding duplicates
         # This is not useful if you have molecular lines (e.g. carbon) because there are too many collisions
-        # TODO untested
         if thresh==None: thresh = self.default_thresh
         duplicate_indices = []
-        mask = np.ones(len(self.data),dtype=bool)
+        mask = np.ones(len(self),dtype=bool)
         # This is really inefficient and can likely be redone
-        for i,line in enumerate(self.data):
+        for i,line in enumerate(self):
             mask[i] = False
-            tdata = LineList(self.data[mask])
+            tdata = LineList(self[mask])
             if tdata.find_match(line) >= 0: duplicate_indices.append(i)
             mask[i] = True
-        duplicate_lines = self.data[np.array(duplicate_indices)]
+        duplicate_lines = self[np.array(duplicate_indices)]
         return duplicate_indices,duplicate_lines
 
     @staticmethod
@@ -146,13 +195,17 @@ class LineList():
         raise NotImplementedError
 
     @classmethod
-    def read(cls,filename):
-        fixed_width_reader = lambda x: ascii.read(x,format='fixed_width_two_line')
-        for reader in [cls.read_moog, cls.read_GES, fixed_width_reader]:
+    def read(cls,filename,*args,**kwargs):
+        for reader in [cls.read_moog, cls.read_GES]:
             try:
                 return reader(filename)
             except IOError:
                 continue
+        #TODO this last part is untested
+        try:
+            return cls(super(LineList, cls).read((filename,)+args, **kwargs))
+        except IOError:
+            pass
         raise IOError("Cannot identify linelist format")
 
     @classmethod
@@ -224,26 +277,22 @@ class LineList():
     def read_GES(cls,filename):
         raise IOError("Not implemented")
 
-    def write(self,filename):
-        # Some default ascii output format that is easily read/writable
-        self.data.write(filename,format='ascii.fixed_width_two_line')
-
     def write_moog(self,filename):
         #TODO untested
         fmt = "{:10.3f}{:10.5f}{:10.3f}{:10.3f}{}{}{}{}"
         space = " "*10
         with open(filename,'w') as f:
-            for line in self.data:
+            for line in self:
                 C6 = space if np.ma.is_masked(line['damp_vdw']) else "{:10.3}".format(line['damp_vdw'])
                 D0 = space if np.ma.is_masked(line['dissoc_E']) else "{:10.3}".format(line['dissoc_E'])
                 comments = '' if np.ma.is_masked(line['comments']) else line['comments']
                 f.write(fmt.format(line['wavelength'],line['species'],line['expot'],line['loggf'],C6,D0,space,line['comments'])+"\n")
 
-    def write_latex(self,filename):
-        #TODO untested
-        #TODO rename columns to something nice?
-        #TODO restrict columns?
-        self.data.write(filename,format='ascii.latex')
+    #def write_latex(self,filename):
+    #    #TODO untested
+    #    #TODO rename columns to something nice?
+    #    #TODO restrict columns?
+    #    self..write(filename,format='ascii.latex')
 
     #TODO make "in" operator that calls self.contains so can do "line in ll"
     #TODO make "[]" operator that accesses the data columns?
