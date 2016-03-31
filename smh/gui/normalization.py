@@ -6,6 +6,8 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+__all__ = ["NormalizationTab"]
+
 import logging
 import numpy as np
 import sys
@@ -15,7 +17,9 @@ from matplotlib import gridspec
 
 import mpl
 
-__all__ = ["NormalizationTab"]
+# This is a bad idea, but it's April 1st.
+from .style_utils import wavelength_to_hex
+
 
 logger = logging.getLogger(__name__)
 
@@ -255,7 +259,7 @@ class NormalizationTab(QtGui.QWidget):
         # Line for the data.
         self.ax_order.plot([], [], c='k', zorder=3)#, drawstyle='steps-mid')
         # Line for the continuum.
-        self.ax_order.plot([], [], c='r', zorder=4)
+        self.ax_order.plot([], [], linestyle="--", linewidth=2, c='r', zorder=4)
 
         # Line for the neighbouring order(s) (joined by a NaN).
         self.ax_order.plot([], [], c='#666666', zorder=1, drawstyle='steps-mid')
@@ -306,7 +310,6 @@ class NormalizationTab(QtGui.QWidget):
 
 
 
-        return None
 
 
     def check_state(self, *args, **kwargs):
@@ -345,6 +348,11 @@ class NormalizationTab(QtGui.QWidget):
             self.fit_continuum(False)
             self.draw_continuum(True)
 
+            # Do all of the orders have continuum? If so, update the button.
+            if not any([(_ is None) for _ in \
+            self.parent.session.metadata["normalization"]["continuum"]]):
+                self.stitch_btn.setText("Stitch orders")
+
             return None
 
         # Scale the continuum up/down.
@@ -376,8 +384,16 @@ class NormalizationTab(QtGui.QWidget):
             "input": {}
         }
         for key in keys:
-            self._cache["input"][key] = self.parent.session._default(
-                None, ("normalization", key))
+            self._cache["input"][key] \
+                = self.parent.session.setting(("normalization", key))
+
+        # Continuum masks.
+        self._cache["continuum_mask"] \
+            = self.parent.session.setting(("normalization", "masks"))
+        self._cache["default_mask"] \
+            = self.parent.session.setting(("normalization", "default_mask")) \
+                or self._cache["continuum_mask"].keys()[0]
+
 
         # Put these values into the widgets.
         self.low_sigma_clip.setText(
@@ -404,12 +420,86 @@ class NormalizationTab(QtGui.QWidget):
         self.norm_max_iter.setCurrentIndex(norm_max_iters.index(
             self._cache["input"]["max_iterations"]))
 
+        # Mask names.
+        for name in self._cache["continuum_mask"].keys():
+            self.continuum_mask.addItem(name)
+
+        self.continuum_mask.setCurrentIndex(
+            self._cache["continuum_mask"].keys().index(
+                self._cache["default_mask"]))
+
+
+
         # Draw the widgets.
         self.update_order_index(0)
+        self.update_continuum_mask()
         self.fit_continuum(False)
         self.draw_order()
         self.draw_continuum(True)
         return None
+
+
+    def update_continuum_mask(self):
+        """
+        Draw the continuum mask (relevant for all orders).
+        """
+
+        ymin, ymax = (-1e8, 1e8)
+        kwds = {
+            "xmin": np.nan,
+            "xmax": np.nan,
+            "ymin": ymin,
+            "ymax": ymax,
+            "facecolor": "r",
+            "edgecolor": "none",
+            "alpha": 0.25,
+            "zorder": -1
+        }
+
+        # Transformation function.
+        transform = lambda start, end: np.array([
+                [start, ymin],
+                [start, ymax],
+                [end,   ymax],
+                [end,   ymin],
+                [start, ymin]
+            ])
+
+        mask = self._cache["continuum_mask"][self.continuum_mask.currentText()]
+
+        # Any added regions to mask out? v-stack these
+
+        try:
+            self._masked_wavelengths
+        except AttributeError:
+            self._masked_wavelengths = []
+            self._masked_wavelengths_norm = []
+
+        for i, (start, end) in enumerate(mask):
+            if i >= len(self._masked_wavelengths):
+
+                # Create a polygon in the main figure.
+                self._masked_wavelengths.append(self.ax_order.axvspan(**kwds))
+
+                # And for the normalization preview.
+                self._masked_wavelengths_norm.append(
+                    self.ax_order_norm.axvspan(**kwds))
+
+            polygons = \
+                (self._masked_wavelengths[i], self._masked_wavelengths_norm[i])
+            for polygon in polygons:
+                polygon.set_xy(transform(start, end))
+
+        # Any leftover polygons?
+        for polygon in self._masked_wavelengths[i + 1:]:
+            polygon.set_xy(transform(np.nan, np.nan))
+
+        for polygon in self._masked_wavelengths_norm[i + 1:]:
+            polygon.set_xy(transform(np.nan, np.nan))
+
+        self.norm_plot.draw()
+        return True
+
 
 
     def update_knot_spacing(self):
@@ -497,10 +587,6 @@ class NormalizationTab(QtGui.QWidget):
         # Update the view if the input settings don't match the settings used
         # to normalize the current order.
         self.check_for_different_input_settings()
-
-        # Do all of the orders have continuum? If so, update the button.
-        if not None in session.metadata["normalization"]["continuum"]:
-            self.stitch_btn.setText("Stitch orders")
 
         return None
 
@@ -595,7 +681,10 @@ class NormalizationTab(QtGui.QWidget):
         """
 
         # Any existing continuum determination?
-        index, session = (self.current_order_index, self.parent.session)
+        try:
+            index, session = (self.current_order_index, self.parent.session)
+        except AttributeError:
+            return None
 
         continuum = session.metadata["normalization"]["continuum"][index]
         if continuum is not None and not clobber:
@@ -624,11 +713,20 @@ class NormalizationTab(QtGui.QWidget):
         Draw the continuum for the current order.
         """
 
+        try:
+            index = self.current_order_index
+        except AttributeError:
+            return None
+
         meta = self.parent.session.metadata["normalization"]
-        continuum = meta["continuum"][self.current_order_index]
+        continuum = meta["continuum"][index]
 
         self.ax_order.lines[1].set_data([
             self.current_order.dispersion, continuum])
+
+        # Set the color of the line.
+        self.ax_order.lines[1].set_color(wavelength_to_hex(
+            np.nanmean(self.current_order.dispersion)))
 
         # Update the normalization preview in the lower axis.
         self.ax_order_norm.lines[1].set_data([
