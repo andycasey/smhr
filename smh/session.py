@@ -84,6 +84,37 @@ class Session(BaseSession):
         return None
 
 
+    def setting(self, key_tree):
+        """
+        Return a setting value either from the session metadata, or the default.
+
+        :param key_tree:
+            A tuple containing a tree of dictionary keys.
+        """
+
+        value = self.metadata.copy()
+        try:
+            for key in key_tree:
+                value = value[key]
+
+        except KeyError:
+            # Check in defaults.
+            with open(self._default_settings_path, "rb") as fp:
+                default = yaml.load(fp)
+
+            try:
+                for key in key_tree:
+                    default = default[key]
+            except KeyError:
+                return None
+
+            else:
+                return default
+
+        else:
+            return value
+
+
     def _default(self, input_value, default_key_tree):
         """
         Return the input value if it is valid (i.e., not `None`), or return the

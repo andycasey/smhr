@@ -100,9 +100,9 @@ class Spectrum1D(object):
 
         # Try multi-spec first since this is currently the most common use case.
         methods = (
-            cls._read_multispec_fits,
-            cls._read_spectrum1d_fits,
-            cls._read_spectrum1d_ascii
+            cls.read_fits_multispec,
+            cls.read_fits_spectrum1d,
+            cls.read_ascii_spectrum1d
         )
 
         for method in methods:
@@ -110,8 +110,8 @@ class Spectrum1D(object):
                 dispersion, flux, ivar, metadata = method(path, **kwargs)
 
             except:
-                logger.exception("Exception in trying to load {0} with {1}:"\
-                    .format(path, method))
+                continue
+
             else:
                 orders = [cls(dispersion=d, flux=f, ivar=i, metadata=metadata) \
                     for d, f, i in zip(dispersion, flux, ivar)]
@@ -125,7 +125,7 @@ class Spectrum1D(object):
 
 
     @classmethod
-    def _read_multispec_fits(cls, path, flux_ext=None, ivar_ext=None, **kwargs):
+    def read_fits_multispec(cls, path, flux_ext=None, ivar_ext=None, **kwargs):
         """
         Create multiple Spectrum1D classes from a multi-spec file on disk.
 
@@ -228,7 +228,7 @@ class Spectrum1D(object):
 
 
     @classmethod
-    def _read_spectrum1d_fits(cls, path, **kwargs):
+    def read_fits_spectrum1d(cls, path, **kwargs):
         """
         Read Spectrum1D data from a binary FITS file.
 
@@ -283,7 +283,7 @@ class Spectrum1D(object):
 
 
     @classmethod
-    def _read_spectrum1d_ascii(cls, path, **kwargs):
+    def read_ascii_spectrum1d(cls, path, **kwargs):
         """
         Read Spectrum1D data from an ASCII-formatted file on disk.
 
