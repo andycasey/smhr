@@ -7,14 +7,19 @@ from astropy.io import ascii,fits
 from astropy.table import Table, Column, MaskedColumn
 from astropy import table
 from utils import element_to_species, species_to_element
+import os
 
 class LineList(Table):
     full_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments',
-                     'E_hi','E_lo','lande_hi','lande_lo','damp_stark','damp_rad','references']
+                     'E_hi','E_lo','lande_hi','lande_lo','damp_stark','damp_rad','references',
+                     'element']
     full_dtypes = [np.float,np.float,np.float,np.float,np.float,np.float,str,
-                   np.float,np.float,np.float,np.float,np.float,np.float,str]
-    moog_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments','references']
-    moog_dtypes = [np.float,np.float,np.float,np.float,np.float,np.float,str,str]
+                   np.float,np.float,np.float,np.float,np.float,np.float,str,
+                   str]
+    moog_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments',
+                     'references','element']
+    moog_dtypes = [np.float,np.float,np.float,np.float,np.float,np.float,str,
+                   str,str]
 
     def __init__(self,*args,**kwargs):
         # Pull out some default kwargs
@@ -206,10 +211,12 @@ class LineList(Table):
 
     @classmethod
     def read(cls,filename,*args,**kwargs):
+        if not os.path.exists(filename):
+            raise IOError("No such file or directory: {}".format(filename))
         for reader in [cls.read_moog, cls.read_GES]:
             try:
                 return reader(filename)
-            except IOError:
+            except IOError as e:
                 continue
         #TODO this last part is untested
         try:
@@ -219,13 +226,13 @@ class LineList(Table):
         raise IOError("Cannot identify linelist format")
 
     @classmethod
-    def read_moog(cls,filename,full_columns=True):
-        if full_columns:
-            colnames = cls.full_colnames
-            dtypes = cls.full_dtypes
-        else:
+    def read_moog(cls,filename,moog_columns=False):
+        if moog_columns:
             colnames = cls.moog_colnames
             dtypes = cls.moog_dtypes
+        else:
+            colnames = cls.full_colnames
+            dtypes = cls.full_dtypes
     
         with open(filename) as f:
             lines = f.readlines()
@@ -273,15 +280,21 @@ class LineList(Table):
         # Cite the filename as the reference for now
         refs = [filename for x in wl]
     
+        # Element to species
+        spec2elem = {}
+        for this_species in np.unique(species):
+            spec2elem[this_species] = species_to_element(this_species)
+        elements = [spec2elem[this_species] for this_species in species]
+
         # Fill required non-MOOG fields with nan
-        if full_columns:
+        if moog_columns:
+            data = [wl*u.angstrom,species,EP*u.eV,loggf,damping,dissoc*u.eV,comments,refs,elements]
+        else:
             nans = np.zeros_like(wl)*np.nan
             data = [wl,species,EP,loggf,damping,dissoc,comments,
-                    nans,nans,nans,nans,nans,nans,refs]
-        else:
-            data = [wl*u.angstrom,species,EP*u.eV,loggf,damping,dissoc*u.eV,comments,refs]
+                    nans,nans,nans,nans,nans,nans,refs,elements]
     
-        return cls(Table(data,names=colnames,dtype=dtypes))
+        return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns)
 
     @classmethod
     def read_GES(cls,filename):
