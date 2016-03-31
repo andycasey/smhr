@@ -123,17 +123,29 @@ class LineList(Table):
         By default picks line closest in wavelength.
 
         The convention is to return -1 if you want to skip the line.
-        This is so if you replace this function with some sort of interactive
-        line picking, you can choose to not replace any lines.
+        (This is so if you replace this function with some sort of interactive
+        line picking, you can choose to not replace any lines.)
         """
         indices = self.find_match(new_line,thresh=thresh,return_multiples=True)
-        if isinstance(indices,int): return -1
+        if isinstance(indices,int): return -1 #Only one match, skip
         assert len(indices) >= 2
         matches = self[indices]
+        # If there is an identical line, return -1 to skip
+        for line in matches:
+            dwl = np.abs(new_line['wavelength']-line['wavelength'])
+            dEP = np.abs(new_line['expot']-line['expot'])
+            dgf = np.abs(new_line['loggf']-line['loggf'])
+            # TODO does this make sense?
+            if dwl < .001 and dEP < .01 and dgf < .001: 
+                if self.verbose:
+                    print("Found identical match: {:8.3f} {:4.1f} {:5.2f} {:6.3f}".format(new_line['wavelength'],new_line['species'],new_line['expot'],new_line['loggf']))
+                return -1
+
         if self.verbose:
             print("----{} Matches----".format(len(matches)))
             print(new_line)
             print(matches)
+        
         # Pick the line that is closest in wavelength
         best = np.argmin(np.abs(new_line['wavelength']-matches['wavelength']))
         return indices[best]
@@ -165,12 +177,10 @@ class LineList(Table):
         if return_multiples:
             return np.where(ii)[0]
         else:
-            if self.verbose:
-                print("Error: {} matches!".format(num_match))
-                print(line)
             return -1 * num_match
 
     def find_duplicates(self,thresh=None):
+        # TODO test
         # The idea here is that you can increase the threshold to see if you were too weak in finding duplicates
         # This is not useful if you have molecular lines (e.g. carbon) because there are too many collisions
         if thresh==None: thresh = self.default_thresh
