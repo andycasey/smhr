@@ -9,6 +9,26 @@ from astropy import table
 from utils import element_to_species, species_to_element
 import os
 
+def find_moog_species(elem1,ion,isotope1=None,elem2=None,isotope2=None):
+    Z1 = int(element_to_species(elem1.strip()))
+    if isotope1==None: isotope1=''
+    else: isotope1 = str(isotope1).zfill(2)
+
+    if elem2 == None or elem2.strip() == '':
+        mystr = "{}.{}{}".format(Z1,int(ion-1),int(isotope1))
+    else: #Molecule
+        Z2 = int(element_to_species(elem2.strip()))
+        if isotope2==None: isotope2=''
+        else: isotope2 = str(isotope2).zfill(2)
+        # If either isotope is specified, both must be specified
+        assert len(isotope1) == len(isotope2), "'{}' vs '{}'".format(isotope1,isotope2)
+        if Z1 < Z2:
+            mystr = "{}{:02}.{}{}{}".format(Z1,Z2,int(ion-1),isotope1,isotope2)
+        else:
+            mystr = "{}{:02}.{}{}{}".format(Z2,Z1,int(ion-1),isotope2,isotope1)
+    # TODO there is a potential bug when converting to float; if the second isotope is 00, it will be dropped.
+    return float(mystr)
+
 class LineList(Table):
     full_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments',
                      'E_hi','E_lo','lande_hi','lande_lo','damp_stark','damp_rad','references',
@@ -38,10 +58,15 @@ class LineList(Table):
 
         super(LineList, self).__init__(*args,**kwargs)
 
-        self.validate_colnames()
+        self.validate_colnames(False)
 
-    def validate_colnames(self,error=True):
-        ## This has to be included b'c table.vstack() creates an empty list
+    def validate_colnames(self,error=False):
+        """
+        error: if True, raise error when validating.
+            This is False by default because many astropy.table operations
+            create empty or small tables.
+        """
+        ## This is included b'c table.vstack() creates an empty table
         if len(self.columns)==0: return False
 
         if self.moog_columns:
@@ -137,11 +162,7 @@ class LineList(Table):
         matches = self[indices]
         # If there is an identical line, return -1 to skip
         for line in matches:
-            dwl = np.abs(new_line['wavelength']-line['wavelength'])
-            dEP = np.abs(new_line['expot']-line['expot'])
-            dgf = np.abs(new_line['loggf']-line['loggf'])
-            # TODO does this make sense?
-            if dwl < .001 and dEP < .01 and dgf < .001: 
+            if self.lines_equal(new_line,line):
                 if self.verbose:
                     print("Found identical match: {:8.3f} {:4.1f} {:5.2f} {:6.3f}".format(new_line['wavelength'],new_line['species'],new_line['expot'],new_line['loggf']))
                 return -1
@@ -201,28 +222,32 @@ class LineList(Table):
         return duplicate_indices,duplicate_lines
 
     @staticmethod
-    def is_line(line):
-        # Check if the given thing is a line
-        # Basically it has to be an astropy row with the right columns
-        # If yes, return True
-        # If not, print an error as to why
-        # TODO
-        raise NotImplementedError
+    def lines_equal(l1,l2,dwl_thresh=.001,dEP_thresh=.01,dgf_thresh=.001):
+        dwl = np.abs(l1['wavelength']-l2['wavelength'])
+        dEP = np.abs(l1['expot']-l2['expot'])
+        dgf = np.abs(l1['loggf']-l2['loggf'])
+        return dwl < dwl_thresh and dEP < dEP_thresh and dgf < dgf_thresh
 
     @classmethod
     def read(cls,filename,*args,**kwargs):
+        """
+        filename: name of the file
+        To use the default Table reader, must specify 'format' keyword.
+        Otherwise, tries to read moog and then GES fits
+        """
+        
+        if 'format' in kwargs: 
+            return cls(super(LineList, cls).read(*((filename,)+args), **kwargs))
+
         if not os.path.exists(filename):
             raise IOError("No such file or directory: {}".format(filename))
         for reader in [cls.read_moog, cls.read_GES]:
             try:
                 return reader(filename)
             except IOError as e:
-                continue
-        #TODO this last part is untested
-        try:
-            return cls(super(LineList, cls).read((filename,)+args, **kwargs))
-        except IOError:
-            pass
+                pass
+            except UnicodeDecodeError as e: #read_moog fails this way for fits
+                pass
         raise IOError("Cannot identify linelist format")
 
     @classmethod
@@ -288,35 +313,67 @@ class LineList(Table):
 
         # Fill required non-MOOG fields with nan
         if moog_columns:
-            data = [wl*u.angstrom,species,EP*u.eV,loggf,damping,dissoc*u.eV,comments,refs,elements]
+            data = [wl,species,EP,loggf,damping,dissoc,comments,refs,elements]
         else:
             nans = np.zeros_like(wl)*np.nan
             data = [wl,species,EP,loggf,damping,dissoc,comments,
                     nans,nans,nans,nans,nans,nans,refs,elements]
-    
+        
         return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns)
 
     @classmethod
-    def read_GES(cls,filename):
-        raise IOError("Not implemented")
+    def read_GES(cls,filename,moog_columns=False):
+        if moog_columns:
+            colnames = cls.moog_colnames
+            dtypes = cls.moog_dtypes
+        else:
+            colnames = cls.full_colnames
+            dtypes = cls.full_dtypes
+
+        tab = Table.read(filename)
+        wl = tab['LAMBDA']
+        species_fn = lambda row: find_moog_species(row['NAME'][0],row['ION'],isotope1=row['ISOTOPE'][0],elem2=row['NAME'][1],isotope2=row['ISOTOPE'][1])
+        species = map(species_fn, tab)
+        elements = map(species_to_element, species)
+        expot = tab['E_LOW']
+        loggf = tab['LOG_GF']
+        damp_vdw = tab['VDW_DAMP']
+        dissoc_E = np.zeros_like(wl)*np.nan #TODO
+        E_hi = tab['E_UP']
+        E_lo = tab['E_LOW']
+        lande_hi = tab['LANDE_UP']
+        lande_lo = tab['LANDE_LOW']
+        damp_stark = tab['STARK_DAMP']
+        damp_rad = tab['RAD_DAMP']
+        
+        refstr = "WL:{},GF:{},EL:{},EU:{},LA:{},RD:{},SD:{},VD:{}"
+        ref_concatenator = lambda row: refstr.format(row['LAMBDA_REF'],row['LOG_GF_REF'],row['E_LOW_REF'],row['E_UP_REF'],
+                                                     row['LANDE_REF'],row['RAD_DAMP_REF'],row['STARK_DAMP_REF'],row['VDW_DAMP_REF'])
+        comments = map(ref_concatenator, tab)
+        refs = tab['LOG_GF_REF']
+        
+        if moog_columns:
+            data = [wl,species,expot,loggf,damp_vdw,dissoc,comments,refs,elements]
+        else:
+            data = [wl,species,expot,loggf,damp_vdw,dissoc,comments,
+                    E_hi,E_lo,lande_hi,lande_lo,damp_stark,damp_rad,refs,
+                    elements]
+    
+        return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns)
 
     def write_moog(self,filename):
-        #TODO untested
         fmt = "{:10.3f}{:10.5f}{:10.3f}{:10.3f}{}{}{}{}"
         space = " "*10
         with open(filename,'w') as f:
             for line in self:
-                C6 = space if np.ma.is_masked(line['damp_vdw']) else "{:10.3}".format(line['damp_vdw'])
-                D0 = space if np.ma.is_masked(line['dissoc_E']) else "{:10.3}".format(line['dissoc_E'])
+                C6 = space if np.ma.is_masked(line['damp_vdw']) or np.isnan(line['damp_vdw']) else "{:10.3}".format(line['damp_vdw'])
+                D0 = space if np.ma.is_masked(line['dissoc_E']) or np.isnan(line['dissoc_E']) else "{:10.3}".format(line['dissoc_E'])
                 comments = '' if np.ma.is_masked(line['comments']) else line['comments']
                 f.write(fmt.format(line['wavelength'],line['species'],line['expot'],line['loggf'],C6,D0,space,line['comments'])+"\n")
 
-    #def write_latex(self,filename):
-    #    #TODO untested
-    #    #TODO rename columns to something nice?
-    #    #TODO restrict columns?
-    #    self..write(filename,format='ascii.latex')
-
-    #TODO make "in" operator that calls self.contains so can do "line in ll"
-    #TODO make "[]" operator that accesses the data columns?
-    #TODO make iterable so "for line in ll" works
+    def write_latex(self,filename,sortby=['species','wavelength'],
+                    write_cols = ['wavelength','element','expot','loggf']):
+        new_table = self.copy()
+        new_table.sort(sortby)
+        new_table = new_table[write_cols]
+        new_table.write(filename,format='ascii.aastex')
