@@ -312,6 +312,15 @@ class Spectrum1D(object):
         return (dispersion, flux, ivar, metadata)
 
 
+    def write(self, filename):
+        """ Write spectrum to disk. """
+
+        # TODO: only ascii atm.
+        a = np.array([self.dispersion, self.flux, self.ivar]).T
+        np.savetxt(filename, a)
+
+
+
     # State functionality for serialization.
     def __getstate__(self):
         """ Return the spectrum state. """
@@ -833,7 +842,8 @@ def common_dispersion_map(spectra, full_output=True):
 def stitch(spectra):
     """
     Stitch spectra together, some of which may have overlapping dispersion
-    ranges.
+    ranges. This is a crude (knowingly incorrect) approximation: we interpolate
+    fluxes without ensuring total conservation.
 
     :param spectra:
         A list of potentially overlapping spectra.
@@ -842,12 +852,18 @@ def stitch(spectra):
     # Create common mapping.
     N = len(spectra)
     dispersion, indices, spectra = common_dispersion_map(spectra, True)
-    common_flux = np.nan * np.ones((N, dispersion.size))
+    common_flux = np.zeros((N, dispersion.size))
     common_ivar = np.zeros_like(common_flux)
 
-    for i, (spectra, j) in enumerate(zip(indices, spectra)):
-        common_flux[i, j] = spectra.flux
-        common_ivar[i, j] = spectra.ivar
+    for i, (j, spectrum) in enumerate(zip(indices, spectra)):
+        common_flux[i, j] = np.interp(
+            dispersion[j], spectrum.dispersion, spectrum.flux,
+            left=0, right=0)
+        common_ivar[i, j] = spectrum.ivar
+
+    finite = np.isfinite(common_flux * common_ivar)
+    common_flux[~finite] = 0
+    common_ivar[~finite] = 0
 
     numerator = np.sum(common_flux * common_ivar, axis=0)
     denominator = np.sum(common_ivar, axis=0)

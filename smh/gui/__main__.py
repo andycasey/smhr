@@ -75,6 +75,16 @@ class Ui_MainWindow(QtGui.QMainWindow):
         file_menu.addAction(save_session)
         file_menu.addAction(save_session_as)
 
+        # Export menu.
+        self._menu_export_normalized_spectrum \
+            = QtGui.QAction("Normalized rest-frame spectrum", self,
+                statusTip="Export a normalized, rest-frame spectrum resampled "
+                          "onto a common wavelength mapping",
+                triggered=self.export_normalized_spectrum)
+        self._menu_export_normalized_spectrum.setEnabled(False)
+        export_menu = self.menuBar().addMenu("&Export")
+        export_menu.addAction(self._menu_export_normalized_spectrum)
+
         self.statusbar = QtGui.QStatusBar(self)
         self.statusbar.setObjectName("statusbar")
         self.setStatusBar(self.statusbar)
@@ -140,6 +150,14 @@ class Ui_MainWindow(QtGui.QMainWindow):
         """ Save session as new filename. """
         print("Save session as")
         return None
+
+
+    def export_normalized_spectrum(self):
+        """ Export a normalized, rest-frame spectrum. """
+
+        self.session.normalized_spectrum.write("test.txt")
+        print("wrote to test.txt")
+
 
 
     def __init_ui__(self):

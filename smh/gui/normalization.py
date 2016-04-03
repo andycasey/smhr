@@ -360,9 +360,12 @@ class NormalizationTab(QtGui.QWidget):
         # Go back to original order.
         self.update_order_index(index)
 
-        # Stitch all orders.
-        self.parent.statusbar.showMessage("Stitching orders..")
+        # Stitch and stack all orders.
         print("Stitching")
+        self.parent.session.stitch_and_stack()
+
+        # Enable the menu-bar.
+        self.parent._menu_export_normalized_spectrum.setEnabled(True)
 
         # Enable the next tab.
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 1, True)
