@@ -73,7 +73,6 @@ class Session(BaseSession):
         # Initialize metadata dictionary.
         N = len(self.input_spectra)
         self.metadata = {
-            "discarded_orders": [],
             "rv": {},
             "normalization": {
                 "continuum": [None] * N,
@@ -321,8 +320,16 @@ class Session(BaseSession):
         Continuum-normalize all orders in the input spectra.
         """
 
-        for i, order in enumerate(self.input_spectra):
-            if i in self.metadata.get("discarded_orders", []): continue
+        # Get the relevant masks.
+        mask_name = self.setting(("normalization", "default_mask"))
+        try:
+            mask = self.setting(("normalization", "masks"))[mask_name]
+        except KeyError:
+            mask = {}
+
+        # Get the default input parameters, and overwrite them with any inputs
+        # provided to this function.
+
 
 
         # Fit & store continuum for all input spectra.
