@@ -24,3 +24,10 @@ normalization:
   low_sigma_clip: 1.0
   high_sigma_clip: 0.2
   knot_spacing: 100
+  default_mask: default 
+  masks:
+    default:
+      #rest_wavelength:
+      obs_wavelength:
+        - [7593, 7618] # Part of the telluric A-band
+      #pixel:

@@ -6,26 +6,39 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+__all__ = ["NormalizationTab"]
+
 import logging
 import numpy as np
 import sys
 from PySide import QtCore, QtGui
+from time import time
 
 from matplotlib import gridspec
 
 import mpl
 
-__all__ = ["NormalizationTab"]
+# This is a bad idea, but it's April 1st.
+from style_utils import wavelength_to_hex
+
 
 logger = logging.getLogger(__name__)
 
 c = 299792458e-3 # km/s
 
+# The minimum time (in seconds) between a mouse click/release to differentiate
+# a single click from a double click
+DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
-def dict_updated(default, new):
+# The pixel tolerance to select and remove an additional point.
+PIXEL_PICKER_TOLERANCE = 30 # MAGIC HACK
+
+
+def dict_updated(default, new, exclude=None):
     updated = {}
+    exclude = exclude or ()
     for key, value in default.items():
-        if key in new and new[key] != value:
+        if key in new and key not in exclude and new[key] != value:
             updated[key] = (value, new[key])
     return updated
 
@@ -173,13 +186,31 @@ class NormalizationTab(QtGui.QWidget):
         hbox.addWidget(self.knot_spacing)
         settings_grid_layout.addLayout(hbox, 5, 1, 1, 1)
 
+        """
+        # Relative weights for additional points
+        relative_weight_label = QtGui.QLabel(self)
+        settings_grid_layout.addWidget(relative_weight_label, 6, 0, 1, 1)
+        relative_weight_label.setText("Weighting added points")
+
+        hbox = QtGui.QHBoxLayout()
+        hbox.setContentsMargins(-1, -1, 5, -1)
+        hbox.addItem(QtGui.QSpacerItem(
+            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+        self.relative_weight = QtGui.QLineEdit(self)
+        self.relative_weight.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.relative_weight.setAlignment(QtCore.Qt.AlignCenter)
+        self.relative_weight.setValidator(
+            QtGui.QDoubleValidator(0, 1e8, 0, self.relative_weight))
+        hbox.addWidget(self.relative_weight)
+        settings_grid_layout.addLayout(hbox, 6, 1, 1, 1)
+        """
 
         # End of the grid in the normalization tab.
         settings_layout.addLayout(settings_grid_layout)
 
         # Add a label.
         label = QtGui.QLabel(self)
-        label.setText("Continuum mask:")
+        label.setText("Global continuum mask:")
         settings_layout.addWidget(label)
 
         # Add options for continuum mask.
@@ -231,8 +262,10 @@ class NormalizationTab(QtGui.QWidget):
         # Create a matplotlib widget.
         blank_widget = QtGui.QWidget(self)
         blank_widget.setStatusTip(
-            "Use left/right arrows to move between orders, "
-            "double-click for all keyboard shortcuts")
+            "Use left/right arrows to move between orders; "
+            "up/down arrows to scale continuum; "
+            "'c' to clear points and interactive exclusion regions; "
+            "'d' to specify no continuum normalization.")
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         sp.setHorizontalStretch(0)
@@ -255,7 +288,7 @@ class NormalizationTab(QtGui.QWidget):
         # Line for the data.
         self.ax_order.plot([], [], c='k', zorder=3)#, drawstyle='steps-mid')
         # Line for the continuum.
-        self.ax_order.plot([], [], c='r', zorder=4)
+        self.ax_order.plot([], [], linestyle="--", linewidth=2, c='r', zorder=4)
 
         # Line for the neighbouring order(s) (joined by a NaN).
         self.ax_order.plot([], [], c='#666666', zorder=1, drawstyle='steps-mid')
@@ -263,7 +296,8 @@ class NormalizationTab(QtGui.QWidget):
         self.ax_order.plot([], [], c='b', zorder=2)
 
         # Additional point markers.
-        # TODO
+        self.ax_order.scatter([], [], facecolor="k", zorder=5, picker=5)
+
         # Regions
 
         self.ax_order.set_xticklabels([])
@@ -273,6 +307,8 @@ class NormalizationTab(QtGui.QWidget):
         self.ax_order_norm = self.norm_plot.figure.add_subplot(gs[1])
         self.ax_order_norm.axhline(1, linestyle=":", c="#666666", zorder=1)
         self.ax_order_norm.plot([], [], c='k', zorder=2)
+
+        # TODO: Make (0, 1.2) a default view setting.
         self.ax_order_norm.set_ylim(0, 1.2)
         self.ax_order_norm.set_yticks([0, 0.5, 1.0])
         self.ax_order_norm.set_xlabel(u"Wavelength (Å)")
@@ -281,12 +317,18 @@ class NormalizationTab(QtGui.QWidget):
         self.norm_plot.draw()
 
         # Create signals.
+        self.stitch_btn.clicked.connect(self.normalize_and_stitch)
+
+        # Note that key_press_event is linked to norm_plot.canvas, while the
+        # mouse events are linked to norm_plot.
+        # I don't know why, but that's how it works.
         self.norm_plot.canvas.mpl_connect(
             "key_press_event", self.figure_key_press)
-
-
+        self.norm_plot.mpl_connect(
+            "button_press_event", self.figure_mouse_press)
+        self.norm_plot.mpl_connect(
+            "button_release_event", self.figure_mouse_release)
         
-
         self.function.currentIndexChanged.connect(
             self.update_normalization_function)
         self.order.currentIndexChanged.connect(
@@ -302,9 +344,31 @@ class NormalizationTab(QtGui.QWidget):
         self.low_sigma_clip.textChanged.connect(self.check_state)
         self.high_sigma_clip.textChanged.connect(self.check_state)
         self.knot_spacing.textChanged.connect(self.check_state)
-        
 
 
+    def normalize_and_stitch(self):
+        """
+        Normalize any remaining orders, and stitch them together.
+        """
+
+        # Normalize any remaining orders.
+        index = self.current_order_index 
+        for i in range(len(self.parent.session.input_spectra)):
+            self.update_order_index(i)
+            self.fit_continuum(clobber=False)
+
+        # Go back to original order.
+        self.update_order_index(index)
+
+        # Stitch and stack all orders.
+        print("Stitching")
+        self.parent.session.stitch_and_stack()
+
+        # Enable the menu-bar.
+        self.parent._menu_export_normalized_spectrum.setEnabled(True)
+
+        # Enable the next tab.
+        self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 1, True)
 
         return None
 
@@ -314,6 +378,9 @@ class NormalizationTab(QtGui.QWidget):
         Update the background color of a QLineEdit object based on whether the
         input is valid.
         """
+
+        # TODO: Implement from
+        # http://stackoverflow.com/questions/27159575/pyside-modifying-widget-colour-at-runtime-without-overwriting-stylesheet
 
         sender = self.sender()
         validator = sender.validator()
@@ -333,19 +400,33 @@ class NormalizationTab(QtGui.QWidget):
         Key press event in the normalization figure.
         """
 
+        # Check if we are waiting for an exclusion region first
+        # (This means the mouse has been clicked, but not released in-axis yet)
+        try:
+            self._exclude_selected_region_signal
+        except AttributeError:
+            None
+        else:
+            return None
+
         # Show a new order.
         if event.key in ("left", "right"):
             offset = 1 if event.key == "right" else -1
 
-            # TODO: deal with discarded order indices, etc.
-
             self.update_order_index(np.clip(self.current_order_index + offset,
                 0, len(self.parent.session.input_spectra) - 1))
-            self.draw_order()
-            self.fit_continuum(False)
-            self.draw_continuum(True)
+            self.draw_order(refresh=False)
+            self.update_continuum_mask(refresh=False)
+            self.fit_continuum(clobber=False)
+            self.draw_continuum(refresh=True)
+
+            # Do all of the orders have continuum? If so, update the button.
+            if not any([(_ is None) for _ in \
+            self.parent.session.metadata["normalization"]["continuum"]]):
+                self.stitch_btn.setText("Stitch orders")
 
             return None
+
 
         # Scale the continuum up/down.
         if event.key in ("up", "down"):
@@ -358,6 +439,209 @@ class NormalizationTab(QtGui.QWidget):
             self.draw_continuum(True)
 
             return None
+
+
+        # 'd': No normalization for this order.
+        if event.key in ("d", "D"):
+            try:
+                idx, session = self.current_order_index, self.parent.session
+
+            except AttributeError:
+                return None
+
+            session.metadata["normalization"]["continuum"][idx] = 1
+            session.metadata["normalization"]["normalization_kwargs"][idx] = {}
+
+            self.draw_continuum(True)
+
+            return None
+
+
+        # 'c': Clear the scale, excluded regions and points for this order.
+        if event.key in "cC":
+            for key in ("scale", "exclude", "additional_points"):
+                if key in self._cache["input"]:
+                    del self._cache["input"][key]
+
+            # Force refit.
+            self.fit_continuum(clobber=True)
+            self.draw_continuum(refresh=False)
+            self.update_continuum_mask(refresh=True)
+
+            return True
+
+
+    def figure_mouse_press(self, event):
+        """
+        Function to handle event clicks (single or double click).
+        
+        :param event:
+            The matplotlib event signal.
+        """
+        
+        # Add/remove an additional point?
+        if event.dblclick:
+
+            if event.button == 1:
+                # Add a point.
+                points = np.vstack([
+                    self.ax_order.collections[0].get_offsets(),
+                    [event.xdata, event.ydata]
+                ])
+                # TODO: set size by their weight?
+                self.ax_order.collections[0].set_offsets(points)
+
+            else:
+                # Are we within <tolerance of a point?
+                points = self.ax_order.collections[0].get_offsets()
+
+                # Need to scale x-distance to convert to pixels.
+                idx = self.current_order.dispersion.searchsorted(event.xdata)
+                xscale = np.nanmean(
+                    np.diff(self.current_order.dispersion[idx-5:idx+5]))
+
+                """
+                bbox = self.ax_order.get_window_extent().transformed(
+                    self.norm_plot.dpi_scale_trans.inverted())
+                width =  bbox.width * self.norm_plot.dpi
+                height = bbox.height * self.norm_plot.dpi
+                print(width, height)
+                """
+                # TODO: Fix this distance thing.
+
+                distance = np.sqrt(
+                      ((points[:, 0] - event.xdata)/xscale)**2 \
+                    + (points[:, 1] - event.ydata)**2)
+                
+                index = np.argmin(distance)
+                if distance[index] < PIXEL_PICKER_TOLERANCE:
+                    # Remove that point.
+                    keep = np.ones(points.shape[0], dtype=bool)
+                    keep[index] = False
+                    self.ax_order.collections[0].set_offsets(points[keep])
+
+                else:
+                    print("Closest point {} px away".format(distance[index]))
+
+            # Update the cache.
+            idx = self.current_order_index
+            N = points.shape[0]
+            # TODO: adhere to the knot weights
+            self._cache["input"]["additional_points"] \
+                = np.hstack((points, 100 * np.ones(N).reshape((N, 1))))
+            self.fit_continuum(clobber=True)
+            self.draw_continuum(refresh=True)
+
+            return None
+
+        # Single click.
+        # Set up/update the excluded region.
+        xmin, xmax, ymin, ymax = (event.xdata, np.nan, -1e8, +1e8)
+        try:
+            self._exclude_selected_region
+        except AttributeError:
+            self._exclude_selected_region = self.ax_order.axvspan(**{
+                "xmin": xmin,
+                "xmax": xmax,
+                "ymin": ymin,
+                "ymax": ymax,
+                "facecolor": "r",
+                "edgecolor": "none",
+                "alpha": 0.25,
+                "zorder": -1
+            })
+
+        else:
+            self._exclude_selected_region.set_xy([
+                [xmin, ymin],
+                [xmin, ymax],
+                [xmax, ymax],
+                [xmax, ymin],
+                [xmin, ymin]
+            ])
+
+        # Set the signal and the time.
+        self._exclude_selected_region_signal = (
+            time(),
+            self.norm_plot.mpl_connect(
+                "motion_notify_event", self.update_exclude_selected_region)
+            )
+        return None
+
+
+
+    def figure_mouse_release(self, event):
+        """
+        A callback function that is executed when the mouse button is released.
+        This signal typically triggers the extent of a region to mask in the
+        current order.
+
+        :param event:
+            The matplotlib event.
+        """
+
+        try:
+            signal_time, signal_cid = self._exclude_selected_region_signal
+        except AttributeError:
+            return None
+        
+        xy = self._exclude_selected_region.get_xy()
+        
+        if event.xdata is None:
+            # Out of axis; exclude based on the last known worthwhile position.
+            xdata = xy[2, 0]
+        else:
+            xdata = event.xdata
+
+        # If the two mouse events were within some time interval,
+        # then we should not add a mask because those signals were probably
+        # part of a double-click event.
+        if  time() - signal_time > DOUBLE_CLICK_INTERVAL \
+        and np.abs(xy[0,0] - xdata) > 0:
+            
+            # Update the cache with the new mask.
+            _ =  self._cache["input"].get("exclude", np.array([]))
+            _.shape = (-1, 2)
+            self._cache["input"]["exclude"] = np.vstack((
+                np.array([xy[0,0], xy[2, 0]]).reshape(-1, 2), _))
+
+            # Fit and re-draw the continuum, and its mask.
+            self.fit_continuum(clobber=True)
+            self.update_continuum_mask(refresh=False)
+            self.draw_continuum(refresh=False)
+
+        xy[:, 0] = np.nan
+
+        self._exclude_selected_region.set_xy(xy)
+        self.norm_plot.mpl_disconnect(signal_cid)
+        self.norm_plot.draw()
+        del self._exclude_selected_region_signal
+        return None
+
+
+    def update_exclude_selected_region(self, event):
+        """
+        Update the visible selected exclusion region for this order. This
+        function is linked to a callback for when the mouse position moves.
+
+        :param event:
+            The matplotlib motion event to show the current mouse position.
+        """
+        if event.xdata is None:
+            return
+        
+        signal_time, signal_cid = self._exclude_selected_region_signal
+        if time() - signal_time > DOUBLE_CLICK_INTERVAL: 
+            
+            data = self._exclude_selected_region.get_xy()
+
+            # Update xmax.
+            data[2:4, 0] = event.xdata
+            self._exclude_selected_region.set_xy(data)
+
+            self.norm_plot.draw()
+
+        return None
 
 
     def _populate_widgets(self):
@@ -376,8 +660,16 @@ class NormalizationTab(QtGui.QWidget):
             "input": {}
         }
         for key in keys:
-            self._cache["input"][key] = self.parent.session._default(
-                None, ("normalization", key))
+            self._cache["input"][key] \
+                = self.parent.session.setting(("normalization", key))
+
+        # Continuum masks.
+        self._cache["masks"] \
+            = self.parent.session.setting(("normalization", "masks"))
+        self._cache["default_mask"] \
+            = self.parent.session.setting(("normalization", "default_mask")) \
+                or self._cache["masks"].keys()[0]
+
 
         # Put these values into the widgets.
         self.low_sigma_clip.setText(
@@ -404,12 +696,154 @@ class NormalizationTab(QtGui.QWidget):
         self.norm_max_iter.setCurrentIndex(norm_max_iters.index(
             self._cache["input"]["max_iterations"]))
 
+        # Mask names.
+        for name in self._cache["masks"].keys():
+            self.continuum_mask.addItem(name)
+
+        self.continuum_mask.setCurrentIndex(
+            self._cache["masks"].keys().index(
+                self._cache["default_mask"]))
+
+
+
         # Draw the widgets.
         self.update_order_index(0)
-        self.fit_continuum(False)
-        self.draw_order()
-        self.draw_continuum(True)
+        self.update_continuum_mask(refresh=False)
+        self.fit_continuum(clobber=False)
+        self.draw_order(refresh=False)
+        self.draw_continuum(refresh=True)
         return None
+
+
+    def update_rv_applied(self):
+        """
+        Make updates to the view when the radial velocity applied has been
+        updated.
+        """
+
+        # Clear out the normalization in any other orders.
+        N = len(self.parent.session.input_spectra)
+        self.parent.session.metadata["normalization"] = {
+            "continuum": [None] * N,
+            "normalization_kwargs": [{}] * N
+        }
+
+        # Update the current order fit, and the view.
+        self.update_order_index()
+        self.update_continuum_mask(refresh=False)
+        self.fit_continuum(clobber=True)
+        self.draw_order(refresh=False)
+        self.draw_continuum(refresh=True)
+
+        return None
+
+
+
+    def update_continuum_mask(self, refresh=False):
+        """
+        Draw the continuum mask (relevant for all orders).
+        """
+
+        ymin, ymax = (-1e8, 1e8)
+        kwds = {
+            "xmin": np.nan,
+            "xmax": np.nan,
+            "ymin": ymin,
+            "ymax": ymax,
+            "facecolor": "r",
+            "edgecolor": "none",
+            "alpha": 0.25,
+            "zorder": -1
+        }
+
+        transform = lambda start, end, v=0: np.array([
+                [start * (1 - v/c), ymin],
+                [start * (1 - v/c), ymax],
+                [end   * (1 - v/c), ymax],
+                [end   * (1 - v/c), ymin],
+                [start * (1 - v/c), ymin]
+            ])
+
+        mask = self._cache["masks"][self.continuum_mask.currentText()]
+
+        # Any added regions to mask out? v-stack these
+        try:
+            self._masked_wavelengths
+        except AttributeError:
+            self._masked_wavelengths = []
+            self._masked_wavelengths_norm = []
+
+        # Different kind of masks: rest_wavelength, obs_wavelength, pixels
+        # rest_wavelength
+        # The obsered spectrum is shifted to be at rest, so the continuum masks
+        # will also be in the rest frame. So we don't need to shift the
+        # 'rest_wavelength' mask, but we do need to shift the 'obs_wavelength'
+        # mask
+
+        # Get the applied velocity to shift some masks.
+        try:
+            rv_applied = self.parent.session.metadata["rv"]["rv_applied"]
+        except (AttributeError, KeyError):
+            rv_applied = 0
+
+        _ =self.parent.session.metadata["normalization"]["normalization_kwargs"]
+        
+        masked_regions = [
+            np.array(mask.get("rest_wavelength", [])),
+            np.array(mask.get("obs_wavelength", [])) * (1 - rv_applied/c),
+            np.array(_[self.current_order_index].get("exclude", []))
+        ]
+        if "pixel" in mask:
+            masked_regions.append(
+                # MAGIC HACK
+                self.current_order.dispersion[np.array(mask["pixel"])] + 1e-3
+            )
+
+        for each in masked_regions:
+            each.shape = (-1, 2)
+
+        masked_regions = np.vstack(masked_regions)
+
+        # Remove duplicate masked regions.
+        _ = np.ascontiguousarray(masked_regions).view(
+            np.dtype((
+                np.void, 
+                masked_regions.dtype.itemsize * masked_regions.shape[1])))
+        __, idx = np.unique(_, return_index=True)
+        masked_regions = masked_regions[idx]
+
+        i = 0
+        for start, end in masked_regions:
+            if i >= len(self._masked_wavelengths):
+                # Create a polygon in the main axis.
+                self._masked_wavelengths.append(
+                    self.ax_order.axvspan(**kwds))
+
+                # And for the normalization axis.
+                self._masked_wavelengths_norm.append(
+                    self.ax_order_norm.axvspan(**kwds))
+
+            polygons = (
+                self._masked_wavelengths[i],
+                self._masked_wavelengths_norm[i]
+            )
+            for polygon in polygons:
+                polygon.set_xy(transform(start, end))
+
+            i += 1
+
+        # Any leftover polygons?
+        for polygon in self._masked_wavelengths[i:]:
+            polygon.set_xy(transform(np.nan, np.nan))
+
+        for polygon in self._masked_wavelengths_norm[i:]:
+            polygon.set_xy(transform(np.nan, np.nan))
+
+
+        if refresh:
+            self.norm_plot.draw()
+        return True
+
 
 
     def update_knot_spacing(self):
@@ -417,10 +851,10 @@ class NormalizationTab(QtGui.QWidget):
         knot_spacing = self.knot_spacing.text()
         if knot_spacing:
             self._cache["input"]["knot_spacing"] = float(knot_spacing)
-            self.fit_continuum(True)
-            self.draw_continuum(True)
             self.reset_input_style_defaults()
-
+            self.fit_continuum(True, sender=self.knot_spacing)
+            self.draw_continuum(True)
+            
         return None
         
 
@@ -429,9 +863,9 @@ class NormalizationTab(QtGui.QWidget):
         high_sigma = self.high_sigma_clip.text()
         if high_sigma:
             self._cache["input"]["high_sigma_clip"] = float(high_sigma)
+            self.reset_input_style_defaults()
             self.fit_continuum(True)
             self.draw_continuum(True)
-            self.reset_input_style_defaults()
         return None
 
 
@@ -440,27 +874,27 @@ class NormalizationTab(QtGui.QWidget):
         low_sigma = self.low_sigma_clip.text()
         if low_sigma:
             self._cache["input"]["low_sigma_clip"] = float(low_sigma)
+            self.reset_input_style_defaults()
             self.fit_continuum(True)
             self.draw_continuum(True)
-            self.reset_input_style_defaults()
         return None
 
 
     def update_normalization_function(self):
         """ Update the normalization function. """
         self._cache["input"]["function"] = self.function.currentText()
+        self.reset_input_style_defaults()
         self.fit_continuum(True)
         self.draw_continuum(True)
-        self.reset_input_style_defaults()
         return None
 
 
     def update_normalization_order(self):
         """ Update the normalization order. """
         self._cache["input"]["order"] = int(self.order.currentText())
+        self.reset_input_style_defaults()
         self.fit_continuum(True)
         self.draw_continuum(True)
-        self.reset_input_style_defaults()
         return None
 
 
@@ -488,19 +922,15 @@ class NormalizationTab(QtGui.QWidget):
 
         # Apply any RV correction.
         try:
-            rv_applied = session.metadata["rv"]["rv_applied"]
+            v = session.metadata["rv"]["rv_applied"]
         except (AttributeError, KeyError):
-            rv_applied = 0
+            v = 0
 
-        self.current_order._dispersion *= (1 - rv_applied/c)
+        self.current_order._dispersion *= (1 - v/c)
 
         # Update the view if the input settings don't match the settings used
         # to normalize the current order.
         self.check_for_different_input_settings()
-
-        # Do all of the orders have continuum? If so, update the button.
-        if not None in session.metadata["normalization"]["continuum"]:
-            self.stitch_btn.setText("Stitch orders")
 
         return None
 
@@ -518,6 +948,14 @@ class NormalizationTab(QtGui.QWidget):
         normalization_kwargs \
             = session.metadata["normalization"]["normalization_kwargs"][index]
 
+        # These keys don't have widgets, but need to be updated.
+        extra_keys = ("additional_points", "exclude")
+        for key in extra_keys:
+            if key in normalization_kwargs:
+                self._cache["input"][key] = normalization_kwargs[key]
+            elif key in self._cache["input"]:
+                del self._cache["input"][key]
+
         if continuum is None: return
 
         # If so, are the current normalization keywords different to the ones
@@ -532,22 +970,23 @@ class NormalizationTab(QtGui.QWidget):
             "knot_spacing": [self.knot_spacing, self.knot_spacing_label],
         }
 
-        diff = dict_updated(self._cache["input"], normalization_kwargs)
-        if continuum is not None and diff:
-            for key, (current, used) in diff.items():
-                if key in input_items:
-                    # Update the font-weight of those objects.
-                    items = input_items[key]
-                    for item in items:
-                        item.setStyleSheet("{0} {{ font-weight: bold }}".format(
-                            item.__class__.__name__))
-                        item.setStatusTip("Order {0} was normalized using {1} ="
-                            " {2} (not {3})"\
-                            .format(1 + index, key, used, current))
-        else:
-            # Ensure all the things are styled normally.
-            self.reset_input_style_defaults(sum(input_items.values(), []))
+        diff = dict_updated(self._cache["input"], normalization_kwargs,
+            exclude=("additional_points", "exclude"))
 
+        # By default, everything should be styled normally.
+        self.reset_input_style_defaults(sum(input_items.values(), []))
+        for key, (current, used) in diff.items():
+            if key in input_items:
+                # Update the font-weight of those objects.
+                items = input_items[key]
+                for item in items:
+                    item.setStyleSheet("{0} {{ font-weight: bold }}".format(
+                        item.__class__.__name__))
+                    item.setStatusTip("Order {0} was normalized using {1} ="
+                        " {2} (not {3})"\
+                        .format(1 + index, key, used, current))
+
+            
         return None
 
 
@@ -555,6 +994,7 @@ class NormalizationTab(QtGui.QWidget):
         """
         Reset the styling inputs.
         """
+
         items = items or (
             self.function_label, self.function,
             self.order_label, self.order,
@@ -568,14 +1008,19 @@ class NormalizationTab(QtGui.QWidget):
             item.setStyleSheet('{0} {{ font-weight: normal }}'\
                 .format(item.__class__.__name__))
             item.setStatusTip("")
+        self.parent.statusbar.showMessage("")
+        return None
 
 
     def draw_order(self, refresh=False):
         """
         Draw the current order.
+
+        Note: The order in `self.current_order` is already in the rest frame. 
         """
 
-        x, y = self.current_order.dispersion, self.current_order.flux
+        x, y = (self.current_order.dispersion, self.current_order.flux)
+        
         self.ax_order.lines[0].set_data([x, y])
         self.ax_order.set_xlim(x[0], x[-1])
         self.ax_order.set_ylim(np.nanmin(y), np.nanmax(y))
@@ -589,13 +1034,19 @@ class NormalizationTab(QtGui.QWidget):
         return None
 
 
-    def fit_continuum(self, clobber):
+    def fit_continuum(self, clobber, sender=None):
         """
         Update continuum for the current order.
+
+        :param clobber:
+            Clobber any existing continuum determination for this order.
         """
 
         # Any existing continuum determination?
-        index, session = (self.current_order_index, self.parent.session)
+        try:
+            index, session = (self.current_order_index, self.parent.session)
+        except AttributeError:
+            return None
 
         continuum = session.metadata["normalization"]["continuum"][index]
         if continuum is not None and not clobber:
@@ -605,13 +1056,56 @@ class NormalizationTab(QtGui.QWidget):
         kwds = self._cache["input"].copy()
         kwds["full_output"] = True
 
-        # Add in any additonal points/masked region to kwds.
+        # Add in the global continuum masks.
+        global_mask = self._cache["masks"][self.continuum_mask.currentText()]
+        try:
+            rv_applied = self.parent.session.metadata["rv"]["rv_applied"]
+        except (AttributeError, KeyError):
+            rv_applied = 0
+
+        mask_kinds = [
+            (0,          global_mask.get("rest_wavelength", [])),
+            (rv_applied, global_mask.get("obs_wavelength", []))
+        ]
+        regions = []
+        for v, masked_regions in mask_kinds:
+            for region in np.array(masked_regions):
+                start, end = region * (1 - v/c)
+
+                if  end >= self.current_order.dispersion[0] \
+                and self.current_order.dispersion[-1] >= start:
+                    regions.append((start, end))
+
+        if "pixel" in global_mask:
+            # MAGIC HACK
+            regions.extend(1e-3 + \
+                self.current_order.dispersion[np.array(global_mask["pixel"])])
+
+        if kwds.get("exclude", None) is None:
+            kwds["exclude"] = np.array(regions)
+
+        else:
+            _ = np.array(kwds["exclude"])
+            _.shape = (-1, 2)
+            kwds["exclude"] = np.vstack((_, np.array(regions).reshape(-1, 2)))
+
         try:
             normalized_spectrum, continuum, left, right \
                 = self.current_order.fit_continuum(**kwds)
+            if kwds["knot_spacing"] == 201:
+                raise KeyError("what") #HACK #TESTING #TODO
         except:
             logger.exception("No continuum could be fit.")
+            self.parent.statusbar.showMessage(
+                "Exception occurred while trying to fit the continuum.")
+
             continuum = np.nan
+
+            # Did a user input something bad? Let them know..
+            if sender is not None:
+                print("Sender is ", sender) #TODO: This is broken..
+                sender.setStyleSheet("{0} {{ background-color: #f6989d; }}"\
+                    .format(sender.__class__.__name__))
 
         session.metadata["normalization"]["continuum"][index] = continuum
         session.metadata["normalization"]["normalization_kwargs"][index] = kwds
@@ -622,18 +1116,38 @@ class NormalizationTab(QtGui.QWidget):
     def draw_continuum(self, refresh=False):
         """
         Draw the continuum for the current order.
+
+        Note: The order in `self.current_order` is already in the rest-frame.
         """
 
+        try:
+            index = self.current_order_index
+        except AttributeError:
+            return None
+
         meta = self.parent.session.metadata["normalization"]
-        continuum = meta["continuum"][self.current_order_index]
+        continuum = meta["continuum"][index]
 
         self.ax_order.lines[1].set_data([
             self.current_order.dispersion, continuum])
 
+        # Set the color of the line.
+        self.ax_order.lines[1].set_color(wavelength_to_hex(
+            np.nanmean(self.current_order.dispersion)))
+
         # Update the normalization preview in the lower axis.
         self.ax_order_norm.lines[1].set_data([
-            self.current_order.dispersion, self.current_order.flux/continuum])
+            self.current_order.dispersion, 
+            self.current_order.flux/continuum])
         self.ax_order_norm.set_xlim(self.ax_order.get_xlim())
+
+        # Draw the additional points.
+        ap = meta["normalization_kwargs"][index].get("additional_points", None)
+        if ap is None:
+            ap = np.array([])
+        else:
+            ap = ap[:, :2]
+        self.ax_order.collections[0].set_offsets(ap)
 
         if refresh:
             self.norm_plot.draw()

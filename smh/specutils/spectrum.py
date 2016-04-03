@@ -6,7 +6,7 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
-__all__ = ["Spectrum1D"]
+__all__ = ["Spectrum1D", "stitch"]
 
 import logging
 import numpy as np
@@ -16,7 +16,7 @@ from collections import OrderedDict
 from hashlib import md5
 
 from astropy.io import fits
-from scipy import interpolate, ndimage, polyfit, poly1d
+from scipy import interpolate, ndimage, polyfit, poly1d, optimize as op
 
 logger = logging.getLogger(__name__)
 
@@ -100,9 +100,9 @@ class Spectrum1D(object):
 
         # Try multi-spec first since this is currently the most common use case.
         methods = (
-            cls._read_multispec_fits,
-            cls._read_spectrum1d_fits,
-            cls._read_spectrum1d_ascii
+            cls.read_fits_multispec,
+            cls.read_fits_spectrum1d,
+            cls.read_ascii_spectrum1d
         )
 
         for method in methods:
@@ -110,8 +110,8 @@ class Spectrum1D(object):
                 dispersion, flux, ivar, metadata = method(path, **kwargs)
 
             except:
-                logger.exception("Exception in trying to load {0} with {1}:"\
-                    .format(path, method))
+                continue
+
             else:
                 orders = [cls(dispersion=d, flux=f, ivar=i, metadata=metadata) \
                     for d, f, i in zip(dispersion, flux, ivar)]
@@ -125,7 +125,7 @@ class Spectrum1D(object):
 
 
     @classmethod
-    def _read_multispec_fits(cls, path, flux_ext=None, ivar_ext=None, **kwargs):
+    def read_fits_multispec(cls, path, flux_ext=None, ivar_ext=None, **kwargs):
         """
         Create multiple Spectrum1D classes from a multi-spec file on disk.
 
@@ -228,7 +228,7 @@ class Spectrum1D(object):
 
 
     @classmethod
-    def _read_spectrum1d_fits(cls, path, **kwargs):
+    def read_fits_spectrum1d(cls, path, **kwargs):
         """
         Read Spectrum1D data from a binary FITS file.
 
@@ -283,7 +283,7 @@ class Spectrum1D(object):
 
 
     @classmethod
-    def _read_spectrum1d_ascii(cls, path, **kwargs):
+    def read_ascii_spectrum1d(cls, path, **kwargs):
         """
         Read Spectrum1D data from an ASCII-formatted file on disk.
 
@@ -310,6 +310,15 @@ class Spectrum1D(object):
         metadata = { "smh_read_path": path }
         
         return (dispersion, flux, ivar, metadata)
+
+
+    def write(self, filename):
+        """ Write spectrum to disk. """
+
+        # TODO: only ascii atm.
+        a = np.array([self.dispersion, self.flux, self.ivar]).T
+        np.savetxt(filename, a)
+
 
 
     # State functionality for serialization.
@@ -523,12 +532,14 @@ class Spectrum1D(object):
             if len(knots) > 0 and knots[0] < dispersion[continuum_indices][0]:
                 knots = knots[knots.searchsorted(dispersion[continuum_indices][0]):]
 
+        # TODO: Use inverse variance array when fitting polynomial/spline.
         for iteration in range(max_iterations):
             
             splrep_disp = dispersion[continuum_indices]
             splrep_flux = self.flux[continuum_indices]
+            splrep_weights = self.ivar[continuum_indices]**0.5
 
-            splrep_weights = np.ones(len(splrep_disp))
+            median_weight = np.nanmedian(splrep_weights)
 
             # We need to add in additional points at the last minute here
             if additional_points is not None and len(additional_points) > 0:
@@ -541,7 +552,7 @@ class Spectrum1D(object):
                     # Insert the values
                     splrep_disp = np.insert(splrep_disp, insert_index, point)
                     splrep_flux = np.insert(splrep_flux, insert_index, flux)
-                    splrep_weights = np.insert(splrep_weights, insert_index, weight)
+                    splrep_weights = np.insert(splrep_weights, insert_index, median_weight * weight)
 
             if function == 'spline':
                 order = 5 if order > 5 else order
@@ -551,9 +562,14 @@ class Spectrum1D(object):
                 continuum = interpolate.splev(dispersion, tck)
 
             elif function in ("poly", "polynomial"):
-            
-                p = poly1d(polyfit(splrep_disp, splrep_flux, order))
-                continuum = p(dispersion)
+
+                coeffs = polyfit(splrep_disp, splrep_flux, order)
+
+                popt, pcov = op.curve_fit(lambda x, *c: np.polyval(c, x), 
+                    splrep_disp, splrep_flux, coeffs, 
+                    sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                print(splrep_disp.shape, splrep_flux.shape, coeffs.shape, self.ivar[continuum_indices].shape)
+                continuum = np.polyval(popt, dispersion)
 
             else:
                 raise ValueError("Unknown function type: only spline or poly available (%s given)" % (function, ))
@@ -765,3 +781,96 @@ def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
     # Apply redshift correction.
     dispersion = weight * (dispersion + offset) / (1 + redshift)
     return dispersion
+
+
+
+def common_dispersion_map(spectra, full_output=True):
+    """
+    Produce a common dispersion mapping for (potentially overlapping) spectra
+    and minimize the number of resamples required. Pixel bin edges are
+    preferred from bluer to redder wavelengths.
+
+    :param spectra:
+        A list of spectra to produce the mapping for.
+
+    :param full_output: [optional]
+        Optinally return the indices, and the sorted spectra.
+
+    :returns:
+        An array of common dispersion values. If `full_output` is set to `True`,
+        then a three-length tuple will be returned, containing the common
+        dispersion pixels, the common dispersion map indices for each spectrum,
+        and a list of the sorted spectra.
+    """
+
+    # Make spectra blue to right.
+    spectra = sorted(spectra, key=lambda s: s.dispersion[0])
+
+    common = []
+    discard_bluest_pixels = None
+    for i, blue_spectrum in enumerate(spectra[:-1]):
+        red_spectrum = spectra[i + 1]
+
+        # Do they overlap?
+        if blue_spectrum.dispersion[-1] >= red_spectrum.dispersion[0] \
+        and red_spectrum.dispersion[-1] >= blue_spectrum.dispersion[0]:
+            
+            # Take the "entire" blue spectrum then discard some blue pixels from
+            # the red spectrum.
+            common.extend(blue_spectrum.dispersion[discard_bluest_pixels:])
+            discard_bluest_pixels = red_spectrum.dispersion.searchsorted(
+                blue_spectrum.dispersion[-1])
+
+        else:
+            # Can just extend the existing map, modulo the first N-ish pixels.
+            common.extend(blue_spectrum.dispersion[discard_bluest_pixels:])
+            discard_bluest_pixels = None
+
+    # For the last spectrum.
+    if len(spectra) > 1:
+        common.extend(red_spectrum.dispersion[discard_bluest_pixels:])
+
+    common = np.array(common)
+
+    if full_output:
+        indices = [common.searchsorted(s.dispersion) for s in spectra]
+        return (common, indices, spectra)
+
+    return common
+
+
+def stitch(spectra):
+    """
+    Stitch spectra together, some of which may have overlapping dispersion
+    ranges. This is a crude (knowingly incorrect) approximation: we interpolate
+    fluxes without ensuring total conservation.
+
+    :param spectra:
+        A list of potentially overlapping spectra.
+    """
+
+    # Create common mapping.
+    N = len(spectra)
+    dispersion, indices, spectra = common_dispersion_map(spectra, True)
+    common_flux = np.zeros((N, dispersion.size))
+    common_ivar = np.zeros_like(common_flux)
+
+    for i, (j, spectrum) in enumerate(zip(indices, spectra)):
+        common_flux[i, j] = np.interp(
+            dispersion[j], spectrum.dispersion, spectrum.flux,
+            left=0, right=0)
+        common_ivar[i, j] = spectrum.ivar
+
+    finite = np.isfinite(common_flux * common_ivar)
+    common_flux[~finite] = 0
+    common_ivar[~finite] = 0
+
+    numerator = np.sum(common_flux * common_ivar, axis=0)
+    denominator = np.sum(common_ivar, axis=0)
+
+    flux, ivar = (numerator/denominator, denominator)
+
+    # Create a spectrum with no header provenance.
+    return Spectrum1D(dispersion, flux, ivar)
+    
+
