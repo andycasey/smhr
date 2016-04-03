@@ -303,7 +303,7 @@ class Session(BaseSession):
         return (rv, rv_uncertainty)
 
 
-    def rv_apply(self, rv):
+    def rv_correct(self, rv):
         """
         Apply a radial velocity correction to the input spectra.
         
@@ -311,8 +311,22 @@ class Session(BaseSession):
             The radial velocity correction (in km/s) to apply.
         """
 
-        self.metadata["rv"]["rv_applied"] = rv
+        self.metadata["rv"]["rv_applied"] = float(rv)
         return None
+
+
+    def stitch_and_stack(self, **kwargs):
+
+        normalized_orders = []
+        for i, (spectrum, continuum) \
+        in enumerate(zip(self.input_spectra,
+        self.metadata["normalization"]["continuum"])):
+            normalized_orders.append(specutils.Spectrum1D(spectrum.dispersion,
+                spectrum.flux / continuum,
+                continuum * spectrum.ivar * continuum))
+
+        self.normalized_spectrum = specutils.spectrum.stitch(normalized_orders)
+        return self.normalized_spectrum
 
 
     def normalize_input_spectra(self, **kwargs):

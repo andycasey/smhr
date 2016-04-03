@@ -6,7 +6,7 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
-__all__ = ["Spectrum1D"]
+__all__ = ["Spectrum1D", "stitch"]
 
 import logging
 import numpy as np
@@ -772,3 +772,89 @@ def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
     # Apply redshift correction.
     dispersion = weight * (dispersion + offset) / (1 + redshift)
     return dispersion
+
+
+
+def common_dispersion_map(spectra, full_output=True):
+    """
+    Produce a common dispersion mapping for (potentially overlapping) spectra
+    and minimize the number of resamples required. Pixel bin edges are
+    preferred from bluer to redder wavelengths.
+
+    :param spectra:
+        A list of spectra to produce the mapping for.
+
+    :param full_output: [optional]
+        Optinally return the indices, and the sorted spectra.
+
+    :returns:
+        An array of common dispersion values. If `full_output` is set to `True`,
+        then a three-length tuple will be returned, containing the common
+        dispersion pixels, the common dispersion map indices for each spectrum,
+        and a list of the sorted spectra.
+    """
+
+    # Make spectra blue to right.
+    spectra = sorted(spectra, key=lambda s: s.dispersion[0])
+
+    common = []
+    discard_bluest_pixels = None
+    for i, blue_spectrum in enumerate(spectra[:-1]):
+        red_spectrum = spectra[i + 1]
+
+        # Do they overlap?
+        if blue_spectrum.dispersion[-1] >= red_spectrum.dispersion[0] \
+        and red_spectrum.dispersion[-1] >= blue_spectrum.dispersion[0]:
+            
+            # Take the "entire" blue spectrum then discard some blue pixels from
+            # the red spectrum.
+            common.extend(blue_spectrum.dispersion[discard_bluest_pixels:])
+            discard_bluest_pixels = red_spectrum.dispersion.searchsorted(
+                blue_spectrum.dispersion[-1])
+
+        else:
+            # Can just extend the existing map, modulo the first N-ish pixels.
+            common.extend(blue_spectrum.dispersion[discard_bluest_pixels:])
+            discard_bluest_pixels = None
+
+    # For the last spectrum.
+    if len(spectra) > 1:
+        common.extend(red_spectrum.dispersion[discard_bluest_pixels:])
+
+    common = np.array(common)
+
+    if full_output:
+        indices = [common.searchsorted(s.dispersion) for s in spectra]
+        return (common, indices, spectra)
+
+    return common
+
+
+def stitch(spectra):
+    """
+    Stitch spectra together, some of which may have overlapping dispersion
+    ranges.
+
+    :param spectra:
+        A list of potentially overlapping spectra.
+    """
+
+    # Create common mapping.
+    N = len(spectra)
+    dispersion, indices, spectra = common_dispersion_map(spectra, True)
+    common_flux = np.nan * np.ones((N, dispersion.size))
+    common_ivar = np.zeros_like(common_flux)
+
+    for i, (spectra, j) in enumerate(zip(indices, spectra)):
+        common_flux[i, j] = spectra.flux
+        common_ivar[i, j] = spectra.ivar
+
+    numerator = np.sum(common_flux * common_ivar, axis=0)
+    denominator = np.sum(common_ivar, axis=0)
+
+    flux, ivar = (numerator/denominator, denominator)
+
+    # Create a spectrum with no header provenance.
+    return Spectrum1D(dispersion, flux, ivar)
+    
+
