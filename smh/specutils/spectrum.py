@@ -16,7 +16,7 @@ from collections import OrderedDict
 from hashlib import md5
 
 from astropy.io import fits
-from scipy import interpolate, ndimage, polyfit, poly1d
+from scipy import interpolate, ndimage, polyfit, poly1d, optimize as op
 
 logger = logging.getLogger(__name__)
 
@@ -528,8 +528,9 @@ class Spectrum1D(object):
             
             splrep_disp = dispersion[continuum_indices]
             splrep_flux = self.flux[continuum_indices]
+            splrep_weights = self.ivar[continuum_indices]**0.5
 
-            splrep_weights = np.ones(len(splrep_disp))
+            median_weight = np.nanmedian(splrep_weights)
 
             # We need to add in additional points at the last minute here
             if additional_points is not None and len(additional_points) > 0:
@@ -542,7 +543,7 @@ class Spectrum1D(object):
                     # Insert the values
                     splrep_disp = np.insert(splrep_disp, insert_index, point)
                     splrep_flux = np.insert(splrep_flux, insert_index, flux)
-                    splrep_weights = np.insert(splrep_weights, insert_index, weight)
+                    splrep_weights = np.insert(splrep_weights, insert_index, median_weight * weight)
 
             if function == 'spline':
                 order = 5 if order > 5 else order
@@ -552,9 +553,14 @@ class Spectrum1D(object):
                 continuum = interpolate.splev(dispersion, tck)
 
             elif function in ("poly", "polynomial"):
-            
-                p = poly1d(polyfit(splrep_disp, splrep_flux, order))
-                continuum = p(dispersion)
+
+                coeffs = polyfit(splrep_disp, splrep_flux, order)
+
+                popt, pcov = op.curve_fit(lambda x, *c: np.polyval(c, x), 
+                    splrep_disp, splrep_flux, coeffs, 
+                    sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                print(splrep_disp.shape, splrep_flux.shape, coeffs.shape, self.ivar[continuum_indices].shape)
+                continuum = np.polyval(popt, dispersion)
 
             else:
                 raise ValueError("Unknown function type: only spline or poly available (%s given)" % (function, ))
