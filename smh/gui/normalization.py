@@ -12,6 +12,7 @@ import logging
 import numpy as np
 import sys
 from PySide import QtCore, QtGui
+from time import time
 
 from matplotlib import gridspec
 
@@ -24,6 +25,13 @@ from style_utils import wavelength_to_hex
 logger = logging.getLogger(__name__)
 
 c = 299792458e-3 # km/s
+
+# The minimum time (in seconds) between a mouse click/release to differentiate
+# a single click from a double click
+DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
+
+# The pixel tolerance to select and remove an additional point.
+PIXEL_PICKER_TOLERANCE = 30 # MAGIC HACK
 
 
 def dict_updated(default, new):
@@ -267,7 +275,8 @@ class NormalizationTab(QtGui.QWidget):
         self.ax_order.plot([], [], c='b', zorder=2)
 
         # Additional point markers.
-        # TODO
+        self.ax_order.scatter([], [], facecolor="k", zorder=5, picker=5)
+
         # Regions
 
         self.ax_order.set_xticklabels([])
@@ -285,12 +294,16 @@ class NormalizationTab(QtGui.QWidget):
         self.norm_plot.draw()
 
         # Create signals.
+        # Note that key_press_event is linked to norm_plot.canvas, while the
+        # mouse events are linked to norm_plot.
+        # I don't know why, but that's how it works.
         self.norm_plot.canvas.mpl_connect(
             "key_press_event", self.figure_key_press)
-
-
+        self.norm_plot.mpl_connect(
+            "button_press_event", self.figure_mouse_press)
+        self.norm_plot.mpl_connect(
+            "button_release_event", self.figure_mouse_release)
         
-
         self.function.currentIndexChanged.connect(
             self.update_normalization_function)
         self.order.currentIndexChanged.connect(
@@ -339,6 +352,11 @@ class NormalizationTab(QtGui.QWidget):
         Key press event in the normalization figure.
         """
 
+        # Don't allow the user to flip between orders if they are selecting a
+        # region to exclude.
+        if hasattr(self, "_waiting_on_e_key") and event.key not in "eE":
+            return None
+
         # Show a new order.
         if event.key in ("left", "right"):
             offset = 1 if event.key == "right" else -1
@@ -386,6 +404,149 @@ class NormalizationTab(QtGui.QWidget):
 
             return None
 
+
+    def figure_mouse_press(self, event):
+        """
+        Function to handle event clicks (single or double click).
+        
+        :param event:
+            The matplotlib event signal.
+        """
+        
+        # Add/remove an additional point?
+        if event.dblclick:
+
+            if event.button == 1:
+                # Add a point.
+                points = np.vstack([
+                    self.ax_order.collections[0].get_offsets(),
+                    [event.xdata, event.ydata]
+                ])
+                # TODO: set size by their weight?
+                self.ax_order.collections[0].set_offsets(points)
+
+            else:
+                # Are we within <tolerance of a point?
+                points = self.ax_order.collections[0].get_offsets()
+
+                # Need to scale x-distance to convert to pixels.
+                idx = self.current_order.dispersion.searchsorted(event.xdata)
+                xscale = np.nanmean(
+                    np.diff(self.current_order.dispersion[idx-5:idx+5]))
+
+                bbox = self.ax_order.get_window_extent().transformed(
+                    self.norm_plot.dpi_scale_trans.inverted())
+                width =  bbox.width * self.norm_plot.dpi
+                height = bbox.height * self.norm_plot.dpi
+
+                print(width, height)
+                # TODO: Fix this distance thing.
+
+                distance = np.sqrt(
+                      ((points[:, 0] - event.xdata)/xscale)**2 \
+                    + (points[:, 1] - event.ydata)**2)
+                
+                index = np.argmin(distance)
+                if distance[index] < PIXEL_PICKER_TOLERANCE:
+                    # Remove that point.
+                    keep = np.ones(points.shape[0], dtype=bool)
+                    keep[index] = False
+                    self.ax_order.collections[0].set_offsets(points[keep])
+
+                else:
+                    print("Closest point {} px away".format(distance[index]))
+
+            # Update the cache.
+            nm = self.parent.session.metadata["normalization"]
+            idx = self.current_order_index
+            N = points.shape[0]
+            nm["normalization_kwargs"][idx]["additional_points"] \
+                = np.hstack((points, 200 * np.ones(N).reshape((N, 1))))
+            self.fit_continuum(clobber=True)
+            self.draw_continuum(refresh=True)
+
+            return None
+
+        # Single click.
+        # Set up/update the excluded region.
+        xmin, xmax, ymin, ymax = (event.xdata, np.nan, -1e8, +1e8)
+        try:
+            self._exclude_selected_region
+        except AttributeError:
+            self._exclude_selected_region = self.ax_order.axvspan(**{
+                "xmin": xmin,
+                "xmax": xmax,
+                "ymin": ymin,
+                "ymax": ymax,
+                "facecolor": "r",
+                "edgecolor": "none",
+                "alpha": 0.25,
+                "zorder": -1
+            })
+
+        else:
+            self._exclude_selected_region.set_xy([
+                [xmin, ymin],
+                [xmin, ymax],
+                [xmax, ymax],
+                [xmax, ymin],
+                [xmin, ymin]
+            ])
+
+        # Set the signal and the time.
+        self._exclude_selected_region_signal = (
+            time(),
+            self.norm_plot.mpl_connect(
+                "motion_notify_event", self.update_exclude_selected_region)
+            )
+        return None
+
+
+
+    def figure_mouse_release(self, event):
+        
+        # If the two events were within <1 second, then we should not add a
+        # mask.
+        signal_time, signal_cid = self._exclude_selected_region_signal
+        data = self._exclude_selected_region.get_xy()
+        
+        if time() - signal_time < DOUBLE_CLICK_INTERVAL: 
+            # Don't do anything because it was probably a double click.
+            data[:, 0] = np.nan
+            
+        elif np.abs(data[0,0] - event.xdata) > 0:
+            print("ok do something!")
+            data[2:4, 0] = event.xdata
+            print("ADDED MASK of size: ", np.abs(data[0, 0] - event.xdata))
+
+
+
+        self._exclude_selected_region.set_xy(data)
+        self.norm_plot.mpl_disconnect(signal_cid)
+        self.norm_plot.draw()
+        
+
+
+    def update_exclude_selected_region(self, event):
+        """
+        Update the selected exclusion region for this order.
+
+        :param event:
+            The matplotlib motion event to show the current mouse position.
+        """
+        
+        signal_time, signal_cid = self._exclude_selected_region_signal
+        if time() - signal_time > DOUBLE_CLICK_INTERVAL: 
+            
+            data = self._exclude_selected_region.get_xy()
+
+            # Update xmax.
+            data[2:4, 0] = event.xdata
+            self._exclude_selected_region.set_xy(data)
+
+            self.norm_plot.draw()
+
+        return None
 
 
     def _populate_widgets(self):
@@ -465,14 +626,19 @@ class NormalizationTab(QtGui.QWidget):
         updated.
         """
 
+        # Clear out the normalization in any other orders.
+        N = len(self.parent.session.input_spectra)
+        self.parent.session.metadata["normalization"] = {
+            "continuum": [None] * N,
+            "normalization_kwargs": [{}] * N
+        }
+
+        # Update the current order fit, and the view.
         self.update_order_index()
         self.update_continuum_mask()
         self.fit_continuum(clobber=True)
         self.draw_order()
         self.draw_continuum(refresh=True)
-
-        # Clear out the normalization in any other orders?
-        # TODO:
 
         return None
 
@@ -766,6 +932,11 @@ class NormalizationTab(QtGui.QWidget):
         kwds["full_output"] = True
 
         # Add in any additonal points/masked region to kwds.
+        existing = \
+            session.metadata["normalization"]["normalization_kwargs"][index]
+        for key in ("additional_points", ):
+            kwds[key] = existing.get(key, None)
+
         try:
             normalized_spectrum, continuum, left, right \
                 = self.current_order.fit_continuum(**kwds)
@@ -817,6 +988,14 @@ class NormalizationTab(QtGui.QWidget):
             self.current_order.dispersion, 
             self.current_order.flux/continuum])
         self.ax_order_norm.set_xlim(self.ax_order.get_xlim())
+
+        # Draw the additional points.
+        ap = meta["normalization_kwargs"][index].get("additional_points", None)
+        if ap is None:
+            ap = np.array([])
+        else:
+            ap = ap[:, :2]
+        self.ax_order.collections[0].set_offsets(ap)
 
         if refresh:
             self.norm_plot.draw()
