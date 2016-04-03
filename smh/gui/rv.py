@@ -704,9 +704,10 @@ class RVTab(QtGui.QWidget):
         # Redshift the normalized order.
         self.redraw_normalized_order(True)
 
-        # Enable the next tab.
+        # Enable and update the normalization tab.
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 1, True)
-        
+        self.parent.normalization_tab.update_rv_applied()
+
         return None
 
 

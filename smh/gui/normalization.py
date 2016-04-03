@@ -318,6 +318,9 @@ class NormalizationTab(QtGui.QWidget):
         input is valid.
         """
 
+        # TODO: Implement from
+        # http://stackoverflow.com/questions/27159575/pyside-modifying-widget-colour-at-runtime-without-overwriting-stylesheet
+
         sender = self.sender()
         validator = sender.validator()
         state = validator.validate(sender.text(), 0)[0]
@@ -405,11 +408,11 @@ class NormalizationTab(QtGui.QWidget):
                 = self.parent.session.setting(("normalization", key))
 
         # Continuum masks.
-        self._cache["continuum_mask"] \
+        self._cache["masks"] \
             = self.parent.session.setting(("normalization", "masks"))
         self._cache["default_mask"] \
             = self.parent.session.setting(("normalization", "default_mask")) \
-                or self._cache["continuum_mask"].keys()[0]
+                or self._cache["masks"].keys()[0]
 
 
         # Put these values into the widgets.
@@ -438,11 +441,11 @@ class NormalizationTab(QtGui.QWidget):
             self._cache["input"]["max_iterations"]))
 
         # Mask names.
-        for name in self._cache["continuum_mask"].keys():
+        for name in self._cache["masks"].keys():
             self.continuum_mask.addItem(name)
 
         self.continuum_mask.setCurrentIndex(
-            self._cache["continuum_mask"].keys().index(
+            self._cache["masks"].keys().index(
                 self._cache["default_mask"]))
 
 
@@ -453,6 +456,24 @@ class NormalizationTab(QtGui.QWidget):
         self.fit_continuum(False)
         self.draw_order()
         self.draw_continuum(True)
+        return None
+
+
+    def update_rv_applied(self):
+        """
+        Make updates to the view when the radial velocity applied has been
+        updated.
+        """
+
+        self.update_order_index()
+        self.update_continuum_mask()
+        self.fit_continuum(clobber=True)
+        self.draw_order()
+        self.draw_continuum(refresh=True)
+
+        # Clear out the normalization in any other orders?
+        # TODO:
+
         return None
 
 
@@ -474,27 +495,37 @@ class NormalizationTab(QtGui.QWidget):
         }
 
         # Transformation function.
-        transform = lambda start, end: np.array([
-                [start, ymin],
-                [start, ymax],
-                [end,   ymax],
-                [end,   ymin],
-                [start, ymin]
+        transform = lambda start, end, v=0: np.array([
+                [start * (1 - v/c), ymin],
+                [start * (1 - v/c), ymax],
+                [end   * (1 - v/c), ymax],
+                [end   * (1 - v/c), ymin],
+                [start * (1 - v/c), ymin]
             ])
 
-        mask = self._cache["continuum_mask"][self.continuum_mask.currentText()]
+        mask = self._cache["masks"][self.continuum_mask.currentText()]
+
+        # Get the applied velocity to shift some masks.
+        try:
+            v = self.parent.session.metadata["rv"]["rv_applied"]
+        except (AttributeError, KeyError):
+            v = 0
 
         # Any added regions to mask out? v-stack these
-
         try:
             self._masked_wavelengths
         except AttributeError:
             self._masked_wavelengths = []
             self._masked_wavelengths_norm = []
 
-        for i, (start, end) in enumerate(mask):
+        # Different kind of masks: rest_wavelength, obs_wavelength, pixels
+        # rest_wavelength
+        # The obsered spectrum is shifted to be at rest, so the continuum masks
+        # will also be in the rest frame. So we don't need to shift the
+        # 'rest_wavelength' mask, but we do need to shift the 'obs_wavelength'
+        # mask
+        for i, (start, end) in enumerate(mask.get("rest_wavelength", [])):
             if i >= len(self._masked_wavelengths):
-
                 # Create a polygon in the main figure.
                 self._masked_wavelengths.append(self.ax_order.axvspan(**kwds))
 
@@ -507,11 +538,26 @@ class NormalizationTab(QtGui.QWidget):
             for polygon in polygons:
                 polygon.set_xy(transform(start, end))
 
+        # obs_wavelength
+        for j, (start, end) in enumerate(mask.get("obs_wavelength", [])):
+            if i + j + 1 >= len(self._masked_wavelengths):
+                # Create a polygon in the main figure.
+                self._masked_wavelengths.append(self.ax_order.axvspan(**kwds))
+
+                # And for the normalization preview.
+                self._masked_wavelengths_norm.append(
+                    self.ax_order_norm.axvspan(**kwds))
+
+            for polygon in (
+                    self._masked_wavelengths[i + j + 1], 
+                    self._masked_wavelengths_norm[i + j + 1]):
+                polygon.set_xy(transform(start, end, v))
+
         # Any leftover polygons?
-        for polygon in self._masked_wavelengths[i + 1:]:
+        for polygon in self._masked_wavelengths[i + j + 2:]:
             polygon.set_xy(transform(np.nan, np.nan))
 
-        for polygon in self._masked_wavelengths_norm[i + 1:]:
+        for polygon in self._masked_wavelengths_norm[i + j + 2:]:
             polygon.set_xy(transform(np.nan, np.nan))
 
         self.norm_plot.draw()
@@ -524,10 +570,10 @@ class NormalizationTab(QtGui.QWidget):
         knot_spacing = self.knot_spacing.text()
         if knot_spacing:
             self._cache["input"]["knot_spacing"] = float(knot_spacing)
-            self.fit_continuum(True)
-            self.draw_continuum(True)
             self.reset_input_style_defaults()
-
+            self.fit_continuum(True, sender=self.knot_spacing)
+            self.draw_continuum(True)
+            
         return None
         
 
@@ -536,9 +582,9 @@ class NormalizationTab(QtGui.QWidget):
         high_sigma = self.high_sigma_clip.text()
         if high_sigma:
             self._cache["input"]["high_sigma_clip"] = float(high_sigma)
+            self.reset_input_style_defaults()
             self.fit_continuum(True)
             self.draw_continuum(True)
-            self.reset_input_style_defaults()
         return None
 
 
@@ -547,27 +593,27 @@ class NormalizationTab(QtGui.QWidget):
         low_sigma = self.low_sigma_clip.text()
         if low_sigma:
             self._cache["input"]["low_sigma_clip"] = float(low_sigma)
+            self.reset_input_style_defaults()
             self.fit_continuum(True)
             self.draw_continuum(True)
-            self.reset_input_style_defaults()
         return None
 
 
     def update_normalization_function(self):
         """ Update the normalization function. """
         self._cache["input"]["function"] = self.function.currentText()
+        self.reset_input_style_defaults()
         self.fit_continuum(True)
         self.draw_continuum(True)
-        self.reset_input_style_defaults()
         return None
 
 
     def update_normalization_order(self):
         """ Update the normalization order. """
         self._cache["input"]["order"] = int(self.order.currentText())
+        self.reset_input_style_defaults()
         self.fit_continuum(True)
         self.draw_continuum(True)
-        self.reset_input_style_defaults()
         return None
 
 
@@ -595,11 +641,11 @@ class NormalizationTab(QtGui.QWidget):
 
         # Apply any RV correction.
         try:
-            rv_applied = session.metadata["rv"]["rv_applied"]
+            v = session.metadata["rv"]["rv_applied"]
         except (AttributeError, KeyError):
-            rv_applied = 0
+            v = 0
 
-        self.current_order._dispersion *= (1 - rv_applied/c)
+        self.current_order._dispersion *= (1 - v/c)
 
         # Update the view if the input settings don't match the settings used
         # to normalize the current order.
@@ -658,6 +704,7 @@ class NormalizationTab(QtGui.QWidget):
         """
         Reset the styling inputs.
         """
+
         items = items or (
             self.function_label, self.function,
             self.order_label, self.order,
@@ -671,14 +718,18 @@ class NormalizationTab(QtGui.QWidget):
             item.setStyleSheet('{0} {{ font-weight: normal }}'\
                 .format(item.__class__.__name__))
             item.setStatusTip("")
+        return None
 
 
     def draw_order(self, refresh=False):
         """
         Draw the current order.
+
+        Note: The order in `self.current_order` is already in the rest frame. 
         """
 
-        x, y = self.current_order.dispersion, self.current_order.flux
+        x, y = (self.current_order.dispersion, self.current_order.flux)
+        
         self.ax_order.lines[0].set_data([x, y])
         self.ax_order.set_xlim(x[0], x[-1])
         self.ax_order.set_ylim(np.nanmin(y), np.nanmax(y))
@@ -692,9 +743,12 @@ class NormalizationTab(QtGui.QWidget):
         return None
 
 
-    def fit_continuum(self, clobber):
+    def fit_continuum(self, clobber, sender=None):
         """
         Update continuum for the current order.
+
+        :param clobber:
+            Clobber any existing continuum determination for this order.
         """
 
         # Any existing continuum determination?
@@ -715,9 +769,20 @@ class NormalizationTab(QtGui.QWidget):
         try:
             normalized_spectrum, continuum, left, right \
                 = self.current_order.fit_continuum(**kwds)
+            if kwds["knot_spacing"] == 201:
+                raise KeyError("what") #HACK #TESTING #TODO
         except:
             logger.exception("No continuum could be fit.")
+            self.parent.statusbar.showMessage(
+                "Exception occurred while trying to fit the continuum.")
+
             continuum = np.nan
+
+            # Did a user input something bad? Let them know..
+            if sender is not None:
+                print("Sender is ", sender) #TODO: This is broken..
+                sender.setStyleSheet("{0} {{ background-color: #f6989d; }}"\
+                    .format(sender.__class__.__name__))
 
         session.metadata["normalization"]["continuum"][index] = continuum
         session.metadata["normalization"]["normalization_kwargs"][index] = kwds
@@ -728,6 +793,8 @@ class NormalizationTab(QtGui.QWidget):
     def draw_continuum(self, refresh=False):
         """
         Draw the continuum for the current order.
+
+        Note: The order in `self.current_order` is already in the rest-frame.
         """
 
         try:
@@ -747,7 +814,8 @@ class NormalizationTab(QtGui.QWidget):
 
         # Update the normalization preview in the lower axis.
         self.ax_order_norm.lines[1].set_data([
-            self.current_order.dispersion, self.current_order.flux/continuum])
+            self.current_order.dispersion, 
+            self.current_order.flux/continuum])
         self.ax_order_norm.set_xlim(self.ax_order.get_xlim())
 
         if refresh:
