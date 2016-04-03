@@ -34,10 +34,11 @@ DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 PIXEL_PICKER_TOLERANCE = 30 # MAGIC HACK
 
 
-def dict_updated(default, new):
+def dict_updated(default, new, exclude=None):
     updated = {}
+    exclude = exclude or ()
     for key, value in default.items():
-        if key in new and new[key] != value:
+        if key in new and key not in exclude and new[key] != value:
             updated[key] = (value, new[key])
     return updated
 
@@ -352,11 +353,6 @@ class NormalizationTab(QtGui.QWidget):
         Key press event in the normalization figure.
         """
 
-        # Don't allow the user to flip between orders if they are selecting a
-        # region to exclude.
-        if hasattr(self, "_waiting_on_e_key") and event.key not in "eE":
-            return None
-
         # Show a new order.
         if event.key in ("left", "right"):
             offset = 1 if event.key == "right" else -1
@@ -365,9 +361,10 @@ class NormalizationTab(QtGui.QWidget):
 
             self.update_order_index(np.clip(self.current_order_index + offset,
                 0, len(self.parent.session.input_spectra) - 1))
-            self.draw_order()
-            self.fit_continuum(False)
-            self.draw_continuum(True)
+            self.draw_order(refresh=False)
+            self.update_continuum_mask(refresh=False)
+            self.fit_continuum(clobber=False)
+            self.draw_continuum(refresh=True)
 
             # Do all of the orders have continuum? If so, update the button.
             if not any([(_ is None) for _ in \
@@ -405,6 +402,22 @@ class NormalizationTab(QtGui.QWidget):
             return None
 
 
+        # 'c': Clear the scale, excluded regions and points for this order.
+        if event.key in "cC":
+            for key in ("scale", "exclude", "additional_points"):
+                if key in self._cache["input"]:
+                    del self._cache["input"][key]
+
+            # TODO: Clear the mouse-wait for exclusion region?
+
+            # Force refit.
+            self.fit_continuum(clobber=True)
+            self.draw_continuum(refresh=False)
+            self.update_continuum_mask(refresh=True)
+
+            return True
+
+
     def figure_mouse_press(self, event):
         """
         Function to handle event clicks (single or double click).
@@ -434,12 +447,13 @@ class NormalizationTab(QtGui.QWidget):
                 xscale = np.nanmean(
                     np.diff(self.current_order.dispersion[idx-5:idx+5]))
 
+                """
                 bbox = self.ax_order.get_window_extent().transformed(
                     self.norm_plot.dpi_scale_trans.inverted())
                 width =  bbox.width * self.norm_plot.dpi
                 height = bbox.height * self.norm_plot.dpi
-
                 print(width, height)
+                """
                 # TODO: Fix this distance thing.
 
                 distance = np.sqrt(
@@ -457,10 +471,10 @@ class NormalizationTab(QtGui.QWidget):
                     print("Closest point {} px away".format(distance[index]))
 
             # Update the cache.
-            nm = self.parent.session.metadata["normalization"]
             idx = self.current_order_index
             N = points.shape[0]
-            nm["normalization_kwargs"][idx]["additional_points"] \
+            # TODO: adhere to the knot weights
+            self._cache["input"]["additional_points"] \
                 = np.hstack((points, 200 * np.ones(N).reshape((N, 1))))
             self.fit_continuum(clobber=True)
             self.draw_continuum(refresh=True)
@@ -505,26 +519,41 @@ class NormalizationTab(QtGui.QWidget):
 
     def figure_mouse_release(self, event):
         
-        # If the two events were within <1 second, then we should not add a
-        # mask.
-        signal_time, signal_cid = self._exclude_selected_region_signal
-        data = self._exclude_selected_region.get_xy()
+        xy = self._exclude_selected_region.get_xy()
         
-        if time() - signal_time < DOUBLE_CLICK_INTERVAL: 
-            # Don't do anything because it was probably a double click.
-            data[:, 0] = np.nan
+        if event.xdata is None:
+            # Out of axis; exclude based on the last known worthwhile position.
+            xdata = xy[2, 0]
+        else:
+            xdata = event.xdata
+
+        # If the two mouse events were within some time interval,
+        # then we should not add a mask because those signals were probably
+        # part of a double-click event.
+        signal_time, signal_cid = self._exclude_selected_region_signal
+        
+        if  time() - signal_time > DOUBLE_CLICK_INTERVAL \
+        and np.abs(xy[0,0] - xdata) > 0:
             
-        elif np.abs(data[0,0] - event.xdata) > 0:
-            print("ok do something!")
-            data[2:4, 0] = event.xdata
-            print("ADDED MASK of size: ", np.abs(data[0, 0] - event.xdata))
+            # Update the cache.
+            _ =  self._cache["input"].get("exclude", np.array([]))
+            _.shape = (-1, 2)
+            self._cache["input"]["exclude"] = np.vstack((
+                np.array([xy[0,0], xy[2, 0]]).reshape(-1, 2), _))
 
+            print("ADDED MASK of size: ", np.abs(xy[0, 0] - xdata))
 
+            # Fit and re-draw the continuum, and its mask.
+            self.fit_continuum(clobber=True)
+            self.update_continuum_mask(refresh=False)
+            self.draw_continuum(refresh=False)
 
-        self._exclude_selected_region.set_xy(data)
+        xy[:, 0] = np.nan
+
+        self._exclude_selected_region.set_xy(xy)
         self.norm_plot.mpl_disconnect(signal_cid)
         self.norm_plot.draw()
-        
+        return None
 
 
     def update_exclude_selected_region(self, event):
@@ -534,6 +563,8 @@ class NormalizationTab(QtGui.QWidget):
         :param event:
             The matplotlib motion event to show the current mouse position.
         """
+        if event.xdata is None:
+            return
         
         signal_time, signal_cid = self._exclude_selected_region_signal
         if time() - signal_time > DOUBLE_CLICK_INTERVAL: 
@@ -613,10 +644,10 @@ class NormalizationTab(QtGui.QWidget):
 
         # Draw the widgets.
         self.update_order_index(0)
-        self.update_continuum_mask()
-        self.fit_continuum(False)
-        self.draw_order()
-        self.draw_continuum(True)
+        self.update_continuum_mask(refresh=False)
+        self.fit_continuum(clobber=False)
+        self.draw_order(refresh=False)
+        self.draw_continuum(refresh=True)
         return None
 
 
@@ -635,15 +666,16 @@ class NormalizationTab(QtGui.QWidget):
 
         # Update the current order fit, and the view.
         self.update_order_index()
-        self.update_continuum_mask()
+        self.update_continuum_mask(refresh=False)
         self.fit_continuum(clobber=True)
-        self.draw_order()
+        self.draw_order(refresh=False)
         self.draw_continuum(refresh=True)
 
         return None
 
 
-    def update_continuum_mask(self):
+
+    def update_continuum_mask(self, refresh=False):
         """
         Draw the continuum mask (relevant for all orders).
         """
@@ -671,12 +703,6 @@ class NormalizationTab(QtGui.QWidget):
 
         mask = self._cache["masks"][self.continuum_mask.currentText()]
 
-        # Get the applied velocity to shift some masks.
-        try:
-            v = self.parent.session.metadata["rv"]["rv_applied"]
-        except (AttributeError, KeyError):
-            v = 0
-
         # Any added regions to mask out? v-stack these
         try:
             self._masked_wavelengths
@@ -690,43 +716,52 @@ class NormalizationTab(QtGui.QWidget):
         # will also be in the rest frame. So we don't need to shift the
         # 'rest_wavelength' mask, but we do need to shift the 'obs_wavelength'
         # mask
-        for i, (start, end) in enumerate(mask.get("rest_wavelength", [])):
-            if i >= len(self._masked_wavelengths):
-                # Create a polygon in the main figure.
-                self._masked_wavelengths.append(self.ax_order.axvspan(**kwds))
 
-                # And for the normalization preview.
-                self._masked_wavelengths_norm.append(
-                    self.ax_order_norm.axvspan(**kwds))
+        # Get the applied velocity to shift some masks.
+        try:
+            rv_applied = self.parent.session.metadata["rv"]["rv_applied"]
+        except (AttributeError, KeyError):
+            rv_applied = 0
 
-            polygons = \
-                (self._masked_wavelengths[i], self._masked_wavelengths_norm[i])
-            for polygon in polygons:
-                polygon.set_xy(transform(start, end))
+        i = 0
+        _ =self.parent.session.metadata["normalization"]["normalization_kwargs"]
+        _ = _[self.current_order_index].get("exclude", [])
 
-        # obs_wavelength
-        for j, (start, end) in enumerate(mask.get("obs_wavelength", [])):
-            if i + j + 1 >= len(self._masked_wavelengths):
-                # Create a polygon in the main figure.
-                self._masked_wavelengths.append(self.ax_order.axvspan(**kwds))
+        masked_regions = [
+            (0,             mask.get("rest_wavelength", [])),
+            (rv_applied,    mask.get("obs_wavelength", [])),
+            (0,             _)
+        ]
+        for v, mask in masked_regions:
+            for start, end in mask:
+                if i >= len(self._masked_wavelengths):
+                    # Create a polygon in the main axis.
+                    self._masked_wavelengths.append(
+                        self.ax_order.axvspan(**kwds))
 
-                # And for the normalization preview.
-                self._masked_wavelengths_norm.append(
-                    self.ax_order_norm.axvspan(**kwds))
+                    # And for the normalization axis.
+                    self._masked_wavelengths_norm.append(
+                        self.ax_order_norm.axvspan(**kwds))
 
-            for polygon in (
-                    self._masked_wavelengths[i + j + 1], 
-                    self._masked_wavelengths_norm[i + j + 1]):
-                polygon.set_xy(transform(start, end, v))
+                polygons = (
+                    self._masked_wavelengths[i],
+                    self._masked_wavelengths_norm[i]
+                )
+                for polygon in polygons:
+                    polygon.set_xy(transform(start, end, v))
+
+                i += 1
 
         # Any leftover polygons?
-        for polygon in self._masked_wavelengths[i + j + 2:]:
+        for polygon in self._masked_wavelengths[i:]:
             polygon.set_xy(transform(np.nan, np.nan))
 
-        for polygon in self._masked_wavelengths_norm[i + j + 2:]:
+        for polygon in self._masked_wavelengths_norm[i:]:
             polygon.set_xy(transform(np.nan, np.nan))
 
-        self.norm_plot.draw()
+
+        if refresh:
+            self.norm_plot.draw()
         return True
 
 
@@ -817,6 +852,7 @@ class NormalizationTab(QtGui.QWidget):
         # to normalize the current order.
         self.check_for_different_input_settings()
 
+        print("Current cache", self._cache["input"])
         return None
 
 
@@ -833,6 +869,16 @@ class NormalizationTab(QtGui.QWidget):
         normalization_kwargs \
             = session.metadata["normalization"]["normalization_kwargs"][index]
 
+        # These keys don't have widgets, but need to be updated.
+        extra_keys = ("additional_points", "exclude")
+        for key in extra_keys:
+            if key in normalization_kwargs:
+                self._cache["input"][key] = normalization_kwargs[key]
+            elif key in self._cache["input"]:
+                del self._cache["input"][key]
+
+        print("norm settings", normalization_kwargs)
+
         if continuum is None: return
 
         # If so, are the current normalization keywords different to the ones
@@ -847,22 +893,23 @@ class NormalizationTab(QtGui.QWidget):
             "knot_spacing": [self.knot_spacing, self.knot_spacing_label],
         }
 
-        diff = dict_updated(self._cache["input"], normalization_kwargs)
-        if continuum is not None and diff:
-            for key, (current, used) in diff.items():
-                if key in input_items:
-                    # Update the font-weight of those objects.
-                    items = input_items[key]
-                    for item in items:
-                        item.setStyleSheet("{0} {{ font-weight: bold }}".format(
-                            item.__class__.__name__))
-                        item.setStatusTip("Order {0} was normalized using {1} ="
-                            " {2} (not {3})"\
-                            .format(1 + index, key, used, current))
-        else:
-            # Ensure all the things are styled normally.
-            self.reset_input_style_defaults(sum(input_items.values(), []))
+        diff = dict_updated(self._cache["input"], normalization_kwargs,
+            exclude=("additional_points", "exclude"))
 
+        # By default, everything should be styled normally.
+        self.reset_input_style_defaults(sum(input_items.values(), []))
+        for key, (current, used) in diff.items():
+            if key in input_items:
+                # Update the font-weight of those objects.
+                items = input_items[key]
+                for item in items:
+                    item.setStyleSheet("{0} {{ font-weight: bold }}".format(
+                        item.__class__.__name__))
+                    item.setStatusTip("Order {0} was normalized using {1} ="
+                        " {2} (not {3})"\
+                        .format(1 + index, key, used, current))
+
+            
         return None
 
 
@@ -932,10 +979,11 @@ class NormalizationTab(QtGui.QWidget):
         kwds["full_output"] = True
 
         # Add in any additonal points/masked region to kwds.
-        existing = \
-            session.metadata["normalization"]["normalization_kwargs"][index]
-        for key in ("additional_points", ):
-            kwds[key] = existing.get(key, None)
+        #existing = \
+        #    session.metadata["normalization"]["normalization_kwargs"][index]
+        #for key in ("additional_points", "exclude"):
+        #    if key in existing:
+        #        kwds[key] = existing[key]
 
         try:
             normalized_spectrum, continuum, left, right \
