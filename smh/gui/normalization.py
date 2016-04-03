@@ -186,13 +186,31 @@ class NormalizationTab(QtGui.QWidget):
         hbox.addWidget(self.knot_spacing)
         settings_grid_layout.addLayout(hbox, 5, 1, 1, 1)
 
+        """
+        # Relative weights for additional points
+        relative_weight_label = QtGui.QLabel(self)
+        settings_grid_layout.addWidget(relative_weight_label, 6, 0, 1, 1)
+        relative_weight_label.setText("Weighting added points")
+
+        hbox = QtGui.QHBoxLayout()
+        hbox.setContentsMargins(-1, -1, 5, -1)
+        hbox.addItem(QtGui.QSpacerItem(
+            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+        self.relative_weight = QtGui.QLineEdit(self)
+        self.relative_weight.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.relative_weight.setAlignment(QtCore.Qt.AlignCenter)
+        self.relative_weight.setValidator(
+            QtGui.QDoubleValidator(0, 1e8, 0, self.relative_weight))
+        hbox.addWidget(self.relative_weight)
+        settings_grid_layout.addLayout(hbox, 6, 1, 1, 1)
+        """
 
         # End of the grid in the normalization tab.
         settings_layout.addLayout(settings_grid_layout)
 
         # Add a label.
         label = QtGui.QLabel(self)
-        label.setText("Continuum mask:")
+        label.setText("Global continuum mask:")
         settings_layout.addWidget(label)
 
         # Add options for continuum mask.

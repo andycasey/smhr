@@ -698,8 +698,7 @@ class RVTab(QtGui.QWidget):
         Correct the radial velocity of the observed spectra.
         """
 
-        self.parent.session.metadata["rv"]["rv_applied"] \
-            = float(self.rv_applied.text())
+        self.parent.session.rv_correct(self.rv_applied.text())
 
         # Redshift the normalized order.
         self.redraw_normalized_order(True)
