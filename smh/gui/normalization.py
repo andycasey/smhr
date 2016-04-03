@@ -299,6 +299,8 @@ class NormalizationTab(QtGui.QWidget):
         self.norm_plot.draw()
 
         # Create signals.
+        self.stitch_btn.clicked.connect(self.normalize_and_stitch)
+
         # Note that key_press_event is linked to norm_plot.canvas, while the
         # mouse events are linked to norm_plot.
         # I don't know why, but that's how it works.
@@ -324,10 +326,30 @@ class NormalizationTab(QtGui.QWidget):
         self.low_sigma_clip.textChanged.connect(self.check_state)
         self.high_sigma_clip.textChanged.connect(self.check_state)
         self.knot_spacing.textChanged.connect(self.check_state)
-        
 
 
+    def normalize_and_stitch(self):
+        """
+        Normalize any remaining orders, and stitch them together.
+        """
 
+        # Normalize any remaining orders.
+        index = self.current_order_index 
+        for i in range(len(self.parent.session.input_spectra)):
+            self.update_order_index(i)
+            self.fit_continuum(clobber=False)
+
+        # Go back to original order.
+        self.update_order_index(index)
+
+        # Stitch all orders.
+        self.parent.statusbar.showMessage("Stitching orders..")
+        print("Stitching")
+
+        # Enable the next tab.
+        self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 1, True)
+
+        return None
 
 
     def check_state(self, *args, **kwargs):
@@ -752,7 +774,8 @@ class NormalizationTab(QtGui.QWidget):
         ]
         if "pixel" in mask:
             masked_regions.append(
-                self.current_order.dispersion[np.array(mask["pixel"])]
+                # MAGIC HACK
+                self.current_order.dispersion[np.array(mask["pixel"])] + 1e-3
             )
 
         for each in masked_regions:
@@ -1033,7 +1056,8 @@ class NormalizationTab(QtGui.QWidget):
                     regions.append((start, end))
 
         if "pixel" in global_mask:
-            regions.extend(
+            # MAGIC HACK
+            regions.extend(1e-3 + \
                 self.current_order.dispersion[np.array(global_mask["pixel"])])
 
         if kwds.get("exclude", None) is None:
