@@ -244,8 +244,10 @@ class NormalizationTab(QtGui.QWidget):
         # Create a matplotlib widget.
         blank_widget = QtGui.QWidget(self)
         blank_widget.setStatusTip(
-            "Use left/right arrows to move between orders, "
-            "double-click for all keyboard shortcuts")
+            "Use left/right arrows to move between orders; "
+            "up/down arrows to scale continuum; "
+            "'c' to clear points and interactive exclusion regions; "
+            "'d' to specify no continuum normalization.")
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         sp.setHorizontalStretch(0)
@@ -287,6 +289,8 @@ class NormalizationTab(QtGui.QWidget):
         self.ax_order_norm = self.norm_plot.figure.add_subplot(gs[1])
         self.ax_order_norm.axhline(1, linestyle=":", c="#666666", zorder=1)
         self.ax_order_norm.plot([], [], c='k', zorder=2)
+
+        # TODO: Make (0, 1.2) a default view setting.
         self.ax_order_norm.set_ylim(0, 1.2)
         self.ax_order_norm.set_yticks([0, 0.5, 1.0])
         self.ax_order_norm.set_xlabel(u"Wavelength (Å)")
@@ -481,7 +485,7 @@ class NormalizationTab(QtGui.QWidget):
             N = points.shape[0]
             # TODO: adhere to the knot weights
             self._cache["input"]["additional_points"] \
-                = np.hstack((points, 200 * np.ones(N).reshape((N, 1))))
+                = np.hstack((points, 100 * np.ones(N).reshape((N, 1))))
             self.fit_continuum(clobber=True)
             self.draw_continuum(refresh=True)
 
@@ -524,6 +528,19 @@ class NormalizationTab(QtGui.QWidget):
 
 
     def figure_mouse_release(self, event):
+        """
+        A callback function that is executed when the mouse button is released.
+        This signal typically triggers the extent of a region to mask in the
+        current order.
+
+        :param event:
+            The matplotlib event.
+        """
+
+        try:
+            signal_time, signal_cid = self._exclude_selected_region_signal
+        except AttributeError:
+            return None
         
         xy = self._exclude_selected_region.get_xy()
         
@@ -536,8 +553,6 @@ class NormalizationTab(QtGui.QWidget):
         # If the two mouse events were within some time interval,
         # then we should not add a mask because those signals were probably
         # part of a double-click event.
-        signal_time, signal_cid = self._exclude_selected_region_signal
-        
         if  time() - signal_time > DOUBLE_CLICK_INTERVAL \
         and np.abs(xy[0,0] - xdata) > 0:
             
@@ -563,7 +578,8 @@ class NormalizationTab(QtGui.QWidget):
 
     def update_exclude_selected_region(self, event):
         """
-        Update the selected exclusion region for this order.
+        Update the visible selected exclusion region for this order. This
+        function is linked to a callback for when the mouse position moves.
 
         :param event:
             The matplotlib motion event to show the current mouse position.
@@ -732,7 +748,13 @@ class NormalizationTab(QtGui.QWidget):
         masked_regions = [
             np.array(mask.get("rest_wavelength", [])),
             np.array(mask.get("obs_wavelength", [])) * (1 - rv_applied/c),
-            np.array(_[self.current_order_index].get("exclude", []))]
+            np.array(_[self.current_order_index].get("exclude", []))
+        ]
+        if "pixel" in mask:
+            masked_regions.append(
+                self.current_order.dispersion[np.array(mask["pixel"])]
+            )
+
         for each in masked_regions:
             each.shape = (-1, 2)
 
@@ -1009,6 +1031,10 @@ class NormalizationTab(QtGui.QWidget):
                 if  end >= self.current_order.dispersion[0] \
                 and self.current_order.dispersion[-1] >= start:
                     regions.append((start, end))
+
+        if "pixel" in global_mask:
+            regions.extend(
+                self.current_order.dispersion[np.array(global_mask["pixel"])])
 
         if kwds.get("exclude", None) is None:
             kwds["exclude"] = np.array(regions)
