@@ -353,11 +353,18 @@ class NormalizationTab(QtGui.QWidget):
         Key press event in the normalization figure.
         """
 
+        # Check if we are waiting for an exclusion region first
+        # (This means the mouse has been clicked, but not released in-axis yet)
+        try:
+            self._exclude_selected_region_signal
+        except AttributeError:
+            None
+        else:
+            return None
+
         # Show a new order.
         if event.key in ("left", "right"):
             offset = 1 if event.key == "right" else -1
-
-            # TODO: deal with discarded order indices, etc.
 
             self.update_order_index(np.clip(self.current_order_index + offset,
                 0, len(self.parent.session.input_spectra) - 1))
@@ -372,6 +379,7 @@ class NormalizationTab(QtGui.QWidget):
                 self.stitch_btn.setText("Stitch orders")
 
             return None
+
 
         # Scale the continuum up/down.
         if event.key in ("up", "down"):
@@ -407,8 +415,6 @@ class NormalizationTab(QtGui.QWidget):
             for key in ("scale", "exclude", "additional_points"):
                 if key in self._cache["input"]:
                     del self._cache["input"][key]
-
-            # TODO: Clear the mouse-wait for exclusion region?
 
             # Force refit.
             self.fit_continuum(clobber=True)
@@ -535,13 +541,11 @@ class NormalizationTab(QtGui.QWidget):
         if  time() - signal_time > DOUBLE_CLICK_INTERVAL \
         and np.abs(xy[0,0] - xdata) > 0:
             
-            # Update the cache.
+            # Update the cache with the new mask.
             _ =  self._cache["input"].get("exclude", np.array([]))
             _.shape = (-1, 2)
             self._cache["input"]["exclude"] = np.vstack((
                 np.array([xy[0,0], xy[2, 0]]).reshape(-1, 2), _))
-
-            print("ADDED MASK of size: ", np.abs(xy[0, 0] - xdata))
 
             # Fit and re-draw the continuum, and its mask.
             self.fit_continuum(clobber=True)
@@ -553,6 +557,7 @@ class NormalizationTab(QtGui.QWidget):
         self._exclude_selected_region.set_xy(xy)
         self.norm_plot.mpl_disconnect(signal_cid)
         self.norm_plot.draw()
+        del self._exclude_selected_region_signal
         return None
 
 
@@ -692,7 +697,6 @@ class NormalizationTab(QtGui.QWidget):
             "zorder": -1
         }
 
-        # Transformation function.
         transform = lambda start, end, v=0: np.array([
                 [start * (1 - v/c), ymin],
                 [start * (1 - v/c), ymax],
@@ -723,34 +727,44 @@ class NormalizationTab(QtGui.QWidget):
         except (AttributeError, KeyError):
             rv_applied = 0
 
-        i = 0
         _ =self.parent.session.metadata["normalization"]["normalization_kwargs"]
-        _ = _[self.current_order_index].get("exclude", [])
-
+        
         masked_regions = [
-            (0,             mask.get("rest_wavelength", [])),
-            (rv_applied,    mask.get("obs_wavelength", [])),
-            (0,             _)
-        ]
-        for v, mask in masked_regions:
-            for start, end in mask:
-                if i >= len(self._masked_wavelengths):
-                    # Create a polygon in the main axis.
-                    self._masked_wavelengths.append(
-                        self.ax_order.axvspan(**kwds))
+            np.array(mask.get("rest_wavelength", [])),
+            np.array(mask.get("obs_wavelength", [])) * (1 - rv_applied/c),
+            np.array(_[self.current_order_index].get("exclude", []))]
+        for each in masked_regions:
+            each.shape = (-1, 2)
 
-                    # And for the normalization axis.
-                    self._masked_wavelengths_norm.append(
-                        self.ax_order_norm.axvspan(**kwds))
+        masked_regions = np.vstack(masked_regions)
 
-                polygons = (
-                    self._masked_wavelengths[i],
-                    self._masked_wavelengths_norm[i]
-                )
-                for polygon in polygons:
-                    polygon.set_xy(transform(start, end, v))
+        # Remove duplicate masked regions.
+        _ = np.ascontiguousarray(masked_regions).view(
+            np.dtype((
+                np.void, 
+                masked_regions.dtype.itemsize * masked_regions.shape[1])))
+        __, idx = np.unique(_, return_index=True)
+        masked_regions = masked_regions[idx]
 
-                i += 1
+        i = 0
+        for start, end in masked_regions:
+            if i >= len(self._masked_wavelengths):
+                # Create a polygon in the main axis.
+                self._masked_wavelengths.append(
+                    self.ax_order.axvspan(**kwds))
+
+                # And for the normalization axis.
+                self._masked_wavelengths_norm.append(
+                    self.ax_order_norm.axvspan(**kwds))
+
+            polygons = (
+                self._masked_wavelengths[i],
+                self._masked_wavelengths_norm[i]
+            )
+            for polygon in polygons:
+                polygon.set_xy(transform(start, end))
+
+            i += 1
 
         # Any leftover polygons?
         for polygon in self._masked_wavelengths[i:]:
@@ -852,7 +866,6 @@ class NormalizationTab(QtGui.QWidget):
         # to normalize the current order.
         self.check_for_different_input_settings()
 
-        print("Current cache", self._cache["input"])
         return None
 
 
@@ -876,8 +889,6 @@ class NormalizationTab(QtGui.QWidget):
                 self._cache["input"][key] = normalization_kwargs[key]
             elif key in self._cache["input"]:
                 del self._cache["input"][key]
-
-        print("norm settings", normalization_kwargs)
 
         if continuum is None: return
 
@@ -931,6 +942,7 @@ class NormalizationTab(QtGui.QWidget):
             item.setStyleSheet('{0} {{ font-weight: normal }}'\
                 .format(item.__class__.__name__))
             item.setStatusTip("")
+        self.parent.statusbar.showMessage("")
         return None
 
 
@@ -978,12 +990,33 @@ class NormalizationTab(QtGui.QWidget):
         kwds = self._cache["input"].copy()
         kwds["full_output"] = True
 
-        # Add in any additonal points/masked region to kwds.
-        #existing = \
-        #    session.metadata["normalization"]["normalization_kwargs"][index]
-        #for key in ("additional_points", "exclude"):
-        #    if key in existing:
-        #        kwds[key] = existing[key]
+        # Add in the global continuum masks.
+        global_mask = self._cache["masks"][self.continuum_mask.currentText()]
+        try:
+            rv_applied = self.parent.session.metadata["rv"]["rv_applied"]
+        except (AttributeError, KeyError):
+            rv_applied = 0
+
+        mask_kinds = [
+            (0,          global_mask.get("rest_wavelength", [])),
+            (rv_applied, global_mask.get("obs_wavelength", []))
+        ]
+        regions = []
+        for v, masked_regions in mask_kinds:
+            for region in np.array(masked_regions):
+                start, end = region * (1 - v/c)
+
+                if  end >= self.current_order.dispersion[0] \
+                and self.current_order.dispersion[-1] >= start:
+                    regions.append((start, end))
+
+        if kwds.get("exclude", None) is None:
+            kwds["exclude"] = np.array(regions)
+
+        else:
+            _ = np.array(kwds["exclude"])
+            _.shape = (-1, 2)
+            kwds["exclude"] = np.vstack((_, np.array(regions).reshape(-1, 2)))
 
         try:
             normalized_spectrum, continuum, left, right \

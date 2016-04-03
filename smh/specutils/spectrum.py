@@ -523,6 +523,7 @@ class Spectrum1D(object):
             if len(knots) > 0 and knots[0] < dispersion[continuum_indices][0]:
                 knots = knots[knots.searchsorted(dispersion[continuum_indices][0]):]
 
+        # TODO: Use inverse variance array when fitting polynomial/spline.
         for iteration in range(max_iterations):
             
             splrep_disp = dispersion[continuum_indices]
