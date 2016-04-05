@@ -46,9 +46,14 @@ class Session(BaseSession):
             spectrum_paths = (spectrum_paths, )
 
         # Load the spectra and flatten all orders into a single list.
-        input_spectra = \
-            sum(list(map(specutils.Spectrum1D.read, spectrum_paths)), [])
-
+        input_spectra = []
+        for path in spectrum_paths:
+            s = specutils.Spectrum1D.read(path)
+            if isinstance(s, list):
+                input_spectra.extend(s)
+            else:
+                input_spectra.append(s)
+        
         # Sort orders from blue to red.
         input_spectra.sort(key=lambda order: order.dispersion.mean())
 
