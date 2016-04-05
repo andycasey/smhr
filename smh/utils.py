@@ -148,7 +148,13 @@ def species_to_element(species):
             606: ["C", "C"],
             607: ["C", "N"],
             106: ["C", "H"],
-            108: ["O", "H"]
+            108: ["O", "H"],
+            126: ["Fe", "H"],
+            107: ["N", "H"],
+            114: ["Si", "H"],
+            822: ["Ti", "O"],
+            823: ["V", "O"],
+            840: ["Zr", "O"]
         }
         if species in common_molecules.keys():
             elements_in_molecule = common_molecules[species]
