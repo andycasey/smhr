@@ -12,7 +12,7 @@ moog_lls = [LineList.read(filename,moog_columns=True) for filename in ll_filenam
 
 def test_colnames():
     required_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E',
-                         'E_hi','E_lo','lande_hi','lande_lo','damp_stark','damp_rad','references']
+                         'E_hi','lande_hi','lande_lo','damp_stark','damp_rad','references']
     for ll in lls:
         for col in required_colnames:
             ok_(col in ll.columns)

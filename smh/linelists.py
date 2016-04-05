@@ -31,11 +31,9 @@ def find_moog_species(elem1,ion,isotope1=None,elem2=None,isotope2=None):
 
 class LineList(Table):
     full_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments',
-                     'E_hi','E_lo','lande_hi','lande_lo','damp_stark','damp_rad','references',
-                     'element']
+                     'E_hi','lande_hi','lande_lo','damp_stark','damp_rad','references','element']
     full_dtypes = [np.float,np.float,np.float,np.float,np.float,np.float,str,
-                   np.float,np.float,np.float,np.float,np.float,np.float,str,
-                   str]
+                   np.float,np.float,np.float,np.float,np.float,str,str]
     moog_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments',
                      'references','element']
     moog_dtypes = [np.float,np.float,np.float,np.float,np.float,np.float,str,
@@ -316,8 +314,9 @@ class LineList(Table):
             data = [wl,species,EP,loggf,damping,dissoc,comments,refs,elements]
         else:
             nans = np.zeros_like(wl)*np.nan
+            E_hi = EP + 12398.42/wl #hc = 12398.42 eV AA
             data = [wl,species,EP,loggf,damping,dissoc,comments,
-                    nans,nans,nans,nans,nans,nans,refs,elements]
+                    E_hi,nans,nans,nans,nans,refs,elements]
         
         return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns)
 
@@ -340,7 +339,6 @@ class LineList(Table):
         damp_vdw = tab['VDW_DAMP']
         dissoc_E = np.zeros_like(wl)*np.nan #TODO
         E_hi = tab['E_UP']
-        E_lo = tab['E_LOW']
         lande_hi = tab['LANDE_UP']
         lande_lo = tab['LANDE_LOW']
         damp_stark = tab['STARK_DAMP']
@@ -356,8 +354,7 @@ class LineList(Table):
             data = [wl,species,expot,loggf,damp_vdw,dissoc,comments,refs,elements]
         else:
             data = [wl,species,expot,loggf,damp_vdw,dissoc,comments,
-                    E_hi,E_lo,lande_hi,lande_lo,damp_stark,damp_rad,refs,
-                    elements]
+                    E_hi,lande_hi,lande_lo,damp_stark,damp_rad,refs,elements]
     
         return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns)
 
