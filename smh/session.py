@@ -73,7 +73,6 @@ class Session(BaseSession):
         # Initialize metadata dictionary.
         N = len(self.input_spectra)
         self.metadata = {
-            "discarded_orders": [],
             "rv": {},
             "normalization": {
                 "continuum": [None] * N,
@@ -82,6 +81,37 @@ class Session(BaseSession):
         }
 
         return None
+
+
+    def setting(self, key_tree):
+        """
+        Return a setting value either from the session metadata, or the default.
+
+        :param key_tree:
+            A tuple containing a tree of dictionary keys.
+        """
+
+        value = self.metadata.copy()
+        try:
+            for key in key_tree:
+                value = value[key]
+
+        except KeyError:
+            # Check in defaults.
+            with open(self._default_settings_path, "rb") as fp:
+                default = yaml.load(fp)
+
+            try:
+                for key in key_tree:
+                    default = default[key]
+            except KeyError:
+                return None
+
+            else:
+                return default
+
+        else:
+            return value
 
 
     def _default(self, input_value, default_key_tree):
@@ -273,7 +303,7 @@ class Session(BaseSession):
         return (rv, rv_uncertainty)
 
 
-    def rv_apply(self, rv):
+    def rv_correct(self, rv):
         """
         Apply a radial velocity correction to the input spectra.
         
@@ -281,8 +311,22 @@ class Session(BaseSession):
             The radial velocity correction (in km/s) to apply.
         """
 
-        self.metadata["rv"]["rv_applied"] = rv
+        self.metadata["rv"]["rv_applied"] = float(rv)
         return None
+
+
+    def stitch_and_stack(self, **kwargs):
+
+        normalized_orders = []
+        for i, (spectrum, continuum) \
+        in enumerate(zip(self.input_spectra,
+        self.metadata["normalization"]["continuum"])):
+            normalized_orders.append(specutils.Spectrum1D(spectrum.dispersion,
+                spectrum.flux / continuum,
+                continuum * spectrum.ivar * continuum))
+
+        self.normalized_spectrum = specutils.spectrum.stitch(normalized_orders)
+        return self.normalized_spectrum
 
 
     def normalize_input_spectra(self, **kwargs):
@@ -290,8 +334,16 @@ class Session(BaseSession):
         Continuum-normalize all orders in the input spectra.
         """
 
-        for i, order in enumerate(self.input_spectra):
-            if i in self.metadata.get("discarded_orders", []): continue
+        # Get the relevant masks.
+        mask_name = self.setting(("normalization", "default_mask"))
+        try:
+            mask = self.setting(("normalization", "masks"))[mask_name]
+        except KeyError:
+            mask = {}
+
+        # Get the default input parameters, and overwrite them with any inputs
+        # provided to this function.
+
 
 
         # Fit & store continuum for all input spectra.

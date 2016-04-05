@@ -6,12 +6,10 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
-__all__ = ["calculate_fractional_overlap", "find_overlaps", "stitch"]
+__all__ = ["calculate_fractional_overlap", "find_overlaps"]
 
 import numpy as np
-from scipy import interpolate
 
-from . import spectrum
 
 def calculate_fractional_overlap(interest_range, comparison_range):
     """
@@ -36,10 +34,7 @@ def calculate_fractional_overlap(interest_range, comparison_range):
         else:
             # Right hand side
             width = comparison_range[-1] - interest_range[0]
-
-        return width/np.ptp(interest_range)
-
-
+        return width/np.ptp(interest_range) # Fractional overlap
 
 
 def find_overlaps(spectra, dispersion_range, return_indices=False):
@@ -82,103 +77,3 @@ def find_overlaps(spectra, dispersion_range, return_indices=False):
 
     return overlaps if not return_indices else (overlaps, indices[:N])
 
-
-
-def stitch(spectra, wl_ranges=None, mode='average'):
-    """Stitches together two overlapping spectra.
-
-    Inputs
-    ----
-    spectra : list of `Spectrum1D` objects.
-        A list of spectra to stitch.
-
-    wl_ranges : list of tuples with length two, optional
-        The wavelength regions to use for stitching each spectrum. If no wavelength
-        region is specified then the entire spectrum is used for stitching. If only
-        wavelength region for some of the spectra are given, then None should be
-        supplied when to use the entire spectrum.
-
-    mode : str
-        How to stack the spectra on a pixel-by-pixel basis. Available: average, sum, quadrature
-
-    Returns
-    ----
-    stitched_spectrum : `Spectrum1D`
-        A linear stitched spectrum.
-    """
-
-    raise NotImplementedError("must be refactored given new Spectrum1D obj")
-
-    available = ('average', 'sum', 'quadrature', )
-    if mode not in available:
-        raise ValueError("available modes: {}".format(", ".join(available)))
-
-    # Ensure that our spectra go from blue to red
-    wl_starts = []
-    wl_ends = []
-    min_disp_step = 999
-    for spectrum in spectra:
-        wl_starts.append(spectrum.disp[0])
-        wl_ends.append(spectrum.disp[-1])
-
-        if np.min(np.diff(spectrum.disp)) < min_disp_step:
-            min_disp_step = np.min(np.diff(spectrum.disp))
-
-    sorted_indices = np.argsort(wl_starts)
-
-    # Let's generate our new dispersion map
-    new_disp = np.arange(spectra[sorted_indices[0]].disp[0], spectra[sorted_indices[-1]].disp[-1], min_disp_step)
-    new_flux = np.zeros(len(new_disp))
-    
-    # And an array with the number of contributing flux points for each pixel point
-    num_flux = np.zeros(len(new_disp))
-
-    # Maintain headers, give preference to blue
-    headers = {}
-    for index in sorted_indices[::-1]:
-        headers.update(spectra[index].headers)
-        
-
-    for index in sorted_indices:
-        spectrum = spectra[index]
-
-
-        spectrum.flux[np.where(~np.isfinite(spectrum.flux))] = 0.0
-
-        if wl_ranges is None or wl_ranges[index] is None:
-            wl_range = [spectrum.disp[0], spectrum.disp[-1]]
-
-        else:
-            wl_range = wl_ranges[index]
-            
-
-        # Get the subset dispersion map
-        dispersion_indices = np.searchsorted(new_disp, wl_range)
-        subset_disp = new_disp[dispersion_indices[0]:dispersion_indices[1]]
-
-        # Interpolate the spectra
-        f = interpolate.interp1d(spectrum.disp, spectrum.flux, kind='linear', copy=False,
-                                 bounds_error=False, fill_value=np.nan)
-
-        subset_flux = f(subset_disp)
-
-        # Put the subset flux into our master arrays
-        additional_flux = pow(subset_flux, 2) if mode == 'quadrature' else subset_flux
-
-        good_indices = np.where(additional_flux > 0.)[0]
-
-        new_flux[good_indices + dispersion_indices[0]] += additional_flux[good_indices]
-        num_flux[good_indices + dispersion_indices[0]] += 1
-
-    if mode == 'average':
-        new_flux /= num_flux
-
-    elif mode == 'quadrature':
-        new_flux = pow(new_flux, 0.5)
-
-    # Remove out non-finite values on the edge
-    idx_l = np.searchsorted(np.isfinite(new_flux), True)
-    idx_r = len(new_flux) - np.searchsorted(np.isfinite(new_flux)[::-1], True)
-
-    return spectrum.Spectrum1D(new_disp[idx_l:idx_r], new_flux[idx_l:idx_r],
-        headers=headers)

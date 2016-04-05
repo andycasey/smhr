@@ -8,6 +8,10 @@ from __future__ import (division, print_function, absolute_import,
 
 import os
 import matplotlib
+from warnings import simplefilter
+
+# Ignore warnings from matplotlib about fonts not being found.
+simplefilter("ignore", UserWarning)
 
 # Load our matplotlibrc file.
 matplotlib.rc_file(os.path.join(os.path.dirname(__file__), "matplotlibrc"))
