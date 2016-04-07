@@ -9,6 +9,8 @@ from astropy import table
 from utils import element_to_species, species_to_element
 import os
 
+import md5
+
 def find_moog_species(elem1,ion,isotope1=None,elem2=None,isotope2=None):
     Z1 = int(element_to_species(elem1.strip()))
     if isotope1==None: isotope1=''
@@ -56,6 +58,9 @@ class LineList(Table):
 
         super(LineList, self).__init__(*args,**kwargs)
 
+        if 'hash' not in self.columns and len(self) > 0:
+            hashes = [self.hash(line) for line in self]
+            self.add_column(Column(hashes,name='hash'))
         self.validate_colnames(False)
 
     def validate_colnames(self,error=False):
@@ -218,6 +223,12 @@ class LineList(Table):
             mask[i] = True
         duplicate_lines = self[np.array(duplicate_indices)]
         return duplicate_indices,duplicate_lines
+
+    @staticmethod
+    def hash(line):
+        # I wonder if it may be needed to specify the precision of the floats put into here
+        s = "{}_{}_{}_{}".format(line['species'],line['wavelength'],line['expot'],line['loggf'])
+        return md5.new(s).hexdigest()
 
     @staticmethod
     def lines_equal(l1,l2,dwl_thresh=.001,dEP_thresh=.01,dgf_thresh=.001):
