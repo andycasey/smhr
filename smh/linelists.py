@@ -209,7 +209,6 @@ class LineList(Table):
             return -1 * num_match
 
     def find_duplicates(self,thresh=None):
-        # TODO test
         # The idea here is that you can increase the threshold to see if you were too weak in finding duplicates
         # This is not useful if you have molecular lines (e.g. carbon) because there are too many collisions
         if thresh==None: thresh = self.default_thresh
@@ -217,10 +216,8 @@ class LineList(Table):
         mask = np.ones(len(self),dtype=bool)
         # This is really inefficient and can likely be redone
         for i,line in enumerate(self):
-            mask[i] = False
-            tdata = LineList(self[mask])
-            if tdata.find_match(line) >= 0: duplicate_indices.append(i)
-            mask[i] = True
+            matches = self.find_match(line,thresh=thresh,return_multiples=True)
+            if len(matches) > 1: duplicate_indices.append(i)
         duplicate_lines = self[np.array(duplicate_indices)]
         return duplicate_indices,duplicate_lines
 
