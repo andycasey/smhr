@@ -141,6 +141,10 @@ def species_to_element(species):
     if not isinstance(species, (float, int)):
         raise TypeError("species must be represented by a floating point-type")
     
+    if round(species,1) != species:
+        # Then you have isotopes, but we will ignore that
+        species = int(species*10)/10.
+
     if species + 1 >= len(periodic_table) or 1 > species:
         # Don"t know what this element is. It"s probably a molecule.
         common_molecules = {
@@ -158,7 +162,7 @@ def species_to_element(species):
         }
         if species in common_molecules.keys():
             elements_in_molecule = common_molecules[species]
-            if len(list(set(elements_in_molecule))): return "{0}_{1}".format(elements_in_molecule[0], len(elements_in_molecule))
+            if len(list(set(elements_in_molecule))) == 1: return "{0}_{1}".format(elements_in_molecule[0], len(elements_in_molecule))
 
             return "-".join(elements_in_molecule)
 
