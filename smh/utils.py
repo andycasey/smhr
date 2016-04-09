@@ -19,6 +19,7 @@ from socket import gethostname, gethostbyname
 import numpy as np
 
 __all__ = ["element_to_species", "species_to_element", "get_common_letters", \
+    "elems_isotopes_ion_to_species", "species_to_elems_isotopes_ion", \
     "find_common_start", "extend_limits", "get_version", \
     "approximate_stellar_jacobian", "approximate_sun_hermes_jacobian",\
     "hashed_id"]
@@ -177,6 +178,86 @@ def species_to_element(species):
     # The special cases
     if element in ("C", "H", "He"): return element
     return "%s %s" % (element, "I" * ionization)
+
+
+def elems_isotopes_ion_to_species(elem1,elem2,isotope1,isotope2,ion):
+    Z1 = int(element_to_species(elem1.strip()))
+    if isotope1==0: isotope1=''
+    else: isotope1 = str(isotope1).zfill(2)
+
+    if elem2.strip()=='': # Atom
+        mystr = "{}.{}{}".format(Z1,int(ion-1),isotope1)
+    else: # Molecule
+        assert ion==1
+        Z2 = int(element_to_species(elem2.strip()))
+
+        # If one isotope is specified but the other isn't, use a default mass
+        # These masses are taken from MOOG for Z=1 to 95
+        amu = [1.008,4.003,6.941,9.012,10.81,12.01,14.01,16.00,19.00,20.18,
+               22.99,24.31,26.98,28.08,30.97,32.06,35.45,39.95,39.10,40.08,
+               44.96,47.90,50.94,52.00,54.94,55.85,58.93,58.71,63.55,65.37,
+               69.72,72.59,74.92,78.96,79.90,83.80,85.47,87.62,88.91,91.22,
+               92.91,95.94,98.91,101.1,102.9,106.4,107.9,112.4,114.8,118.7,
+               121.8,127.6,126.9,131.3,132.9,137.3,138.9,140.1,140.9,144.2,
+               145.0,150.4,152.0,157.3,158.9,162.5,164.9,167.3,168.9,173.0,
+               175.0,178.5,181.0,183.9,186.2,190.2,192.2,195.1,197.0,200.6,
+               204.4,207.2,209.0,210.0,210.0,222.0,223.0,226.0,227.0,232.0,
+               231.0,238.0,237.0,244.0,243.0]
+        amu = [int(round(x,0)) for x in amu]
+        if isotope1 == '':
+            if isotope2 == 0:
+                isotope2 = ''
+            else:
+                isotope1 = str(amu[Z1-1]).zfill(2)
+        else:
+            if isotope2 == 0:
+                isotope2 = str(amu[Z2-1]).zfill(2)
+            else:
+                isotope2 = str(isotope2).zfill(2)
+        # Swap if needed
+        if Z1 < Z2:
+            mystr = "{}{:02}.{}{}{}".format(Z1,Z2,int(ion-1),isotope1,isotope2)
+        else:
+            mystr = "{}{:02}.{}{}{}".format(Z2,Z1,int(ion-1),isotope2,isotope1)
+
+    return float(mystr)
+
+def species_to_elems_isotopes_ion(species):
+    element = species_to_element(species)
+    if species >= 100:
+        # Molecule
+        Z1 = int(species/100)
+        Z2 = int(species - Z1*100)
+        elem1 = species_to_element(Z1).split()[0]
+        elem2 = species_to_element(Z2).split()[0]
+        # All molecules that we use are unionized
+        ion = 1
+        if species == round(species,1):
+            # No isotope specified
+            isotope1 = 0
+            isotope2 = 0
+        else: #Both isotopes need to be specified!
+            isotope1 = int(species*1000) - int(species*10)*100
+            isotope2 = int(species*100000) - int(species*1000)*100
+            if isotope1 == 0 or isotope2 == 0: 
+                raise ValueError("molecule species must have both isotopes specified: {} -> {} {}".format(species,isotope1,isotope2))
+        # Swap if needed
+    else:
+        # Element
+        elem1,_ion = element.split()
+        ion = len(_ion)
+        assert _ion == 'I'*ion, "{}; {}".format(_ion,ion)
+        if species == round(species,1):
+            isotope1 = 0
+        elif species == round(species,4):
+            isotope1 = int(species*10000) - int(species*10)*1000
+        elif species == round(species,3):
+            isotope1 = int(species*1000) - int(species*10)*100
+        else:
+            raise ValueError("problem determining isotope: {}".format(species))
+        elem2 = ''
+        isotope2 = 0
+    return elem1,elem2,isotope1,isotope2,ion
 
 
 def get_common_letters(strlist):

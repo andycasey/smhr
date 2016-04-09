@@ -7,38 +7,23 @@ from astropy.io import ascii,fits
 from astropy.table import Table, Column, MaskedColumn
 from astropy import table
 from utils import element_to_species, species_to_element
+from utils import elems_isotopes_ion_to_species, species_to_elems_isotopes_ion
 import os
 
 import md5
 
-def find_moog_species(elem1,ion,isotope1=None,elem2=None,isotope2=None):
-    Z1 = int(element_to_species(elem1.strip()))
-    if isotope1==None: isotope1=''
-    else: isotope1 = str(isotope1).zfill(2)
-
-    if elem2 == None or elem2.strip() == '':
-        mystr = "{}.{}{}".format(Z1,int(ion-1),int(isotope1))
-    else: #Molecule
-        Z2 = int(element_to_species(elem2.strip()))
-        if isotope2==None: isotope2=''
-        else: isotope2 = str(isotope2).zfill(2)
-        # If either isotope is specified, both must be specified
-        assert len(isotope1) == len(isotope2), "'{}' vs '{}'".format(isotope1,isotope2)
-        if Z1 < Z2:
-            mystr = "{}{:02}.{}{}{}".format(Z1,Z2,int(ion-1),isotope1,isotope2)
-        else:
-            mystr = "{}{:02}.{}{}{}".format(Z2,Z1,int(ion-1),isotope2,isotope1)
-    # TODO there is a potential bug when converting to float; if the second isotope is 00, it will be dropped.
-    return float(mystr)
-
 class LineList(Table):
     full_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments',
+                     'numelems','elem1','isotope1','elem2','isotope2','ion',
                      'E_hi','lande_hi','lande_lo','damp_stark','damp_rad','references','element']
     full_dtypes = [np.float,np.float,np.float,np.float,np.float,np.float,str,
+                   np.int,str,np.int,str,np.int,np.int,
                    np.float,np.float,np.float,np.float,np.float,str,str]
     moog_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments',
+                     'numelems','elem1','isotope1','elem2','isotope2','ion',
                      'references','element']
     moog_dtypes = [np.float,np.float,np.float,np.float,np.float,np.float,str,
+                   np.int,str,np.int,str,np.int,np.int,
                    str,str]
 
     def __init__(self,*args,**kwargs):
@@ -224,7 +209,8 @@ class LineList(Table):
     @staticmethod
     def hash(line):
         # I wonder if it may be needed to specify the precision of the floats put into here
-        s = "{}_{}_{}_{}".format(line['species'],line['wavelength'],line['expot'],line['loggf'])
+        s = "{}_{}_{}_{}_{}_{}_{}_{}".format(line['wavelength'],line['expot'],line['loggf'],
+                                             line['elem1'],line['elem2'],line['ion'],line['isotope1'],line['isotope2'])
         return md5.new(s).hexdigest()
 
     @staticmethod
@@ -311,19 +297,39 @@ class LineList(Table):
         # Cite the filename as the reference for now
         refs = [filename for x in wl]
     
-        # Element to species
-        spec2elem = {}
+        # Species to element
+        spec2element = {}
+        spec2elem1= {}
+        spec2elem2= {}
+        spec2iso1 = {}
+        spec2iso2 = {}
+        spec2ion  = {}
         for this_species in np.unique(species):
-            spec2elem[this_species] = species_to_element(this_species)
-        elements = [spec2elem[this_species] for this_species in species]
+            spec2element[this_species] = species_to_element(this_species)
+            _e1, _e2, _i1, _i2, _ion = species_to_elems_isotopes_ion(this_species)
+            spec2elem1[this_species] = _e1
+            spec2elem2[this_species] = _e2
+            spec2iso1[this_species] = _i1
+            spec2iso2[this_species] = _i2
+            spec2ion[this_species] = _ion
+        numelems = np.array([2 if x >= 100 else 1 for x in species])
+        elements = [spec2element[this_species] for this_species in species]
+        elem1 = [spec2elem1[this_species] for this_species in species]
+        elem2 = [spec2elem2[this_species] for this_species in species]
+        isotope1 = [spec2iso1[this_species] for this_species in species]
+        isotope2 = [spec2iso2[this_species] for this_species in species]
+        ion  = [spec2ion[this_species] for this_species in species]
 
         # Fill required non-MOOG fields with nan
         if moog_columns:
-            data = [wl,species,EP,loggf,damping,dissoc,comments,refs,elements]
+            data = [wl,species,EP,loggf,damping,dissoc,comments,
+                    numelems,elem1,isotope1,elem2,isotope2,ion,
+                    refs,elements]
         else:
             nans = np.zeros_like(wl)*np.nan
             E_hi = EP + 12398.42/wl #hc = 12398.42 eV AA
             data = [wl,species,EP,loggf,damping,dissoc,comments,
+                    numelems,elem1,isotope1,elem2,isotope2,ion,
                     E_hi,nans,nans,nans,nans,refs,elements]
         
         return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns)
@@ -339,9 +345,37 @@ class LineList(Table):
 
         tab = Table.read(filename)
         wl = tab['LAMBDA']
-        species_fn = lambda row: find_moog_species(row['NAME'][0],row['ION'],isotope1=row['ISOTOPE'][0],elem2=row['NAME'][1],isotope2=row['ISOTOPE'][1])
-        species = map(species_fn, tab)
-        elements = map(species_to_element, species)
+
+        elem1 = [x.strip() for x in tab['NAME'][:,0]]
+        elem2 = [x.strip() for x in tab['NAME'][:,1]]
+        numelems = [2 if x=='' else 1 for x in elem2]
+        isotope1 = tab['ISOTOPE'][:,0]
+        isotope2 = tab['ISOTOPE'][:,1]
+        ion = tab['ION']
+
+        # it turns out to be super slow to loop through all the rows; memoizing helps a bit
+        memo = {}
+        def _get_key(row): 
+            return "{}_{}_{}_{}_{}".format(row['NAME'][0],row['NAME'][1],row['ISOTOPE'][0],row['ISOTOPE'][1],row['ION'])
+        def _get_species(row):
+            key = _get_key(row)
+            if key in memo: return memo[key]
+            species = elems_isotopes_ion_to_species(row['NAME'][0],row['NAME'][1],row['ISOTOPE'][0],row['ISOTOPE'][1],row['ION'])
+            memo[key] = species
+            return species
+        import time
+        start = time.time()
+        species = map(_get_species, tab)
+        print('{:.1f}s to compute species'.format(time.time()-start))
+
+        memo = {}
+        def _get_element(species):
+            if species in memo: return memo[species]
+            element = species_to_element(species)
+            memo[species] = element
+            return element
+        elements = map(_get_element, species)
+
         expot = tab['E_LOW']
         loggf = tab['LOG_GF']
         damp_vdw = tab['VDW_DAMP']
@@ -352,18 +386,24 @@ class LineList(Table):
         damp_stark = tab['STARK_DAMP']
         damp_rad = tab['RAD_DAMP']
         
-        refstr = "WL:{},GF:{},EL:{},EU:{},LA:{},RD:{},SD:{},VD:{}"
-        ref_concatenator = lambda row: refstr.format(row['LAMBDA_REF'],row['LOG_GF_REF'],row['E_LOW_REF'],row['E_UP_REF'],
-                                                     row['LANDE_REF'],row['RAD_DAMP_REF'],row['STARK_DAMP_REF'],row['VDW_DAMP_REF'])
-        comments = map(ref_concatenator, tab)
+        # Takes too long to do this loop; will fill in later
+        #refstr = "WL:{},GF:{},EL:{},EU:{},LA:{},RD:{},SD:{},VD:{}"
+        #ref_concatenator = lambda row: refstr.format(row['LAMBDA_REF'],row['LOG_GF_REF'],row['E_LOW_REF'],row['E_UP_REF'],
+        #                                             row['LANDE_REF'],row['RAD_DAMP_REF'],row['STARK_DAMP_REF'],row['VDW_DAMP_REF'])
+        #comments = map(ref_concatenator, tab)
+        comments = ['' for row in tab]
+
         refs = tab['LOG_GF_REF']
-        
+
         if moog_columns:
-            data = [wl,species,expot,loggf,damp_vdw,dissoc,comments,refs,elements]
+            data = [wl,species,expot,loggf,damp_vdw,dissoc_E,comments,
+                    numelems,elem1,isotope1,elem2,isotope2,ion,
+                    refs,elements]
         else:
-            data = [wl,species,expot,loggf,damp_vdw,dissoc,comments,
+            data = [wl,species,expot,loggf,damp_vdw,dissoc_E,comments,
+                    numelems,elem1,isotope1,elem2,isotope2,ion,
                     E_hi,lande_hi,lande_lo,damp_stark,damp_rad,refs,elements]
-    
+        print('Constructing line list')
         return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns)
 
     def write_moog(self,filename):
