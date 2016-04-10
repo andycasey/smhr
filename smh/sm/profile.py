@@ -10,12 +10,14 @@ __all__ = ["ProfileFittingModel"]
 
 import logging
 import numpy as np
+import scipy.optimize as op
+from astropy.constants import c as speed_of_light
 from scipy.special import wofz
+from scipy import integrate
 
 from base import BaseSpectralModel
 
 logger = logging.getLogger(__name__)
-
 
 
 def gaussian(x, *parameters):
@@ -59,17 +61,41 @@ class ProfileFittingModel(BaseSpectralModel):
         # Initialize metadata with default fitting values.
         self.metadata.update({
             "profile": "gaussian",
-            "local_continuum": False,
             "central_weighting": True,
-            "window": 10,
+            "window": 5,
             "continuum_order": 2,
             "detection_sigma": 1.0,
-            "max_iterations": 4
+            "detection_pixels": 5,
+            "max_iterations": 5,
+            "wavelength_tolerance": 0.1,
+            "velocity_tolerance": None,
+            "mask": []
         })
 
         # Set the model parameter names based on the current metadata.
-        self._update_parameters()
+        self._update_parameter_names()
+
+        self._verify_transitions()
+        self._verify_metadata()
+
         return None
+
+
+    def _verify_transitions(self):
+        # Check that there is only one transition and that it is valid.
+        # TODO:
+        return True
+
+
+    def _verify_metadata(self):
+        # TODO
+        return True
+
+
+    @property
+    def parameter_bounds(self):
+        """ Return the fitting limits on the parameters. """
+        return self._parameter_bounds
 
 
     @property
@@ -78,7 +104,7 @@ class ProfileFittingModel(BaseSpectralModel):
         return self._parameter_names
 
 
-    def _update_parameters(self):
+    def _update_parameter_names(self):
         """ Update the model parameter names based on the current metadata. """
 
         # Profile parameter names.
@@ -86,12 +112,82 @@ class ProfileFittingModel(BaseSpectralModel):
         parameter_names = list(parameter_names)
 
         # Continuum coefficients.
-        if self.metadata["local_continuum"]:
-            parameter_names += ["c{0}".format(i) \
-                for i in range(self.metadata["continuum_order"])]
+        parameter_names += ["c{0}".format(i) \
+            for i in range(self.metadata["continuum_order"] + 1)]
+
+        # Update the bounds.
+        bounds = {}
+        if self.metadata["profile"] == "gaussian":
+            bounds["sigma"] = (-0.5, 0.5)
+        elif self.metadata["profile"] == "voigt":
+            bounds["fwhm"] = (-0.5, 0.5)
+
+        
+        if self.metadata["wavelength_tolerance"] is not None \
+        or self.metadata["velocity_tolerance"] is not None:
+
+            # Convert velocity tolerance into wavelength.
+            wavelength = self.transitions["wavelength"][0]
+            vt = abs(self.metadata.get("velocity_tolerance", None) or np.inf)
+            wt = abs(self.metadata.get("wavelength_tolerance", None) or np.inf)
+
+            bound = np.nanmin([
+                wt, wavelength * vt/speed_of_light.to("km/s").value])
+
+            bounds["mean"] = (wavelength - bound, wavelength + bound)
+
+        # TODO:
+        # Allow the wavelength to be fixed.
 
         self._parameter_names = parameter_names
+        self._parameter_bounds = bounds
+
         return True
+
+
+    def _initial_guess(self, spectrum, **kwargs):
+
+        wavelength = self.transitions["wavelength"][0]
+        p0 = [
+            wavelength,
+            kwargs.pop("p0_sigma", 0.1),
+        ]
+
+        if spectrum is None:
+            p0.append(0.5)
+        else:
+            p0.append(1.0 - \
+                spectrum.flux[spectrum.dispersion.searchsorted(wavelength)])
+
+        if self.metadata["profile"] == "voigt":
+            p0.append(kwargs.pop("p0_shape", 0))
+
+        # Continuum?
+        if self.metadata["continuum_order"] > -1:
+            p0.extend(([0] * self.metadata["continuum_order"]) + [1])
+
+        return np.array(p0)
+
+
+    def mask(self, spectrum):
+        """
+        Return a pixel mask based on the metadata and existing mask information
+        available.
+        """
+
+        wavelength, window \
+            = (self.transitions["wavelength"][0], abs(self.metadata["window"]))
+
+        mask = (spectrum.dispersion >= wavelength - window) \
+             * (spectrum.dispersion <= wavelength + window)
+
+        # Any masked ranges specified in the metadata?
+        for start, end in self.metadata["mask"]:
+            mask *= (spectrum.dispersion >= start) \
+                  * (spectrum.dispersion <= end)
+
+        return mask
+
 
 
     def fit(self, spectrum, **kwargs):
@@ -102,24 +198,221 @@ class ProfileFittingModel(BaseSpectralModel):
             The observed spectrum to fit the profile transition model.
         """
 
+        failure = False
+
+        # Check the transition is in the spectrum range.
+        if self.transitions["wavelength"][0] + 1 > spectrum.dispersion[-1] \
+        or self.transitions["wavelength"][0] - 1 < spectrum.dispersion[0]:
+            return failure
+
         # Update internal metadata with any input parameters.
         # Ignore additional parameters because other BaseSpectralModels will
         # have different input arguments.
         for key in set(self.metadata).intersection(kwargs):
             self.metadata[key] = kwargs[key]
 
-
         # What model parameters are in the fitting process?
         # In synth these would be abundances, etc. Here they are profile/cont
         # parameters.
+        self._update_parameter_names()
+        
+        # Get a bad initial guess.
+        p0 = self._initial_guess(spectrum, **kwargs)
 
+        # Build a mask based on the window fitting range, and prepare the data.
+        mask = self.mask(spectrum)
+        x, y = spectrum.dispersion[mask], spectrum.flux[mask]
+        yerr, absolute_sigma = ((1.0/spectrum.ivar[mask])**0.5, True)
+        if not np.all(np.isfinite(yerr)):
+            yerr, absolute_sigma = (np.ones_like(x), False)
 
-        # Optimize the model parameters.
+        # Central weighting?
+        if self.metadata["central_weighting"]:
+            yerr /= (1 + np.exp(-(x - p0[0])**2 / (4.0 * p0[1]**2)))
 
-        # Store and return the model parameters.
+        # How many iterations to do?
+        nearby_lines = []
+        iterative_mask = np.isfinite(y * yerr)
+        for iteration in range(self.metadata["max_iterations"]):
+                
+            if not any(iterative_mask):
+                raise Failed
 
+            try:
+                p_opt, p_cov = op.curve_fit(self.fitting_function, 
+                    xdata=x[iterative_mask],
+                    ydata=y[iterative_mask],
+                    sigma=yerr[iterative_mask],
+                    p0=p0, absolute_sigma=absolute_sigma)
 
+            except:
+                logger.exception(
+                    "Exception raised in fitting atomic transition {0} "\
+                    "on iteration {1}".format(
+                        self.transitions["wavelength"][0],
+                        iteration))   
+                
+            # Look for outliers peaks.
+            # TODO: use continuum or model?
+            O = self.metadata["continuum_order"]
+            continuum = np.ones_like(x) \
+                if 0 > O else np.polyval(p_opt[-(O + 1):], x)    
 
+            model = self(x, *p_opt)
+            
+            sigmas = (y - model)/np.std(y[iterative_mask])
+            sigmas[~iterative_mask] = 0 # Ignore points that are already masked
+            outliers = np.where(sigmas < -self.metadata["detection_sigma"])[0]
+
+            # Look for groups of neighbouring outlier points.
+            separators = np.repeat(1 + np.where(np.diff(outliers) > 1)[0], 2)
+            separators = np.hstack([0, separators, None]).reshape(-1, 2)
+
+            for start, end in separators:
+                indices = outliers[start:end]
+
+                # Require a minimum group size by number of pixels.
+                if indices.size < self.metadata["detection_pixels"]: continue
+
+                # Try and fit an absorption function to the centroid of the
+                # region.
+
+                lower_group_wl = x[indices[0]]
+                upper_group_wl = x[indices[-1]]
+
+                def model_nearby_line(x_, *p):
+                    # Strict requirements on these parameters, since we don't
+                    # need to know them precisely.
+                    if not (lower_group_wl <= p[0] <= upper_group_wl) \
+                    or abs(p[1]) > p_opt[1] \
+                    or not (1 >= p[2] > 0):
+                        return np.nan * np.ones_like(x_)
+                    
+                    return model[iterative_mask] * self(x_, *p)
+
+                # Initial parameters for this line.
+                p0_outlier = [
+                    np.mean(x[indices]),
+                    0.5 * p_opt[1],
+                    np.max(continuum[indices] - y[indices])
+                ]
+                if self.metadata["profile"] == "voigt":
+                    p0_outlier.append(p0[3])
+
+                try:
+                    p_out, cov = op.curve_fit(model_nearby_line,
+                            xdata=x[iterative_mask],
+                            ydata=y[iterative_mask],
+                            sigma=yerr[iterative_mask],
+                            p0=p0_outlier, absolute_sigma=absolute_sigma,
+                            check_finite=True)
+
+                except:
+                    # Just take a narrow range and exclude that?
+                    # TODO: The old SMH just did nothing in this scenario, but
+                    #       we may want to revise that behaviour.
+                    None
+
+                else:
+
+                    # Exclude +/- 3 sigma of the fitted line
+                    l, u = (p_out[0] - 3 * p_out[1], p_out[0] + 3 * p_out[1])
+                    
+                    # Store this line and the region masked out by it.
+                    nearby_lines.append([p_out, (u, l)])
+
+                    # Now update the iterative mask to exclude this line.                    
+                    iterative_mask *= ~((u > x) * (x > l))
+
+            # Update p0 with the best guess from this iteration.
+            p0 = p_opt.copy()
+
+        # Finished looking for neighbouring lines
+        # `max_iterations` rounds of removing nearby lines. Now do final fit:
+        p_opt, p_cov = op.curve_fit(self.fitting_function, 
+            xdata=x[iterative_mask],
+            ydata=y[iterative_mask],
+            sigma=yerr[iterative_mask],
+            p0=p0, absolute_sigma=absolute_sigma)
+
+        assert p_cov is not None
+
+        # Make many draws from the covariance matrix.
+        draws = kwargs.pop("covariance_draws", 100)
+        percentiles = kwargs.pop("percentiles", (2.5, 97.5))
+        p_alt = np.random.multivariate_normal(p_opt, p_cov, size=draws)
+
+        # Integrate the profile.
+        profile, _ = self._profiles[self.metadata["profile"]]
+        if profile == gaussian:
+            ew = p_opt[1] * p_opt[2] * np.sqrt(2 * np.pi)
+            ew_alt = p_alt[:, 1] * p_alt[:, 2] * np.sqrt(2 * np.pi)
+            ew_uncertainty = np.percentile(ew_alt, percentiles) - ew
+
+        else:
+            N, integrate_sigma = (len(_), kwargs.pop("integrate_sigma", 10))
+            l, u = (
+                p_opt[0] - integrate_sigma * p_opt[1],
+                p_opt[0] + integrate_sigma * p_opt[1]
+            )
+
+            ew = integrate.quad(profile, l, u, args=tuple(p_opt[:N]))[0]
+            ew_alt = [integrate.quad(profile, l, u, args=tuple(_[:N]))[0] \
+                for _ in p_alt]
+            ew_uncertainty = np.percentile(ew_alt, percentiles) - ew
+        
+        model_err = np.percentile(
+            [self(x, *_) for _ in p_alt], percentiles, axis=0)
+
+        # Calculate chi-square for the points that we modelled.
+        ivar = spectrum.ivar[mask][iterative_mask]
+        if not np.any(np.isfinite(ivar)): ivar = 1
+        chi_sq = (y[iterative_mask] - self(x[iterative_mask], *p_opt))**2 * ivar
+
+        dof = np.isfinite(chi_sq).sum() - len(p_opt) - 1
+        chi_sq = np.nansum(chi_sq)
+        
+
+        model_y = self(x, *p_opt)
+        model_yerr = np.percentile(
+            [self(x, *_) for _ in p_alt], percentiles, axis=0) - model_y
+
+        """
+        # DEBUG PLOT
+        fig, ax = plt.subplots()
+        ax.plot(x, y, c='k', drawstyle='steps-mid')
+
+        O = self.metadata["continuum_order"]
+        bg = np.ones_like(x) if 0 > O else np.polyval(p_opt[-(O + 1):], x)    
+        for p, (u, l) in nearby_lines:
+            bg *= self(x, *p)
+
+            m = (u >= x) * (x >= l)
+            ax.scatter(x[m], y[m], facecolor="r")
+
+        ax.plot(x, bg, c='r')
+        ax.plot(x, model_y, c='b')
+
+        ax.fill_between(x, model_err[0] + model_y, model_err[1] + model_y,
+            edgecolor="None", facecolor="b", alpha=0.5)
+        """
+        
+        fitting_metadata = {
+            "equivalent_width": (ew, ew_uncertainty[0], ew_uncertainty[1]),
+            "model_x": x,
+            "model_y": model_y,
+            "model_yerr": model_yerr,
+            "nearby_lines": nearby_lines,
+            "chi_sq": chi_sq,
+            "dof": dof
+
+        }
+
+        # TODO: Store the result internally.
+
+        # Return the fitted parameters and associated metadata.
+        return (p_opt, p_cov, fitting_metadata)
+        
 
     def __call__(self, dispersion, *parameters):
         """
@@ -137,16 +430,33 @@ class ProfileFittingModel(BaseSpectralModel):
         N = len(profile_parameters)
         y = 1.0 - function(dispersion, *parameters[:N])
 
-        # Continuum.
+        # Assume rest of the parameters are continuum coefficients.
         if parameters[N:]:
             y *= np.polyval(parameters[N:], dispersion)
         
-        if len(parameters) != len(self.parameter_names):
-            logger.warn("Number of parameters given "
-                        "did not match the expected number ({0} != {1})".format(
-                            len(parameters), len(self.parameter_names)))
-
         return y
+
+
+
+    def fitting_function(self, dispersion, *parameters):
+        """
+        Generate data at the dispersion points, given the parameters, but
+        respect the boundaries specified on model parameters.
+
+        :param dispersion:
+            An array of dispersion points to calculate the data for.
+
+        :param parameters:
+            Keyword arguments of the model parameters and their values.
+        """
+
+        for parameter_name, (lower, upper) in self.parameter_bounds.items():
+            value = parameters[self.parameter_names.index(parameter_name)]
+            if not (upper >= value and value >= lower):
+                return np.nan * np.ones_like(dispersion)
+
+        return self.__call__(dispersion, *parameters)
+
 
 
 
@@ -159,7 +469,28 @@ if __name__ == "__main__":
         "/Users/arc/codes/smh/hd44007blue_multi.fits",
     ])
 
+    spec = smh.specutils.Spectrum1D.read("../hd140283.fits")
 
-    foo = ProfileFittingModel(None, a)
+
+    foo = ProfileFittingModel({"wavelength": [5202.336]}, a)
+
+    raise a
+
+
+    """
+    with open("a", "r") as fp:
+        b = fp.readlines()
+
+    for each in b:
+        
+
+        foo = ProfileFittingModel({"wavelength": [float(each.split()[0])]}, a)
+
+        try:
+            foo.fit(spec)
+        except:
+            print("failed on {}".format(each))
+
+    """
 
 
