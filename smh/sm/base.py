@@ -66,3 +66,52 @@ class BaseSpectralModel(object):
         raise NotImplementedError(
             "the data-generating function must be implemented by sub-classes")
 
+
+    def _verify_transitions(self):
+        # TODO
+        return True
+
+
+
+    def mask(self, spectrum):
+        """
+        Return a pixel mask based on the metadata and existing mask information
+        available.
+
+        :param spectrum:
+            A spectrum to generate a mask for.
+        """
+
+        window = abs(self.metadata["window"])
+        lower_wavelength = self.transitions["wavelength"][0]
+        upper_wavelength = self.transitions["wavelength"][-1]
+
+        mask = (spectrum.dispersion >= lower_wavelength - window) \
+             * (spectrum.dispersion <= upper_wavelength + window)
+
+        # Any masked ranges specified in the metadata?
+        for start, end in self.metadata["mask"]:
+            mask *= (spectrum.dispersion >= start) \
+                  * (spectrum.dispersion <= end)
+        return mask
+
+
+    def fitting_function(self, dispersion, *parameters):
+        """
+        Generate data at the dispersion points, given the parameters, but
+        respect the boundaries specified on model parameters.
+
+        :param dispersion:
+            An array of dispersion points to calculate the data for.
+
+        :param parameters:
+            Keyword arguments of the model parameters and their values.
+        """
+
+        for parameter_name, (lower, upper) in self.parameter_bounds.items():
+            value = parameters[self.parameter_names.index(parameter_name)]
+            if not (upper >= value and value >= lower):
+                return np.nan * np.ones_like(dispersion)
+
+        return self.__call__(dispersion, *parameters)
+
