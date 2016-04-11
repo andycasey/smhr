@@ -24,6 +24,7 @@ def gaussian(x, *parameters):
     position, sigma, amplitude = parameters
     return amplitude * np.exp(-(x - position)**2 / (2.0 * sigma**2))
 
+
 def lorentzian(x, *parameters):
     position, width, amplitude = parameters
     return (amplitude/np.pi) * (width/((x - position)**2 + width**2))
@@ -82,8 +83,16 @@ class ProfileFittingModel(BaseSpectralModel):
 
 
     def _verify_transitions(self):
-        # Check that there is only one transition and that it is valid.
-        # TODO:
+        """
+        Verify that the atomic or molecular transitions associated with this
+        class are valid.
+        """
+
+        # Check format first.
+        super(ProfileFittingModel, self)._verify_transitions()
+        if len(self.transitions) != 1:
+            raise ValueError("only a single transition can be associated with "
+                             "a ProfileFittingModel")
         return True
 
 
@@ -167,27 +176,6 @@ class ProfileFittingModel(BaseSpectralModel):
             p0.extend(([0] * self.metadata["continuum_order"]) + [1])
 
         return np.array(p0)
-
-
-    def mask(self, spectrum):
-        """
-        Return a pixel mask based on the metadata and existing mask information
-        available.
-        """
-
-        wavelength, window \
-            = (self.transitions["wavelength"][0], abs(self.metadata["window"]))
-
-        mask = (spectrum.dispersion >= wavelength - window) \
-             * (spectrum.dispersion <= wavelength + window)
-
-        # Any masked ranges specified in the metadata?
-        for start, end in self.metadata["mask"]:
-            mask *= (spectrum.dispersion >= start) \
-                  * (spectrum.dispersion <= end)
-
-        return mask
-
 
 
     def fit(self, spectrum, **kwargs):
@@ -399,13 +387,13 @@ class ProfileFittingModel(BaseSpectralModel):
         
         fitting_metadata = {
             "equivalent_width": (ew, ew_uncertainty[0], ew_uncertainty[1]),
+            "data_indices": np.where(mask)[0][iterative_mask],
             "model_x": x,
             "model_y": model_y,
             "model_yerr": model_yerr,
             "nearby_lines": nearby_lines,
             "chi_sq": chi_sq,
             "dof": dof
-
         }
 
         # TODO: Store the result internally.
@@ -437,27 +425,15 @@ class ProfileFittingModel(BaseSpectralModel):
         return y
 
 
-
-    def fitting_function(self, dispersion, *parameters):
+    #TODO: LRU cacher.
+    def abundances(self):
         """
-        Generate data at the dispersion points, given the parameters, but
-        respect the boundaries specified on model parameters.
-
-        :param dispersion:
-            An array of dispersion points to calculate the data for.
-
-        :param parameters:
-            Keyword arguments of the model parameters and their values.
+        Calculate the abundance from the curve-of-growth given the fitted
+        equivalent width and the current stellar parameters in the parent
+        session.
         """
 
-        for parameter_name, (lower, upper) in self.parameter_bounds.items():
-            value = parameters[self.parameter_names.index(parameter_name)]
-            if not (upper >= value and value >= lower):
-                return np.nan * np.ones_like(dispersion)
-
-        return self.__call__(dispersion, *parameters)
-
-
+        raise NotImplementedError
 
 
 if __name__ == "__main__":
