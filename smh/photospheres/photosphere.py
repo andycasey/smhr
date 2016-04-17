@@ -29,6 +29,12 @@ def _moog_writer(photosphere, filename, **kwargs):
     """
     Writes an :class:`photospheres.photosphere` to file in a MOOG-friendly
     format.
+
+    :param photosphere:
+        The photosphere.
+
+    :path filename:
+        The filename to write the photosphere to.
     """
 
     def _get_xi():
@@ -43,7 +49,7 @@ def _moog_writer(photosphere, filename, **kwargs):
 
         output = dedent("""
             WEBMARCS
-             ORACLE 1D MARCS (2011) TEFF/LOGG/[M/H]/XI {1:.0f}/{2:.3f}/{3:.3f}/{4:.3f}
+             MARCS (2011) TEFF/LOGG/[M/H]/XI {1:.0f}/{2:.3f}/{3:.3f}/{4:.3f}
             NTAU       {0:.0f}
             5000.0
             """.format(len(photosphere),
@@ -69,7 +75,7 @@ def _moog_writer(photosphere, filename, **kwargs):
         
         output = dedent("""
             KURUCZ
-             ORACLE 1D CASTELLI/KURUCZ (2004) TEFF/LOGG/[M/H]/[alpha/M]/XI {1:.0f}/{2:.3f}/{3:.3f}/{4:.3f}/{5:.3f}
+             CASTELLI/KURUCZ (2004) TEFF/LOGG/[M/H]/[alpha/M]/XI {1:.0f}/{2:.3f}/{3:.3f}/{4:.3f}/{5:.3f}
             NTAU       {0:.0f}
             """.format(len(photosphere),
                 photosphere.meta["stellar_parameters"]["effective_temperature"],

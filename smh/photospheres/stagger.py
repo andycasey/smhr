@@ -7,18 +7,11 @@ from __future__ import division, absolute_import, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
-# Standard library.
-import gzip
 import logging
-from collections import Counter
-
-# Third party.
 import numpy as np
 
-# Module-specific.
 from .interpolator import BaseInterpolator
 
-# Create logger.
 logger = logging.getLogger(__name__)
 
 
@@ -61,10 +54,11 @@ def pickle_from_tsv_file(filename, depth_scale="optical", skiprows=72,
         str
     """
 
-    depth_scale_hint = depth_scale.lower()[0] # work it out from the first letter
-    if depth_scale_hint not in ("o", "m", "r", "z", "g", "h"): # zgh are the same 
-        raise ValueError("depth scale expected to be 'optical', 'mass density',"
-            " Rosseland, or geometric height")
+    depth_scale_hint = depth_scale.lower()[0] # work it out from first letter
+    if depth_scale_hint not in ("o", "m", "r", "z", "g", "h"): # zgh are same 
+        raise ValueError(
+            "depth scale expected to be 'optical', 'mass density', "
+            "Rosseland, or geometric height")
     if depth_scale_hint in ("g", "h"):
         depth_scale_hint = "z"
     elif depth_scale_hint == "r":
