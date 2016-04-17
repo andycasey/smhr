@@ -3,7 +3,7 @@ from __future__ import (division, print_function, absolute_import,
 
 import numpy as np
 import astropy.units as u
-from astropy.io import ascii,fits
+from astropy.io import ascii,fits,registry
 from astropy.table import Table, Column, MaskedColumn
 from astropy import table
 from utils import element_to_species, species_to_element
@@ -258,13 +258,13 @@ class LineList(Table):
         species = np.zeros(N)
         EP = np.zeros(N)
         loggf = np.zeros(N)
+        ew = np.zeros(N) * np.nan
         damping = np.zeros(N) * np.nan
         dissoc = np.zeros(N) * np.nan
         comments = ['' for i in range(N)]
         # wl, transition, EP, loggf, VDW damping C6, dissociation D0, EW, comments
         has_header_line = False
         for i,line in enumerate(lines):
-            line = line.strip()
             s = line.split()
             try:
                 _wl,_species,_EP,_loggf = map(float,s[:4])
@@ -281,11 +281,20 @@ class LineList(Table):
                 try: dissoc[i] = float(line[50:60])
                 except: pass
                 
-                comments[i] = line[60:].strip()
+                try: 
+                    _ew = float(line[60:70])
+                    # It seems some linelists have -1 in the EW location as a placeholder
+                    if _ew <= 0: 
+                        raise ValueError("EW <= 0: {}".format(_ew))
+                    ew[i] = _ew
+                    comments[i] = line[70:].strip()
+                except:
+                    comments[i] = line[60:].strip()
             wl[i] = _wl; species[i] = _species; EP[i] = _EP; loggf[i] = _loggf
         if has_header_line:
             wl = wl[1:]; species = species[1:]; EP = EP[1:]; loggf = loggf[1:]
             damping = damping[1:]; dissoc = dissoc[1:]; comments = comments[1:]
+            ew = ew[1:]
         
         # check if gf by assuming there is at least one line with loggf < 0
         if np.all(loggf >= 0): 
@@ -331,6 +340,12 @@ class LineList(Table):
             data = [wl,species,EP,loggf,damping,dissoc,comments,
                     numelems,elem1,isotope1,elem2,isotope2,ion,
                     E_hi,nans,nans,nans,nans,refs,elements]
+        # add EW if needed
+        if not np.all(np.isnan(ew)):
+            print("Read {} EWs out of {} lines".format(np.sum(~np.isnan(ew)),len(ew)))
+            colnames = colnames + ['equivalent_width']
+            dtypes = dtypes + [np.float]
+            data = data + [ew]
         
         return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns)
 
@@ -414,7 +429,11 @@ class LineList(Table):
                 C6 = space if np.ma.is_masked(line['damp_vdw']) or np.isnan(line['damp_vdw']) else "{:10.3}".format(line['damp_vdw'])
                 D0 = space if np.ma.is_masked(line['dissoc_E']) or np.isnan(line['dissoc_E']) else "{:10.3}".format(line['dissoc_E'])
                 comments = '' if np.ma.is_masked(line['comments']) else line['comments']
-                f.write(fmt.format(line['wavelength'],line['species'],line['expot'],line['loggf'],C6,D0,space,line['comments'])+"\n")
+                if 'equivalent_width' in line.colnames:
+                    EW = space if np.ma.is_masked(line['equivalent_width']) or np.isnan(line['equivalent_width']) else "{:10.3}".format(line['equivalent_width'])
+                else:
+                    EW = space
+                f.write(fmt.format(line['wavelength'],line['species'],line['expot'],line['loggf'],C6,D0,EW,line['comments'])+"\n")
 
     def write_latex(self,filename,sortby=['species','wavelength'],
                     write_cols = ['wavelength','element','expot','loggf']):
@@ -422,3 +441,8 @@ class LineList(Table):
         new_table.sort(sortby)
         new_table = new_table[write_cols]
         new_table.write(filename,format='ascii.aastex')
+
+## Add to astropy.io registry
+#registry.register_writer("moog", LineList, write_moog)
+#register.register_writer("moog", LineList, 
+
