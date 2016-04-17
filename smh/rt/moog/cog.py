@@ -26,8 +26,9 @@ with resource_stream(__name__, "defaults.yaml") as fp:
 
 def abundance_cog(photosphere, transitions, verbose=False, **kwargs):
     """
-    Calculate atomic line abundances by interpolating their position from the
-    curve-of-growth. This wraps the MOOG `abfind` driver.
+    Calculate atomic line abundances by interpolating the measured 
+    equivalent width from the curve-of-growth. 
+    This wraps the MOOG `abfind` driver.
 
     :param photosphere:
         A formatted photosphere.
