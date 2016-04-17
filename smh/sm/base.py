@@ -8,6 +8,7 @@ from __future__ import (division, print_function, absolute_import,
 
 __all__ = ["BaseSpectralModel"]
 
+import numpy as np
 from smh.session import BaseSession
 
 
@@ -83,8 +84,13 @@ class BaseSpectralModel(object):
         """
 
         window = abs(self.metadata["window"])
-        lower_wavelength = self.transitions["wavelength"][0]
-        upper_wavelength = self.transitions["wavelength"][-1]
+        wavelengths = self.transitions["wavelength"]
+        try:
+            lower_wavelength = wavelengths[0]
+            upper_wavelength = wavelengths[-1]
+        except IndexError:
+            # Single row.
+            lower_wavelength, upper_wavelength = (wavelengths, wavelengths)
 
         mask = (spectrum.dispersion >= lower_wavelength - window) \
              * (spectrum.dispersion <= upper_wavelength + window)

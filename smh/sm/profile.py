@@ -11,11 +11,12 @@ __all__ = ["ProfileFittingModel"]
 import logging
 import numpy as np
 import scipy.optimize as op
+from astropy.table import Row
 from astropy.constants import c as speed_of_light
 from scipy.special import wofz
 from scipy import integrate
 
-from base import BaseSpectralModel
+from .base import BaseSpectralModel
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +91,7 @@ class ProfileFittingModel(BaseSpectralModel):
 
         # Check format first.
         super(ProfileFittingModel, self)._verify_transitions()
-        if len(self.transitions) != 1:
+        if len(self.transitions) > 1 and not isinstance(self.transitions, Row):
             raise ValueError("only a single transition can be associated with "
                              "a ProfileFittingModel")
         return True
@@ -136,7 +137,11 @@ class ProfileFittingModel(BaseSpectralModel):
         or self.metadata["velocity_tolerance"] is not None:
 
             # Convert velocity tolerance into wavelength.
-            wavelength = self.transitions["wavelength"][0]
+            wavelength = self.transitions["wavelength"]
+            try:
+                wavelength = wavelength[0]
+            except IndexError:
+                None
             vt = abs(self.metadata.get("velocity_tolerance", None) or np.inf)
             wt = abs(self.metadata.get("wavelength_tolerance", None) or np.inf)
 
@@ -156,7 +161,11 @@ class ProfileFittingModel(BaseSpectralModel):
 
     def _initial_guess(self, spectrum, **kwargs):
 
-        wavelength = self.transitions["wavelength"][0]
+        wavelength = self.transitions["wavelength"]
+        try:
+            wavelength = wavelength[0]
+        except IndexError:
+            None
         p0 = [
             wavelength,
             kwargs.pop("p0_sigma", 0.1),
@@ -189,8 +198,13 @@ class ProfileFittingModel(BaseSpectralModel):
         failure = False
 
         # Check the transition is in the spectrum range.
-        if self.transitions["wavelength"][0] + 1 > spectrum.dispersion[-1] \
-        or self.transitions["wavelength"][0] - 1 < spectrum.dispersion[0]:
+        wavelength = self.transitions["wavelength"]
+        try:
+            wavelength = wavelength[0]
+        except IndexError:
+            None
+        if wavelength + 1 > spectrum.dispersion[-1] \
+        or wavelength - 1 < spectrum.dispersion[0]:
             return failure
 
         # Update internal metadata with any input parameters.
@@ -237,9 +251,11 @@ class ProfileFittingModel(BaseSpectralModel):
                 logger.exception(
                     "Exception raised in fitting atomic transition {0} "\
                     "on iteration {1}".format(
-                        self.transitions["wavelength"][0],
-                        iteration))   
-                
+                        wavelength,
+                        iteration))
+                if iteration == 0:
+                    return failure
+
             # Look for outliers peaks.
             # TODO: use continuum or model?
             O = self.metadata["continuum_order"]
@@ -328,7 +344,10 @@ class ProfileFittingModel(BaseSpectralModel):
         # Make many draws from the covariance matrix.
         draws = kwargs.pop("covariance_draws", 100)
         percentiles = kwargs.pop("percentiles", (2.5, 97.5))
-        p_alt = np.random.multivariate_normal(p_opt, p_cov, size=draws)
+        if np.all(np.isfinite(p_cov)):
+            p_alt = np.random.multivariate_normal(p_opt, p_cov, size=draws)
+        else:
+            p_alt = np.nan * np.ones((draws, p_opt.size))
 
         # Integrate the profile.
         profile, _ = self._profiles[self.metadata["profile"]]
@@ -349,9 +368,6 @@ class ProfileFittingModel(BaseSpectralModel):
                 for _ in p_alt]
             ew_uncertainty = np.percentile(ew_alt, percentiles) - ew
         
-        model_err = np.percentile(
-            [self(x, *_) for _ in p_alt], percentiles, axis=0)
-
         # Calculate chi-square for the points that we modelled.
         ivar = spectrum.ivar[mask][iterative_mask]
         if not np.any(np.isfinite(ivar)): ivar = 1
@@ -380,6 +396,9 @@ class ProfileFittingModel(BaseSpectralModel):
 
         ax.plot(x, bg, c='r')
         ax.plot(x, model_y, c='b')
+
+        model_err = np.percentile(
+            [self(x, *_) for _ in p_alt], percentiles, axis=0)
 
         ax.fill_between(x, model_err[0] + model_y, model_err[1] + model_y,
             edgecolor="None", facecolor="b", alpha=0.5)
@@ -437,6 +456,11 @@ class ProfileFittingModel(BaseSpectralModel):
 
 
 if __name__ == "__main__":
+
+
+    # Load some atomic transitions
+    # Measure them in a spectrum.
+    # Get abundances from MOOGSILENT.
 
 
     import smh
