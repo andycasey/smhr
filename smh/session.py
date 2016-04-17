@@ -14,7 +14,7 @@ import os
 import yaml
 from six import string_types
 
-from . import specutils
+from . import (photospheres, radiative_transfer, specutils)
 
 logger = logging.getLogger(__name__)
 
@@ -82,10 +82,26 @@ class Session(BaseSession):
             "normalization": {
                 "continuum": [None] * N,
                 "normalization_kwargs": [{}] * N
+            },
+            "stellar_parameters": {
+                "effective_temperature": 5777, # K
+                "surface_gravity": 4.4,
+                "metallicity": 0.0, # Solar-scaled
+                "microturbulence": 1.06, # km/s
             }
         }
 
         return None
+
+    @property
+    def rt(self):
+        """
+        Access radiative transfer functions.
+        """
+        
+        # What RT do we prefer?
+        # TODO: Respect user preferences about which rt they want.
+        return radiative_transfer.moog
 
 
     def setting(self, key_tree):
@@ -353,5 +369,31 @@ class Session(BaseSession):
 
         # Fit & store continuum for all input spectra.
         raise NotImplementedError
+
+
+    @property
+    def stellar_photosphere(self):
+        """
+        Return a photosphere model of the current stellar parameters.
+        """
+
+        # TODO: HACK -- how to specify different models?
+        #               or optional arguments, e.g. [alpha/fe] for CK 2004
+
+        try:
+            self._photosphere_interpolator
+        except AttributeError:
+            self._photosphere_interpolator = photospheres.interpolator()
+
+        meta = self.metadata["stellar_parameters"]
+        photosphere = self._photosphere_interpolator(*[meta[k] for k in \
+            ("effective_temperature", "surface_gravity", "metallicity")])
+        # Update other metadata (e.g., microturbulence)
+        # TODO: Convert session.metadata to session.meta to be consistent
+        photosphere.meta["stellar_parameters"].update(meta)
+
+        return photosphere
+
+
 
 

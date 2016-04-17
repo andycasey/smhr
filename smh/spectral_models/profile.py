@@ -187,13 +187,18 @@ class ProfileFittingModel(BaseSpectralModel):
         return np.array(p0)
 
 
-    def fit(self, spectrum, **kwargs):
+    def fit(self, spectrum=None, **kwargs):
         """
         Fit an asborption profile to the transition in the spectrum.
 
-        :param spectrum:
-            The observed spectrum to fit the profile transition model.
+        :param spectrum: [optional]
+            The observed spectrum to fit the profile transition model. If None
+            is given, this will default to the normalized rest-frame spectrum in
+            the parent session.
         """
+
+        if spectrum is None:
+            spectrum = self.session.normalized_spectrum
 
         failure = False
 
@@ -415,11 +420,12 @@ class ProfileFittingModel(BaseSpectralModel):
             "dof": dof
         }
 
-        # TODO: Store the result internally.
+        self._result = (p_opt, p_cov, fitting_metadata)
 
-        # Return the fitted parameters and associated metadata.
-        return (p_opt, p_cov, fitting_metadata)
-        
+        # Update the equivalent width in the transition.
+        self._transitions["equivalent_width"] = ew
+        return self._result
+
 
     def __call__(self, dispersion, *parameters):
         """
@@ -451,6 +457,10 @@ class ProfileFittingModel(BaseSpectralModel):
         equivalent width and the current stellar parameters in the parent
         session.
         """
+
+        foo = self.session.rt.abundance_cog(
+            self.session.stellar_photosphere,
+            self.transition)
 
         raise NotImplementedError
 

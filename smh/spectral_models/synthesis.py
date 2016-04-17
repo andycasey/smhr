@@ -99,13 +99,19 @@ class SpectralSynthesisModel(BaseSpectralModel):
         return True
 
 
-    def fit(self, spectrum, **kwargs):
+    def fit(self, spectrum=None, **kwargs):
         """
         Fit a synthesised model spectrum to the observed spectrum.
 
-        :param spectrum:
-            The observed spectrum to fit the synthesis spectral model.
+        :param spectrum: [optional]
+            The observed spectrum to fit the synthesis spectral model. If None
+            is given, this will default to the normalized rest-frame spectrum in
+            the parent session.
         """
+
+        spectrum = spectrum or self.session.normalized_spectrum
+
+        
 
         raise NotImplementedError
 
@@ -149,5 +155,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
         
 
+# Fit synthesised region to spectrum.
+
+# HOOK in to any RT.
 
 
