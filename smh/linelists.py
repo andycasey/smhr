@@ -425,6 +425,7 @@ class LineList(Table):
         fmt = "{:10.3f}{:10.5f}{:10.3f}{:10.3f}{}{}{}{}"
         space = " "*10
         with open(filename,'w') as f:
+            f.write("\n")
             for line in self:
                 C6 = space if np.ma.is_masked(line['damp_vdw']) or np.isnan(line['damp_vdw']) else "{:10.3}".format(line['damp_vdw'])
                 D0 = space if np.ma.is_masked(line['dissoc_E']) or np.isnan(line['dissoc_E']) else "{:10.3}".format(line['dissoc_E'])
