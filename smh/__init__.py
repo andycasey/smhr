@@ -20,7 +20,7 @@ logger.addHandler(handler)
 
 
 # Get the location for the Session defaults file.
-from session import Session
+from .session import Session
 
 # If there isn't a local copy of the default Session settings file, create one.
 if not os.path.exists(Session._default_settings_path):
