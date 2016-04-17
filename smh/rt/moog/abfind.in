@@ -1,0 +1,22 @@
+abfind
+terminal '{terminal}'
+standard_out '{standard_out}'
+summary_out '{summary_out}'
+model_in '{model_in}'
+lines_in '{lines_in}'
+atmosphere {atmosphere:.0f}
+molecules {molecules:.0f}
+trudamp {trudamp:.0f}
+lines {lines:.0f}
+flux/int {flux_int:.0f}
+damping {damping:.0f}
+units {units:.0f}
+opacit {opacit:.0f}
+iraf 0
+obspectrum 0
+plot 0
+opacit 0
+freeform 0
+strong 0
+plotpars 0
+histogram 0
