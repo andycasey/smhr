@@ -27,11 +27,11 @@ install:
   - if [[ $TRAVIS_PYTHON_VERSION == 2* ]]; then conda install --yes python=$TRAVIS_PYTHON_VERSION pyside; fi
   - if [[ $TRAVIS_PYTHON_VERSION == '3.4' ]]; then pip install pyside; fi
   - pip install coveralls
+  - python setup.py install --with-models
 script:
   - nosetests --with-coverage --cover-package=smh
 after_success:
   coveralls
-
 branches:
   only:
     - master
