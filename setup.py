@@ -83,7 +83,8 @@ setup(
         "scipy>=0.14.0",
         "six",
         "pyside>=1.1.2",
-        "astropy"
+        "astropy",
+        "pyyaml"
         ],
     extras_require={
         "test": ["coverage"]
@@ -99,6 +100,10 @@ setup(
             "stagger-2013-rosseland.pkl",
             "stagger-2013-height.pkl"
         ],
+        "smh.rt.moog": [
+            "defaults.yaml",
+            "abfind.in"
+        ]
     },
     include_package_data=True,
     data_files=None,

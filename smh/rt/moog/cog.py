@@ -12,6 +12,7 @@ from __future__ import (division, print_function, absolute_import,
 import logging
 import numpy as np
 import re
+import yaml
 from pkg_resources import resource_stream
 
 from . import utils
@@ -19,80 +20,9 @@ from smh.utils import element_to_species
 
 logger = logging.getLogger(__name__)
 
-# TODO: Put these into a defaults.yaml file?
-_moog_defaults = {
-    # atmosphere:
-    # 0     do not output the atmosphere
-    #*1     output standard information about the atmosphere
-    # 2     output more details (continuous opacity factors, etc)
-    "atmosphere": 0,
-
-    # molecules:
-    #*0     do not do molecular equilibrium
-    # 1     do molecular equilibrium but do not output results
-    # 2     do molecular equilibrium and output results
-    "molecules": 1,
-
-    # trudamp:
-    # 0     no, stick with the standard damping formulae
-    #*1     sure, why not? It's a black art anyway!
-    "trudamp": 0,
-
-    # lines:
-    # 0     output nothing about the input lines
-    #*1     output standard information about the input line list
-    # 2     output line opacities at line centers
-    # 3     output information about mean depth of line formation
-    # 4     output the partition functions
-    "lines": 0,
-
-    # terminal:
-    #*0     MOOG will query the user for the desired terminal type
-    #       (not compatible with wrapper)
-    # 7     Sunview (LickMONGO)
-    # 11    Sun OpenWindows, or any X11 (LickMONGO)
-    # 13    Graph-on 200 series, or any VT/Retrographics (LickMONGO)
-    # X11   Sun OpenWindos, or any X11 (sm)
-    # xterm xterm tektronix window (sm)
-    # sunview SunView window(sm)
-    # graphon graphon GO-250 (sm)
-    "terminal": "x11",
-
-    # flux/int:
-    #*0     perform integrated flux calculations
-    # 1     perform central intensity calculations
-    "flux_int": 0,
-
-    # damping:
-    #*0     use the Unsold approximation, BUT: if a factor is read from the
-    #       line list for an individual line, then if the factor is greater
-    #       than 10^(-10), multiply the Unsold value by the factor,
-    #       otherwise replace the Unsold value by the factor
-    # 1     use the Unsold approximation multiplied by 6.3
-    # 2     use the Unsold approximation multiplied by a factor recommended
-    #       by the Blackwell group
-    "damping": 2,
-
-    # units:
-    #*0     Angstroms
-    # 1     microns
-    "units": 0,
-
-    # opacit:
-    #*0     no fudge factor is to be applied
-    # a     multiply the nominal continuous opacity by a factor: 10000a/T
-    "opacit": 0
-
-    # Others, requiring special treatment:
-    # isotopes, abundances
-
-    # Others, not specified here:
-    # synlimits, fluxlimits, coglimits, blenlimits, iraf
-
-    # Others, not allowed to be passed through this:
-    # obspectrum, iraf, plot, freeform, strong, plotpars
-    # TODO: revisit strong
-}
+# Load the MOOG defaults.
+with resource_stream(__name__, "defaults.yaml") as fp:
+    _moog_defaults = yaml.load(fp)["abfind"]
 
 def abundance_cog(photosphere, transitions, verbose=False, **kwargs):
     """
