@@ -63,7 +63,7 @@ def _moog_writer(photosphere, filename, **kwargs):
                 "{3:10.3e} {4:10.3e}\n".format(i + 1, line["lgTau5"], line["T"],
                     line["Pe"], line["Pg"])
 
-        output += "         {0:.3f}\n".format(xi)
+        output += "        {0:.3f}\n".format(xi)
         output += "NATOMS        0     {0:.3f}\n".format(
             photosphere.meta["stellar_parameters"]["metallicity"])
         output += "NMOL          0\n"
@@ -87,8 +87,8 @@ def _moog_writer(photosphere, filename, **kwargs):
         for line in photosphere:
             output += " {0:.8e} {1:10.3e}{2:10.3e}{3:10.3e}{4:10.3e}\n".format(
                 line["RHOX"], line["T"], line["P"], line["XNE"], line["ABROSS"])
-
-        output += "         {0:.3f}\n".format(xi)
+            
+        output += "        {0:.3f}\n".format(xi)
         output += "NATOMS        0     {0:.3f}\n".format(
             photosphere.meta["stellar_parameters"]["metallicity"])
         output += "NMOL          0\n"
