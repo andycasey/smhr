@@ -6,6 +6,7 @@ import utils
 from linelists import LineList
 from nose.tools import assert_equals, assert_almost_equals, ok_
 from astropy import table
+import numpy as np
 
 ll_filenames = ['masseron_linch.txt']
 ll_filenames = ['masseron_linch.txt','lin4077new','lin4554new','AJ_4398_Y.lin']
@@ -61,12 +62,24 @@ def test_duplicates():
     ll = table.vstack([ll1,ll2[0:N]])
     duplicate_indices,duplicate_lines = ll.find_duplicates()
     assert_equals(2*N,len(duplicate_indices))
-    
+
+def test_readwrite(fname):
+    ll = LineList.read(fname)
+    ll = LineList.read(fname,format='moog')
+    ll.write('_test.moog',format='moog')
+    ll2 = LineList.read('_test.moog')
+    for i in range(len(ll)):
+        for col in ll[i].colnames:
+            if isinstance(ll[i][col], str): continue
+            diff = np.sum(np.abs(ll[i][col] - ll2[i][col]))
+            assert np.isnan(diff) or diff < .001, "{} {}".format(ll[i][col],ll2[i][col])
 test_species_converting()
 test_colnames()
 test_moog_colnames()
 test_merge()
 test_duplicates()
+for fname in ll_filenames:
+    test_readwrite(fname)
 
 ll = LineList.read('complete.list')
 ll.verbose = True
@@ -77,6 +90,8 @@ new_ll = ll.merge(ll_ncap, in_place=False)
 
 print("Merging in place")
 ll.merge(ll_ncap)
+
+
 
 #print("Reading GES list")
 #ges = LineList.read('ges_master_v5.fits')

@@ -443,6 +443,9 @@ class LineList(Table):
         new_table.write(filename,format='ascii.aastex')
 
 ## Add to astropy.io registry
-#registry.register_writer("moog", LineList, write_moog)
-#register.register_writer("moog", LineList, 
+def _moog_identifier(*args, **kwargs):
+    return isinstance(args[0], basestring) and args[0].lower().endswith(".moog")
+registry.register_writer("moog", LineList, LineList.write_moog)
+registry.register_reader("moog", LineList, LineList.read_moog)
+registry.register_identifier("moog", LineList, _moog_identifier)
 
