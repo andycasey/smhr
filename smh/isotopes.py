@@ -19,19 +19,19 @@ def get_needed_isotopes(ll,isotopes):
     if len(needed_isotopes)==0: return {}
     bad_isotopes = []
     good_isotopes = {}
-    for Z,isos in iteritems(needed_isotopes):
-        if Z not in isotopes:
-            bad_isotopes.append((Z,0))
+    for elem,isos in iteritems(needed_isotopes):
+        if elem not in isotopes:
+            bad_isotopes.append((elem,0))
         else:
             good_isos = {}
             for mass in isos:
-                if mass not in isotopes[Z]:
-                    bad_isotopes.append((Z,mass))
+                if mass not in isotopes[elem]:
+                    bad_isotopes.append((elem,mass))
                 else:
-                    good_isos[mass] = isotopes[Z][mass]
-            good_isotopes[Z] = good_isos
+                    good_isos[mass] = isotopes[elem][mass]
+            good_isotopes[elem] = good_isos
     if len(bad_isotopes) > 0:
-        raise ValueError("Missing isotopes (Z,A): {}".format(bad_isotopes))
+        raise ValueError("Missing isotopes (elem,A): {}".format(bad_isotopes))
     return good_isotopes
 
 def identify_isotopes(ll):
@@ -47,18 +47,17 @@ def identify_isotopes(ll):
         nelem,e1,e2,i1,i2 = (line[col] for col in cols)
         #print(line['numelems','elem1','elem2','isotope1','isotope2'])
         #nelem,e1,e2,i1,i2 = line['numelems','elem1','elem2','isotope1','isotope2']
-        Z1 = int(element_to_species(e1))
-        if Z1 in isotopes:
-            if i1 not in isotopes[Z1]:
-                isotopes[Z1][i1] = 1.0
+        if e1 in isotopes:
+            if i1 not in isotopes[e1]:
+                isotopes[e1][i1] = 1.0
         else:
-            isotopes[Z1] = {i1:1.0}
+            isotopes[e1] = {i1:1.0}
         if nelem==2:
-            if Z2 in isotopes:
-                if i2 not in isotopes[Z2]:
-                    isotopes[Z2][i2] = 1.0
+            if e2 in isotopes:
+                if i2 not in isotopes[e2]:
+                    isotopes[e2][i2] = 1.0
             else:
-                isotopes[Z2] = {i2:1.0}
+                isotopes[e2] = {i2:1.0}
     return isotopes
 def identify_needed_isotopes(ll):
     """
@@ -66,20 +65,20 @@ def identify_needed_isotopes(ll):
     """
     isotopes = identify_isotopes(ll)
     needed_isotopes = {}
-    for Z,isos in iteritems(isotopes):
+    for elem,isos in iteritems(isotopes):
         if len(isos) > 1:
-            needed_isotopes[Z] = isos
+            needed_isotopes[elem] = isos
     return needed_isotopes
 
 def validate_isotopes(isotopes,tol=1e-4):
     numbad = 0
     bad_isos = ""
-    for Z in isotopes:
+    for elem in isotopes:
         total = 0.0
-        for mass in isotopes[Z]:
-            total += isotopes[Z][mass]
+        for mass in isotopes[elem]:
+            total += isotopes[elem][mass]
         if np.abs(total - 1.0) > tol: 
-            bad_isos += "{} {};".format(Z,total-1)
+            bad_isos += "{} {};".format(elem,total-1)
             numbad += 1
     if numbad > 0: raise RuntimeError(bad_isos)
 
