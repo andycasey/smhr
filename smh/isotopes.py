@@ -1,30 +1,35 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
+from six import iteritems
 
 import numpy as np
-import json
+import cPickle as pickle
+import os
 
-from linelists import LineList
-from utils import element_to_species
+from .linelists import LineList
+from .utils import element_to_species
 
-_datadir = './data/isotopes'
+_datadir = os.path.dirname(__file__)+'/data/isotopes'
 
 def get_needed_isotopes(ll,isotopes):
     needed_isotopes = identify_needed_isotopes(ll)
     if len(needed_isotopes)==0: return {}
     bad_isotopes = []
-    for Z,nisos in needed_isotopes.iteritems():
+    good_isotopes = {}
+    for Z,isos in iteritems(needed_isotopes):
         if Z not in isotopes:
-            pass #TODO add bad isotopes
+            bad_isotopes.append((Z,0))
         else:
-            for mass,frac in isos.iteritems():
+            good_isos = {}
+            for mass in isos:
                 if mass not in isotopes[Z]:
-                    pass #TODO add bad isotopes
+                    bad_isotopes.append((Z,mass))
                 else:
-                    needed_isotopes[Z][mass] = frac
+                    good_isos[mass] = isotopes[Z][mass]
+            good_isotopes[Z] = good_isos
     if len(bad_isotopes) > 0:
-        pass #TODO raise error
-    return needed_isotopes
+        raise ValueError("Missing isotopes (Z,A): {}".format(bad_isotopes))
+    return good_isotopes
 
 def identify_isotopes(ll):
     """
@@ -58,7 +63,7 @@ def identify_needed_isotopes(ll):
     """
     isotopes = identify_isotopes(ll)
     needed_isotopes = {}
-    for Z,isos in isotopes.iteritems():
+    for Z,isos in iteritems(isotopes):
         if len(isos) > 1:
             needed_isotopes[Z] = isos
     return needed_isotopes
@@ -77,35 +82,11 @@ def validate_isotopes(isotopes,tol=1e-4):
 
 def load_isotopes(whichdata):
     assert whichdata in ['rproc','sproc','sneden','asplund']
-    datamap = {'rproc':'sneden08_rproc_isotopes.json',
-               'sproc':'sneden08_sproc_isotopes.json',
-               'sneden':'sneden08_all_isotopes.json',
-               'asplund':'asplund09_isotopes.json'}
+    datamap = {'rproc':'sneden08_rproc_isotopes.pkl',
+               'sproc':'sneden08_sproc_isotopes.pkl',
+               'sneden':'sneden08_all_isotopes.pkl',
+               'asplund':'asplund09_isotopes.pkl'}
     with open(_datadir+'/'+datamap[whichdata],'r') as f:
-        isotopes = json.load(f)
+        isotopes = pickle.load(f)
     validate_isotopes(isotopes)
     return isotopes
-
-def test_load_isotopes():
-    for whichdata in ['rproc','sproc','sneden','asplund']:
-        load_isotopes(whichdata)
-def test_identify_isotopes():
-    ll = LineList.read('lin4554new')
-    isotopes = identify_isotopes(ll)
-    for Z in isotopes:
-        for mass in isotopes[Z]:
-            print("{:2} {:3} {:.3f}".format(Z,mass,isotopes[Z][mass]))
-            pass
-    needed_isotopes = identify_needed_isotopes(ll)
-    print()
-    num_isotopes = 0
-    for Z in needed_isotopes:
-        for mass in needed_isotopes[Z]:
-            print("{:2} {:3} {:.3f}".format(Z,mass,isotopes[Z][mass]))
-            num_isotopes += 1
-    assert num_isotopes == 5
-
-if __name__=="__main__":
-    test_identify_isotopes()
-    test_load_isotopes()
-    
