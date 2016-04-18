@@ -9,6 +9,9 @@ import os
 from .linelists import LineList
 from .utils import element_to_species
 
+__all__ = ['get_needed_isotopes','identify_isotopes','identify_needed_isotopes',
+           'validate_isotopes','load_isotope_data']
+
 _datadir = os.path.dirname(__file__)+'/data/isotopes'
 
 def get_needed_isotopes(ll,isotopes):
@@ -80,7 +83,7 @@ def validate_isotopes(isotopes,tol=1e-4):
             numbad += 1
     if numbad > 0: raise RuntimeError(bad_isos)
 
-def load_isotopes(whichdata):
+def load_isotope_data(whichdata):
     assert whichdata in ['rproc','sproc','sneden','asplund']
     datamap = {'rproc':'sneden08_rproc_isotopes.pkl',
                'sproc':'sneden08_sproc_isotopes.pkl',
