@@ -44,7 +44,7 @@ setup(
     ],
     keywords="astronomy stellar spectroscopy spectra made easy hard",
     packages=find_packages(exclude=["documents", "tests"]),
-    install_requires=["numpy", "scipy", "six", "pyside==1.1.2", "astropy"],
+    install_requires=["numpy", "scipy", "six", "pyside>=1.1.2", "astropy"],
     extras_require={
         "test": ["coverage"]
     },
