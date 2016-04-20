@@ -102,18 +102,6 @@ class ProfileFittingModel(BaseSpectralModel):
         return True
 
 
-    @property
-    def parameter_bounds(self):
-        """ Return the fitting limits on the parameters. """
-        return self._parameter_bounds
-
-
-    @property
-    def parameter_names(self):
-        """ Return the model parameter names. """
-        return self._parameter_names
-
-
     def _update_parameter_names(self):
         """ Update the model parameter names based on the current metadata. """
 
@@ -197,20 +185,10 @@ class ProfileFittingModel(BaseSpectralModel):
             the parent session.
         """
 
-        if spectrum is None:
-            spectrum = self.session.normalized_spectrum
-
+        spectrum = spectrum or self.session.normalized_spectrum
+        self._verify_spectrum(spectrum)
+        
         failure = False
-
-        # Check the transition is in the spectrum range.
-        wavelength = self.transitions["wavelength"]
-        try:
-            wavelength = wavelength[0]
-        except IndexError:
-            None
-        if wavelength + 1 > spectrum.dispersion[-1] \
-        or wavelength - 1 < spectrum.dispersion[0]:
-            return failure
 
         # Update internal metadata with any input parameters.
         # Ignore additional parameters because other BaseSpectralModels will

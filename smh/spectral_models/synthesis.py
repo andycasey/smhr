@@ -10,9 +10,14 @@ from __future__ import (division, print_function, absolute_import,
 __all__ = ["SpectralSynthesisModel"]
 
 import logging
+import numpy as np
 from six import string_types
 
 from .base import BaseSpectralModel
+from smh import utils
+from smh.photospheres.abundances import asplund_2009 as solar_composition
+# HACK TODO REVISIT SOLAR SCALE: Read from session defaults?
+
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +29,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
     
     def __init__(self, transitions, session, elements, *args, **kwargs):
         super(SpectralSynthesisModel, self).__init__(
-            transitions, sessions, **kwargs)
+            transitions, session, **kwargs)
 
 
         # Initialize metadata with default fitting values.
@@ -54,17 +59,71 @@ class SpectralSynthesisModel(BaseSpectralModel):
         class are valid.
         """
 
-        # Check format first.
-        super(ProfileFittingModel, self)._verify_transitions()
+        # Formatting checks.
+        super(SpectralSynthesisModel, self)._verify_transitions()
+
+        # Format the elements and then check that all are real.
         if isinstance(elements, string_types):
             elements = [elements]
 
+        elements = [str(element).title() for element in elements]
+        for element in elements:
+            # Is the element real?
+            if element not in utils.periodic_table:
+                raise ValueError("element '{}' is not valid".format(element))
+
+            # Is it in the transition list?
+            if  element not in self.transitions["elem1"] \
+            and element not in self.transitions["elem2"]:
+                raise ValueError(
+                    "element '{0}' does not appear in the transition list"\
+                        .format(element))
+
         self.metadata["elements"] = elements
 
-        # Check each element is real and that it exists in the transition table.
-        # TODO:
-
         return True
+
+
+    def _initial_guess(self):
+        """
+        Return an initial (uninformed) guess about the model parameters.
+        """
+
+        # Potential parameters:
+        # elemental abundances, continuum coefficients, smoothing kernel,
+        # velocity offset
+
+        # The elemental abundances are in log_epsilon format.
+        # We will assume a scaled-solar initial value based on the stellar [M/H]
+
+        defaults = {
+            "sigma_smooth": 0.05,
+            "vrad": 0,
+        }
+
+        p0 = []
+        for parameter in self.parameter_names:
+
+            try:
+                p0.append(defaults[parameter])
+            
+            except KeyError:
+                if parameter.startswith("log_eps"):
+                    # Elemental abundance.
+                    element = parameter.split("(")[1].rstrip(")")
+
+                    # Assume scaled-solar composition.
+                    p0.append(solar_composition(element) + \
+                    self.session.metadata["stellar_parameters"]["metallicity"])
+
+                elif parameter.startswith("c"):
+                    # Continuum coefficient.
+                    p0.append((0, 1)[parameter == "c0"])
+
+                else:
+                    raise ParallelUniverse("this should never happen")
+
+        return np.array(p0)
 
 
     def _update_parameter_names(self):
@@ -109,9 +168,39 @@ class SpectralSynthesisModel(BaseSpectralModel):
             the parent session.
         """
 
+        # Check the observed spectrum for validity.
         spectrum = spectrum or self.session.normalized_spectrum
+        self._verify_spectrum(spectrum)
 
+        # Update internal metadata with any input parameters.
+        # Ignore additional parameters because other BaseSpectralModels will
+        # have different input arguments.
+        for key in set(self.metadata).intersection(kwargs):
+            self.metadata[key] = kwargs[key]
+
+        # Update the parameter names in case they have been updated due to the
+        # input kwargs.
+        self._update_parameter_names()
         
+        # Get a bad initial guess.
+        p0 = self._initial_guess(spectrum, **kwargs)
+
+        # Build a mask based on the window fitting range, and prepare the data.
+        mask = self.mask(spectrum)
+        x, y = spectrum.dispersion[mask], spectrum.flux[mask]
+        yerr, absolute_sigma = ((1.0/spectrum.ivar[mask])**0.5, True)
+        if not np.all(np.isfinite(yerr)):
+            yerr, absolute_sigma = (np.ones_like(x), False)
+
+        # Fit the data!
+        try:
+            p_opt, p_cov = op.curve_fit(self.fitting_function, xdata=x, ydata=y,
+                sigma=yerr, p0=p0, absolute_sigma=absolute_sigma)
+
+        except:
+            logger.exception("Exception raised in fitting {}".format(self))
+            raise
+
 
         raise NotImplementedError
 
@@ -129,11 +218,13 @@ class SpectralSynthesisModel(BaseSpectralModel):
         """
 
 
+        # Parse the elemental abundances, because they need to be passed to
+        # the synthesis routine.
 
-        # Parse parameters.
 
-        # Call synthesis via radiative transfer by accessing parent session
-        # stellar atmosphere.
+        self.session.rt.synthesize(self.session.stellar_photosphere,
+            self.transitions, 
+
 
         # apply convolution, velocity + continuum parameters.
 

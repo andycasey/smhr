@@ -62,6 +62,18 @@ class BaseSpectralModel(object):
             "parameters property must be implemented by the sub-classes")
 
 
+    @property
+    def parameter_bounds(self):
+        """ Return the fitting limits on the parameters. """
+        return self._parameter_bounds
+
+
+    @property
+    def parameter_names(self):
+        """ Return the model parameter names. """
+        return self._parameter_names
+
+
     def __call__(self, dispersion, *args, **kwargs):
         """ The data-generating function. """
         raise NotImplementedError(
@@ -72,6 +84,29 @@ class BaseSpectralModel(object):
         # TODO
         return True
 
+
+    def _verify_spectrum(self, spectrum):
+        """
+        Check that the spectrum provided is valid and has data in the wavelength
+        range that we are interested.
+
+        :param spectrum:
+            The observed rest-frame normalized spectrum.
+        """
+
+        # Check the transition is in the spectrum range.
+        wavelength = self.transitions["wavelength"]
+        try:
+            wavelength = wavelength[0]
+        except IndexError:
+            None
+        if wavelength + 1 > spectrum.dispersion[-1] \
+        or wavelength - 1 < spectrum.dispersion[0]:
+            raise ValueError(
+                "the observed spectrum contains no data over the wavelength "
+                "range we require")
+
+        return True
 
 
     def mask(self, spectrum):
