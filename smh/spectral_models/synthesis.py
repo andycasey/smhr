@@ -49,7 +49,6 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Set the model parameter names based on the current metadata.
         self._update_parameter_names()
 
-
         return None
 
 
@@ -57,6 +56,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
         """
         Verify that the atomic or molecular transitions associated with this
         class are valid.
+
+        :param elements:
+            The element(s) (string or list-type of strings) that will be
+            measured in this model.
         """
 
         # Formatting checks.
@@ -96,32 +99,26 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # The elemental abundances are in log_epsilon format.
         # We will assume a scaled-solar initial value based on the stellar [M/H]
 
-        defaults = {
-            "sigma_smooth": 0.05,
-            "vrad": 0,
-        }
-
         p0 = []
         for parameter in self.parameter_names:
 
-            try:
-                p0.append(defaults[parameter])
-            
-            except KeyError:
-                if parameter.startswith("log_eps"):
-                    # Elemental abundance.
-                    element = parameter.split("(")[1].rstrip(")")
+            if parameter in ("sigma_smooth", "vrad"):
+                p0.append(0)
 
-                    # Assume scaled-solar composition.
-                    p0.append(solar_composition(element) + \
-                    self.session.metadata["stellar_parameters"]["metallicity"])
+            elif parameter.startswith("log_eps"):
+                # Elemental abundance.
+                element = parameter.split("(")[1].rstrip(")")
 
-                elif parameter.startswith("c"):
-                    # Continuum coefficient.
-                    p0.append((0, 1)[parameter == "c0"])
+                # Assume scaled-solar composition.
+                p0.append(solar_composition(element) + \
+                self.session.metadata["stellar_parameters"]["metallicity"])
 
-                else:
-                    raise ParallelUniverse("this should never happen")
+            elif parameter.startswith("c"):
+                # Continuum coefficient.
+                p0.append((0, 1)[parameter == "c0"])
+
+            else:
+                raise ParallelUniverse("this should never happen")
 
         return np.array(p0)
 
@@ -220,17 +217,40 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
         # Parse the elemental abundances, because they need to be passed to
         # the synthesis routine.
+        abundances = {}
+        names =  self.parameter_names
+        for name, parameter in zip(names, parameters):
+            if name.startswith("log_eps"):
+                element = name.split("(")[1].rstrip(")")
+                abundances[element] = parameter
+            else: break # The log_eps abundances are always first.
 
+        # Produce a synthetic spectrum.
+        synth_dispersion, intensities = self.session.rt.synthesize(
+            self.session.stellar_photosphere, self.transitions,
+            abundances=abundances) # TODO: Other RT kwargs......
 
-        self.session.rt.synthesize(self.session.stellar_photosphere,
-            self.transitions, 
+        # Continuum.
+        O = self.metadata["continuum_order"]
+        if 0 > O:
+            continuum = 1
+        else:
+            continuum = np.polyval(
+                [parameters[names.index("c{}".format(i))] for i in range(O)],
+                synth_dispersion)
 
+        model = intensities * continuum
 
-        # apply convolution, velocity + continuum parameters.
+        # Smoothing.
+        try:
+            index = names.index("sigma_smooth")
+        except IndexError:
+            None
+        else:
+            model = gaussian_filter(model, abs(parameters[index]))
 
-        # Interpolate onto dispersion points.
-
-        raise NotImplementedError
+        # Interpolate the model spectrum onto the requested dispersion points.
+        return np.interp(dispersion, synth_dispersion, model, left=1, right=1)
 
 
 
