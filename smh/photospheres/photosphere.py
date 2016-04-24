@@ -75,7 +75,7 @@ def _moog_writer(photosphere, filename, **kwargs):
         
         output = dedent("""
             KURUCZ
-             CASTELLI/KURUCZ (2004) TEFF/LOGG/[M/H]/[alpha/M]/XI {1:.0f}/{2:.3f}/{3:.3f}/{4:.3f}/{5:.3f}
+             CASTELLI/KURUCZ (2004) {1:.0f}/{2:.3f}/{3:.3f}/{4:.3f}/{5:.3f}
             NTAU       {0:.0f}
             """.format(len(photosphere),
                 photosphere.meta["stellar_parameters"]["effective_temperature"],
