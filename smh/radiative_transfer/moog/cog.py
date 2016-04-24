@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Load the MOOG defaults.
 with resource_stream(__name__, "defaults.yaml") as fp:
-    _moog_defaults = yaml.load(fp)["abfind"]
+    _moog_defaults = yaml.load(fp)
 
 def abundance_cog(photosphere, transitions, verbose=False, **kwargs):
     """
@@ -63,6 +63,8 @@ def abundance_cog(photosphere, transitions, verbose=False, **kwargs):
             "molecules": 2,
             "lines": 3, # 4 is max verbosity, but MOOG falls over.
         })
+
+    # Isotopes formatted
 
     # Parse keyword arguments.
     kwds.update(kwargs)
@@ -135,7 +137,7 @@ def _parse_abfind_summary(summary_out_path):
                 
                 if len(exists[0]) > 0:
                     logger.debug("Detecting more than one iteration from MOOG")
-                    abundances = list(delete(abundances, exists, axis=0))
+                    abundances = list(np.delete(abundances, exists, axis=0))
             
         elif re.match("^\s{2,3}[0-9]", line):
             if species is None:

@@ -11,21 +11,26 @@ import os
 import signal
 import subprocess
 import tempfile
-#from signal import alarm, signal, SIGALRM, SIGKILL
-
 
 logger = logging.getLogger(__name__)
 
-# Get the path of MOOGSILENT.
+# Get the path of MOOGSILENT/moogsilent.
+for executable in ("MOOGSILENT", "moogsilent"):
+    try:
+        moogsilent_path = subprocess.check_output(
+            "which {}".format(executable), shell=True)
+    except subprocess.CalledProcessError:
+        continue
+    else:
+        moogsilent_path = moogsilent_path.strip()
+        acceptable_moog_return_codes = (0, )
+
 try:
-    moogsilent_path = subprocess.check_output("which MOOGSILENT", shell=True)
-except subprocess.CalledProcessError:
-    logger.exception("Failed to find MOOGSILENT")
+    moogsilent_path
+except NameError:    
+    logger.exception("Failed to find moogsilent executable")
     raise IOError("cannot find MOOGSILENT")
-    
-else:
-    moogsilent_path = moogsilent_path.strip()
-    acceptable_moog_return_codes = (0, )
+
 
 def twd_path(**kwargs):
     """
@@ -72,7 +77,7 @@ def moogsilent(input_filename, cwd=None, timeout=30, shell=False, env=None,
         A dictionary of environment variables to supply.
     """
 
-    logger.info("Executing MOOG input file: {0}".format(input_filename))
+    logger.debug("Executing MOOG input file: {0}".format(input_filename))
 
     class Alarm(Exception):
         pass
