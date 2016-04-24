@@ -26,14 +26,19 @@ from smh.photospheres.abundances import asplund_2009 as solar_composition
 logger = logging.getLogger(__name__)
 
 
-def approximate_spectral_synthesis(model, central, bounds):
+def approximate_spectral_synthesis(model, centroids, bounds):
 
     # Generate spectra at +/- the initial bounds. For all elements.
     species \
         = [utils.element_to_species(e) for e in model.metadata["elements"]]
     N = len(species)
+    try:
+        centroids[0]
+    except IndexError:
+        centroids = centroids * np.ones(N)
+
     calculated_abundances = np.array(list(
-        itertools.product([central-bounds, central, central+bounds], repeat=N)))
+        itertools.product(*[[c-bounds, c, c+bounds] for c in centroids])))
 
     # Group syntheses into 5 where possible.
     M, K = 5, calculated_abundances.shape[0]
@@ -42,7 +47,7 @@ def approximate_spectral_synthesis(model, central, bounds):
         abundances = {}
         for j, specie in enumerate(species):
             abundances[specie] = calculated_abundances[M*i:M*(i + 1), j]
-
+        
         spectra = model.session.rt.synthesize(
             model.session.stellar_photosphere, 
             model.transitions, abundances=abundances) # TODO other kwargs?
@@ -62,6 +67,9 @@ def approximate_spectral_synthesis(model, central, bounds):
         flux = scipy.interpolate.griddata(calculated_abundances, fluxes, 
             np.array(parameters[:N]).reshape(-1, N)).flatten()
         return (dispersion, flux)
+
+    # Make sure the function works, otherwise fail early so we can debug.
+    assert np.isfinite(call(*centroids)[1]).all()
 
     return call
 
@@ -144,7 +152,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # The elemental abundances are in log_epsilon format.
         # We will assume a scaled-solar initial value based on the stellar [M/H]
         defaults = {
-            "sigma_smooth": 0.01,
+            "sigma_smooth": 0.1,
             "vrad": 0
         }
         p0 = []
@@ -155,13 +163,12 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
             elif parameter.startswith("log_eps"):
                 # Elemental abundance.
-                #element = parameter.split("(")[1].rstrip(")")
+                element = parameter.split("(")[1].rstrip(")")
 
                 # Assume scaled-solar composition.
-                #p0.append(solar_composition(element) + \
-                #self.session.metadata["stellar_parameters"]["metallicity"])
-                p0.append(0) # TODO: Only give log_eps.
-
+                p0.append(solar_composition(element) + \
+                    self.session.metadata["stellar_parameters"]["metallicity"])
+                
             elif parameter.startswith("c"):
                 # Continuum coefficient.
                 p0.append((0, 1)[parameter == "c0"])
@@ -254,7 +261,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
                 synth_dispersion, intensities = approximater(*parameters)
                 return self._nuisance_methods(
                     x, synth_dispersion, intensities, *parameters)
-
+                
             p_opt, p_cov = op.curve_fit(objective_function, xdata=x, ydata=y,
                     sigma=yerr, p0=p0, absolute_sigma=absolute_sigma)
 
@@ -265,8 +272,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
                 cov = p_cov.copy()
 
             # Is the approximation good enough?
+            model_y = self(x, *p_opt)
             close_enough = tolerance_metric(
-                self(x, *p_opt),                # Synthesised
+                model_y,                        # Synthesised
                 objective_function(x, *p_opt),  # Approxsised
                 y, yerr, absolute_sigma)
 
@@ -278,45 +286,38 @@ class SpectralSynthesisModel(BaseSpectralModel):
                 logger.debug("Dropping bounds to {} because approximation was "
                              "not good enough".format(bounds))
 
-        import matplotlib.pyplot as plt
-        fig, ax = plt.subplots()
-        ax.plot(x, y, c='k')
-        ax.plot(x, objective_function(x, *p_opt), c='r')
-        ax.plot(x, objective_function(x, *p0), c='g')
-        ax.plot(x, self(x, *p_opt), c='b')
+        # Use (p_opt, cov) not (p_opt, p_cov)
 
+        # Make many draws from the covariance matrix.
+        draws = kwargs.pop("covariance_draws", 100)
+        percentiles = kwargs.pop("percentiles", (2.5, 97.5))
+        if np.all(np.isfinite(cov)):
+            p_alt = np.random.multivariate_normal(p_opt, cov, size=draws)
+            model_yerr = model_y - np.percentile(
+                [objective_function(x, *_) for _ in p_alt], percentiles, axis=0)
+        else:
+            p_alt = np.nan * np.ones((draws, p_opt.size))
+            model_yerr = np.nan * np.ones((2, x.size))
+        
+        # Calculate chi-square for the points that we modelled.
+        ivar = spectrum.ivar[mask]
+        if not np.any(np.isfinite(ivar)): ivar = 1
+        chi_sq = (y - model_y)**2 * ivar
 
-        raise a
+        dof = np.isfinite(chi_sq).sum() - len(p_opt) - 1
+        chi_sq = np.nansum(chi_sq)
 
+        fitting_metadata = {
+            "model_x": x,
+            "model_y": model_y,
+            "model_yerr": model_yerr,
+            "chi_sq": chi_sq,
+            "dof": dof
+        }
 
+        self._result = (p_opt, cov, fitting_metadata)
 
-
-
-
-
-
-
-        # Fit the data!
-        errfunc = lambda args: y - self.fitting_function(x, *args)
-
-        result = op.leastsq(errfunc, p0, diag=[1e3, 1, 1, 1], factor=50)
-
-        """
-        try:
-            p_opt, p_cov = op.curve_fit(self.fitting_function, xdata=x, ydata=y,
-                sigma=yerr, p0=p0, absolute_sigma=absolute_sigma)
-
-        except:
-            logger.exception("Exception raised in fitting {}".format(self))
-            raise
-        """
-
-        import matplotlib.pyplot as plt
-        fig, ax = plt.subplots()
-        ax.plot(x, y, c='k')
-        ax.plot(x, self(x, *result[0]), c='r')
-        ax.plot(x, self(x, *p0), c='g')
-        raise NotImplementedError
+        return self._result
 
 
     def __call__(self, dispersion, *parameters):

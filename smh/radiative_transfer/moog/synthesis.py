@@ -63,7 +63,11 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
         })
 
     # Abundances.
-    abundances_formatted, num_synth = utils._format_abundances(abundances)
+    # These are given to us as log_epsilon but MOOG wants them relative to the
+    # photospheric metallicity.
+    mh = photosphere.meta["stellar_parameters"]["metallicity"]
+    abundances_formatted, num_synth = utils._format_abundances(
+        abundances, subtract_solar=True, subtract_metallicity=mh)
     kwds["abundances_formatted"] = abundances_formatted
 
     # Isotopes.

@@ -12,6 +12,7 @@ import os
 import signal
 import subprocess
 import tempfile
+from smh.photospheres.abundances import asplund_2009 as solar_composition
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +124,8 @@ def moogsilent(input_filename, cwd=None, timeout=30, shell=False, env=None,
     return (p.returncode, stdout, stderr)
 
 
-def _format_abundances(elemental_abundances=None):
+def _format_abundances(elemental_abundances=None, subtract_solar=False,
+    subtract_metallicity=0):
 
     if elemental_abundances is None:
         return ("0 1", 1)
@@ -135,8 +137,14 @@ def _format_abundances(elemental_abundances=None):
         abundance = elemental_abundances[atomic_number]
         try:
             abundance[0]
-        except (IndexError, ):
+        except IndexError:
             abundance = [abundance]
+        abundance = np.array(abundance).flatten().copy()
+
+        # Subtract any compositions.
+        abundance -= subtract_metallicity
+        if subtract_solar:
+            abundance -= solar_composition(atomic_number)
 
         elemental_abundances[atomic_number] = abundance
         if max_synth is None or len(abundance) > max_synth:
