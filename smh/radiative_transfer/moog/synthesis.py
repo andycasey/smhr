@@ -151,14 +151,9 @@ def _parse_single_spectrum(lines):
         sum([_pre_format(line) for line in lines[i + 2:]], []),
         dtype=float)
 
-    dispersion = np.arange(start, end + delta, delta)
-    if dispersion.size != depths.size:
-        logger.debug("Dispersion array and depth array size differ ({0} != {1})"
-            " -- slicing dispersion array to match".format(
-                dispersion.size, depths.size))
-        dispersion = dispersion[:depths.size]
-
+    dispersion = np.arange(start, end + delta, delta)[:depths.size]
     intensity = 1.0 - depths
+    
     # Parse the headers into metadata
     meta = {
         "raw": lines[:i + 2]

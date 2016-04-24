@@ -7,6 +7,7 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
 import logging
+import numpy as np
 import os
 import signal
 import subprocess
@@ -134,7 +135,7 @@ def _format_abundances(elemental_abundances=None):
         abundance = elemental_abundances[atomic_number]
         try:
             abundance[0]
-        except (TypeError, ValueError):
+        except (IndexError, ):
             abundance = [abundance]
 
         elemental_abundances[atomic_number] = abundance
@@ -156,8 +157,8 @@ def _format_abundances(elemental_abundances=None):
             abundance = list(abundance) * max_synth
 
         _ = "      {0:3.0f} ".format(atomic_number)
-        str_format.append(_ + \
-            " ".join(["{0:8.3f}".format(a) for a in abundance]))
+        str_format.append(_ + " ".join(
+            ["{0:8.3f}".format(a) for a in np.array(abundance).flatten()]))
 
     return ("\n".join(str_format), max_synth)
 

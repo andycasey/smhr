@@ -10,8 +10,12 @@ from __future__ import (division, print_function, absolute_import,
 __all__ = ["SpectralSynthesisModel"]
 
 import logging
+import itertools
 import numpy as np
+import scipy.optimize as op
+import scipy.interpolate
 from six import string_types
+from scipy.ndimage import gaussian_filter
 
 from .base import BaseSpectralModel
 from smh import utils
@@ -20,6 +24,46 @@ from smh.photospheres.abundances import asplund_2009 as solar_composition
 
 
 logger = logging.getLogger(__name__)
+
+
+def approximate_spectral_synthesis(model, central, bounds):
+
+    # Generate spectra at +/- the initial bounds. For all elements.
+    species \
+        = [utils.element_to_species(e) for e in model.metadata["elements"]]
+    N = len(species)
+    calculated_abundances = np.array(list(
+        itertools.product([central-bounds, central, central+bounds], repeat=N)))
+
+    # Group syntheses into 5 where possible.
+    M, K = 5, calculated_abundances.shape[0]
+    fluxes = None
+    for i in range(1 + int(K / M)):
+        abundances = {}
+        for j, specie in enumerate(species):
+            abundances[specie] = calculated_abundances[M*i:M*(i + 1), j]
+
+        spectra = model.session.rt.synthesize(
+            model.session.stellar_photosphere, 
+            model.transitions, abundances=abundances) # TODO other kwargs?
+
+        dispersion = spectra[0][0]
+        if fluxes is None:
+            fluxes = np.nan * np.ones((K, dispersion.size))
+
+        for j, spectrum in enumerate(spectra):
+            fluxes[M*i + j, :] = spectrum[1]
+
+    def call(*parameters):
+        N = len(model.metadata["elements"])
+        if len(parameters) < N:
+            raise ValueError("missing parameters")
+
+        flux = scipy.interpolate.griddata(calculated_abundances, fluxes, 
+            np.array(parameters[:N]).reshape(-1, N)).flatten()
+        return (dispersion, flux)
+
+    return call
 
 
 class SpectralSynthesisModel(BaseSpectralModel):
@@ -35,10 +79,11 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Initialize metadata with default fitting values.
         self.metadata.update({
             "mask": [],
-            "window": 2, 
+            "window": 1, 
             "continuum_order": 1,
-            "velocity_tolerance": None,
-            "smoothing_kernel": True
+            "velocity_tolerance": 5,
+            "smoothing_kernel": True,
+            "initial_abundance_bounds": 1
         })
 
         self._verify_transitions(elements)
@@ -87,7 +132,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         return True
 
 
-    def _initial_guess(self):
+    def _initial_guess(self, **kwargs):
         """
         Return an initial (uninformed) guess about the model parameters.
         """
@@ -98,20 +143,24 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
         # The elemental abundances are in log_epsilon format.
         # We will assume a scaled-solar initial value based on the stellar [M/H]
-
+        defaults = {
+            "sigma_smooth": 0.01,
+            "vrad": 0
+        }
         p0 = []
         for parameter in self.parameter_names:
-
-            if parameter in ("sigma_smooth", "vrad"):
-                p0.append(0)
+            default = defaults.get(parameter, None)
+            if default is not None:
+                p0.append(default)
 
             elif parameter.startswith("log_eps"):
                 # Elemental abundance.
-                element = parameter.split("(")[1].rstrip(")")
+                #element = parameter.split("(")[1].rstrip(")")
 
                 # Assume scaled-solar composition.
-                p0.append(solar_composition(element) + \
-                self.session.metadata["stellar_parameters"]["metallicity"])
+                #p0.append(solar_composition(element) + \
+                #self.session.metadata["stellar_parameters"]["metallicity"])
+                p0.append(0) # TODO: Only give log_eps.
 
             elif parameter.startswith("c"):
                 # Continuum coefficient.
@@ -147,7 +196,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Gaussian smoothing kernel?
         if self.metadata["smoothing_kernel"]:
             # TODO: Better init of this
-            bounds["sigma_smooth"] = (0, 1)
+            bounds["sigma_smooth"] = (-5, 5)
             parameter_names.append("sigma_smooth")
 
         self._parameter_bounds = bounds
@@ -179,9 +228,6 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # input kwargs.
         self._update_parameter_names()
         
-        # Get a bad initial guess.
-        p0 = self._initial_guess(spectrum, **kwargs)
-
         # Build a mask based on the window fitting range, and prepare the data.
         mask = self.mask(spectrum)
         x, y = spectrum.dispersion[mask], spectrum.flux[mask]
@@ -189,7 +235,73 @@ class SpectralSynthesisModel(BaseSpectralModel):
         if not np.all(np.isfinite(yerr)):
             yerr, absolute_sigma = (np.ones_like(x), False)
 
+        # Get a bad initial guess.
+        p0 = self._initial_guess()
+
+        cov, bounds = None, self.metadata["initial_abundance_bounds"]
+
+        # We allow the user to specify their own function to decide if the
+        # approximation is good.
+        tolerance_metric = kwargs.pop("tolerance_metric",
+            lambda t, a, y, yerr, abs_sigma: np.nansum(np.abs(t - a)) < 0.05)
+
+        # Here we set a hard bound limit where linear interpolation must be OK.
+        while bounds > 0.01: # dex
+            central = p0[:len(self.metadata["elements"])]
+            approximater = approximate_spectral_synthesis(self, central, bounds)
+
+            def objective_function(x, *parameters):
+                synth_dispersion, intensities = approximater(*parameters)
+                return self._nuisance_methods(
+                    x, synth_dispersion, intensities, *parameters)
+
+            p_opt, p_cov = op.curve_fit(objective_function, xdata=x, ydata=y,
+                    sigma=yerr, p0=p0, absolute_sigma=absolute_sigma)
+
+            # At small bounds it can be difficult to estimate the Jacobian.
+            # So if it is correctly approximated once then we keep that in case
+            # things screw up later, since it provides a conservative estimate.
+            if cov is None or np.isfinite(p_cov).any():
+                cov = p_cov.copy()
+
+            # Is the approximation good enough?
+            close_enough = tolerance_metric(
+                self(x, *p_opt),                # Synthesised
+                objective_function(x, *p_opt),  # Approxsised
+                y, yerr, absolute_sigma)
+
+            if close_enough: break
+            else:
+                bounds /= 2.0
+                p0 = p_opt.copy()
+
+                logger.debug("Dropping bounds to {} because approximation was "
+                             "not good enough".format(bounds))
+
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        ax.plot(x, y, c='k')
+        ax.plot(x, objective_function(x, *p_opt), c='r')
+        ax.plot(x, objective_function(x, *p0), c='g')
+        ax.plot(x, self(x, *p_opt), c='b')
+
+
+        raise a
+
+
+
+
+
+
+
+
+
         # Fit the data!
+        errfunc = lambda args: y - self.fitting_function(x, *args)
+
+        result = op.leastsq(errfunc, p0, diag=[1e3, 1, 1, 1], factor=50)
+
+        """
         try:
             p_opt, p_cov = op.curve_fit(self.fitting_function, xdata=x, ydata=y,
                 sigma=yerr, p0=p0, absolute_sigma=absolute_sigma)
@@ -197,10 +309,14 @@ class SpectralSynthesisModel(BaseSpectralModel):
         except:
             logger.exception("Exception raised in fitting {}".format(self))
             raise
+        """
 
-
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        ax.plot(x, y, c='k')
+        ax.plot(x, self(x, *result[0]), c='r')
+        ax.plot(x, self(x, *p0), c='g')
         raise NotImplementedError
-
 
 
     def __call__(self, dispersion, *parameters):
@@ -222,22 +338,29 @@ class SpectralSynthesisModel(BaseSpectralModel):
         for name, parameter in zip(names, parameters):
             if name.startswith("log_eps"):
                 element = name.split("(")[1].rstrip(")")
-                abundances[element] = parameter
+                abundances[utils.element_to_species(element)] = parameter
             else: break # The log_eps abundances are always first.
 
         # Produce a synthetic spectrum.
-        synth_dispersion, intensities = self.session.rt.synthesize(
+        synth_dispersion, intensities, meta = self.session.rt.synthesize(
             self.session.stellar_photosphere, self.transitions,
-            abundances=abundances) # TODO: Other RT kwargs......
+            abundances=abundances)[0] # TODO: Other RT kwargs...... isotopes?
+
+        return self._nuisance_methods(
+            dispersion, synth_dispersion, intensities, *parameters)
+
+
+    def _nuisance_methods(self, dispersion, synth_dispersion, intensities,
+        *parameters):
 
         # Continuum.
+        names = self.parameter_names
         O = self.metadata["continuum_order"]
         if 0 > O:
             continuum = 1
         else:
-            continuum = np.polyval(
-                [parameters[names.index("c{}".format(i))] for i in range(O)],
-                synth_dispersion)
+            continuum = np.polyval([parameters[names.index("c{}".format(i))] \
+                for i in range(O + 1)][::-1], synth_dispersion)
 
         model = intensities * continuum
 
@@ -247,10 +370,19 @@ class SpectralSynthesisModel(BaseSpectralModel):
         except IndexError:
             None
         else:
-            model = gaussian_filter(model, abs(parameters[index]))
+            # Scale value by pixel diff.
+            kernel = abs(parameters[index])/np.mean(np.diff(synth_dispersion))
+            if kernel > 0:
+                model = gaussian_filter(model, kernel)
+
+        if "vrad" in names:
+            v = parameters[names.index("vrad")]
+        else:
+            v = 0
 
         # Interpolate the model spectrum onto the requested dispersion points.
-        return np.interp(dispersion, synth_dispersion, model, left=1, right=1)
+        return np.interp(dispersion, synth_dispersion * (1 + v/299792458e-3), 
+            model, left=1, right=1)
 
 
 

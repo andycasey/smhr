@@ -152,6 +152,7 @@ class BaseSpectralModel(object):
         for parameter_name, (lower, upper) in self.parameter_bounds.items():
             value = parameters[self.parameter_names.index(parameter_name)]
             if not (upper >= value and value >= lower):
+                print("RETURNING BAD", parameters)
                 return np.nan * np.ones_like(dispersion)
 
         return self.__call__(dispersion, *parameters)
