@@ -74,7 +74,7 @@ opacit: 0
 
 # opacity_contribution: 
 # the range in dispersion units that each transition contributes
-opacity_contribution: 0.05
+opacity_contribution: 2.0
 
 # dispersion_delta:
 # the step size in dispersion points to calculate

@@ -120,3 +120,67 @@ def moogsilent(input_filename, cwd=None, timeout=30, shell=False, env=None,
         return (-9, '', '')
 
     return (p.returncode, stdout, stderr)
+
+
+def _format_abundances(elemental_abundances=None):
+
+    if elemental_abundances is None:
+        return ("0 1", 1)
+
+    # First-pass to check the abundances and get the number of syntheses.
+    elemental_abundances = elemental_abundances.copy()
+    sorted_atomic_numbers, max_synth = sorted(elemental_abundances.keys()), None
+    for atomic_number in sorted_atomic_numbers:
+        abundance = elemental_abundances[atomic_number]
+        try:
+            abundance[0]
+        except (TypeError, ValueError):
+            abundance = [abundance]
+
+        elemental_abundances[atomic_number] = abundance
+        if max_synth is None or len(abundance) > max_synth:
+            max_synth = len(abundance)
+
+        if len(abundance) > 1 and len(abundance) != max_synth:
+            raise ValueError("abundance entries must be fully described "
+                             "or have one abundance per element (Z = {})"\
+                             .format(atomic_number))
+
+    assert 5 >= max_synth
+
+    str_format = ["{0} {1}".format(len(sorted_atomic_numbers), max_synth)]
+    for atomic_number in sorted_atomic_numbers:
+        abundance = elemental_abundances[atomic_number]
+
+        if len(abundance) == 1 and max_synth > 1:
+            abundance = list(abundance) * max_synth
+
+        _ = "      {0:3.0f} ".format(atomic_number)
+        str_format.append(_ + \
+            " ".join(["{0:8.3f}".format(a) for a in abundance]))
+
+    return ("\n".join(str_format), max_synth)
+
+
+
+
+def _format_isotopes(isotopes=None, ionisation_states=(0, 1), num_synth=1):
+    """
+    Format isotopic information for a MOOG input file.
+
+    :param isotopes:
+        A dictionary containing isotopic information. The keys of the dictionary
+        should specify atomic numbers and the value should have another
+        dictionary that contains the mass number as keys, and the isotope 
+        fraction as a value. The sum of all values in a sub-dictionary should 
+        total 100.
+    """
+
+    if isotopes is None:
+        return "0 {0:.0f}".format(num_synth) # No isotopes, N synthesis.
+
+    if not isinstance(isotopes, dict):
+        raise TypeError("isotopes must be provided as a dictionary")
+
+    N = len(isotopes)
+    raise NotImplementedError

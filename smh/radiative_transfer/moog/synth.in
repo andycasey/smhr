@@ -18,5 +18,7 @@ plot 0
 opacit 0
 freeform 0
 strong 0
+abundances {abundances_formatted}
+isotopes {isotopes_formatted}
 synlimits
 {dispersion_min:.2f} {dispersion_max:.2f} {dispersion_delta:.2f} {opacity_contribution:.2f}

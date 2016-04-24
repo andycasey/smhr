@@ -13,7 +13,6 @@ import yaml
 from pkg_resources import resource_stream
 
 from . import utils
-from smh.utils import element_to_species
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,8 @@ with resource_stream(__name__, "defaults.yaml") as fp:
     _moog_defaults = yaml.load(fp)
 
 
-def synthesize(photosphere, transitions, verbose=False, **kwargs):
+def synthesize(photosphere, transitions, abundances=None, isotopes=None,
+    verbose=False, **kwargs):
     """
     Sythesize a stellar spectrum given the model photosphere and list of
     transitions provided. This wraps the MOOG `synth` driver.
@@ -33,7 +33,11 @@ def synthesize(photosphere, transitions, verbose=False, **kwargs):
     :param transitions:
         A list of atomic transitions with measured equivalent widths.
 
-    # TODO other keywords.
+    :param abundances: [optional]
+        The non-scaled-Solar abundances to use in the synthesis.
+
+    :param isotopes: [optional]
+        The isotopic fractions to use in the synthesis.
 
     :param verbose: [optional]
         Specify verbose flags to MOOG. This is primarily used for debugging.
@@ -58,6 +62,14 @@ def synthesize(photosphere, transitions, verbose=False, **kwargs):
             "lines": 3, # 4 is max verbosity, but MOOG falls over.
         })
 
+    # Abundances.
+    abundances_formatted, num_synth = utils._format_abundances(abundances)
+    kwds["abundances_formatted"] = abundances_formatted
+
+    # Isotopes.
+    kwds["isotopes_formatted"] = utils._format_isotopes(isotopes, 
+        kwargs.pop("isotope_ionisation_states", (0, 1)), num_synth=num_synth)
+
     # Parse keyword arguments.
     kwds.update(kwargs)
 
@@ -68,10 +80,6 @@ def synthesize(photosphere, transitions, verbose=False, **kwargs):
         - kwds["opacity_contribution"])
     kwds.setdefault("dispersion_max", max(transitions["wavelength"]) \
         + kwds["opacity_contribution"] + kwds["dispersion_delta"])
-
-    # Isotopes
-
-    # Abundances?!
 
     # Parse I/O files (these must be overwritten for us to run things.)
     kwds.update({

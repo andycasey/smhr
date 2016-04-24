@@ -18,4 +18,5 @@ plot 0
 opacit 0
 freeform 0
 strong 0
+isotopes {isotopes_formatted}
 histogram 0
