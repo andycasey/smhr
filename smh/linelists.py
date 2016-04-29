@@ -45,9 +45,15 @@ class LineList(Table):
         super(LineList, self).__init__(*args,**kwargs)
 
         if 'hash' not in self.columns and len(self) > 0:
-            hashes = [self.hash(line) for line in self]
-            self.add_column(Column(hashes,name='hash'))
-        self.validate_colnames(False)
+            # When sorting, it creates a LineList with just a column subset
+            try: 
+                self.validate_colnames(True)
+            except IOError:
+                pass
+            else:
+                hashes = [self.hash(line) for line in self]
+                self.add_column(Column(hashes,name='hash'))
+        #self.validate_colnames(False)
 
     def validate_colnames(self,error=False):
         """
