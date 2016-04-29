@@ -15,6 +15,8 @@ import yaml
 from six import string_types
 
 from . import specutils
+from .linelists import LineList
+from . import isoutils
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +84,8 @@ class Session(BaseSession):
             "normalization": {
                 "continuum": [None] * N,
                 "normalization_kwargs": [{}] * N
-            }
+            },
+            "isotopes": {}
         }
 
         return None
@@ -353,5 +356,4 @@ class Session(BaseSession):
 
         # Fit & store continuum for all input spectra.
         raise NotImplementedError
-
 
