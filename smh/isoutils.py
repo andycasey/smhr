@@ -22,6 +22,27 @@ class IsotopeError(Exception):
     def __str__(self):
         return repr(self.bad_isotopes)
 
+def convert_isodict_to_array(isotopes,sort_by_Z=True):
+    tab = []
+    for elem in isotopes:
+        for A in isotopes[elem]:
+            # elem, A, frac
+            tab.append([elem,A,isotopes[elem][A]])
+    tab = np.array(tab)
+    if sort_by_Z:
+        Z = [int(element_to_species(elem)) for elem in tab[:,0]]
+        A = tab[:,1]
+        ii = np.lexsort([A,Z])
+        tab = tab[ii]
+    return tab
+def convert_array_to_isodict(tab):
+    isotopes = {}
+    elems = np.unique(tab[:,0])
+    for elem in elems:
+        ttab = tab[tab[:,0]==elem]
+        isotopes[elem] = dict(zip(ttab[:,1],ttab[:,2]))
+    return isotopes
+
 def get_needed_isotopes(ll,new_isotopes):
     """
     Search the linelist for needed isotopes,
