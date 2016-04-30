@@ -22,6 +22,14 @@ class IsotopeError(Exception):
     def __str__(self):
         return repr(self.bad_isotopes)
 
+def pretty_print_isotopes(isotopes):
+    outstr = ""
+    for elem in isotopes:
+        outstr += elem+': '
+        for A,frac in iteritems(isotopes[elem]):
+            outstr += '({},{:.3f}) '.format(A,frac)
+        outstr += '\n'
+    return outstr
 def convert_isodict_to_array(isotopes,sort_by_Z=True):
     tab = []
     for elem in isotopes:
@@ -40,7 +48,7 @@ def convert_array_to_isodict(tab):
     elems = np.unique(tab[:,0])
     for elem in elems:
         ttab = tab[tab[:,0]==elem]
-        isotopes[elem] = dict(zip(ttab[:,1],ttab[:,2]))
+        isotopes[elem] = dict(zip(ttab[:,1].astype(int),ttab[:,2].astype(float)))
     return isotopes
 
 def get_needed_isotopes(ll,new_isotopes):
