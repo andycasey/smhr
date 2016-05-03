@@ -21,6 +21,10 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         self.spectral_models = spectral_models
 
 
+
+    def row_selected(self, *args):
+        print("selected ", args)
+
     def rowCount(self, parent):
         return len(self.spectral_models)
 
@@ -102,10 +106,17 @@ if __name__ == "__main__":
             table_view.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
             table_view.setSortingEnabled(True)
 
+            selectionModel = table_view.selectionModel()
+            selectionModel.selectionChanged.connect(self.row_selected)
+
+
             layout = QtGui.QVBoxLayout(self)
             layout.addWidget(table_view)
             self.setLayout(layout)
 
+
+        def row_selected(self, *args):
+            print("ROW SELECTED 2", args)
 
 
     import sys
