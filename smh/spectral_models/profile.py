@@ -146,7 +146,7 @@ class ProfileFittingModel(BaseSpectralModel):
         """
         Return the element that will be measured by this model.
         """
-        return self.transitions["elem1"][0]
+        return self.transitions["element"][0]
         
 
     def _verify_metadata(self):

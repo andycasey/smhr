@@ -108,6 +108,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
         # Set the model parameter names based on the current metadata.
         self._update_parameter_names()
+        self._verify_transitions()
 
         return None
 
