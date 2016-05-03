@@ -42,10 +42,11 @@ class Interpolator(BaseInterpolator):
         scale.
         """
 
-        # Assume zero alpha enhancement if not given.
+        # Assume alpha enhancement of 0.4 if not given.
         if len(point) == 3:
-            point = [] + list(point) + [0]
-            warnings.warn("Assuming standard [alpha/Fe] = 0 composition unless "
+            point = [] + list(point) + [0.4]
+            warnings.warn(
+                "Assuming [alpha/Fe] = 0.4 composition unless "
                 "otherwise specified.", StandardCompositionAssumed)
 
         return super(self.__class__, self).interpolate(*point, **kwargs)
