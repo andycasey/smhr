@@ -10,7 +10,6 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 # Standard library.
 import gzip
 import logging
-from collections import Counter
 
 # Third party.
 import numpy as np

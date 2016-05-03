@@ -27,6 +27,26 @@ __all__ = ["element_to_species", "species_to_element", "get_common_letters", \
 logger = logging.getLogger(__name__)
 
 
+# List the periodic table here so that we can use it outside of a single
+# function scope (e.g., 'element in utils.periodic_table')
+
+periodic_table = """H                                                  He
+                    Li Be                               B  C  N  O  F  Ne
+                    Na Mg                               Al Si P  S  Cl Ar
+                    K  Ca Sc Ti V  Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr
+                    Rb Sr Y  Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I  Xe
+                    Cs Ba Lu Hf Ta W  Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn
+                    Fr Ra Lr Rf"""
+
+lanthanoids    =   "La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb"
+actinoids      =   "Ac Th Pa U  Np Pu Am Cm Bk Cf Es Fm Md No"
+
+periodic_table = periodic_table.replace(" Ba ", " Ba " + lanthanoids + " ") \
+    .replace(" Ra ", " Ra " + actinoids + " ").split()
+del actinoids, lanthanoids
+
+
+
 def hashed_id():
     try:
         salt = getstatusoutput("git config --get user.name")[1]
@@ -88,21 +108,6 @@ def element_to_species(element_repr):
     """ Converts a string representation of an element and its ionization state
     to a floating point """
     
-    periodic_table = """H                                                  He
-                        Li Be                               B  C  N  O  F  Ne
-                        Na Mg                               Al Si P  S  Cl Ar
-                        K  Ca Sc Ti V  Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr
-                        Rb Sr Y  Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I  Xe
-                        Cs Ba Lu Hf Ta W  Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn
-                        Fr Ra Lr""" 
-    
-    lanthanoids    =   "La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb"
-    actinoids      =   "Ac Th Pa U  Np Pu Am Cm Bk Cf Es Fm Md No"
-    
-    periodic_table = periodic_table.replace(" Ba ", " Ba " + lanthanoids + " ") \
-        .replace(" Ra ", " Ra " + actinoids + " ").split()
-    del actinoids, lanthanoids
-    
     if not isinstance(element_repr, (unicode, str)):
         raise TypeError("element must be represented by a string-type")
         
@@ -120,24 +125,12 @@ def element_to_species(element_repr):
     return transition
 
 
+
+
+
 def species_to_element(species):
     """ Converts a floating point representation of a species to a string
     representation of the element and its ionization state """
-    
-    periodic_table = """H                                                  He
-                        Li Be                               B  C  N  O  F  Ne
-                        Na Mg                               Al Si P  S  Cl Ar
-                        K  Ca Sc Ti V  Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr
-                        Rb Sr Y  Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I  Xe
-                        Cs Ba Lu Hf Ta W  Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn
-                        Fr Ra Lr Rf"""
-    
-    lanthanoids    =   "La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb"
-    actinoids      =   "Ac Th Pa U  Np Pu Am Cm Bk Cf Es Fm Md No"
-    
-    periodic_table = periodic_table.replace(" Ba ", " Ba " + lanthanoids + " ") \
-        .replace(" Ra ", " Ra " + actinoids + " ").split()
-    del actinoids, lanthanoids
     
     if not isinstance(species, (float, int)):
         raise TypeError("species must be represented by a floating point-type")

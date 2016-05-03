@@ -83,7 +83,8 @@ class BaseInterpolator(object):
         self.method = method
         self.rescale = rescale
         if self.rescale and not has_scipy_requirements:
-            logger.warn("scipy >= 0.14.0 is required for auto-rescaling points "
+            logger.warn(
+                "scipy >= 0.14.0 is required for auto-rescaling points "
                 "before interpolation")
             self.rescale = False
         self.neighbours = neighbours
@@ -192,6 +193,8 @@ class BaseInterpolator(object):
                 "method": self.method,
                 "rescale": self.rescale
             }
+            if not has_scipy_requirements:
+                del kwds["rescale"]
             common_opacity_scale = interpolate.griddata(**kwds)
 
             if np.all(~np.isfinite(common_opacity_scale)):
@@ -235,6 +238,8 @@ class BaseInterpolator(object):
             "method": self.method,
             "rescale": self.rescale
         }
+        if not has_scipy_requirements:
+            del kwds["rescale"]
         interpolated_quantities = interpolate.griddata(**kwds).reshape(shape[1:])
 
         if np.all(~np.isfinite(interpolated_quantities)):
