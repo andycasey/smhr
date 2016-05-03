@@ -399,7 +399,7 @@ class ProfileFittingModel(BaseSpectralModel):
 
         # Integrate the profile.
         profile, _ = self._profiles[self.metadata["profile"]]
-        if profile == gaussian:
+        if profile == _gaussian:
             ew = p_opt[1] * p_opt[2] * np.sqrt(2 * np.pi)
             ew_alt = p_alt[:, 1] * p_alt[:, 2] * np.sqrt(2 * np.pi)
             ew_uncertainty = np.percentile(ew_alt, percentiles) - ew
