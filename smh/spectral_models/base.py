@@ -17,7 +17,7 @@ class BaseSpectralModel(object):
     A base class for modelling spectra.
     """
 
-    def __init__(self, transitions, session, *args, **kwargs):
+    def __init__(self, transitions, session, **kwargs):
         """
         Initialize a spectral model class.
 
@@ -45,6 +45,10 @@ class BaseSpectralModel(object):
         """ Return the transitions associateed with this class. """
         return self._transitions
 
+    @property
+    def elements(self):
+        """ Return the elements to be measured from this class. """
+        return self._metadata["elements"]
 
     @property
     def session(self):

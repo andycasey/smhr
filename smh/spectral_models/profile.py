@@ -21,17 +21,48 @@ from .base import BaseSpectralModel
 logger = logging.getLogger(__name__)
 
 
-def gaussian(x, *parameters):
+def _gaussian(x, *parameters):
+    """
+    Evaluate a Gaussian profile at x, given the profile parameters.
+
+        y = amplitude * exp(-(x - position)**2 / (2.0 * sigma**2))
+
+    :param x:
+        The x-values to evaluate the Gaussian profile at.
+
+    :param parameters:
+        The position, sigma, and amplitude of the Gaussian profile.
+    """
     position, sigma, amplitude = parameters
     return amplitude * np.exp(-(x - position)**2 / (2.0 * sigma**2))
 
 
-def lorentzian(x, *parameters):
+def _lorentzian(x, *parameters):
+    """
+    Evaluate a Lorentzian profile at x, given the profile parameters:
+
+        y = (amplitude/PI) * (width/((x - positions)**2 + width**2))
+
+    :param x:
+        The x-values to evaluate the Lorentzian profile at.
+
+    :param parameters:
+        The position, width, and amplitude of the Lorentzian profile.
+    """
     position, width, amplitude = parameters
     return (amplitude/np.pi) * (width/((x - position)**2 + width**2))
 
-def voigt(x, *parameters):
-    
+
+def _voigt(x, *parameters):
+    """
+    Evaluate a Voigt profile at x, given the profile parameters.
+
+    :param x:
+        The x-values to evaluate the Voigt profile at.
+
+    :param parameters:
+        The position, fwhm, amplitude, and shape of the Voigt profile.
+    """
     try:
         n = len(x)
     except TypeError:
@@ -47,17 +78,24 @@ def voigt(x, *parameters):
 
 
 class ProfileFittingModel(BaseSpectralModel):
-    """
-    A class to fit spectral data with an absorption profile and continuum.
-    """
 
     _profiles = {
-        "gaussian": (gaussian, ("mean", "sigma", "amplitude")),
-        "lorentzian": (lorentzian, ("mean", "width", "amplitude")),
-        "voigt": (voigt, ("mean", "fwhm", "amplitude", "shape"))
+        "gaussian": (_gaussian, ("mean", "sigma", "amplitude")),
+        "lorentzian": (_lorentzian, ("mean", "width", "amplitude")),
+        "voigt": (_voigt, ("mean", "fwhm", "amplitude", "shape"))
     }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, transitions, session, **kwargs):
+        """
+        A class to fit spectral data with an absorption profile and continuum.
+
+        :param transitions:
+            Row(s) from a line list of transitions to associate with this model.
+
+        :param session:
+            The parent session that this model will be associated with.
+        """
+
         super(ProfileFittingModel, self).__init__(*args, **kwargs)
 
         # Initialize metadata with default fitting values.
@@ -71,13 +109,12 @@ class ProfileFittingModel(BaseSpectralModel):
             "max_iterations": 5,
             "wavelength_tolerance": 0.1,
             "velocity_tolerance": None,
-            "mask": []
+            "mask": [],
+            "elements": [self._verify_transitions()]
         })
 
         # Set the model parameter names based on the current metadata.
         self._update_parameter_names()
-
-        self._verify_transitions()
         self._verify_metadata()
 
         return None
@@ -94,8 +131,11 @@ class ProfileFittingModel(BaseSpectralModel):
         if len(self.transitions) > 1 and not isinstance(self.transitions, Row):
             raise ValueError("only a single transition can be associated with "
                              "a ProfileFittingModel")
-        return True
 
+        # TODO: Check that the transition does not have multiple element names
+        #       associated with it (e.g., it is not a molecular line)
+        return self.transitions["elem1"][0]
+        
 
     def _verify_metadata(self):
         # TODO

@@ -75,14 +75,24 @@ def approximate_spectral_synthesis(model, centroids, bounds):
 
 
 class SpectralSynthesisModel(BaseSpectralModel):
-    """
-    A class to fit spectral data by synthesis, given a photospheric structure.
-    """
-    
+
     def __init__(self, transitions, session, elements, *args, **kwargs):
+        """
+        A class to fit spectral data by synthesis, given a photospheric
+        structure.
+    
+        :param transitions:
+            Row(s) from a line list of transitions to associate with this model.
+
+        :param session:
+            The parent session that this model will be associated with.
+
+        :param elements:
+            The element(s) to be measured from the data.
+        """
+        
         super(SpectralSynthesisModel, self).__init__(
             transitions, session, **kwargs)
-
 
         # Initialize metadata with default fitting values.
         self.metadata.update({
@@ -91,13 +101,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
             "continuum_order": 1,
             "velocity_tolerance": 5,
             "smoothing_kernel": True,
-            "initial_abundance_bounds": 1
+            "initial_abundance_bounds": 1,
+            "elements": self._verify_transitions(elements)
         })
-
-        self._verify_transitions(elements)
-
-        # Inputs about which RT code to use, stellar params + RT inputs, etc.
-
 
         # Set the model parameter names based on the current metadata.
         self._update_parameter_names()
@@ -135,9 +141,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
                     "element '{0}' does not appear in the transition list"\
                         .format(element))
 
-        self.metadata["elements"] = elements
-
-        return True
+        return elements
 
 
     def _initial_guess(self, **kwargs):
@@ -330,7 +334,6 @@ class SpectralSynthesisModel(BaseSpectralModel):
         :param parameters:
             Keyword arguments of the model parameters and their values.
         """
-
 
         # Parse the elemental abundances, because they need to be passed to
         # the synthesis routine.
