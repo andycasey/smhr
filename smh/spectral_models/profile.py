@@ -96,7 +96,8 @@ class ProfileFittingModel(BaseSpectralModel):
             The parent session that this model will be associated with.
         """
 
-        super(ProfileFittingModel, self).__init__(*args, **kwargs)
+        super(ProfileFittingModel, self).__init__(
+            transitions, session, **kwargs)
 
         # Initialize metadata with default fitting values.
         self.metadata.update({
@@ -110,11 +111,12 @@ class ProfileFittingModel(BaseSpectralModel):
             "wavelength_tolerance": 0.1,
             "velocity_tolerance": None,
             "mask": [],
-            "elements": [self._verify_transitions()]
+            "elements": [self._verify_elements()]
         })
 
         # Set the model parameter names based on the current metadata.
         self._update_parameter_names()
+        self._verify_transitions()
         self._verify_metadata()
 
         return None
@@ -132,18 +134,32 @@ class ProfileFittingModel(BaseSpectralModel):
             raise ValueError("only a single transition can be associated with "
                              "a ProfileFittingModel")
 
-        # TODO: Check that the transition does not have multiple element names
-        #       associated with it (e.g., it is not a molecular line)
+        # Check that the transition does not have multiple element names.
+        if self.transitions["elem2"][0] != "":
+            raise ValueError("only an atomic transition can be associated with "
+                             "a ProfileFittingModel")
+        return True
+
+
+    def _verify_elements(self):
+        """
+        Return the element that will be measured by this model.
+        """
         return self.transitions["elem1"][0]
         
 
     def _verify_metadata(self):
+        """
+        Verify the metadata associated with this class.
+        """
         # TODO
         return True
 
 
     def _update_parameter_names(self):
-        """ Update the model parameter names based on the current metadata. """
+        """
+        Update the model parameter names based on the current metadata.
+        """
 
         # Profile parameter names.
         func, parameter_names = self._profiles[self.metadata["profile"]]
@@ -178,8 +194,10 @@ class ProfileFittingModel(BaseSpectralModel):
 
             bounds["mean"] = (wavelength - bound, wavelength + bound)
 
-        # TODO:
-        # Allow the wavelength to be fixed.
+        else:
+            # TODO: Allow the wavelength to be fixed.
+            raise NotImplementedError("wavelength cannot be fixed yet; "
+                                      "set a small tolerance on wavelength")
 
         self._parameter_names = parameter_names
         self._parameter_bounds = bounds
@@ -188,12 +206,19 @@ class ProfileFittingModel(BaseSpectralModel):
 
 
     def _initial_guess(self, spectrum, **kwargs):
+        """
+        Generate an initial guess for the model parameters.
+
+        :param spectrum:
+            The observed spectrum.
+        """
 
         wavelength = self.transitions["wavelength"]
         try:
             wavelength = wavelength[0]
         except IndexError:
             None
+
         p0 = [
             wavelength,
             kwargs.pop("p0_sigma", 0.1),
@@ -225,8 +250,7 @@ class ProfileFittingModel(BaseSpectralModel):
             the parent session.
         """
 
-        spectrum = spectrum or self.session.normalized_spectrum
-        self._verify_spectrum(spectrum)
+        spectrum = self._verify_spectrum(spectrum)
         
         failure = False
 
@@ -468,13 +492,18 @@ class ProfileFittingModel(BaseSpectralModel):
         return y
 
 
-    #TODO: LRU cacher.
     def abundances(self):
         """
         Calculate the abundance from the curve-of-growth given the fitted
         equivalent width and the current stellar parameters in the parent
         session.
         """
+
+        # TODO: Create a hash of the stellar parameters, EW, and any relevant
+        #       radiative transfer inputs.
+
+        # Does the hash match the last calculation?
+        # If so, return that value. If not, calculate the new value.
 
         foo = self.session.rt.abundance_cog(
             self.session.stellar_photosphere,

@@ -102,7 +102,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
             "velocity_tolerance": 5,
             "smoothing_kernel": True,
             "initial_abundance_bounds": 1,
-            "elements": self._verify_transitions(elements)
+            "elements": self._verify_elements(elements)
         })
 
         # Set the model parameter names based on the current metadata.
@@ -110,8 +110,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
         return None
 
-
-    def _verify_transitions(self, elements):
+    def _verify_elements(self, elements):
         """
         Verify that the atomic or molecular transitions associated with this
         class are valid.
@@ -120,9 +119,6 @@ class SpectralSynthesisModel(BaseSpectralModel):
             The element(s) (string or list-type of strings) that will be
             measured in this model.
         """
-
-        # Formatting checks.
-        super(SpectralSynthesisModel, self)._verify_transitions()
 
         # Format the elements and then check that all are real.
         if isinstance(elements, string_types):
@@ -144,9 +140,12 @@ class SpectralSynthesisModel(BaseSpectralModel):
         return elements
 
 
-    def _initial_guess(self, **kwargs):
+    def _initial_guess(self, spectrum, **kwargs):
         """
-        Return an initial (uninformed) guess about the model parameters.
+        Return an initial guess about the model parameters.
+
+        :param spectrum:
+            The observed spectrum.
         """
 
         # Potential parameters:
@@ -184,10 +183,11 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
 
     def _update_parameter_names(self):
-        """ Update the model parameter names based on the current metadata. """
+        """
+        Update the model parameter names based on the current metadata.
+        """
 
         bounds = {}
-
         parameter_names = []
 
         # Abundances of different elements to fit simultaneously.
@@ -226,14 +226,13 @@ class SpectralSynthesisModel(BaseSpectralModel):
         """
 
         # Check the observed spectrum for validity.
-        spectrum = spectrum or self.session.normalized_spectrum
-        self._verify_spectrum(spectrum)
+        spectrum = self._verify_spectrum(spectrum)
 
         # Update internal metadata with any input parameters.
         # Ignore additional parameters because other BaseSpectralModels will
         # have different input arguments.
         for key in set(self.metadata).intersection(kwargs):
-            self.metadata[key] = kwargs[key]
+            self.metadata[key] = kwargs.pop(key)
 
         # Update the parameter names in case they have been updated due to the
         # input kwargs.
@@ -247,7 +246,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
             yerr, absolute_sigma = (np.ones_like(x), False)
 
         # Get a bad initial guess.
-        p0 = self._initial_guess()
+        p0 = self._initial_guess(spectrum, **kwargs)
 
         cov, bounds = None, self.metadata["initial_abundance_bounds"]
 
@@ -331,7 +330,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         :param dispersion:
             An array of dispersion points to calculate the data for.
 
-        :param parameters:
+        :param *parameters:
             Keyword arguments of the model parameters and their values.
         """
 
@@ -356,6 +355,26 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
     def _nuisance_methods(self, dispersion, synth_dispersion, intensities,
         *parameters):
+        """
+        Apply nuisance operations (convolution, continuum, radial velocity, etc)
+        to a model spectrum.
+
+        :param dispersion:
+            The dispersion points to evaluate the model at.
+
+        :param synth_dispersion:
+            The model dispersion points.
+
+        :param intensities:
+            The intensities at the model dispersion points.
+
+        :param *parameters:
+            The model parameter values.
+
+        :returns:
+            A convolved, redshifted model with multiplicatively-entered
+            continuum.
+        """
 
         # Continuum.
         names = self.parameter_names
@@ -379,15 +398,14 @@ class SpectralSynthesisModel(BaseSpectralModel):
             if kernel > 0:
                 model = gaussian_filter(model, kernel)
 
-        if "vrad" in names:
+        try:
             v = parameters[names.index("vrad")]
-        else:
+        except ValueError:
             v = 0
 
         # Interpolate the model spectrum onto the requested dispersion points.
         return np.interp(dispersion, synth_dispersion * (1 + v/299792458e-3), 
             model, left=1, right=1)
-
 
 
     def abundances(self):
@@ -396,14 +414,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
         parameters in the parent session.
         """
 
-        self.fit(self.session.normalized_spectrum)
+        #_ self.fit(self.session.normalized_spectrum)
 
         # Parse the abundances into the right format.
+        raise NotImplementedError("nope")
 
         
-
-# Fit synthesised region to spectrum.
-
-# HOOK in to any RT.
-
-

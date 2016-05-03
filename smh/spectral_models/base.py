@@ -13,13 +13,10 @@ from smh.session import BaseSession
 
 
 class BaseSpectralModel(object):
-    """
-    A base class for modelling spectra.
-    """
 
     def __init__(self, transitions, session, **kwargs):
         """
-        Initialize a spectral model class.
+        Initialize a base class for modelling spectra.
 
         :param transitions:
             Row(s) from a line list of transitions to associate with this model.
@@ -37,6 +34,9 @@ class BaseSpectralModel(object):
         self._transitions = transitions
 
         self.metadata = {}
+
+        # Verify the input transitions are valid.
+        self._verify_transitions()
         return None
 
 
@@ -85,6 +85,9 @@ class BaseSpectralModel(object):
 
 
     def _verify_transitions(self):
+        """
+        Verify that the transitions provided are valid.
+        """
         # TODO
         return True
 
@@ -97,6 +100,8 @@ class BaseSpectralModel(object):
         :param spectrum:
             The observed rest-frame normalized spectrum.
         """
+
+        spectrum = spectrum or self.session.normalized_spectrum
 
         # Check the transition is in the spectrum range.
         wavelength = self.transitions["wavelength"]
@@ -156,7 +161,6 @@ class BaseSpectralModel(object):
         for parameter_name, (lower, upper) in self.parameter_bounds.items():
             value = parameters[self.parameter_names.index(parameter_name)]
             if not (upper >= value and value >= lower):
-                print("RETURNING BAD", parameters)
                 return np.nan * np.ones_like(dispersion)
 
         return self.__call__(dispersion, *parameters)
