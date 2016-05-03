@@ -14,6 +14,7 @@ import itertools
 import numpy as np
 import scipy.optimize as op
 import scipy.interpolate
+from collections import OrderedDict
 from six import string_types
 from scipy.ndimage import gaussian_filter
 
@@ -318,8 +319,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
             "dof": dof
         }
 
-        self._result = (p_opt, cov, fitting_metadata)
-
+        # Convert result to ordered dict.
+        named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
+        self._result = (named_p_opt, cov, fitting_metadata)
         return self._result
 
 

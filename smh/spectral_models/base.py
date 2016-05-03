@@ -115,7 +115,7 @@ class BaseSpectralModel(object):
                 "the observed spectrum contains no data over the wavelength "
                 "range we require")
 
-        return True
+        return spectrum
 
 
     def mask(self, spectrum):

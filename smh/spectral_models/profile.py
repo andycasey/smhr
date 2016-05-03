@@ -13,6 +13,7 @@ import numpy as np
 import scipy.optimize as op
 from astropy.table import Row
 from astropy.constants import c as speed_of_light
+from collections import OrderedDict
 from scipy.special import wofz
 from scipy import integrate
 
@@ -462,10 +463,13 @@ class ProfileFittingModel(BaseSpectralModel):
             "dof": dof
         }
 
-        self._result = (p_opt, p_cov, fitting_metadata)
-
         # Update the equivalent width in the transition.
         self._transitions["equivalent_width"] = ew
+
+        # Convert p_opt to ordered dictionary
+        named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
+        self._result = (named_p_opt, p_cov, fitting_metadata)
+
         return self._result
 
 
