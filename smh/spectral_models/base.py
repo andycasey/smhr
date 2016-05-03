@@ -35,10 +35,24 @@ class BaseSpectralModel(object):
 
         self.metadata = {}
 
-        # Verify the input transitions are valid.
-        self._verify_transitions()
         return None
 
+    @property
+    def is_acceptable(self):
+        """ Return whether this spectral model is acceptable. """
+        return self.metadata.get("is_acceptable", False)
+
+    @property
+    def _repr_element(self):
+        """ Return a view of the element(s) for this model. """
+        return ", ".join(self.elements)
+
+    @property
+    def _repr_wavelength(self):
+        if len(self.transitions) == 1:
+            return "{0:.1f}".format(self.transitions["wavelength"][0])
+        else:
+            return "~{0:.1f}".format(np.mean(self.transitions["wavelength"]))
 
     @property
     def transitions(self):
@@ -48,7 +62,7 @@ class BaseSpectralModel(object):
     @property
     def elements(self):
         """ Return the elements to be measured from this class. """
-        return self._metadata["elements"]
+        return self.metadata["elements"]
 
     @property
     def session(self):
