@@ -138,11 +138,11 @@ def identify_isotopes(ll,include_molecules=False):
                     else:
                         isotopes[e2+'-'+e1] = {i2*100+i1: 1.0}
     return isotopes
-def identify_needed_isotopes(ll,molecules=False):
+def identify_needed_isotopes(ll,include_molecules=False):
     """
     Find elements with more than one isotope in this linelist (i.e., the isotope ratio needs to be specified)
     """
-    isotopes = identify_isotopes(ll,molecules)
+    isotopes = identify_isotopes(ll,include_molecules)
     needed_isotopes = {}
     for elem,isos in iteritems(isotopes):
         if len(isos) > 1:
@@ -203,7 +203,6 @@ def validate_isotopes(isotopes,tol=1e-4):
             Z1 = int(element_to_species(e1))
             Z2 = int(element_to_species(e2))
             assert Z1 <= Z2, "{} {}".format(Z1,Z2)
-            #TODO check that you can recover the isotope masses and they are consistent
     if numbad > 0: raise IsotopeError(bad_isos)
 
 def load_isotope_data(whichdata,include_molecules=False):
