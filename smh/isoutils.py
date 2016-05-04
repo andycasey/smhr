@@ -11,9 +11,12 @@ from .utils import element_to_species
 
 __all__ = ['IsotopeError',
            'get_needed_isotopes','identify_isotopes','identify_needed_isotopes',
+           'add_molecules',
            'validate_isotopes','load_isotope_data']
 
 _datadir = os.path.dirname(__file__)+'/data/isotopes'
+
+common_molecules = ['Mg-H','C-C','C-N','C-H','O-H','Fe-H','N-H','Si-H','Ti-O','V-O','Zr-O']
 
 class IsotopeError(Exception):
     """Exception raised for missing isotopes"""
@@ -25,7 +28,7 @@ class IsotopeError(Exception):
 def pretty_print_isotopes(isotopes):
     outstr = ""
     for elem in isotopes:
-        outstr += elem+': '
+        outstr += str(elem)+': '
         for A,frac in iteritems(isotopes[elem]):
             outstr += '({},{:.3f}) '.format(A,frac)
         outstr += '\n'
@@ -38,9 +41,24 @@ def convert_isodict_to_array(isotopes,sort_by_Z=True):
             tab.append([elem,A,isotopes[elem][A]])
     tab = np.array(tab)
     if sort_by_Z:
-        Z = [int(element_to_species(elem)) for elem in tab[:,0]]
-        A = tab[:,1]
-        ii = np.lexsort([A,Z])
+        def _sorter(x):
+            elem,A = x
+            A = int(A)
+            try:
+                Z = int(element_to_species(elem))
+            except ValueError:
+                e1,e2 = elem.split('-')
+                Z = max(int(element_to_species(e1)),int(element_to_species(e2)))
+                A1 = int(A/100.)
+                A2 = A-100*A1
+                A = A1+A2
+            return Z,A
+        out = map(_sorter,zip(tab[:,0],tab[:,1]))
+        out = np.array(out)
+        ii = np.lexsort([out[:,1],out[:,0]])
+        #Z = [int(element_to_species(elem)) for elem in tab[:,0]]
+        #A = tab[:,1]
+        #ii = np.lexsort([A,Z])
         tab = tab[ii]
     return tab
 def convert_array_to_isodict(tab):
@@ -51,7 +69,7 @@ def convert_array_to_isodict(tab):
         isotopes[elem] = dict(zip(ttab[:,1].astype(int),ttab[:,2].astype(float)))
     return isotopes
 
-def get_needed_isotopes(ll,new_isotopes):
+def get_needed_isotopes(ll,new_isotopes,include_molecules=False):
     """
     Search the linelist for needed isotopes,
     tries to replace them with new_isotopes.
@@ -60,7 +78,7 @@ def get_needed_isotopes(ll,new_isotopes):
     found_isotopes: needed isotopes that are found
     missing_isotopes: needed isotopes that are not found
     """
-    needed_isotopes = identify_needed_isotopes(ll)
+    needed_isotopes = identify_needed_isotopes(ll,include_molecules)
     if len(needed_isotopes)==0: return {}
     return find_isotopes_to_replace(needed_isotopes,new_isotopes)
 
@@ -87,9 +105,9 @@ def find_isotopes_to_replace(needed_isotopes, new_isotopes):
             found_isotopes[elem] = good_isos
     return found_isotopes, missing_isotopes
 
-def identify_isotopes(ll):
+def identify_isotopes(ll,include_molecules=False):
     """
-    Find all isotopes in this linelist (even if there is only one isotope for an element)
+    Find all isotopes in this linelist (even if there is only one isotope for an element).
     """
     assert isinstance(ll, LineList)
     cols = ['numelems','elem1','elem2','isotope1','isotope2']
@@ -98,8 +116,6 @@ def identify_isotopes(ll):
     isotopes = {}
     for line in ll:
         nelem,e1,e2,i1,i2 = (line[col] for col in cols)
-        #print(line['numelems','elem1','elem2','isotope1','isotope2'])
-        #nelem,e1,e2,i1,i2 = line['numelems','elem1','elem2','isotope1','isotope2']
         if e1 in isotopes:
             if i1 not in isotopes[e1]:
                 isotopes[e1][i1] = 1.0
@@ -109,19 +125,62 @@ def identify_isotopes(ll):
             if e2 in isotopes:
                 if i2 not in isotopes[e2]:
                     isotopes[e2][i2] = 1.0
+                    if include_molecules:
+                        if i1 < i2:
+                            isotopes[e1+'-'+e2][i1*100+i2] = 1.0
+                        else:
+                            isotopes[e2+'-'+e1][i2*100+i1] = 1.0
             else:
                 isotopes[e2] = {i2:1.0}
+                if include_molecules:
+                    if i1 < i2:
+                        isotopes[e1+'-'+e2] = {i1*100+i2: 1.0}
+                    else:
+                        isotopes[e2+'-'+e1] = {i2*100+i1: 1.0}
     return isotopes
-def identify_needed_isotopes(ll):
+def identify_needed_isotopes(ll,molecules=False):
     """
     Find elements with more than one isotope in this linelist (i.e., the isotope ratio needs to be specified)
     """
-    isotopes = identify_isotopes(ll)
+    isotopes = identify_isotopes(ll,molecules)
     needed_isotopes = {}
     for elem,isos in iteritems(isotopes):
         if len(isos) > 1:
             needed_isotopes[elem] = isos
     return needed_isotopes
+
+def add_molecules(isotopes,molecules=common_molecules):
+    """
+    Given a list of molecules to add to the isotopes dictionary, construct them from the
+    element-by-element isotopes given.
+
+    The key for isotope masses is int(A1*100+A2) (Z1 < Z2).
+    This seems OK for now.
+    """
+    new_isotopes = isotopes.copy()
+    for molecule in molecules:
+        e1,e2 = molecule.split('-')
+        Z1 = int(element_to_species(e1))
+        Z2 = int(element_to_species(e2))
+        if Z1 >= Z2: #swap e1,e2
+            _e = e1; e1 = e2; e2 = _e
+        elem = e1+'-'+e2
+
+        if e1 in isotopes:
+            iso1 = isotopes[e1]
+        else:
+            iso1 = {0:1.0}
+        if e2 in isotopes:
+            iso2 = isotopes[e2]
+        else:
+            iso2 = {0:1.0}
+
+        iso = {}
+        for A1 in iso1:
+            for A2 in iso2:
+                iso[A1*100+A2] = iso1[A1]*iso2[A2]
+        new_isotopes[elem] = iso
+    return new_isotopes
 
 def validate_isotopes(isotopes,tol=1e-4):
     """
@@ -136,9 +195,18 @@ def validate_isotopes(isotopes,tol=1e-4):
         if np.abs(total - 1.0) > tol: 
             bad_isos[elem] = isotopes[elem]
             numbad += 1
+        try:
+            e1,e2 = elem.split('-')
+        except ValueError:
+            pass
+        else:
+            Z1 = int(element_to_species(e1))
+            Z2 = int(element_to_species(e2))
+            assert Z1 <= Z2, "{} {}".format(Z1,Z2)
+            #TODO check that you can recover the isotope masses and they are consistent
     if numbad > 0: raise IsotopeError(bad_isos)
 
-def load_isotope_data(whichdata):
+def load_isotope_data(whichdata,include_molecules=False):
     """
     Load isotope ratios: 'rproc', 'sproc', 'sneden', 'asplund'.
     'rproc': Sneden et al. 2008 r-process
@@ -153,5 +221,7 @@ def load_isotope_data(whichdata):
                'asplund':'asplund09_isotopes.pkl'}
     with open(_datadir+'/'+datamap[whichdata],'r') as f:
         isotopes = pickle.load(f)
+    if include_molecules:
+        isotopes = add_molecules(isotopes)
     validate_isotopes(isotopes)
     return isotopes
