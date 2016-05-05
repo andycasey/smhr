@@ -237,7 +237,14 @@ def species_to_elems_isotopes_ion(species):
         # Swap if needed
     else:
         # Element
-        elem1,_ion = element.split()
+        try:
+            elem1,_ion = element.split()
+        except ValueError as e:
+            if element == 'C':
+                elem1,_ion = 'C','I'
+            else:
+                print(element)
+                raise e
         ion = len(_ion)
         assert _ion == 'I'*ion, "{}; {}".format(_ion,ion)
         if species == round(species,1):
