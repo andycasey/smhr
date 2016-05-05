@@ -13,6 +13,8 @@ import signal
 import subprocess
 import tempfile
 from smh.photospheres.abundances import asplund_2009 as solar_composition
+from smh.utils import elems_isotopes_ion_to_species
+from six import iteritems
 
 logger = logging.getLogger(__name__)
 
@@ -179,10 +181,10 @@ def _format_isotopes(isotopes=None, ionisation_states=(0, 1), num_synth=1):
 
     :param isotopes:
         A dictionary containing isotopic information. The keys of the dictionary
-        should specify atomic numbers and the value should have another
+        should specify elements/molecules and the value should have another
         dictionary that contains the mass number as keys, and the isotope 
         fraction as a value. The sum of all values in a sub-dictionary should 
-        total 100.
+        total 1.
     """
 
     if isotopes is None:
@@ -191,5 +193,35 @@ def _format_isotopes(isotopes=None, ionisation_states=(0, 1), num_synth=1):
     if not isinstance(isotopes, dict):
         raise TypeError("isotopes must be provided as a dictionary")
 
-    N = len(isotopes)
-    raise NotImplementedError
+    # TODO
+    # For now, just output both ionization states in the isotopes
+    # The easiest way to avoid this is to pass in the species as well
+    N = 0
+    outstr = []
+
+    fmt = "  {0:} {1:.3f} {1:.3f} {1:.3f}"
+    fmt = "  "+" ".join(["{0:}"]+["{1:.3f}" for x in range(num_synth)])
+    for elem in isotopes:
+        for A,frac in iteritems(isotopes[elem]):
+            if frac==0:
+                invfrac = 99999.9
+            else:
+                invfrac = 1./frac
+
+            try:
+                e1,e2 = elem.split('-')
+            except ValueError: #Single element
+                e1 = elem
+                A1 = A
+                e2 = ''
+                A2 = 0
+            else: #Molecule
+                A1 = int(A/100.)
+                A2 = A-A1*100
+            ## TODO temporary kludge is to just put both ionization states in for every isotope
+            for ion in ionisation_states:
+                species = elems_isotopes_ion_to_species(e1,e2,A1,A2,ion+1)
+                outstr.append(fmt.format(species,invfrac))
+                N += 1
+    outstr.insert(0,"{} {:.0f}".format(N,num_synth))
+    return "\n".join(outstr)

@@ -181,7 +181,7 @@ def elems_isotopes_ion_to_species(elem1,elem2,isotope1,isotope2,ion):
     if elem2.strip()=='': # Atom
         mystr = "{}.{}{}".format(Z1,int(ion-1),isotope1)
     else: # Molecule
-        assert ion==1
+        #assert ion==1,ion
         Z2 = int(element_to_species(elem2.strip()))
 
         # If one isotope is specified but the other isn't, use a default mass
@@ -237,7 +237,14 @@ def species_to_elems_isotopes_ion(species):
         # Swap if needed
     else:
         # Element
-        elem1,_ion = element.split()
+        try:
+            elem1,_ion = element.split()
+        except ValueError as e:
+            if element == 'C':
+                elem1,_ion = 'C','I'
+            else:
+                print(element)
+                raise e
         ion = len(_ion)
         assert _ion == 'I'*ion, "{}; {}".format(_ion,ion)
         if species == round(species,1):

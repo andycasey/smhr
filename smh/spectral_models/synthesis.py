@@ -349,7 +349,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Produce a synthetic spectrum.
         synth_dispersion, intensities, meta = self.session.rt.synthesize(
             self.session.stellar_photosphere, self.transitions,
-            abundances=abundances)[0] # TODO: Other RT kwargs...... isotopes?
+            abundances=abundances, 
+            isotopes=self.session.metadata["isotopes"])[0] # TODO: Other RT kwargs......
 
         return self._nuisance_methods(
             dispersion, synth_dispersion, intensities, *parameters)

@@ -14,7 +14,8 @@ import os
 import yaml
 from six import string_types
 
-from . import (photospheres, radiative_transfer, specutils)
+from .linelists import LineList
+from . import (photospheres, radiative_transfer, specutils, isoutils)
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,7 @@ class Session(BaseSession):
                 "continuum": [None] * N,
                 "normalization_kwargs": [{}] * N
             },
+            "isotopes": {},
             "stellar_parameters": {
                 "effective_temperature": 5777, # K
                 "surface_gravity": 4.4,
@@ -370,7 +372,6 @@ class Session(BaseSession):
         # Fit & store continuum for all input spectra.
         raise NotImplementedError
 
-
     @property
     def stellar_photosphere(self):
         """
@@ -393,7 +394,4 @@ class Session(BaseSession):
         photosphere.meta["stellar_parameters"].update(meta)
 
         return photosphere
-
-
-
 

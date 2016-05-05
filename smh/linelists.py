@@ -8,6 +8,7 @@ from astropy.table import Table, Column, MaskedColumn
 from astropy import table
 from .utils import element_to_species, species_to_element
 from .utils import elems_isotopes_ion_to_species, species_to_elems_isotopes_ion
+
 import os
 
 import md5
@@ -44,9 +45,15 @@ class LineList(Table):
         super(LineList, self).__init__(*args,**kwargs)
 
         if 'hash' not in self.columns and len(self) > 0:
-            hashes = [self.hash(line) for line in self]
-            self.add_column(Column(hashes,name='hash'))
-        self.validate_colnames(False)
+            # When sorting, it creates a LineList with just a column subset
+            try: 
+                self.validate_colnames(True)
+            except IOError:
+                pass
+            else:
+                hashes = [self.hash(line) for line in self]
+                self.add_column(Column(hashes,name='hash'))
+        #self.validate_colnames(False)
 
     def validate_colnames(self,error=False):
         """
