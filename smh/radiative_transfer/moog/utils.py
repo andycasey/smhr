@@ -200,6 +200,7 @@ def _format_isotopes(isotopes=None, ionisation_states=(0, 1), num_synth=1):
     outstr = []
 
     fmt = "  {0:} {1:.3f} {1:.3f} {1:.3f}"
+    fmt = "  "+" ".join(["{0:}"]+["{1:.3f}" for x in range(num_synth)])
     for elem in isotopes:
         for A,frac in iteritems(isotopes[elem]):
             if frac==0:
