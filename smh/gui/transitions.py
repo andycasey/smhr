@@ -10,6 +10,8 @@ from __future__ import (division, print_function, absolute_import,
 import operator
 from PySide import QtCore, QtGui
 
+import mpl
+
 
 class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
@@ -98,6 +100,13 @@ if __name__ == "__main__":
             # setGeometry(x_pos, y_pos, width, height)
             self.setGeometry(300, 200, 570, 450)
             self.setWindowTitle("Click on column title to sort")
+
+            sp = QtGui.QSizePolicy(
+                QtGui.QSizePolicy.MinimumExpanding, 
+                QtGui.QSizePolicy.MinimumExpanding)
+            sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
+            self.setSizePolicy(sp)
+
             table_model = SpectralModelsTableModel(self, data_list)
             table_view = QtGui.QTableView()
             table_view.setModel(table_model)
@@ -109,15 +118,47 @@ if __name__ == "__main__":
             selectionModel = table_view.selectionModel()
             selectionModel.selectionChanged.connect(self.row_selected)
 
+            self.table_view = table_view
 
-            layout = QtGui.QVBoxLayout(self)
+            layout = QtGui.QHBoxLayout(self)
+            layout.setContentsMargins(10, 10, 10, 10)
             layout.addWidget(table_view)
+
+            # MPL figure
+
+
+            # Create a matplotlib widget.
+            blank_widget = QtGui.QWidget(self)
+            sp = QtGui.QSizePolicy(
+                QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+            sp.setHorizontalStretch(0)
+            sp.setVerticalStretch(0)
+            sp.setHeightForWidth(blank_widget.sizePolicy().hasHeightForWidth())
+            blank_widget.setSizePolicy(sp)
+            blank_widget.setObjectName("norm_plot")
+
+
+            self.norm_plot = mpl.MPLWidget(blank_widget, tight_layout=True,
+                autofocus=True)
+
+            mpl_layout = QtGui.QVBoxLayout(blank_widget)
+            mpl_layout.addWidget(self.norm_plot, 1)
+            layout.addWidget(blank_widget)
+
             self.setLayout(layout)
 
 
-        def row_selected(self, *args):
-            print("ROW SELECTED 2", args)
+            self.mpl_axis = self.norm_plot.figure.add_subplot(111)
+            self.mpl_axis.scatter([0, 1], [0.4, 0.6])
 
+            self.norm_plot.draw()
+
+
+
+        def row_selected(self, *args):
+            indexes = self.table_view.selectionModel().selectedRows()
+            for index in indexes:
+                print("row {} selected".format(index.row()))
 
     import sys
 
