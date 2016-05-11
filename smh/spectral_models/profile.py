@@ -136,7 +136,11 @@ class ProfileFittingModel(BaseSpectralModel):
                              "a ProfileFittingModel")
 
         # Check that the transition does not have multiple element names.
-        if self.transitions["elem2"][0] != "":
+        try:
+            elem2 = self.transitions["elem2"][0]
+        except IndexError:
+            elem2 = self.transitions["elem2"]
+        if elem2 != "":
             raise ValueError("only an atomic transition can be associated with "
                              "a ProfileFittingModel")
         return True
