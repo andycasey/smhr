@@ -173,7 +173,11 @@ class ProfileFittingModel(BaseSpectralModel):
         # Update the bounds.
         bounds = {}
         if self.metadata["profile"] == "gaussian":
-            bounds["sigma"] = (-0.5, 0.5)
+            bounds.update({
+                "sigma": (-0.5, 0.5),
+                "amplitude": (0, 1),
+            })
+
         elif self.metadata["profile"] == "voigt":
             bounds["fwhm"] = (-0.5, 0.5)
 
@@ -452,6 +456,10 @@ class ProfileFittingModel(BaseSpectralModel):
             edgecolor="None", facecolor="b", alpha=0.5)
         """
         
+        # Convert x, model_y, etc back to real-spectrum indices.
+        x, model_y, model_yerr = self._fill_masked_arrays(
+            spectrum, x, model_y, model_yerr)
+
         fitting_metadata = {
             "equivalent_width": (ew, ew_uncertainty[0], ew_uncertainty[1]),
             "data_indices": np.where(mask)[0][iterative_mask],

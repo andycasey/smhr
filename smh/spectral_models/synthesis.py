@@ -312,6 +312,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
         dof = np.isfinite(chi_sq).sum() - len(p_opt) - 1
         chi_sq = np.nansum(chi_sq)
 
+        x, model_y, model_yerr = self._fill_masked_arrays(
+            spectrum, x, model_y, model_yerr)
+
         fitting_metadata = {
             "model_x": x,
             "model_y": model_y,

@@ -8,9 +8,13 @@ from __future__ import (division, print_function, absolute_import,
 
 
 import operator
+import numpy as np
 from PySide import QtCore, QtGui
+from time import time
 
 import mpl
+
+DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
 
 class SpectralModelsTableModel(QtCore.QAbstractTableModel):
@@ -18,17 +22,12 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
     header = [" ", "Wavelength", "Element"]
     attrs = ("is_acceptable", "_repr_wavelength", "_repr_element")
 
-    def __init__(self, parent, spectral_models, *args):
+    def __init__(self, parent, data, *args):
         super(SpectralModelsTableModel, self).__init__(parent, *args)
-        self.spectral_models = spectral_models
-
-
-
-    def row_selected(self, *args):
-        print("selected ", args)
+        self._data = data
 
     def rowCount(self, parent):
-        return len(self.spectral_models)
+        return len(self._data)
 
     def columnCount(self, parent):
         return len(self.header)
@@ -38,7 +37,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
             return None
 
         value = getattr(
-            self.spectral_models[index.row()],
+            self._data[index.row()],
             self.attrs[index.column()])
 
         if index.column() == 0:
@@ -50,7 +49,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         elif role != QtCore.Qt.DisplayRole:
             return None
 
-        return getattr(self.spectral_models[index.row()],
+        return getattr(self._data[index.row()],
             self.attrs[index.column()])
 
     def headerData(self, col, orientation, role):
@@ -66,7 +65,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         if attr != "is_acceptable":
             return False
 
-        self.spectral_models[index.row()].metadata[attr] = value
+        self._data[index.row()].metadata[attr] = value
         self.dataChanged.emit(index, index)
         return value
 
@@ -74,11 +73,11 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
     def sort(self, column, order):
 
         self.emit(QtCore.SIGNAL("layoutAboutToBeChanged()"))
-        self.spectral_models = sorted(self.spectral_models,
+        self._data = sorted(self._data,
             key=lambda sm: getattr(sm, self.attrs[column]))
         
         if order == QtCore.Qt.DescendingOrder:
-            self.spectral_models.reverse()
+            self._data.reverse()
 
         self.dataChanged.emit(self.createIndex(0, 0), self.createIndex(self.rowCount(0), self.columnCount(0)))
         self.emit(QtCore.SIGNAL("layoutChanged()"))
@@ -91,78 +90,360 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
 
 
+class SpectralModelsWidget(QtGui.QWidget):
+    def __init__(self, spectral_models, session, *args):
+        """
+        Initialize a widget for inspecting a list of spectral models.
+
+        :param spectral_models:
+            A list of spectral models that sub-class from 
+            `smh.spectral_models.BaseSpectralModel`.
+        """
+
+        super(SpectralModelsWidget, self).__init__(*args)
+        self.spectral_models = spectral_models
+        self.session = session
+
+        self.setGeometry(300, 200, 570, 450)
+        self.setWindowTitle("Spectral models")
+
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.MinimumExpanding, 
+            QtGui.QSizePolicy.MinimumExpanding)
+        sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
+        self.setSizePolicy(sp)
+
+        self.table = QtGui.QTableView()
+        self.table.setModel(SpectralModelsTableModel(self, spectral_models))
+        self.table.resizeColumnsToContents()
+        self.table.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
+        self.table.setSortingEnabled(True)
+
+        _ = self.table.selectionModel()
+        _.selectionChanged.connect(self.row_selected)
+
+        # Create a matplotlib widget.
+        blank_widget = QtGui.QWidget(self)
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        sp.setHorizontalStretch(0)
+        sp.setVerticalStretch(0)
+        sp.setHeightForWidth(blank_widget.sizePolicy().hasHeightForWidth())
+        blank_widget.setSizePolicy(sp)
+        
+        self.mpl_figure = mpl.MPLWidget(blank_widget, 
+            tight_layout=True, autofocus=True)
+
+        mpl_layout = QtGui.QVBoxLayout(blank_widget)
+        mpl_layout.addWidget(self.mpl_figure, 1)
+
+        layout = QtGui.QHBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.addWidget(self.table)
+        layout.addWidget(blank_widget)
+
+        self.setLayout(layout)
+
+        self.__init_figure__()
+
+
+    def __init_figure__(self):
+
+        self.mpl_axis = self.mpl_figure.figure.add_subplot(111)
+        
+        # Draw the spectrum first. 
+        self.mpl_axis.plot(
+            self.session.normalized_spectrum.dispersion,
+            self.session.normalized_spectrum.flux,
+            c="k", drawstyle="steps-mid")
+
+        self.mpl_axis.set_ylim(0, 1.2)
+        self.mpl_axis.set_xlabel(r"Wavelength (${\rm \AA}$)")
+        self.mpl_axis.set_ylabel(r"Normalized flux")
+        self.mpl_figure.draw()
+
+        # Plot the model spectrum.
+        self.mpl_axis.plot([], [], c="r", zorder=2)
+        self.mpl_axis.fill_between([], [], [], facecolor="r", alpha=0.5,
+            edgecolor=None, zorder=1)
+
+
+        self.mpl_figure.mpl_connect(
+            "button_press_event", self.figure_mouse_press)
+        self.mpl_figure.mpl_connect(
+            "button_release_event", self.figure_mouse_release)
+
+        self._mpl_masked_regions = []
+        self._mpl_nearby_lines_masked_regions = []
+
+        return None
+
+
+    def figure_mouse_press(self, event):
+        """
+        Mouse button was clicked on the matplotlib figure.
+
+        :param event:
+            The matplotlib event.
+        """
+
+        if event.dblclick:
+            # Double click.
+
+            # If the user has double-clicked in a masked region for the current
+            # model, then remove the most recently added match.
+
+            # Otherwise, add a point and wait for a second continuum point?
+
+            show_index = self.table.selectionModel().selectedRows()[0]
+            model = self.table.model()._data[show_index.row()]
+
+            for i, (s, e) in enumerate(model.metadata["mask"][::-1]):
+                if e >= event.xdata >= s:
+
+                    mask = model.metadata["mask"]
+                    index = len(mask) - 1 - i
+                    del mask[index]
+
+                    # Re-fit the current model.
+                    model.fit()
+
+                    # Update the view of the current model.
+                    self.row_selected()
+
+                    break
+
+            else:
+                # No match with a masked region. Add a point and wait for a
+                # second continuum point?
+                None
+
+        else:
+            # Single click.
+
+            # Set up/update the excluded region.
+            xmin, xmax, ymin, ymax = (event.xdata, np.nan, -1e8, +1e8)
+            try:
+                self._mask_region
+            except AttributeError:
+                self._mask_region = self.mpl_axis.axvspan(**{
+                    "xmin": xmin,
+                    "xmax": xmax,
+                    "ymin": ymin,
+                    "ymax": ymax,
+                    "facecolor": "r",
+                    "edgecolor": "none",
+                    "alpha": 0.25,
+                    "zorder": -1
+                })
+
+            else:
+                self._mask_region.set_xy([
+                    [xmin, ymin],
+                    [xmin, ymax],
+                    [xmax, ymax],
+                    [xmax, ymin],
+                    [xmin, ymin]
+                ])
+
+            # Set the signal and the time.
+            self._mask_region_signal = (
+                time(),
+                self.mpl_figure.mpl_connect(
+                    "motion_notify_event", self.update_mask_region)
+                )
+        return None
+
+
+    def figure_mouse_release(self, event):
+        """
+        Mouse button was released on the matploltib figure.
+
+        :param event:
+            The matplotlib event.
+        """
+
+        try:
+            signal_time, signal_cid = self._mask_region_signal
+        except AttributeError:
+            return None
+        
+        xy = self._mask_region.get_xy()
+        
+        if event.xdata is None:
+            # Out of axis; exclude based on the closest axis limit.
+            xdata = xy[2, 0]
+        else:
+            xdata = event.xdata
+
+        # If the two mouse events were within some time interval,
+        # then we should not add a mask because those signals were probably
+        # part of a double-click event.
+        if  time() - signal_time > DOUBLE_CLICK_INTERVAL \
+        and np.abs(xy[0,0] - xdata) > 0:
+            
+            # Update the cache with the new mask.
+            #_ = self._cache["input"].get("exclude", np.array([]))
+            #_.shape = (-1, 2)
+            #self._cache["input"]["exclude"] = np.vstack((
+            #    np.array([xy[0,0], xy[2, 0]]).reshape(-1, 2), _))
+
+            # Get current spectral model.
+            show_index = self.table.selectionModel().selectedRows()[0]
+            spectral_model = self.table.model()._data[show_index.row()]
+
+            # Add mask metadata.
+            spectral_model.metadata["mask"].append([xy[0,0], xy[2, 0]])
+
+            # Re-fit the spectral model.
+            spectral_model.fit()
+
+            # Update the view of the spectral model.
+            self.row_selected()
+
+
+        xy[:, 0] = np.nan
+
+        self._mask_region.set_xy(xy)
+
+        self.mpl_figure.mpl_disconnect(signal_cid)
+        self.mpl_figure.draw()
+        del self._mask_region_signal
+        return None
+
+
+    def update_mask_region(self, event):
+        """
+        Update the visible selected masked region for the selected spectral
+        model. This function is linked to a callback for when the mouse 
+        position moves.
+
+        :param event:
+            The matplotlib motion event to show the current mouse position.
+        """
+        if event.xdata is None:
+            return
+        
+        signal_time, signal_cid = self._mask_region_signal
+        if time() - signal_time > DOUBLE_CLICK_INTERVAL: 
+            
+            data = self._mask_region.get_xy()
+
+            # Update xmax.
+            data[2:4, 0] = event.xdata
+            self._mask_region.set_xy(data)
+
+            self.mpl_figure.draw()
+
+        return None
+
+
+
+    def row_selected(self, *args):
+        """
+        The row which is selected has been changed.
+        """
+
+        spectral_models = self.table.model()._data
+        indexes = self.table.selectionModel().selectedRows()
+        for index in indexes:
+            print("row {} selected {} {}".format(
+                index.row(),
+                spectral_models[index.row()].is_acceptable,
+                spectral_models[index.row()].transitions
+                ))
+
+        show_index = self.table.selectionModel().selectedRows()[0]
+        model = self.table.model()._data[show_index.row()]
+
+        window = model.metadata["window"]
+        wavelengths = model.transitions["wavelength"]
+        try:
+            lower_wavelength = wavelengths[0]
+            upper_wavelength = wavelengths[-1]
+        except IndexError:
+            # Single row.
+            lower_wavelength, upper_wavelength = (wavelengths, wavelengths)
+
+        lower_wavelength = lower_wavelength - window
+        upper_wavelength = upper_wavelength + window
+
+        pixel = np.mean(np.diff(model.session.normalized_spectrum.dispersion))
+        self.mpl_axis.set_xlim(
+            lower_wavelength - pixel,
+            upper_wavelength + pixel
+        )
+        
+        # vfill the lower/upper wavelength as blue.
+        for i, (start, end) in enumerate(model.metadata["mask"]):
+            try:
+                patch = self._mpl_masked_regions[i]
+            except IndexError:
+                self._mpl_masked_regions.append(self.mpl_axis.axvspan(
+                    np.nan, np.nan, facecolor="r", edgecolor=None, alpha=0.25))
+                patch = self._mpl_masked_regions[-1]
+
+            patch.set_xy([
+                [start, -1e8],
+                [start, +1e8],
+                [end,   +1e8],
+                [end,   -1e8],
+                [start, -1e8]
+            ])
+            patch.set_visible(True)
+
+        # Hide the masks from other spectral models.
+        for each in self._mpl_masked_regions[len(model.metadata["mask"]):]:
+            each.set_visible(False)
+
+        # Any result for the selected spectral model?
+        try:
+            opt, cov, meta = model._result
+        except:
+            None
+        else:
+
+            print(opt)
+
+            # Set the model data.
+            self.mpl_axis.lines[1].set_data(meta["model_x"], meta["model_y"])
+
+            # Any regions masked because of enarby lines?
+            if "nearby_lines" in meta:
+                for i, (_, (start, end)) in enumerate(meta["nearby_lines"]):
+                    try:
+                        patch = self._mpl_nearby_lines_masked_regions[i]
+                    except IndexError:
+                        self._mpl_nearby_lines_masked_regions.append(
+                            self.mpl_axis.axvspan(np.nan, np.nan,
+                                facecolor="b", edgecolor=None, alpha=0.25))
+                        patch = self._mpl_nearby_lines_masked_regions[-1]
+
+                    patch.set_xy([
+                        [start, -1e8],
+                        [start, +1e8],
+                        [end,   +1e8],
+                        [end,   -1e8],
+                        [start, -1e8]
+                    ])
+                    patch.set_visible(True)
+
+            # Hide the nearby line regions from other spectral models.
+            N = len(meta.get("nearby_lines", []))
+            for each in self._mpl_nearby_lines_masked_regions[N:]:
+                each.set_visible(False)
+
+
+        self.mpl_figure.draw()
+
+        return True
+
+
 if __name__ == "__main__":
-
-    class MyWindow(QtGui.QWidget):
-        def __init__(self, data_list, *args):
-            super(MyWindow, self).__init__(*args)
-
-            # setGeometry(x_pos, y_pos, width, height)
-            self.setGeometry(300, 200, 570, 450)
-            self.setWindowTitle("Click on column title to sort")
-
-            sp = QtGui.QSizePolicy(
-                QtGui.QSizePolicy.MinimumExpanding, 
-                QtGui.QSizePolicy.MinimumExpanding)
-            sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
-            self.setSizePolicy(sp)
-
-            table_model = SpectralModelsTableModel(self, data_list)
-            table_view = QtGui.QTableView()
-            table_view.setModel(table_model)
-            table_view.resizeColumnsToContents()
-
-            table_view.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
-            table_view.setSortingEnabled(True)
-
-            selectionModel = table_view.selectionModel()
-            selectionModel.selectionChanged.connect(self.row_selected)
-
-            self.table_view = table_view
-
-            layout = QtGui.QHBoxLayout(self)
-            layout.setContentsMargins(10, 10, 10, 10)
-            layout.addWidget(table_view)
-
-            # MPL figure
-
-
-            # Create a matplotlib widget.
-            blank_widget = QtGui.QWidget(self)
-            sp = QtGui.QSizePolicy(
-                QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
-            sp.setHorizontalStretch(0)
-            sp.setVerticalStretch(0)
-            sp.setHeightForWidth(blank_widget.sizePolicy().hasHeightForWidth())
-            blank_widget.setSizePolicy(sp)
-            blank_widget.setObjectName("norm_plot")
-
-
-            self.norm_plot = mpl.MPLWidget(blank_widget, tight_layout=True,
-                autofocus=True)
-
-            mpl_layout = QtGui.QVBoxLayout(blank_widget)
-            mpl_layout.addWidget(self.norm_plot, 1)
-            layout.addWidget(blank_widget)
-
-            self.setLayout(layout)
-
-
-            self.mpl_axis = self.norm_plot.figure.add_subplot(111)
-            self.mpl_axis.scatter([0, 1], [0.4, 0.6])
-
-            self.norm_plot.draw()
-
-
-
-        def row_selected(self, *args):
-            indexes = self.table_view.selectionModel().selectedRows()
-            for index in indexes:
-                print("row {} selected".format(index.row()))
 
     import sys
 
-    from smh import linelists, Session
+    from smh import linelists, Session, specutils
     transitions = linelists.LineList.read("/Users/arc/research/ges/linelist/vilnius.ew")
 
     session = Session([
@@ -170,18 +451,26 @@ if __name__ == "__main__":
         "/Users/arc/codes/smh/hd44007blue_multi.fits",
     ])
 
+    session.normalized_spectrum = specutils.Spectrum1D.read(
+        "../smh/hd44007-rest.fits")
+
+
     from smh import spectral_models as sm
 
-    data_list = []
+    foo = []
     for i in range(len(transitions)):
         if i % 2:
-            data_list.append(sm.ProfileFittingModel(transitions[[i]], session))
+            foo.append(sm.ProfileFittingModel(transitions[[i]], session))
         else:
-            data_list.append(sm.SpectralSynthesisModel(transitions[[i]],
+            foo.append(sm.SpectralSynthesisModel(transitions[[i]],
                 session, transitions["elem1"][i]))
 
+    for each in foo[:30]:
+        each.fit()
+        each.metadata["is_acceptable"] = True
+
     app = QtGui.QApplication(sys.argv)
-    window = MyWindow(data_list)
+    window = SpectralModelsWidget(foo, session)
     window.show()
-    #sys.exit(app.exec_())
-    app.exec_()
+    sys.exit(app.exec_())
+    
