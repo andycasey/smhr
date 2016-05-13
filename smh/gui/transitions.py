@@ -19,8 +19,9 @@ DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
 class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
-    header = [" ", "Wavelength", "Element"]
-    attrs = ("is_acceptable", "_repr_wavelength", "_repr_element")
+    header = [" ", "Wavelength", "Element", "EW"]
+    attrs = ("is_acceptable", "_repr_wavelength", "_repr_element", 
+        "equivalent_width")
 
     def __init__(self, parent, data, *args):
         super(SpectralModelsTableModel, self).__init__(parent, *args)
@@ -36,9 +37,21 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         if not index.isValid():
             return None
 
-        value = getattr(
-            self._data[index.row()],
-            self.attrs[index.column()])
+        attr = self.attrs[index.column()]
+        try:
+            value = getattr(self._data[index.row()], attr)
+                
+        except AttributeError:
+            try:
+                value = self._data[index.row()]._result[2][attr]
+            except (AttributeError, KeyError):
+                value = np.nan
+
+            else:
+                if attr == "equivalent_width":
+                    value = "{0:.1f} +/- {1:.1f}".format(
+                        1000 * value[0],
+                        1000 * np.max(np.abs(value[1:])))
 
         if index.column() == 0:
             if role == QtCore.Qt.CheckStateRole:
@@ -49,8 +62,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         elif role != QtCore.Qt.DisplayRole:
             return None
 
-        return getattr(self._data[index.row()],
-            self.attrs[index.column()])
+        return value
 
     def headerData(self, col, orientation, role):
         if orientation == QtCore.Qt.Horizontal \
@@ -196,17 +208,24 @@ class SpectralModelsWidget(QtGui.QWidget):
             # Otherwise, add a point and wait for a second continuum point?
 
             show_index = self.table.selectionModel().selectedRows()[0]
-            model = self.table.model()._data[show_index.row()]
+            table_model = self.table.model()
+            spectral_model = self.table.model()._data[show_index.row()]
 
-            for i, (s, e) in enumerate(model.metadata["mask"][::-1]):
+            for i, (s, e) in enumerate(spectral_model.metadata["mask"][::-1]):
                 if e >= event.xdata >= s:
 
-                    mask = model.metadata["mask"]
+                    mask = spectral_model.metadata["mask"]
                     index = len(mask) - 1 - i
                     del mask[index]
 
-                    # Re-fit the current model.
-                    model.fit()
+                    # Re-fit the current spectral_model.
+                    spectral_model.fit()
+
+                    # Update the table view for this row.
+                    table_model.dataChanged.emit(
+                        table_model.createIndex(show_index.row(), 0),
+                        table_model.createIndex(
+                            show_index.row(), table_model.columnCount(0)))
 
                     # Update the view of the current model.
                     self.row_selected()
@@ -282,15 +301,10 @@ class SpectralModelsWidget(QtGui.QWidget):
         if  time() - signal_time > DOUBLE_CLICK_INTERVAL \
         and np.abs(xy[0,0] - xdata) > 0:
             
-            # Update the cache with the new mask.
-            #_ = self._cache["input"].get("exclude", np.array([]))
-            #_.shape = (-1, 2)
-            #self._cache["input"]["exclude"] = np.vstack((
-            #    np.array([xy[0,0], xy[2, 0]]).reshape(-1, 2), _))
-
             # Get current spectral model.
             show_index = self.table.selectionModel().selectedRows()[0]
-            spectral_model = self.table.model()._data[show_index.row()]
+            table_model = self.table.model()
+            spectral_model = table_model._data[show_index.row()]
 
             # Add mask metadata.
             spectral_model.metadata["mask"].append([xy[0,0], xy[2, 0]])
@@ -298,9 +312,14 @@ class SpectralModelsWidget(QtGui.QWidget):
             # Re-fit the spectral model.
             spectral_model.fit()
 
+            # Update the table view for this row.
+            table_model.dataChanged.emit(
+                table_model.createIndex(show_index.row(), 0),
+                table_model.createIndex(
+                    show_index.row(), table_model.columnCount(0)))
+
             # Update the view of the spectral model.
             self.row_selected()
-
 
         xy[:, 0] = np.nan
 
@@ -400,10 +419,12 @@ class SpectralModelsWidget(QtGui.QWidget):
         try:
             opt, cov, meta = model._result
         except:
-            None
-        else:
+            # Hide the model data and any masked regions.
+            self.mpl_axis.lines[1].set_data([], [])
 
-            print(opt)
+            for each in self._mpl_nearby_lines_masked_regions:
+                each.set_visible(False)
+        else:
 
             # Set the model data.
             self.mpl_axis.lines[1].set_data(meta["model_x"], meta["model_y"])
@@ -465,9 +486,8 @@ if __name__ == "__main__":
             foo.append(sm.SpectralSynthesisModel(transitions[[i]],
                 session, transitions["elem1"][i]))
 
-    for each in foo[:30]:
+    for each in foo[:10]:
         each.fit()
-        each.metadata["is_acceptable"] = True
 
     app = QtGui.QApplication(sys.argv)
     window = SpectralModelsWidget(foo, session)

@@ -326,6 +326,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Convert result to ordered dict.
         named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
         self._result = (named_p_opt, cov, fitting_metadata)
+        self.metadata["is_acceptable"] = True
+        
         return self._result
 
 
