@@ -28,7 +28,6 @@ class SummaryTab(QtGui.QWidget):
         self.parent = parent
         self.setObjectName("summary_tab")
 
-
         # Right pane: A MPL figure with two axes, vertically aligned.
         # Left pane:
         # - Name, RA/DEC
@@ -37,7 +36,8 @@ class SummaryTab(QtGui.QWidget):
 
         # Set a size policy.
         sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.MinimumExpanding)
+            QtGui.QSizePolicy.MinimumExpanding,
+            QtGui.QSizePolicy.MinimumExpanding)
         sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
         self.setSizePolicy(sp)
 
@@ -76,13 +76,11 @@ class SummaryTab(QtGui.QWidget):
         self.btn_query_simbad.setText("Query Simbad..")
         self.btn_query_simbad.clicked.connect(self.query_simbad)
 
-
         hbox.addWidget(self.btn_query_simbad)
         hbox.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
         summary_layout.addLayout(hbox)
         tab_layout.addWidget(summary_widget)
-
 
 
         # Create a matplotlib widget in the right hand pane.
@@ -104,14 +102,26 @@ class SummaryTab(QtGui.QWidget):
         tab_layout.addWidget(blank_widget)
 
         self.ax_top_comparison = self.figure.figure.add_subplot(211)
-        self.ax_top_comparison.scatter([5500], [4.5])
-
-
         self.ax_bottom_comparison = self.figure.figure.add_subplot(212)
-        self.ax_bottom_comparison.scatter([5500], [4.5])
-
 
         return None
+
+
+
+    def redraw_literature_comparisons(self):
+        """
+        Update the literature comparison axes.
+        """
+        raise NotImplementedError
+
+
+    def redraw_stellar_property(self):
+        """
+        The stellar parameters have been updated, so update the axes to reflect
+        that change.
+        """
+        raise NotImplementedError
+
 
 
     def query_simbad(self):

@@ -31,3 +31,31 @@ normalization:
       obs_wavelength:
         - [7593, 7618] # Part of the telluric A-band
       #pixel:
+summary:
+  top_axis:
+    star_x: teff
+    star_y: logg
+    star_z: metallicity
+    x_label: Teff
+    y_label: logg
+    comparisons:
+      - isochrone_label:
+        sample_path: filename.csv
+        sample_format: csv
+        x_column: 3
+        y_column: 4
+        #z_column: 6
+      - literature_label:    
+        sample_path: yong.fits
+        x_column: TEFF
+        y_column: XI
+        #z_column: 6
+  bottom:
+    star_x: teff
+    star_y: logg
+    comparisons:
+      - literature_label:    
+        sample_path: yong.fits
+        x_column: TEFF
+        y_column: XI
+        #z_column: 6
