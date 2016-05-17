@@ -29,7 +29,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
         if session_path is not None:
             self.open_session(session_path)
 
-        self.setWindowTitle("Spectroscopy Made Harder")
         self.setObjectName("smh")
         self.resize(1200, 600)
         self.move(QtGui.QApplication.desktop().screen().rect().center() \
@@ -119,9 +118,36 @@ class Ui_MainWindow(QtGui.QMainWindow):
         for i in range(self.tabs.count()):
             self.tabs.setTabEnabled(i, i < 2)
 
-
+        # Re-populate widgets in all tabs.
+        self.summary_tab._populate_widgets()
         self.rv_tab.update_from_new_session()
         self.normalization_tab._populate_widgets()
+
+        self._update_window_title()
+
+        return None
+
+
+    def _update_window_title(self):
+        """
+        Update the window title.
+        """
+
+        joiner, prefix = (" - ", "Spectroscopy Made Hard")
+        if self.session is None:
+            title = prefix
+            
+        else:
+            try:
+                object_name = self.session.metadata["OBJECT"]
+
+            except (AttributeError, KeyError):
+                title = joiner.join([prefix, "Unnamed"])
+
+            else:
+                title = joiner.join([prefix, object_name])
+
+        self.setWindowTitle(title)
 
         return None
 
@@ -195,8 +221,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.setSizePolicy(sp)
 
         # Create summary tab.
-        summary_tab = summary.SummaryTab(self)
-        self.tabs.addTab(summary_tab, "Summary")
+        self.summary_tab = summary.SummaryTab(self)
+        self.tabs.addTab(self.summary_tab, "Summary")
 
         # Create radial velocity tab
         self.rv_tab = rv.RVTab(self)
@@ -228,6 +254,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.setCurrentIndex(0)
         #QtCore.QMetaObject.connectSlotsByName(self)
 
+        self._update_window_title()
 
 
 if __name__ == '__main__':

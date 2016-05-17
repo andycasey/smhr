@@ -52,19 +52,15 @@ class SummaryTab(QtGui.QWidget):
 
         # Star name label.
         self.star_label = QtGui.QLabel(self)
-        self.star_label.setText("(No star)")
         summary_layout.addWidget(self.star_label)
 
         # Coordinates label.
         self.coordinates_label = QtGui.QLabel(self)
-        self.coordinates_label.setText("")
         summary_layout.addWidget(self.coordinates_label)
 
         # Notes.
         self.summary_notes = QtGui.QPlainTextEdit(self)
         self.summary_notes.setObjectName("summary_notes")
-        self.summary_notes.setPlainText("")
-
         summary_layout.addWidget(self.summary_notes)
 
         # External sources of information.
@@ -104,8 +100,44 @@ class SummaryTab(QtGui.QWidget):
         self.ax_top_comparison = self.figure.figure.add_subplot(211)
         self.ax_bottom_comparison = self.figure.figure.add_subplot(212)
 
+        # Initialize the widgets.
+        self._populate_widgets()
         return None
 
+
+    def _populate_widgets(self):
+        """
+        Populate the widgets with values, either from the parent session or the
+        default session file.
+        """
+
+        # Star label.
+        try:
+            star_label = str(self.parent.session.metadata["OBJECT"]).strip()
+        except (AttributeError, KeyError):
+            star_label = "(No star)"
+        self.star_label.setText(star_label)
+
+        # Star coordinates.
+        try:
+            ra = str(self.parent.session.metadata["RA"]).strip()
+            dec = str(self.parent.session.metadata["DEC"]).strip()
+        except (AttributeError, KeyError):
+            ra, dec = ("", "")
+        else:
+            if ":" not in ra and ":" not in dec:
+                # Convert to sexagesimal.
+                None    
+        self.coordinates_label.setText(" ".join([ra, dec]))
+
+        # Summary notes.
+        try:
+            summary_notes = self.parent.session.metadata["NOTES"]
+        except (AttributeError, KeyError):
+            summary_notes = ""    
+        self.summary_notes.setPlainText(summary_notes)
+
+        return None
 
 
     def redraw_literature_comparisons(self):
