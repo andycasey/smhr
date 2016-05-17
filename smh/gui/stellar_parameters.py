@@ -17,17 +17,25 @@ from matplotlib import gridspec
 import mpl
 from smh.photospheres import available as available_photospheres
 
-
 logger = logging.getLogger(__name__)
 
 
 class StellarParametersTab(QtGui.QWidget):
 
     def __init__(self, parent=None):
+        """
+        Create a tab for the determination of stellar parameters by excitation
+        and ionization equalibrium.
+
+        :param parent: [optional]
+            The parent widget.
+        """
+
         super(StellarParametersTab, self).__init__(parent)
+
+        panel_size = 350
         self.parent = parent
 
-        # Establish the GUI for this tab.
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.MinimumExpanding,
             QtGui.QSizePolicy.MinimumExpanding
@@ -42,10 +50,36 @@ class StellarParametersTab(QtGui.QWidget):
         
         input_parameters = QtGui.QWidget()
         input_parameters_layout = QtGui.QVBoxLayout(input_parameters)
-        input_parameters.setFixedWidth(300)
+        input_parameters.setFixedWidth(panel_size)
         
         # Top-level button to measure transitions.
+        self.btn_measure_transitions = QtGui.QPushButton(self)
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Fixed)
+        sp.setHorizontalStretch(0)
+        sp.setVerticalStretch(0)
+        sp.setHeightForWidth(
+            self.btn_measure_transitions.sizePolicy().hasHeightForWidth())
+        self.btn_measure_transitions.setSizePolicy(sp)
+        self.btn_measure_transitions.setMinimumSize(
+            QtCore.QSize(panel_size, 0))
+        self.btn_measure_transitions.setMaximumSize(
+            QtCore.QSize(panel_size, 16777215))
 
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.btn_measure_transitions.setFont(font)
+        self.btn_measure_transitions.setCursor(
+            QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        self.btn_measure_transitions.setDefault(True)
+        self.btn_measure_transitions.setObjectName("btn_measure_transitions")
+        self.btn_measure_transitions.setText("Measure transitions..")
+        if sys.platform == "darwin":
+            self.btn_measure_transitions.setStyleSheet(
+                'QPushButton {color: white}')
+
+        input_parameters_layout.addWidget(self.btn_measure_transitions)
 
 
         # Start the grid layout for the stellar parameters tab.
@@ -80,10 +114,66 @@ class StellarParametersTab(QtGui.QWidget):
         self.effective_temperature.setMaximumSize(QtCore.QSize(40, 16777215))
         self.effective_temperature.setAlignment(QtCore.Qt.AlignCenter)
         self.effective_temperature.setValidator(
-            QtGui.QDoubleValidator(0, 1000, 2, self.effective_temperature))
+            QtGui.QDoubleValidator(3000, 8000, 0, self.effective_temperature))
         hbox.addWidget(self.effective_temperature)
         input_parameters_grid.addLayout(hbox, 1, 1, 1, 1)
 
+        # Surface gravity.
+        self.surface_gravity_label = QtGui.QLabel(self)
+        self.surface_gravity_label.setText("Surface gravity")
+        input_parameters_grid.addWidget(
+            self.surface_gravity_label, 2, 0, 1, 1)
+        
+        hbox = QtGui.QHBoxLayout()
+        hbox.addItem(QtGui.QSpacerItem(
+            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+
+        self.surface_gravity = QtGui.QLineEdit(self)
+        self.surface_gravity.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.surface_gravity.setAlignment(QtCore.Qt.AlignCenter)
+        self.surface_gravity.setValidator(
+            QtGui.QDoubleValidator(-1, 6, 2, self.surface_gravity))
+        hbox.addWidget(self.surface_gravity)
+        input_parameters_grid.addLayout(hbox, 2, 1, 1, 1)
+
+        # Metallicity.
+        self.metallicity_label = QtGui.QLabel(self)
+        self.metallicity_label.setText("Metallicity")
+        input_parameters_grid.addWidget(
+            self.metallicity_label, 3, 0, 1, 1)
+        
+        hbox = QtGui.QHBoxLayout()
+        hbox.addItem(QtGui.QSpacerItem(
+            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+
+        self.metallicity = QtGui.QLineEdit(self)
+        self.metallicity.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.metallicity.setAlignment(QtCore.Qt.AlignCenter)
+        self.metallicity.setValidator(
+            QtGui.QDoubleValidator(-7, 1, 2, self.metallicity))
+        hbox.addWidget(self.metallicity)
+        input_parameters_grid.addLayout(hbox, 3, 1, 1, 1)
+
+        # Depending on the photospheres: alpha-enhancement.
+
+
+        # Depending on the radiative transfer code used: microturbulence.
+        self.microturbulence_label = QtGui.QLabel(self)
+        self.microturbulence_label.setText("Microturbulence (km/s)")
+        input_parameters_grid.addWidget(
+            self.microturbulence_label, 4, 0, 1, 1)
+        
+        hbox = QtGui.QHBoxLayout()
+        hbox.addItem(QtGui.QSpacerItem(
+            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+
+        self.microturbulence = QtGui.QLineEdit(self)
+        self.microturbulence.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.microturbulence.setAlignment(QtCore.Qt.AlignCenter)
+        self.microturbulence.setValidator(
+            QtGui.QDoubleValidator(0, 5, 2, self.microturbulence))
+        hbox.addWidget(self.microturbulence)
+        input_parameters_grid.addLayout(hbox, 4, 1, 1, 1)
 
 
         input_parameters_layout.addLayout(input_parameters_grid)
@@ -91,7 +181,6 @@ class StellarParametersTab(QtGui.QWidget):
         # Add a spacer.
         input_parameters_layout.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
-
 
 
         # Add a 'Measure abundances' button.
@@ -103,13 +192,16 @@ class StellarParametersTab(QtGui.QWidget):
         sp.setHeightForWidth(
             self.measure_abundances.sizePolicy().hasHeightForWidth())
         self.measure_abundances.setSizePolicy(sp)
-        self.measure_abundances.setMinimumSize(QtCore.QSize(300, 0))
-        self.measure_abundances.setMaximumSize(QtCore.QSize(300, 16777215))
+        self.measure_abundances.setMinimumSize(
+            QtCore.QSize(panel_size, 0))
+        self.measure_abundances.setMaximumSize(
+            QtCore.QSize(panel_size, 16777215))
         font = QtGui.QFont()
         font.setBold(True)
         font.setWeight(75)
         self.measure_abundances.setFont(font)
-        self.measure_abundances.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        self.measure_abundances.setCursor(
+            QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.measure_abundances.setDefault(True)
         self.measure_abundances.setObjectName("measure_abundances")
         self.measure_abundances.setText("Measure abundances")
@@ -144,36 +236,20 @@ class StellarParametersTab(QtGui.QWidget):
         gs = gridspec.GridSpec(2, 1)
         self.ax_first = self.figure.figure.add_subplot(gs[0])
 
-        # Line for the data.
-        self.ax_first.plot([0, 0.5], [0.5, 1], c='k', zorder=3)#, drawstyle='steps-mid')
-        # Line for the continuum.
-        self.ax_first.plot([], [], linestyle="--", linewidth=2, c='r', zorder=4)
-
-        # Line for the neighbouring order(s) (joined by a NaN).
-        self.ax_first.plot([], [], c='#666666', zorder=1, drawstyle='steps-mid')
-        # Line for the neighbouring order(s) continuum (joined by a NaN)
-        self.ax_first.plot([], [], c='b', zorder=2)
-
-        # Additional point markers.
-        self.ax_first.scatter([], [], facecolor="k", zorder=5, picker=5)
-
-        # Regions
-
-        self.ax_first.set_xticklabels([])
-        self.ax_first.set_yticklabels([])
-        self.ax_first.set_ylabel("Flux")
+        # Scatter transitions.
+        self.ax_first.scatter([0.5, 0.6], [0, 1], facecolor="k")
+    
+        # Line of best fit? Error regions?
+        self.ax_first.set_xlabel("Excitation potential (eV)")
+        self.ax_first.set_ylabel("[X/M]")
 
         self.ax_second = self.figure.figure.add_subplot(gs[1])
-        self.ax_second.axhline(1, linestyle=":", c="#666666", zorder=1)
-        self.ax_second.plot([], [], c='k', zorder=2)
+        self.ax_second.scatter([0.4, 0.2], [0.1, 0.3], facecolor="k")
 
-        # TODO: Make (0, 1.2) a default view setting.
-        self.ax_second.set_ylim(0, 1.2)
-        self.ax_second.set_yticks([0, 0.5, 1.0])
-        self.ax_second.set_xlabel(u"Wavelength (Å)")
-
-        #self.figure.figure.tight_layout(w_pad=0, h_pad=0, pad=0.4)
+        self.ax_second.set_xlabel(r"$\log_{e}({\rm EW}/\lambda)$")
+        self.ax_second.set_ylabel("[X/M]")
         self.figure.draw()
+
 
         """
         # Create signals.
@@ -205,6 +281,13 @@ class StellarParametersTab(QtGui.QWidget):
         self.high_sigma_clip.textChanged.connect(self.check_state)
         self.knot_spacing.textChanged.connect(self.check_state)
         """
+
+
+    def _populate_widgets(self):
+        """
+        Populate the widgets in this tab with the default parameters.
+        """
+        return None
 
 
 

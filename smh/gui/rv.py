@@ -357,17 +357,26 @@ class RVTab(QtGui.QWidget):
         blank_widget.setSizePolicy(sp)
         blank_widget.setObjectName("blank_widget")
 
-        self.rv_plot = mpl.MPLWidget(blank_widget)
+        self.rv_plot = mpl.MPLWidget(blank_widget, tight_layout=True)
+
         layout = QtGui.QVBoxLayout(blank_widget)        
         layout.addWidget(self.rv_plot, 1)
 
         rv_tab_layout.addWidget(blank_widget)
 
 
-        gs = gridspec.GridSpec(3, 1, height_ratios=[3, 1, 1])
+        gs = gridspec.GridSpec(3, 1, height_ratios=[2, 1, 1])
         self.ax_order = self.rv_plot.figure.add_subplot(gs[0])
         self.ax_order_norm = self.rv_plot.figure.add_subplot(gs[1])
         self.ax_ccf = self.rv_plot.figure.add_subplot(gs[2])
+
+        # Pseudo-legend.
+        self.ax_order.text(0.99, 0.9, "Data", color="k",
+            transform=self.ax_order.transAxes, horizontalalignment="right")
+        self.ax_order.text(0.99, 0.8, "Continuum", color="r", 
+            transform=self.ax_order.transAxes, horizontalalignment="right")
+        self.ax_order.text(0.99, 0.7, "Template", color="b", 
+            transform=self.ax_order.transAxes, horizontalalignment="right")
 
         # Ticks, etc
         self.ax_order.set_xticklabels([])
@@ -385,6 +394,7 @@ class RVTab(QtGui.QWidget):
         self.ax_order_norm.axhline(1, linestyle=":", c="#666666", zorder=-1)
         self.ax_order_norm.plot([], [], c='k', drawstyle='steps-mid')
         self.ax_order_norm.plot([], [], c='b') # Template.
+        self.ax_order_norm.set_ylabel("Normalized flux")
 
 
         self.ax_ccf.plot([], [], c='k')
@@ -392,7 +402,6 @@ class RVTab(QtGui.QWidget):
         self.ax_ccf.set_ylabel("CCF")
         self.ax_ccf.set_yticks([0, 0.5, 1.0])
 
-        
         # Keep an input cache.
         self._populate_widgets()
 

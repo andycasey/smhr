@@ -208,7 +208,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Create stellar parameters tab.
         self.stellar_parameters_tab \
             = stellar_parameters.StellarParametersTab(self)
-        self.tabs.addTab(self.stellar_parameters_tab, "Stellar Parameters")
+        self.tabs.addTab(self.stellar_parameters_tab, "Stellar parameters")
 
         # Add remaining empty tabs.
         extra_tab_names = ("Chemical abundances", )

@@ -14,6 +14,13 @@ __all__ = ["SummaryTab"]
 class SummaryTab(QtGui.QWidget):
 
     def __init__(self, parent=None):
+        """
+        Create a summary tab for a SMH analysis session.
+
+        :param parent: [optional]
+            The parent widget.
+        """
+
         super(SummaryTab, self).__init__(parent)
         self.parent = parent
 
@@ -22,14 +29,11 @@ class SummaryTab(QtGui.QWidget):
         text_edit = QtGui.QPlainTextEdit(self)
         text_edit.setObjectName("summary_text")
         text_edit.setGeometry(QtCore.QRect(80, 80, 401, 181))
-        text_edit.setPlainText(
-"""
-- position
-- UTdate
-- stellar params compared to some default comparison sample?
-- stellar params on an isochrone?
-- simbad/DSS image cutout?
-- link to vizier for this object? (or retrieve info from vizier?)""")
+        text_edit.setPlainText("""
+- Name, RA/DEC
+- Comments/session log
+- HR diagram with isochrones, showing a comparison sample read from disk.
+- Link to vizier/simbad search for this object""")
 
         return None
 
