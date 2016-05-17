@@ -11,8 +11,7 @@ from PySide import QtCore, QtGui
 # Import functionality related to each tab
 import rv, normalization, summary, stellar_parameters
 
-
-from smh import Session
+import smh
 
 
 class Ui_MainWindow(QtGui.QMainWindow):
@@ -87,6 +86,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         self.statusbar = QtGui.QStatusBar(self)
         self.statusbar.setObjectName("statusbar")
+        self.statusbar.showMessage("Spectroscopy Made Harder v{0} ({1})".format(
+            smh.__version__, smh.__git_hash__))
         self.setStatusBar(self.statusbar)
 
         return True
@@ -112,7 +113,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         if not filenames: return
 
         # Create a session.
-        self.session = Session(filenames)
+        self.session = smh.Session(filenames)
 
         # Disable all tabs except for Summary and RV.
         for i in range(self.tabs.count()):

@@ -1,9 +1,15 @@
 
 import logging
 import os
+from commands import getstatusoutput # TODO this is the wrong way 
 from shutil import copyfile
 
+# Software version.
 __version__ = "0.1"
+try:
+    _, __git_hash__ = getstatusoutput('git log -1 --date=short --format="%h"')
+except:
+    __git_hash__ = None
 
 # Set up logging.
 logger = logging.getLogger(__name__)
