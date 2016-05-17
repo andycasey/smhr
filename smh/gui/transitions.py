@@ -73,7 +73,6 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
     def setData(self, index, value, role=QtCore.Qt.DisplayRole):
         attr = self.attrs[index.column()]
-        print(attr)
         if attr != "is_acceptable":
             return False
 
@@ -91,7 +90,8 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         if order == QtCore.Qt.DescendingOrder:
             self._data.reverse()
 
-        self.dataChanged.emit(self.createIndex(0, 0), self.createIndex(self.rowCount(0), self.columnCount(0)))
+        self.dataChanged.emit(self.createIndex(0, 0),
+            self.createIndex(self.rowCount(0), self.columnCount(0)))
         self.emit(QtCore.SIGNAL("layoutChanged()"))
 
 
@@ -103,7 +103,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
 
 class SpectralModelsWidget(QtGui.QWidget):
-    def __init__(self, spectral_models, session, *args):
+    def __init__(self, spectral_models, normalized_spectrum=None, *args):
         """
         Initialize a widget for inspecting a list of spectral models.
 
@@ -114,7 +114,9 @@ class SpectralModelsWidget(QtGui.QWidget):
 
         super(SpectralModelsWidget, self).__init__(*args)
         self.spectral_models = spectral_models
-        self.session = session
+
+        if normalized_spectrum is None:
+            normalized_spectrum = spectral_models[0].session.normalized_spectrum
 
         self.setGeometry(300, 200, 570, 450)
         self.setWindowTitle("Spectral models")
@@ -156,18 +158,16 @@ class SpectralModelsWidget(QtGui.QWidget):
 
         self.setLayout(layout)
 
-        self.__init_figure__()
-
-
-    def __init_figure__(self):
-
+        # Initiate the matplotlib figure.
         self.mpl_axis = self.mpl_figure.figure.add_subplot(111)
         
         # Draw the spectrum first. 
         self.mpl_axis.plot(
-            self.session.normalized_spectrum.dispersion,
-            self.session.normalized_spectrum.flux,
+            normalized_spectrum.dispersion,
+            normalized_spectrum.flux,
             c="k", drawstyle="steps-mid")
+        self.mpl_axis.fill_between([], [], [], facecolor="k", alpha=0.5,
+            edgecolor=None, zorder=1)
 
         self.mpl_axis.set_ylim(0, 1.2)
         self.mpl_axis.set_xlabel(r"Wavelength (${\rm \AA}$)")
@@ -178,7 +178,6 @@ class SpectralModelsWidget(QtGui.QWidget):
         self.mpl_axis.plot([], [], c="r", zorder=2)
         self.mpl_axis.fill_between([], [], [], facecolor="r", alpha=0.5,
             edgecolor=None, zorder=1)
-
 
         self.mpl_figure.mpl_connect(
             "button_press_event", self.figure_mouse_press)
@@ -357,20 +356,10 @@ class SpectralModelsWidget(QtGui.QWidget):
         return None
 
 
-
     def row_selected(self, *args):
         """
         The row which is selected has been changed.
         """
-
-        spectral_models = self.table.model()._data
-        indexes = self.table.selectionModel().selectedRows()
-        for index in indexes:
-            print("row {} selected {} {}".format(
-                index.row(),
-                spectral_models[index.row()].is_acceptable,
-                spectral_models[index.row()].transitions
-                ))
 
         show_index = self.table.selectionModel().selectedRows()[0]
         model = self.table.model()._data[show_index.row()]
@@ -380,6 +369,7 @@ class SpectralModelsWidget(QtGui.QWidget):
         try:
             lower_wavelength = wavelengths[0]
             upper_wavelength = wavelengths[-1]
+
         except IndexError:
             # Single row.
             lower_wavelength, upper_wavelength = (wavelengths, wavelengths)
@@ -393,13 +383,14 @@ class SpectralModelsWidget(QtGui.QWidget):
             upper_wavelength + pixel
         )
         
-        # vfill the lower/upper wavelength as blue.
+        # Show masked regions.
         for i, (start, end) in enumerate(model.metadata["mask"]):
             try:
                 patch = self._mpl_masked_regions[i]
             except IndexError:
                 self._mpl_masked_regions.append(self.mpl_axis.axvspan(
-                    np.nan, np.nan, facecolor="r", edgecolor=None, alpha=0.25))
+                    np.nan, np.nan, facecolor="r", edgecolor="None",
+                    alpha=0.25))
                 patch = self._mpl_masked_regions[-1]
 
             patch.set_xy([
@@ -477,7 +468,6 @@ if __name__ == "__main__":
 
 
     from smh import spectral_models as sm
-
     foo = []
     for i in range(len(transitions)):
         if i % 2:
@@ -488,9 +478,22 @@ if __name__ == "__main__":
 
     for each in foo[:10]:
         each.fit()
-
+    
+    """
+    foo = [
+        sm.SpectralSynthesisModel(
+            linelists.LineList.read("../smh/smh/data/linelists/yII_5320.txt"), session, "Y"),
+        sm.SpectralSynthesisModel(
+            linelists.LineList.read("../smh/smh/data/linelists/linch_AF"), session, "C"),
+        sm.ProfileFittingModel(
+            linelists.LineList.read("../smh/eu.txt"), session),
+        sm.SpectralSynthesisModel(
+            linelists.LineList.read("../smh/eu.txt"), session, "Eu"),
+    ]
+    """
+    
     app = QtGui.QApplication(sys.argv)
-    window = SpectralModelsWidget(foo, session)
+    window = SpectralModelsWidget(foo, session.normalized_spectrum)
     window.show()
     sys.exit(app.exec_())
     
