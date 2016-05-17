@@ -7,10 +7,16 @@ from shutil import copyfile
 # Software version.
 __version__ = "0.1"
 try:
-    _, __git_hash__ = getstatusoutput('git log -1 --date=short --format="%h"')
-except:
-    __git_hash__ = None
+    _, git_hash = getstatusoutput('git log -1 --date=short --format="%h"')
+    _, unstaged_changes = getstatusoutput('git status -s -uno')
 
+except:
+    __git_status__ = None
+
+else:
+    unstaged_changes = "*" if len(unstaged_changes) > 0 else ""
+    __git_status__ = "".join([git_hash, unstaged_changes])
+    
 # Set up logging.
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

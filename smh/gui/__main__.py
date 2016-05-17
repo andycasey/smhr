@@ -87,7 +87,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.statusbar = QtGui.QStatusBar(self)
         self.statusbar.setObjectName("statusbar")
         self.statusbar.showMessage("Spectroscopy Made Harder v{0} ({1})".format(
-            smh.__version__, smh.__git_hash__))
+            smh.__version__, smh.__git_status__))
         self.setStatusBar(self.statusbar)
 
         return True
