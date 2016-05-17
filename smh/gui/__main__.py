@@ -9,7 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 from PySide import QtCore, QtGui
 
 # Import functionality related to each tab
-import rv, normalization, summary
+import rv, normalization, summary, stellar_parameters
 
 
 from smh import Session
@@ -205,9 +205,13 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.normalization_tab = normalization.NormalizationTab(self)
         self.tabs.addTab(self.normalization_tab, "Normalization")
 
+        # Create stellar parameters tab.
+        self.stellar_parameters_tab \
+            = stellar_parameters.StellarParametersTab(self)
+        self.tabs.addTab(self.stellar_parameters_tab, "Stellar Parameters")
+
         # Add remaining empty tabs.
-        extra_tab_names = \
-            ("Stellar parameters", "Chemical abundances")
+        extra_tab_names = ("Chemical abundances", )
 
         for tab_name in extra_tab_names:
             tab = QtGui.QWidget()
