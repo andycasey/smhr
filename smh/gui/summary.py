@@ -44,7 +44,7 @@ class SummaryTab(QtGui.QWidget):
         # Create a top-level horizontal layout to contain a MPL figure and
         # a vertical layout of settings..
         tab_layout = QtGui.QHBoxLayout(self)
-        tab_layout.setContentsMargins(10, 10, 10, 10)
+        #tab_layout.setContentsMargins(10, 10, 10, 10)
 
         # Create the left hand pane.
         summary_widget = QtGui.QWidget()
@@ -102,6 +102,10 @@ class SummaryTab(QtGui.QWidget):
 
         # Initialize the widgets.
         self._populate_widgets()
+
+        # Connect the widgets.
+        self.summary_notes.textChanged.connect(self.update_summary_notes)
+
         return None
 
 
@@ -137,6 +141,18 @@ class SummaryTab(QtGui.QWidget):
             summary_notes = ""    
         self.summary_notes.setPlainText(summary_notes)
 
+        return None
+
+
+    def update_summary_notes(self):
+        """
+        Update the summary notes in the session metadata to reflect the changes
+        made to the summary notes widget.
+        """
+
+        if self.parent.session is not None:
+            self.parent.session.metadata["NOTES"] \
+                = self.summary_notes.toPlainText()
         return None
 
 
