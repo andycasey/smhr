@@ -22,12 +22,12 @@ logger = logging.getLogger(__name__)
 
 class StellarParametersTab(QtGui.QWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent):
         """
         Create a tab for the determination of stellar parameters by excitation
         and ionization equalibrium.
 
-        :param parent: [optional]
+        :param parent:
             The parent widget.
         """
 

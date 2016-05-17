@@ -45,7 +45,14 @@ def dict_updated(default, new, exclude=None):
 
 class NormalizationTab(QtGui.QWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent):
+        """
+        Create a tab for the normalization of spectra.
+        
+        :param parent:
+            The parent widget.
+        """
+
         super(NormalizationTab, self).__init__(parent)
         self.parent = parent
 

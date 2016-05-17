@@ -24,8 +24,14 @@ c = 299792458e-3 # km/s
 
 class RVTab(QtGui.QWidget):
 
+    def __init__(self, parent):
+        """
+        Create a tab for correcting spectra for radial velocity.
 
-    def __init__(self, parent=None):
+        :param parent:
+            The parent widget.
+        """
+
         super(RVTab, self).__init__(parent)
 
         self.parent = parent

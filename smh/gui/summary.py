@@ -16,11 +16,11 @@ __all__ = ["SummaryTab"]
 
 class SummaryTab(QtGui.QWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent):
         """
         Create a summary tab for a SMH analysis session.
 
-        :param parent: [optional]
+        :param parent:
             The parent widget.
         """
 
