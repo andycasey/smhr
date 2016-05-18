@@ -35,7 +35,7 @@ install:
 
   # Currently we expect MOOGSILENT to be installed separately on the user's computer.
   # For Travis we will just ask him to install the batch version for now.
-  - pip install https://github.com/andycasey/moog/archive/makefile-templates.zip --user
+  - pip install https://github.com/andycasey/moog/archive/makefile-templates.zip -vvv
   - "which moogsilent"
   - python setup.py install --with-models
 script:
