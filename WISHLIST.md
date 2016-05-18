@@ -18,6 +18,8 @@
 - [ ] Summarise chemical abundances from all spectral_models, such that the abundances used for RT are updated *and* this can be reduced again and exported to FITS tables.
 - [ ] Parse radiative transfer options from the session file and update that directly in the session.
 - [ ] Optimization of stellar parameters given spectral models, including covariance matrix + jacobian.
+- [ ] Uncertainties in stellar parameters given uncertainties in linear fits of excitation balance.
+- [ ] Propagate uncertainties from stellar parameters to all "acceptable" spectral models.
 
 *Medium*:
 - [ ] An edit list widget for wavelength regions in the RV tab. #gui
@@ -38,7 +40,7 @@
 - [ ] Consistent color scheme between all tabs, which is read from the session defaults. #gui
 - [ ] Go through all 'TODO', 'HACK', or 'MAGIC' entries in the code and create
       GitHub issues. Assign labels and people.
-- [ ] Implement 'Query Simbad..' button.
+- [X] Implement 'Query Simbad..' button.
 - [ ] Change font style for name and position data in Summary tab. #gui
 - [ ] Compile line lists together based on current "best" knowledge.
 - [ ] Integrate spectral_models widget (sans any models) into the chemical abundances tab. #gui

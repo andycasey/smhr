@@ -6,13 +6,17 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+import logging
+from os import system
 from PySide import QtCore, QtGui
+from urllib import quote
 
 import mpl
 
 
 __all__ = ["SummaryTab"]
 
+logger = logging.getLogger(__name__)
 
 class SummaryTab(QtGui.QWidget):
 
@@ -134,7 +138,7 @@ class SummaryTab(QtGui.QWidget):
         else:
             self.btn_query_simbad.setEnabled(True)
             if ":" not in ra and ":" not in dec:
-                # Convert to sexagesimal.
+                # Convert to sexagesimal?
                 # TODO
                 None
                 
@@ -184,11 +188,19 @@ class SummaryTab(QtGui.QWidget):
         """
 
         # Get the positional information.
+        ra = str(self.parent.session.metadata["RA"]).strip()
+        dec = str(self.parent.session.metadata["DEC"]).strip()
 
         # Execute a system call to open a URL with the default browser.
+        url = "http://simbad.u-strasbg.fr/simbad/sim-coo?Coord={ra}{dec}"\
+              "&CooFrame=FK5&CooEpoch=2000&CooEqui=2000&CooDefinedFrames"\
+              "=none&Radius=5&Radius.unit=arcsec&submit=submit+query&CoordList="
+        url = url.format(ra=quote(ra), dec=quote(dec))
 
-        raise NotImplementedError
+        logger.info("Opening {}".format(url))
 
+        system('open "{}"'.format(url))
 
+        return None
 
 

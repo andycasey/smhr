@@ -7,21 +7,21 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 import logging
 import os
-from commands import getstatusoutput # TODO this is the wrong way 
 from shutil import copyfile
+from subprocess import check_output
 
 # Software version.
 __version__ = "0.1"
 try:
-    _, git_hash = getstatusoutput('git log -1 --date=short --format="%h"')
-    _, unstaged_changes = getstatusoutput('git status -s -uno')
+    git_hash = check_output('git log -1 --date=short --format="%h"', shell=True)
+    unstaged_changes = check_output('git status -s -uno', shell=True)
 
 except:
     __git_status__ = None
 
 else:
     unstaged_changes = "*" if len(unstaged_changes) > 0 else ""
-    __git_status__ = "".join([git_hash, unstaged_changes])
+    __git_status__ = "".join([git_hash.strip(), unstaged_changes])
     del unstaged_changes, git_hash
     
 # Set up logging.
