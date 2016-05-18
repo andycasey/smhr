@@ -2,6 +2,17 @@
 
 **WISHLIST**
 
+
+
+
+*Highest priority*
+- [ ] Travis to be faster (e.g., temporarily remove Py3 dependency)
+- [ ] Coveralls running
+- [ ] Unit test improvements
+- [ ] Document string improvements
+- [ ] Some documentation on the data model.
+
+
 *Hard*:
 - [ ] Widget for when an exception occurs, asking to submit GH issue. Catch all GUI-related exceptions with this. #gui
 - [ ] Fix matplotlib visualization bug for figures on the RHS. #gui
@@ -36,6 +47,7 @@
 
 
 *Easy*:
+- [ ] Configurable summary plot.
 - [ ] Fix spacing between top and middle figure in RV tab. #gui
 - [ ] Consistent color scheme between all tabs, which is read from the session defaults. #gui
 - [ ] Go through all 'TODO', 'HACK', or 'MAGIC' entries in the code and create

@@ -6,12 +6,15 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+import logging
 from PySide import QtCore, QtGui
 
 # Import functionality related to each tab
 import rv, normalization, summary, stellar_parameters
 
 import smh
+
+logger = logging.getLogger(__name__)
 
 
 class Ui_MainWindow(QtGui.QMainWindow):
@@ -136,7 +139,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         joiner, prefix = (" - ", "Spectroscopy Made Hard")
         if self.session is None:
             title = prefix
-            
+
         else:
             try:
                 object_name = self.session.metadata["OBJECT"]
@@ -170,6 +173,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
     def save_session(self):
         """ Save session. """
         print("Save session")
+        raise NotImplementedError
         return None
 
 
@@ -260,6 +264,56 @@ class Ui_MainWindow(QtGui.QMainWindow):
 if __name__ == '__main__':
 
     import sys
+
+    # Create a global exception hook.
+    sys._excepthook = sys.excepthook
+
+    # Allow certain exceptions to be ignored, and these can be added to through
+    # the GUI.
+    ignore_exception_types = []#NotImplementedError]
+
+    def exception_hook(exception_type, value, traceback):
+        """
+        An exception hook that will display a GUI and optionally allow the user
+        to submit a GitHub issue.
+
+        :param exception_type:
+            The type of exception that was raised.
+
+        :param value:
+            The exception value.
+
+        :param traceback:
+            The traceback of the exception.
+        """
+
+        # Show the exception in the terminal.
+        sys._excepthook(exception_type, value, traceback)
+
+        # Should this exception be ignored?
+        if exception_type in ignore_exception_types:
+            return None
+
+        
+
+        print("CAUGHT AN EXCEPTION")
+        print("type {}".format(exception_type))
+        print("value {}".format(value))
+        print("traceback {}".format(traceback))
+
+
+        # Load a GUI that shows the exception.
+
+
+        #ignore_exception_types.append(exception_type)
+
+
+
+        
+
+    sys.excepthook = exception_hook
+
+
 
     if sys.platform == "darwin":
             
