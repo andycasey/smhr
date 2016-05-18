@@ -6,8 +6,8 @@
 
 
 *Highest priority*
-- [ ] Travis to be faster (e.g., temporarily remove Py3 dependency)
-- [ ] Coveralls running
+- [X] Travis to be faster (e.g., temporarily remove Py3 dependency)
+- [X] Coveralls running
 - [ ] Unit test improvements
 - [ ] Document string improvements
 - [ ] Some documentation on the data model.

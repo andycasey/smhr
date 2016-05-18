@@ -1,11 +1,11 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
-import linelists
-import utils
-from linelists import LineList
 from nose.tools import assert_equals, assert_almost_equals, ok_
 from astropy import table
+from smh.linelists import LineList
+from smh import utils
+
 import numpy as np
 
 ll_filenames = ['masseron_linch.txt']
