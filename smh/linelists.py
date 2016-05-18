@@ -220,7 +220,7 @@ class LineList(Table):
         """
         See if the given line is in this line list
         Conditions: 
-        (1) species match
+        (1) elem1, elem2, ion match (but isotopes do not have to!)
         (2) wavelengeth match to within thresh
         (3) expot match to within 0.01 (hardcoded)
 
@@ -237,7 +237,7 @@ class LineList(Table):
             < -1: that number of matches
         """
         if thresh==None: thresh = self.default_thresh
-        ii1 = self['species']==line['species']
+        ii1 = np.logical_and(np.logical_and(self['elem1']==line['elem1'], self['elem2']==line['elem2']), self['ion']==line['ion'])
         ii2 = np.abs(self['wavelength']-line['wavelength']) < thresh
         ii3 = np.abs(self['expot']-line['expot']) < 0.01
         ii = np.logical_and(np.logical_and(ii1,ii2),ii3)
