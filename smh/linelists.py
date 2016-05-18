@@ -13,6 +13,15 @@ import os
 
 import md5
 
+class LineListConflict(Exception):
+    """Exception raised for merging conflicts"""
+    def __init__(self,conflicts1,conflicts2):
+        assert len(conflicts1) == len(conflicts2)
+        self.conflicts1 = conflicts1
+        self.conflicts2 = conflicts2
+    def __str__(self):
+        return repr(self.conflicts1)+'\n'+repr(self.conflicts2)
+
 class LineList(Table):
     full_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments',
                      'numelems','elem1','isotope1','elem2','isotope2','ion',
@@ -80,8 +89,7 @@ class LineList(Table):
             print(error_msg)
         return False
 
-    def merge(self,new_ll,thresh=None,override_current=True,
-              in_place=True):
+    def merge(self,new_ll,thresh=None,loggf_thresh=None,raise_exception=True,override_current=False,in_place=True):
         """
         new_ll: 
             new LineList object to merge into this one
@@ -90,36 +98,71 @@ class LineList(Table):
             threshold for wavelength check when matching lines
             Defaults to self.default_thresh (0.01)
 
+        loggf_thresh: 
+            threshold for loggf check when finding identical lines
+            Defaults to self.default_thresh (0.01)
+
+        raise_exception:
+            If True (default), finds all the conflicts and raises LineListConflict
+              Note: if in_place == True, then it merges new lines BEFORE raising the error
+            If False, uses self.pick_best_line() to pick a line to overwrite
+
         override_current: 
-            If True (default), uses new lines whenever duplicate lines are found.
-            If False, keep current lines whenever duplicate lines are found.
+            If True, uses new lines whenever duplicate lines are found.
+            If False (default), keep current lines whenever duplicate lines are found.
+            Ignored if raise_exception == True
         
         in_place:
-            If True, merge new lines into this object
+            If True (default), merge new lines into this object
             If False, return a new LineList
         """
         if thresh==None: thresh = self.default_thresh
+        if loggf_thresh==None: loggf_thresh = self.default_thresh
+        if len(self)==0: 
+            if not in_place:
+                return new_ll
+            else:
+                n_cols = len(new_ll.colnames)
+                names = new_ll.colnames
+                dtype = [None] * n_cols
+                self._init_indices = self._init_indices and new_ll._copy_indices
+                self._init_from_table(new_ll, names, dtype, n_cols, True)
 
         num_in_list = 0
+        num_with_multiple_conflicts = 0
         lines_to_add = []
-        lines_with_multiple_matches = []
+        if raise_exception:
+            conflicts_in_this_list = []
+            conflicts_in_new_list = []
+
         for new_line in new_ll:
             index = self.find_match(new_line,thresh)
-            if index==-1:
+            if index==-1: # New Line
                 lines_to_add.append(new_line)
-            elif index < -1:
-                # use self.pick_best_line to find best line
-                lines_with_multiple_matches.append(new_line)
-                index = self.pick_best_line(new_line,thresh)
-                # index < 0 is the convention that you should just skip the line rather than overwriting
-                if index < 0: continue 
-                if override_current:
-                    #self.data[index] = new_line
-                    self[index] = new_line
-            elif index >= 0:
-                num_in_list += 1
-                if override_current:
-                    self[index] = new_line
+            elif raise_exception: # Record all conflicts
+                if index < -1: # Multiple conflicts
+                    num_with_multiple_conflicts += 1
+                    matches = self.find_match(new_line,thresh,return_multiples=True)
+                    conflicts_in_new_list.append(new_line)
+                    conflicts_in_this_list.append(matches)
+                elif index >= 0: # Exactly one conflict
+                    num_in_list += 1
+                    my_line = self[index]
+                    if np.abs(my_line['loggf'] - new_line['loggf']) >= loggf_thresh:
+                        conflicts_in_new_list.append(new_line)
+                        conflicts_in_this_list.append(self[index])
+            else: # use self.pick_best_line to find best line
+                if index < -1:
+                    num_with_multiple_conflicts += 1
+                    index = self.pick_best_line(new_line,thresh)
+                    # index < 0 is the convention that you should just skip the line rather than overwriting
+                    if index < 0: continue 
+                    if override_current:
+                        self[index] = new_line
+                elif index >= 0:
+                    num_in_list += 1
+                    if override_current:
+                        self[index] = new_line
         num_lines_added = len(lines_to_add)
         if len(lines_to_add) > 0:
             if in_place:
@@ -131,11 +174,13 @@ class LineList(Table):
                 # During the vstack creates an empty LineList and warns
                 new_data = table.vstack([old_lines,new_lines])
         
+        # Note: if in_place == True, then it merges new lines BEFORE raising the conflict
+        if raise_exception and len(conflicts_in_new_list) > 0:
+            raise LineListConflict(conflicts_in_this_list, conflicts_in_new_list)
         if self.verbose:
             print("Num lines added: {}".format(num_lines_added))
             print("Num lines {}: {}".format('replaced' if override_current else 'ignored', num_in_list))
-            num_lines_with_multiple_matches = len(lines_with_multiple_matches)
-            print("Num lines with multiple matches: {}".format(num_lines_with_multiple_matches))
+            print("Num lines with multiple matches: {}".format(num_with_multiple_conflicts))
 
         if not in_place:
             return LineList(new_data)
@@ -180,6 +225,10 @@ class LineList(Table):
         (3) expot match to within 0.01 (hardcoded)
 
         Returns the index if all conditions are true
+
+        thresh:
+            Wavelength tolerance to be considered identical lines
+            (defaults to self.default_thresh, which is .01 by default)
 
         return_multiples: 
             if True, returns list/array of indices
