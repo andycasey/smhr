@@ -26,6 +26,10 @@ install:
   # See https://groups.google.com/a/continuum.io/forum/#!topic/anaconda/6q1StqOb_Vc
   - if [[ $TRAVIS_PYTHON_VERSION == 2* ]]; then conda install --yes python=$TRAVIS_PYTHON_VERSION pyside; fi
   - if [[ $TRAVIS_PYTHON_VERSION == '3.4' ]]; then pip install pyside; fi
+
+  # Currently we expect MOOGSILENT to be installed separately on the user's computer.
+  # For Travis we will just ask him to install the batch version for now.
+  - pip install moogsilent
   - pip install coveralls
   - python setup.py install --with-models
 script:
