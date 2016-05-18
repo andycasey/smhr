@@ -35,10 +35,24 @@ class BaseSpectralModel(object):
 
         self.metadata = {}
 
-        # Verify the input transitions are valid.
-        self._verify_transitions()
         return None
 
+    @property
+    def is_acceptable(self):
+        """ Return whether this spectral model is acceptable. """
+        return self.metadata.get("is_acceptable", False)
+
+    @property
+    def _repr_element(self):
+        """ Return a view of the element(s) for this model. """
+        return ", ".join(self.elements)
+
+    @property
+    def _repr_wavelength(self):
+        if len(self.transitions) == 1:
+            return "{0:.1f}".format(self.transitions["wavelength"][0])
+        else:
+            return "~{0:.1f}".format(np.mean(self.transitions["wavelength"]))
 
     @property
     def transitions(self):
@@ -48,7 +62,7 @@ class BaseSpectralModel(object):
     @property
     def elements(self):
         """ Return the elements to be measured from this class. """
-        return self._metadata["elements"]
+        return self.metadata["elements"]
 
     @property
     def session(self):
@@ -141,8 +155,8 @@ class BaseSpectralModel(object):
 
         # Any masked ranges specified in the metadata?
         for start, end in self.metadata["mask"]:
-            mask *= (spectrum.dispersion >= start) \
-                  * (spectrum.dispersion <= end)
+            mask *= ~((spectrum.dispersion >= start) \
+                    * (spectrum.dispersion <= end))
         return mask
 
 
@@ -164,4 +178,34 @@ class BaseSpectralModel(object):
                 return np.nan * np.ones_like(dispersion)
 
         return self.__call__(dispersion, *parameters)
+
+
+    def _fill_masked_arrays(self, spectrum, x, *y):
+        """
+        Detect masked regions and fill masked regions in y-axis arrays with
+        NaNs.
+
+        :param spectrum:
+            The spectrum used in the fit.
+
+        :param x:
+            The x values that were used in the fit.
+
+        :param *y:
+            The y-axis arrays to fill.
+        """
+
+        indices = spectrum.dispersion.searchsorted(x)
+        x_actual = spectrum.dispersion[indices[0]:1 + indices[-1]]
+
+        filled_arrays = [x_actual]
+        for yi in y:
+            yi_actual = np.nan * np.ones_like(x_actual)
+            if len(yi_actual.shape) == 2:
+                yi_actual[:, indices - indices[0]] = yi
+            else:
+                yi_actual[indices - indices[0]] = yi
+            filled_arrays.append(yi_actual)
+
+        return tuple(filled_arrays)
 

@@ -63,14 +63,14 @@ class Session(BaseSession):
         # Extract basic metadata information from the spectrum headers if
         # possible: RA, DEC, OBJECT
         # TODO: Include UTDATE, etc to calculate helio/bary-centric corrections.
-        common_metadata = {}
+        self.metadata = { "NOTES": ""}
         common_metadata_keys = ["RA", "DEC", "OBJECT"] \
             + kwargs.pop("common_metadata_keys", [])
 
         for key in common_metadata_keys:
             for order in input_spectra:
                 if key in order.metadata:
-                    common_metadata[key] = order.metadata[key]
+                    self.metadata[key] = order.metadata[key]
                     break
 
         self.input_spectra = input_spectra
@@ -78,7 +78,7 @@ class Session(BaseSession):
         
         # Initialize metadata dictionary.
         N = len(self.input_spectra)
-        self.metadata = {
+        self.metadata.update({
             "rv": {},
             "normalization": {
                 "continuum": [None] * N,
@@ -91,7 +91,7 @@ class Session(BaseSession):
                 "metallicity": 0.0, # Solar-scaled
                 "microturbulence": 1.06, # km/s
             }
-        }
+        })
 
         return None
 

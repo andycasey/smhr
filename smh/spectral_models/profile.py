@@ -150,7 +150,7 @@ class ProfileFittingModel(BaseSpectralModel):
         """
         Return the element that will be measured by this model.
         """
-        return self.transitions["elem1"][0]
+        return self.transitions["element"][0]
         
 
     def _verify_metadata(self):
@@ -177,7 +177,11 @@ class ProfileFittingModel(BaseSpectralModel):
         # Update the bounds.
         bounds = {}
         if self.metadata["profile"] == "gaussian":
-            bounds["sigma"] = (-0.5, 0.5)
+            bounds.update({
+                "sigma": (-0.5, 0.5),
+                "amplitude": (0, 1),
+            })
+
         elif self.metadata["profile"] == "voigt":
             bounds["fwhm"] = (-0.5, 0.5)
 
@@ -290,7 +294,11 @@ class ProfileFittingModel(BaseSpectralModel):
         for iteration in range(self.metadata["max_iterations"]):
                 
             if not any(iterative_mask):
-                raise Failed
+                self.metadata["is_acceptable"] = False
+                del self._result
+                self._transitions["equivalent_width"] = np.nan
+
+                return failure
 
             try:
                 p_opt, p_cov = op.curve_fit(self.fitting_function, 
@@ -302,10 +310,13 @@ class ProfileFittingModel(BaseSpectralModel):
             except:
                 logger.exception(
                     "Exception raised in fitting atomic transition {0} "\
-                    "on iteration {1}".format(
-                        wavelength,
-                        iteration))
+                    "on iteration {1}".format(self, iteration))
+
                 if iteration == 0:
+                    self.metadata["is_acceptable"] = False
+                    del self._result
+                    self._transitions["equivalent_width"] = np.nan
+
                     return failure
 
             # Look for outliers peaks.
@@ -404,8 +415,8 @@ class ProfileFittingModel(BaseSpectralModel):
         # Integrate the profile.
         profile, _ = self._profiles[self.metadata["profile"]]
         if profile == _gaussian:
-            ew = p_opt[1] * p_opt[2] * np.sqrt(2 * np.pi)
-            ew_alt = p_alt[:, 1] * p_alt[:, 2] * np.sqrt(2 * np.pi)
+            ew = abs(p_opt[1] * p_opt[2] * np.sqrt(2 * np.pi))
+            ew_alt = np.abs(p_alt[:, 1] * p_alt[:, 2] * np.sqrt(2 * np.pi))
             ew_uncertainty = np.percentile(ew_alt, percentiles) - ew
 
         else:
@@ -456,6 +467,10 @@ class ProfileFittingModel(BaseSpectralModel):
             edgecolor="None", facecolor="b", alpha=0.5)
         """
         
+        # Convert x, model_y, etc back to real-spectrum indices.
+        x, model_y, model_yerr = self._fill_masked_arrays(
+            spectrum, x, model_y, model_yerr)
+
         fitting_metadata = {
             "equivalent_width": (ew, ew_uncertainty[0], ew_uncertainty[1]),
             "data_indices": np.where(mask)[0][iterative_mask],
@@ -473,6 +488,7 @@ class ProfileFittingModel(BaseSpectralModel):
         # Convert p_opt to ordered dictionary
         named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
         self._result = (named_p_opt, p_cov, fitting_metadata)
+        self.metadata["is_acceptable"] = True
 
         return self._result
 

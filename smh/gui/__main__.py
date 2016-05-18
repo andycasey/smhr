@@ -6,13 +6,15 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+import logging
 from PySide import QtCore, QtGui
 
 # Import functionality related to each tab
-import rv, normalization, summary
+import rv, normalization, summary, stellar_parameters
 
+import smh
 
-from smh import Session
+logger = logging.getLogger(__name__)
 
 
 class Ui_MainWindow(QtGui.QMainWindow):
@@ -30,7 +32,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
         if session_path is not None:
             self.open_session(session_path)
 
-        self.setWindowTitle("Spectroscopy Made Harder")
         self.setObjectName("smh")
         self.resize(1200, 600)
         self.move(QtGui.QApplication.desktop().screen().rect().center() \
@@ -87,6 +88,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         self.statusbar = QtGui.QStatusBar(self)
         self.statusbar.setObjectName("statusbar")
+        self.statusbar.showMessage("Spectroscopy Made Harder v{0} ({1})".format(
+            smh.__version__, smh.__git_status__))
         self.setStatusBar(self.statusbar)
 
         return True
@@ -112,15 +115,42 @@ class Ui_MainWindow(QtGui.QMainWindow):
         if not filenames: return
 
         # Create a session.
-        self.session = Session(filenames)
+        self.session = smh.Session(filenames)
 
         # Disable all tabs except for Summary and RV.
         for i in range(self.tabs.count()):
             self.tabs.setTabEnabled(i, i < 2)
 
-
+        # Re-populate widgets in all tabs.
+        self.summary_tab._populate_widgets()
         self.rv_tab.update_from_new_session()
         self.normalization_tab._populate_widgets()
+
+        self._update_window_title()
+
+        return None
+
+
+    def _update_window_title(self):
+        """
+        Update the window title.
+        """
+
+        joiner, prefix = (" - ", "Spectroscopy Made Hard")
+        if self.session is None:
+            title = prefix
+
+        else:
+            try:
+                object_name = self.session.metadata["OBJECT"]
+
+            except (AttributeError, KeyError):
+                title = joiner.join([prefix, "Unnamed"])
+
+            else:
+                title = joiner.join([prefix, object_name])
+
+        self.setWindowTitle(title)
 
         return None
 
@@ -143,6 +173,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
     def save_session(self):
         """ Save session. """
         print("Save session")
+        raise NotImplementedError
         return None
 
 
@@ -194,8 +225,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.setSizePolicy(sp)
 
         # Create summary tab.
-        summary_tab = summary.SummaryTab(self)
-        self.tabs.addTab(summary_tab, "Summary")
+        self.summary_tab = summary.SummaryTab(self)
+        self.tabs.addTab(self.summary_tab, "Summary")
 
         # Create radial velocity tab
         self.rv_tab = rv.RVTab(self)
@@ -205,9 +236,13 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.normalization_tab = normalization.NormalizationTab(self)
         self.tabs.addTab(self.normalization_tab, "Normalization")
 
+        # Create stellar parameters tab.
+        self.stellar_parameters_tab \
+            = stellar_parameters.StellarParametersTab(self)
+        self.tabs.addTab(self.stellar_parameters_tab, "Stellar parameters")
+
         # Add remaining empty tabs.
-        extra_tab_names = \
-            ("Stellar parameters", "Chemical abundances")
+        extra_tab_names = ("Chemical abundances", )
 
         for tab_name in extra_tab_names:
             tab = QtGui.QWidget()
@@ -223,11 +258,62 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.setCurrentIndex(0)
         #QtCore.QMetaObject.connectSlotsByName(self)
 
+        self._update_window_title()
 
 
 if __name__ == '__main__':
 
     import sys
+
+    # Create a global exception hook.
+    sys._excepthook = sys.excepthook
+
+    # Allow certain exceptions to be ignored, and these can be added to through
+    # the GUI.
+    ignore_exception_types = []#NotImplementedError]
+
+    def exception_hook(exception_type, value, traceback):
+        """
+        An exception hook that will display a GUI and optionally allow the user
+        to submit a GitHub issue.
+
+        :param exception_type:
+            The type of exception that was raised.
+
+        :param value:
+            The exception value.
+
+        :param traceback:
+            The traceback of the exception.
+        """
+
+        # Show the exception in the terminal.
+        sys._excepthook(exception_type, value, traceback)
+
+        # Should this exception be ignored?
+        if exception_type in ignore_exception_types:
+            return None
+
+        
+
+        print("CAUGHT AN EXCEPTION")
+        print("type {}".format(exception_type))
+        print("value {}".format(value))
+        print("traceback {}".format(traceback))
+
+
+        # Load a GUI that shows the exception.
+
+
+        #ignore_exception_types.append(exception_type)
+
+
+
+        
+
+    sys.excepthook = exception_hook
+
+
 
     if sys.platform == "darwin":
             

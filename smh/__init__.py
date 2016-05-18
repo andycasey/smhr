@@ -1,10 +1,29 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
+""" Spectroscopy Made Hard """
+
+from __future__ import (division, print_function, absolute_import,
+                        unicode_literals)
 import logging
 import os
 from shutil import copyfile
+from subprocess import check_output
 
+# Software version.
 __version__ = "0.1"
+try:
+    git_hash = check_output('git log -1 --date=short --format="%h"', shell=True)
+    unstaged_changes = check_output('git status -s -uno', shell=True)
 
+except:
+    __git_status__ = None
+
+else:
+    unstaged_changes = "*" if len(unstaged_changes) > 0 else ""
+    __git_status__ = "".join([git_hash.strip(), unstaged_changes])
+    del unstaged_changes, git_hash
+    
 # Set up logging.
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

@@ -108,6 +108,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
         # Set the model parameter names based on the current metadata.
         self._update_parameter_names()
+        self._verify_transitions()
 
         return None
 
@@ -311,6 +312,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
         dof = np.isfinite(chi_sq).sum() - len(p_opt) - 1
         chi_sq = np.nansum(chi_sq)
 
+        x, model_y, model_yerr = self._fill_masked_arrays(
+            spectrum, x, model_y, model_yerr)
+
         fitting_metadata = {
             "model_x": x,
             "model_y": model_y,
@@ -322,6 +326,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Convert result to ordered dict.
         named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
         self._result = (named_p_opt, cov, fitting_metadata)
+        self.metadata["is_acceptable"] = True
+        
         return self._result
 
 
