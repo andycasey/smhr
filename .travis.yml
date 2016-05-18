@@ -7,7 +7,7 @@ notifications:
 
 sudo: true 
 before_install:
-  - sudo apt-get install gfortran libopenblas-dev liblapack-dev
+  - sudo apt-get install fort77 gfortran # libopenblas-dev liblapack-dev
   - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
   - chmod +x miniconda.sh
   - ./miniconda.sh -b
