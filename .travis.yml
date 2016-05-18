@@ -7,6 +7,7 @@ notifications:
 
 sudo: false
 before_install:
+  - apt-get install gfortran libopenblas-dev liblapack-dev
   - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
   - chmod +x miniconda.sh
   - ./miniconda.sh -b
@@ -30,8 +31,7 @@ install:
   # Currently we expect MOOGSILENT to be installed separately on the user's computer.
   # For Travis we will just ask him to install the batch version for now.
   - pip install https://github.com/andycasey/moog/archive/batch.2014jul.zip --user
-  - which MOOGSILENT
-  - which moogsilent
+  - "which moogsilent"
   - python setup.py install --with-models
 script:
   - nosetests --with-coverage --cover-package=smh
@@ -39,4 +39,4 @@ after_success:
   coveralls
 branches:
   only:
-#    - master
+    - master
