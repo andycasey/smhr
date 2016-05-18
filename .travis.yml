@@ -5,9 +5,9 @@ python:
 notifications:
   email: true
 
-sudo: false
+sudo: true 
 before_install:
-  - apt-get install gfortran libopenblas-dev liblapack-dev
+  - sudo apt-get install gfortran libopenblas-dev liblapack-dev
   - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
   - chmod +x miniconda.sh
   - ./miniconda.sh -b
@@ -21,6 +21,10 @@ before_install:
   #        way betterrer)
   #- sudo rm -rf /dev/shm
   #- sudo ln -s /run/shm /dev/shm
+  
+  # So that we can use matplotlib on Travis.
+ - "export DISPLAY=:99.0"
+ - "sh -e /etc/init.d/xvfb start"
 install: 
   - conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy astropy matplotlib nose six coverage
   # Pyside is not natively supported in conda yet for Python 3
