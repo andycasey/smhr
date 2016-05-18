@@ -5,7 +5,7 @@
 
 
 
-*Highest priority*
+*Long-term issues which are high priority (e.g., improve gradually over time):*
 - [X] Travis to be faster (e.g., temporarily remove Py3 dependency)
 - [X] Coveralls running
 - [ ] Unit test improvements
@@ -14,7 +14,7 @@
 
 
 *Hard*:
-- [ ] Widget for when an exception occurs, asking to submit GH issue. Catch all GUI-related exceptions with this. #gui
+- [X] Widget for when an exception occurs, asking to submit GH issue. Catch all GUI-related exceptions with this. #gui
 - [ ] Fix matplotlib visualization bug for figures on the RHS. #gui
 - [ ] Edit masks GUI for normalization tab. #gui
 - [ ] I/O: Save/load new session format.
