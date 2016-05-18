@@ -12,6 +12,9 @@ from PySide import QtCore, QtGui
 # Import functionality related to each tab
 import rv, normalization, summary, stellar_parameters
 
+# Functions related to warnings and exceptions.
+import exception
+
 import smh
 
 logger = logging.getLogger(__name__)
@@ -173,7 +176,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
     def save_session(self):
         """ Save session. """
         print("Save session")
-        raise NotImplementedError
+        raise NotImplementedError("sessions cannot be saved yet")
         return None
 
 
@@ -265,55 +268,8 @@ if __name__ == '__main__':
 
     import sys
 
-    # Create a global exception hook.
-    sys._excepthook = sys.excepthook
-
-    # Allow certain exceptions to be ignored, and these can be added to through
-    # the GUI.
-    ignore_exception_types = []#NotImplementedError]
-
-    def exception_hook(exception_type, value, traceback):
-        """
-        An exception hook that will display a GUI and optionally allow the user
-        to submit a GitHub issue.
-
-        :param exception_type:
-            The type of exception that was raised.
-
-        :param value:
-            The exception value.
-
-        :param traceback:
-            The traceback of the exception.
-        """
-
-        # Show the exception in the terminal.
-        sys._excepthook(exception_type, value, traceback)
-
-        # Should this exception be ignored?
-        if exception_type in ignore_exception_types:
-            return None
-
-        
-
-        print("CAUGHT AN EXCEPTION")
-        print("type {}".format(exception_type))
-        print("value {}".format(value))
-        print("traceback {}".format(traceback))
-
-
-        # Load a GUI that shows the exception.
-
-
-        #ignore_exception_types.append(exception_type)
-
-
-
-        
-
-    sys.excepthook = exception_hook
-
-
+    # Create the app and clean up any style bugs.
+    app = QtGui.QApplication(sys.argv)
 
     if sys.platform == "darwin":
             
@@ -325,7 +281,48 @@ if __name__ == '__main__':
         for substitute in substitutes:
             QtGui.QFont.insertSubstitution(*substitute)
 
-    app = QtGui.QApplication(sys.argv)
+    # Create a global exception hook.
+    sys._excepthook = sys.excepthook
+
+    # Allow certain exceptions to be ignored, and these can be added to through
+    # the GUI.
+    ignore_exception_messages = []
+    def exception_hook(exception_type, message, traceback):
+        """
+        An exception hook that will display a GUI and optionally allow the user
+        to submit a GitHub issue.
+
+        :param exception_type:
+            The type of exception that was raised.
+
+        :param message:
+            The exception message.
+
+        :param traceback:
+            The traceback of the exception.
+        """
+
+        # Show the exception in the terminal.
+        sys._excepthook(exception_type, message, traceback)
+
+        # Should this exception be ignored?
+        if message.__repr__() in ignore_exception_messages:
+            return None
+
+        # Load a GUI that shows the exception.
+        exception_gui = exception.ExceptionWidget(
+            exception_type, message, traceback)
+        exception_gui.exec_()
+
+        # Ignore future exceptions of this kind?
+        if exception_gui.ignore_in_future:
+            ignore_exception_messages.append(message.__repr__())
+
+        return None
+
+    sys.excepthook = exception_hook
+
+    # Run the main application window.
     window = Ui_MainWindow()
     window.show()
     sys.exit(app.exec_())
