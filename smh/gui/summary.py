@@ -44,7 +44,7 @@ class SummaryTab(QtGui.QWidget):
         # Create a top-level horizontal layout to contain a MPL figure and
         # a vertical layout of settings..
         tab_layout = QtGui.QHBoxLayout(self)
-        #tab_layout.setContentsMargins(10, 10, 10, 10)
+        tab_layout.setContentsMargins(10, 10, 10, 10)
 
         # Create the left hand pane.
         summary_widget = QtGui.QWidget()
@@ -128,10 +128,16 @@ class SummaryTab(QtGui.QWidget):
             dec = str(self.parent.session.metadata["DEC"]).strip()
         except (AttributeError, KeyError):
             ra, dec = ("", "")
+            # Disable 'Query Simbad..' button since we have no position info.
+            self.btn_query_simbad.setEnabled(False)
+
         else:
+            self.btn_query_simbad.setEnabled(True)
             if ":" not in ra and ":" not in dec:
                 # Convert to sexagesimal.
-                None    
+                # TODO
+                None
+                
         self.coordinates_label.setText(" ".join([ra, dec]))
 
         # Summary notes.

@@ -1,4 +1,10 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
+""" Spectroscopy Made Hard """
+
+from __future__ import (division, print_function, absolute_import,
+                        unicode_literals)
 import logging
 import os
 from commands import getstatusoutput # TODO this is the wrong way 
@@ -16,6 +22,7 @@ except:
 else:
     unstaged_changes = "*" if len(unstaged_changes) > 0 else ""
     __git_status__ = "".join([git_hash, unstaged_changes])
+    del unstaged_changes, git_hash
     
 # Set up logging.
 logger = logging.getLogger(__name__)
