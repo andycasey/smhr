@@ -143,14 +143,14 @@ class LineList(Table):
                 if index < -1: # Multiple conflicts
                     num_with_multiple_conflicts += 1
                     matches = self.find_match(new_line,thresh,return_multiples=True)
-                    conflicts_in_new_list.append(new_line)
+                    conflicts_in_new_list.append(LineList(new_line))
                     conflicts_in_this_list.append(matches)
                 elif index >= 0: # Exactly one conflict
                     num_in_list += 1
                     my_line = self[index]
                     if np.abs(my_line['loggf'] - new_line['loggf']) >= loggf_thresh:
-                        conflicts_in_new_list.append(new_line)
-                        conflicts_in_this_list.append(self[index])
+                        conflicts_in_new_list.append(LineList(new_line))
+                        conflicts_in_this_list.append(LineList(self[index]))
             else: # use self.pick_best_line to find best line
                 if index < -1:
                     num_with_multiple_conflicts += 1
