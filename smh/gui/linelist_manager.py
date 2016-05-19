@@ -13,8 +13,143 @@ import logging
 import sys
 from PySide import QtCore, QtGui
 
+from smh.linelists import LineList
+
 logger = logging.getLogger(__name__)
 
+
+class LineListTableModel(QtCore.QAbstractTableModel):
+
+
+    headers = [u"Wavelength\n(Å)", "Species\n", "EP\n(eV)", "log(gf)\n", "C6\n",
+        "D0\n", "Comments\n"]
+    columns = ["wavelength", "element", "expot", "loggf", "damp_vdw", "dissoc_E",
+        "comments"]
+
+    def __init__(self, session, *args):
+        """
+        An abstract model for line lists.
+        """
+        super(LineListTableModel, self).__init__(*args)
+        self.session = session
+
+    def rowCount(self, parent):
+        return len(self.session.metadata.get("line_list", []))
+
+    def columnCount(self, parent):
+        return len(self.headers)
+
+    def data(self, index, role):
+        if not role == QtCore.Qt.DisplayRole:
+            return
+        column = self.columns[index.column()]
+        if "line_list" not in self.session.metadata:
+            return None
+
+        value = self.session.metadata["line_list"][column][index.row()]
+        if column not in ("element", "comments"):
+            return "{:.3f}".format(value)
+        return value
+
+
+    def headerData(self, col, orientation, role):
+        if orientation == QtCore.Qt.Horizontal \
+        and role == QtCore.Qt.DisplayRole:
+            return self.headers[col]
+        return None
+
+
+    """
+    def sort(self, column, order):
+
+        self.emit(QtCore.SIGNAL("layoutAboutToBeChanged()"))
+        self._data = sorted(self._data,
+            key=lambda sm: getattr(sm, self.attrs[column]))
+        
+        if order == QtCore.Qt.DescendingOrder:
+            self._data.reverse()
+
+        self.dataChanged.emit(self.createIndex(0, 0),
+            self.createIndex(self.rowCount(0), self.columnCount(0)))
+        self.emit(QtCore.SIGNAL("layoutChanged()"))
+
+    """
+
+    def flags(self, index):
+        if not index.isValid():
+            return None
+        return QtCore.Qt.ItemIsSelectable|QtCore.Qt.ItemIsEnabled
+
+class LineListTableView(QtGui.QTableView):
+
+    def __init__(self, session, *args):
+        super(LineListTableView, self).__init__(*args)
+        self.session = session
+
+
+    def contextMenuEvent(self, event):
+        """
+        Provide a context (right-click) menu for the line list table.
+
+        :param event:
+            The mouse event that triggered the menu.
+        """
+        
+        menu = QtGui.QMenu(self)
+        import_action = menu.addAction("Import..")
+        menu.addSeparator()
+        add_profiles_action = menu.addAction("Model with profiles")
+        add_synth_action = menu.addAction("Model with synthesis")
+        menu.addSeparator()
+        delete_action = menu.addAction("Delete")
+
+        any_selected = len(self.selectionModel().selectedRows()) > 0
+        if not any_selected:
+            add_profiles_action.setEnabled(False)
+            add_synth_action.setEnabled(False)
+            delete_action.setEnabled(False)
+
+        action = menu.exec_(self.mapToGlobal(event.pos()))
+
+        if action == import_action:
+            self.import_from_filename()
+
+        else:
+            raise NotImplementedError("nope")
+
+        return None
+
+
+    def import_from_filename(self):
+        """
+        Import atomic physics data from file.
+        """
+
+        filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(self,
+            caption="Select files", dir="")
+        if not filenames:
+            return None
+
+        # Load from file
+        line_list = self.session.metadata.get("line_list", None)
+        if line_list is None:
+            offset, line_list = (1, LineList.read(filenames[0]))
+        else:
+            offset = 0
+
+        for filename in filenames[offset:]:
+            line_list.merge(LineList.read(filename), in_place=True)
+
+        self.session.metadata["line_list"] = line_list
+        print("line list is ",self.session.metadata["line_list"])
+
+        # Update the data in the table model.
+        self.dataChanged(
+            self.model().createIndex(0, 0),
+            self.model().createIndex(self.model().rowCount(0), self.model().columnCount(0)))
+        #model.emit(QtCore.SIGNAL("layoutChanged()"))
+
+        return None
 
 
 class TransitionsDialog(QtGui.QDialog):
@@ -43,13 +178,16 @@ class TransitionsDialog(QtGui.QDialog):
         sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
         self.setSizePolicy(sp)
 
-
         parent_vbox = QtGui.QVBoxLayout(self)
         tabs = QtGui.QTabWidget(self)
 
         # Line list tab.
         self.linelist_tab = QtGui.QWidget()
-        self.linelist_view = QtGui.QTableView(self.linelist_tab)
+        self.linelist_view = LineListTableView(session, self.linelist_tab)
+        self.linelist_view.setModel(LineListTableModel(session))
+        self.linelist_view.resizeColumnsToContents()
+        self.linelist_view.setSelectionBehavior(
+            QtGui.QAbstractItemView.SelectRows)
         QtGui.QVBoxLayout(self.linelist_tab).addWidget(self.linelist_view)
         tabs.addTab(self.linelist_tab, "Atomic physics")
 

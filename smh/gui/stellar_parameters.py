@@ -16,8 +16,19 @@ from matplotlib import gridspec
 
 import mpl
 from smh.photospheres import available as available_photospheres
+from linelist_manager import TransitionsDialog
 
 logger = logging.getLogger(__name__)
+
+if sys.platform == "darwin":
+        
+    # See http://successfulsoftware.net/2013/10/23/fixing-qt-4-for-mac-os-x-10-9-mavericks/
+    substitutes = [
+        (".Lucida Grande UI", "Lucida Grande"),
+        (".Helvetica Neue DeskInterface", "Helvetica Neue")
+    ]
+    for substitute in substitutes:
+        QtGui.QFont.insertSubstitution(*substitute)
 
 
 class StellarParametersTab(QtGui.QWidget):
@@ -251,6 +262,9 @@ class StellarParametersTab(QtGui.QWidget):
         self.figure.draw()
 
 
+        # Connect buttons.
+        self.btn_measure_transitions.clicked.connect(self.measure_transitions)
+
         """
         # Create signals.
         self.measure_abundances.clicked.connect(self.normalize_and_stitch)
@@ -282,6 +296,42 @@ class StellarParametersTab(QtGui.QWidget):
         self.knot_spacing.textChanged.connect(self.check_state)
         """
 
+
+    def measure_transitions(self):
+        """ Trigger for when the 'Message transitions..' button is clicked. """
+
+        # Is there any line list?
+        # TODO: Don't check just for lines, check for spectral models associated
+        #       with the stellar parameter determination.
+        if len(self.parent.session.metadata.get("line_list", [])) == 0:
+
+            reply = QtGui.QMessageBox.information(self,
+                "No spectral models found",
+                "No spectral models are currently associated with the "
+                "determination of stellar parameters.\n\n"
+                "Click 'OK' to load the transitions manager.")
+
+            if reply == QtGui.QMessageBox.Ok:
+                # Load line list manager.
+                dialog = TransitionsDialog(self.parent.session)
+                dialog.exec_()
+
+                # Do we even have transitions now?
+                # TODO: as above.
+                if len(self.parent.session.metadata.get("line_list", [])) == 0:
+                    return None
+                else:
+                    self.measure_transitions()
+            else:
+                return None
+
+        else:
+
+            print("OK show measure transitions dialog")
+
+            # TODO HACK
+            dialog = TransitionsDialog(self.parent.session)
+            dialog.exec_()
 
     def _populate_widgets(self):
         """
