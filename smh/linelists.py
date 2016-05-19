@@ -49,7 +49,15 @@ class LineList(Table):
         if 'default_thresh' in kwargs:
             self.default_thresh = kwargs.pop('default_thresh')
         else:
-            self.default_thresh = 0.01
+            self.default_thresh = 0.1
+        if 'default_loggf_thresh' in kwargs:
+            self.default_loggf_thresh = kwargs.pop('default_loggf_thresh')
+        else:
+            self.default_loggf_thresh = 0.01
+        if 'default_expot_thresh' in kwargs:
+            self.default_expot_thresh = kwargs.pop('default_expot_thresh')
+        else:
+            self.default_expot_thresh = 0.01
 
         super(LineList, self).__init__(*args,**kwargs)
 
@@ -96,11 +104,11 @@ class LineList(Table):
 
         thresh: 
             threshold for wavelength check when matching lines
-            Defaults to self.default_thresh (0.01)
+            Defaults to self.default_thresh (0.1)
 
         loggf_thresh: 
             threshold for loggf check when finding identical lines
-            Defaults to self.default_thresh (0.01)
+            Defaults to self.default_loggf_thresh (0.01)
 
         raise_exception:
             If True (default), finds all the conflicts and raises LineListConflict
@@ -117,7 +125,7 @@ class LineList(Table):
             If False, return a new LineList
         """
         if thresh==None: thresh = self.default_thresh
-        if loggf_thresh==None: loggf_thresh = self.default_thresh
+        if loggf_thresh==None: loggf_thresh = self.default_loggf_thresh
         if len(self)==0: 
             if not in_place:
                 return new_ll
@@ -142,7 +150,7 @@ class LineList(Table):
             elif raise_exception: # Record all conflicts
                 if index < -1: # Multiple conflicts
                     num_with_multiple_conflicts += 1
-                    matches = self.find_match(new_line,thresh,return_multiples=True)
+                    matches = self[self.find_match(new_line,thresh,return_multiples=True)]
                     conflicts_in_new_list.append(LineList(new_line))
                     conflicts_in_this_list.append(matches)
                 elif index >= 0: # Exactly one conflict
@@ -151,6 +159,9 @@ class LineList(Table):
                     if np.abs(my_line['loggf'] - new_line['loggf']) >= loggf_thresh:
                         conflicts_in_new_list.append(LineList(new_line))
                         conflicts_in_this_list.append(LineList(self[index]))
+                    else:
+                        pass
+                        #print(np.abs(my_line['loggf'] - new_line['loggf']))
             else: # use self.pick_best_line to find best line
                 if index < -1:
                     num_with_multiple_conflicts += 1
@@ -228,7 +239,7 @@ class LineList(Table):
 
         thresh:
             Wavelength tolerance to be considered identical lines
-            (defaults to self.default_thresh, which is .01 by default)
+            (defaults to self.default_thresh, which is 0.1 by default)
 
         return_multiples: 
             if True, returns list/array of indices
@@ -239,7 +250,7 @@ class LineList(Table):
         if thresh==None: thresh = self.default_thresh
         ii1 = np.logical_and(np.logical_and(self['elem1']==line['elem1'], self['elem2']==line['elem2']), self['ion']==line['ion'])
         ii2 = np.abs(self['wavelength']-line['wavelength']) < thresh
-        ii3 = np.abs(self['expot']-line['expot']) < 0.01
+        ii3 = np.abs(self['expot']-line['expot']) < self.default_expot_thresh
         ii = np.logical_and(np.logical_and(ii1,ii2),ii3)
         num_match = np.sum(ii)
         if num_match==0: return -1
