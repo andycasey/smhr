@@ -271,6 +271,15 @@ class LineList(Table):
         best = np.argmin(np.abs(new_line['wavelength']-matches['wavelength']))
         return indices[best]
 
+
+    @property
+    def unique_elements(self):
+        """ Return the unique elements that are within this line list. """
+
+        elements = list(self["elem1"]) + list(self["elem2"])
+        return list(set(elements).difference([""]))
+
+
     def find_match(self,line,thresh=None,return_multiples=False):
         """
         (This method is terrible and will probably be removed)
