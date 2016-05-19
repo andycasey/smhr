@@ -412,6 +412,54 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
 
 
+class SpectralModelsTableView(QtGui.QTableView):
+
+    def __init__(self, parent, session, *args):
+        super(SpectralModelsTableView, self).__init__(parent, *args)
+        self.session = session
+        self._parent = parent
+
+
+    def contextMenuEvent(self, event):
+        """
+        Provide a context (right-click) menu for the spectral models table.
+
+        :param event:
+            The mouse event that triggered the menu.
+        """
+        
+        menu = QtGui.QMenu(self)
+        delete_action = menu.addAction("Delete")
+
+        any_selected = len(self.selectionModel().selectedRows()) > 0
+        if not any_selected:
+            delete_action.setEnabled(False)
+
+        action = menu.exec_(self.mapToGlobal(event.pos()))
+        if action == delete_action:
+            self.delete_selected_rows()
+
+        return None
+
+
+    def delete_selected_rows(self):
+        """ Delete the selected spectral models. """
+
+        delete_indices = [_.row() for _ in self.selectionModel().selectedRows()]
+
+        self.session.metadata["spectral_models"] = [sm \
+            for i, sm in enumerate(self.session.metadata["spectral_models"]) \
+                if i not in delete_indices]
+
+        # TODO: There *must* be a better way to do this..
+        for i, index in enumerate(delete_indices):
+            self.model().rowsRemoved.emit(
+                QtCore.QModelIndex(), index - i, index - i)
+
+        self.clearSelection()
+        return None
+
+
 
 class TransitionsDialog(QtGui.QDialog):
 
@@ -456,7 +504,7 @@ class TransitionsDialog(QtGui.QDialog):
         tabs.addTab(self.linelist_tab, "Line list")
 
         self.models_tab = QtGui.QWidget()
-        self.models_view = QtGui.QTableView(self)
+        self.models_view = SpectralModelsTableView(self, session)
         self.models_view.setModel(
             SpectralModelsTableModel(self, session))
         self.models_view.setSelectionBehavior(
