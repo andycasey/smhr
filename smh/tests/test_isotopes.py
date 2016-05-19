@@ -5,8 +5,11 @@ from smh.isoutils import *
 from smh.linelists import LineList
 from smh.radiative_transfer import moog
 
+import os
+datadir = os.path.dirname(os.path.abspath(__file__))+'/test_data'
+
 def test_get_needed_isotopes():
-    ll = LineList.read('test_data/linelists/lin4554new')
+    ll = LineList.read(datadir+'/linelists/lin4554new')
     rproc = load_isotope_data('rproc')
     isotopes, missing_isotopes = get_needed_isotopes(ll,rproc)
     assert len(missing_isotopes) == 0, missing_isotopes
@@ -15,7 +18,7 @@ def test_get_needed_isotopes():
         for mass in isotopes[elem]:
             assert isotopes[elem][mass] == rproc[elem][mass]
 def test_get_needed_isotopes2():
-    ll = LineList.read('test_data/linelists/masseron_linch.txt')
+    ll = LineList.read(datadir+'/linelists/masseron_linch.txt')
     asplund = load_isotope_data('asplund')
     asplund = add_molecules(asplund)
     isotopes, missing_isotopes = get_needed_isotopes(ll,asplund,include_molecules=True)
@@ -30,7 +33,7 @@ def test_load_isotope_data():
         load_isotope_data(whichdata)
         load_isotope_data(whichdata,include_molecules=True)
 def test_identify_isotopes():
-    ll = LineList.read('test_data/linelists/lin4554new')
+    ll = LineList.read(datadir+'/linelists/lin4554new')
     isotopes = identify_isotopes(ll)
     for elem in isotopes:
         for mass in isotopes[elem]:
@@ -44,7 +47,7 @@ def test_identify_isotopes():
             num_isotopes += 1
     assert num_isotopes == 5
 def test_identify_isotopes2():
-    ll = LineList.read('test_data/linelists/masseron_linch.txt')
+    ll = LineList.read(datadir+'/linelists/masseron_linch.txt')
     isotopes = identify_isotopes(ll,include_molecules=True)
     for elem in isotopes:
         for mass in isotopes[elem]:
@@ -77,7 +80,7 @@ def test_validate_isotopes():
         raise Error
 
 def test_not_needed_isotopes():
-    ll = LineList.read('test_data/linelists/lin4554new')
+    ll = LineList.read(datadir+'/linelists/lin4554new')
     isos = load_isotope_data('asplund') #Does not have Ba!
     found_isos, missing_isos = get_needed_isotopes(ll,isos)
     if len(missing_isos) != 1:

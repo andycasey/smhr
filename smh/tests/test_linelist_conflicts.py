@@ -1,10 +1,13 @@
 from smh import linelists
 import numpy as np
 
+import os
+datadir = os.path.dirname(os.path.abspath(__file__))+'/test_data'
+
 def test_conflicts():
-    ll1 = linelists.LineList.read('test_data/linelists/complete.list')
-    ll2 = linelists.LineList.read('test_data/linelists/tiII.moog')
-    ll3 = linelists.LineList.read('test_data/linelists/lin4554new')
+    ll1 = linelists.LineList.read(datadir+'/linelists/complete.list')
+    ll2 = linelists.LineList.read(datadir+'/linelists/tiII.moog')
+    ll3 = linelists.LineList.read(datadir+'/linelists/lin4554new')
     
     # Simple case: 1-1 conflicts
     try:
