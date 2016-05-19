@@ -84,7 +84,8 @@ setup(
         "six",
         "pyside>=1.1.2",
         "astropy",
-        "pyyaml"
+        "pyyaml",
+        "requests"
         ],
     extras_require={
         "test": ["coverage"]
