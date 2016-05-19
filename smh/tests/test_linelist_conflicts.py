@@ -14,6 +14,8 @@ def test_conflicts():
         c2 = e.conflicts2
         for x,y in zip(c1,c2):
             assert len(x)==len(y)==1
+    else:
+        raise RuntimeError
     
     # 1-many conflicts
     try:
@@ -24,5 +26,8 @@ def test_conflicts():
         for x in c1:
             if np.all(x['element']=='Ba II'):
                 assert len(x)==15
+    else:
+        raise RuntimeError
+    
 if __name__=="__main__":
     test_conflicts()
