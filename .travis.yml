@@ -42,6 +42,6 @@ script:
   - nosetests --with-coverage --cover-package=smh
 after_success:
   coveralls
-branches:
-  only:
-    - master
+#branches:
+#  only:
+#    - master
