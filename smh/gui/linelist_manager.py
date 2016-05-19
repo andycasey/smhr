@@ -254,9 +254,33 @@ class LineListTableView(QtGui.QTableView):
     def delete_selected_rows(self):
         """ Delete the rows selected in the table. """
 
+        N_skipped = 0
         mask = np.ones(len(self.session.metadata["line_list"]), dtype=bool)
+        all_hashes_used = []
+        for spectral_model in self.session.metadata.get("spectral_models", []):
+            all_hashes_used.extend(spectral_model._transition_hashes)
+        all_hashes_used = list(set(all_hashes_used))
+
         for row in self.selectionModel().selectedRows():
-            mask[row.row()] = False
+
+            # Is this selected transition used in any spectral models?
+            t_hash = self.session.metadata["line_list"]["hash"][row.row()]
+            if t_hash in all_hashes_used:
+                N_skipped += 1
+            else:
+                mask[row.row()] = False
+
+        # Anything to do?
+        if N_skipped > 0:
+            # Display a warning dialog.
+            QtGui.QMessageBox.warning(self, "Lines cannot be deleted",
+                "{} line(s) selected for deletion cannot be removed because "
+                "they are associated with existing spectral models.\n\n"
+                "Delete the associated spectral models before deleting "
+                "the lines.".format(N_skipped))
+
+        if np.all(mask):
+            return None
 
         self.session.metadata["line_list"] \
             = self.session.metadata["line_list"][mask]
