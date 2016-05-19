@@ -10,6 +10,7 @@ import numpy as np
 import os
 import sys
 import yaml
+import logging
 from PySide import QtCore, QtGui
 
 from matplotlib import (gridspec, pyplot as plt)
@@ -17,9 +18,11 @@ from matplotlib import (gridspec, pyplot as plt)
 from smh import (Session, isoutils)
 from smh.linelists import LineList
 
-__all__ = ["IsotopeWidget","IsotopeError","IsotopeLog"]
+logger = logging.getLogger(__name__)
 
-class IsotopeWidget(QtGui.QWidget):
+__all__ = ["IsotopeDialog","IsotopeError","IsotopeLog"]
+
+class IsotopeDialog(QtGui.QDialog):
     """
     Widget to edit isotope ratios.
 
@@ -29,30 +32,40 @@ class IsotopeWidget(QtGui.QWidget):
     Importantly, you MUST push the "Finish" button to update the session
     """
 
-    def __init__(self, orig_isotopes, needed_isotopes=None, linelist=None, parent=None):
+    def __init__(self, session=None, orig_isotopes=None, needed_isotopes=None, linelist=None):
         """
         Get the current isotopes and the needed isotopes.
         Setup an editable table.
         """
 
-        super(IsotopeWidget, self).__init__(parent)
-        self.parent = parent
+        super(IsotopeDialog, self).__init__()
         self.setGeometry(300, 200, 570, 450)
 
-        # TODO get orig_isotopes from 
-        # parent.session.metadata['isotopes']
+        if isinstance(session, Session):
+            if isinstance(orig_isotopes, dict):
+                logger.warn("IsotopeDialog: Session already has isotopes, clobbering...")
+            orig_isotopes = session.metadata['isotopes']
+            if isinstance(linelist, LineList):
+                logger.warn("IsotopeDialog: Session already has isotopes, clobbering...")
+            if isinstance(needed_isotopes, dict):
+                logger.warn("IsotopeDialog: Using session, clobbering needed_isotopes...")
+            needed_isotopes = None
+            # TODO rename as needed
+            linelist = session.metadata['line_list']
+        self.session = session
 
         # Ensure that orig_isotopes is actually isotopes
+        # Doesn't have to be validated though
         if not isinstance(orig_isotopes, dict):
-            raise Error(str(orig_isotopes))
+            raise Error("IsotopeDialog: orig_isotopes is not a dict \n"+str(orig_isotopes))
         for key in orig_isotopes:
             if not isinstance(orig_isotopes[key], dict):
-                raise Error(str(orig_isotopes))
+                raise Error("IsotopeDialog: orig_isotopes values are not dicts \n"+str(orig_isotopes))
         
         # Figure out where to get needed isotopes
         if isinstance(needed_isotopes, dict):
             if isinstance(linelist, LineList):
-                raise Error("Cannot specify both needed_isotopes AND linelist")
+                raise Error("IsotopeDialog: Cannot specify both needed_isotopes and linelist")
         else:
             assert needed_isotopes == None, needed_isotopes
             if isinstance(linelist, LineList):
@@ -83,7 +96,7 @@ class IsotopeWidget(QtGui.QWidget):
         tab = isoutils.convert_isodict_to_array(current_isotopes)
 
         table_model = IsotopeModel(self, tab)
-        table_view  = QtGui.QTableView(self)
+        table_view  = IsotopeTableView(self)
         table_view.setModel(table_model)
         table_view.resizeRowsToContents()
         table_view.resizeColumnsToContents()
@@ -109,9 +122,12 @@ class IsotopeWidget(QtGui.QWidget):
         button_sneden.clicked.connect(self.use_sneden)
         button_asplund= QtGui.QPushButton("Use Asplund09 solar")
         button_asplund.clicked.connect(self.use_asplund)
-        button_finish = QtGui.QPushButton("Save isotopes to session")
+        button_finish = QtGui.QPushButton("Save isotopes to session and exit")
         button_finish.clicked.connect(self.finish)
-        button_cancel = QtGui.QPushButton("Restore original isotopes (TODO)")
+        if not isinstance(session, Session):
+            button_finish.setEnabled(False)
+        button_cancel = QtGui.QPushButton("Restore original isotopes and exit (TODO)")
+        button_cancel.clicked.connect(self.reject) #built-in finish button
 
         all_buttons = [button_needed, button_add_row, button_ins_row, button_del_row, 
                        button_rproc, button_sproc, button_sneden, button_asplund,
@@ -147,6 +163,9 @@ class IsotopeWidget(QtGui.QWidget):
         except ValueError as e:
             self.log(str(e))
         
+    #def set_colors(self):
+    #    self.table_model.setData(self.table_model.index(0,0), QtCore.Qt.red, QtCore.Qt.BackgroundRole)
+
     def use_rproc(self):
         self._use_data(0)
         self.log('(using rproc)')
@@ -212,11 +231,32 @@ class IsotopeWidget(QtGui.QWidget):
             self.log(isoutils.pretty_print_isotopes(e.bad_isotopes))
         else:
             self.log("Isotopes validated!")
-            self.log("TODO Saved isotopes to session")
-    def cancel(self):
-        raise NotImplementedError
+            self.log("Saved isotopes to session")
+            self.session.metadata['isotopes'] = new_isotopes
+            self.accept()
     def log(self,msg):
         self.text_box.appendMessage(msg)
+
+class IsotopeTableView(QtGui.QTableView):
+    def __init__(self, parent, *args):
+        super(IsotopeTableView, self).__init__(parent, *args)
+        self.parent = parent
+    #def contextMenuEvent(self, event):
+    #    """
+    #    Right-click menu
+    #    """
+    #    menu = QtGui.QMenu(self)
+    #    insert_action = menu.addAction("Insert Line")
+    #    delete_action = menu.addAction("Delete Line")
+    #    
+    #    #insert_action.setEnabled(False)
+    #    #delete_action.setEnabled(False)
+    #    action = menu.exec_(self.mapToGlobal(event.pos()))
+#
+#        if action == delete_action:
+#            self.parent.delete_row()
+#        elif action == insert_action:
+#            self.parent.insert_row()
 
 class IsotopeModel(QtCore.QAbstractTableModel):
     def __init__(self, parent, tab, *args):
@@ -275,3 +315,18 @@ class IsotopeLog(QtGui.QPlainTextEdit):
         self.appendPlainText(msg)
         self.verticalScrollBar().setValue(self.verticalScrollBar().maximum())
         
+if __name__=="__main__":
+    # For development
+    datadir = os.path.dirname(os.path.abspath(__file__))+'/../tests/test_data'
+    session = Session([datadir+"/spectra/hd122563.fits"])
+
+    orig_isotopes = isoutils.load_isotope_data('rproc')
+    ll = LineList.read(os.path.dirname(os.path.abspath(__file__))+'/../tests/test_data/linelists/lin4554new')
+    session.metadata['isotopes'] = orig_isotopes
+    session.metadata['line_list'] = ll
+
+    app = QtGui.QApplication(sys.argv)
+    window = IsotopeDialog(session) #orig_isotopes=orig_isotopes, linelist=ll)
+    window.exec_()
+    #print(session.metadata['isotopes'])
+    #print('U in isotopes?', 'U' in session.metadata['isotopes'])

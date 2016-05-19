@@ -17,6 +17,7 @@ import exception
 
 import smh
 from linelist_manager import TransitionsDialog
+from isotope_manager import IsotopeDialog
 
 logger = logging.getLogger(__name__)
 
@@ -82,9 +83,14 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.action_transitions_manager = QtGui.QAction("&Transitions..", self,
             statusTip="Manage line lists and spectral models",
             triggered=self.transitions_manager)
+        self.action_isotopes_manager = QtGui.QAction("&Isotopes..", self,
+            statusTip="Manage isotopes for elements and molecules",
+            triggered=self.isotopes_manager)
         self.action_transitions_manager.setEnabled(False)
+        self.action_isotopes_manager.setEnabled(False)
         edit_menu = self.menuBar().addMenu("&Edit")
         edit_menu.addAction(self.action_transitions_manager)
+        edit_menu.addAction(self.action_isotopes_manager)
 
         # Export menu.
         self._menu_export_normalized_spectrum \
@@ -133,6 +139,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         # Enable relevant menu actions.
         self.action_transitions_manager.setEnabled(True)
+        self.action_isotopes_manager.setEnabled(True)
 
         # Re-populate widgets in all tabs.
         self.summary_tab._populate_widgets()
@@ -182,6 +189,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         # Enable relevant menu actions.
         self.action_transitions_manager.setEnabled(True)
+        self.action_isotopes_manager.setEnabled(True)
 
         return None
 
@@ -217,6 +225,13 @@ class Ui_MainWindow(QtGui.QMainWindow):
         window.exec_()
         return None
 
+    def isotopes_manager(self):
+        """
+        Open the isotopes manager dialog.
+        """
+        window = IsotopeDialog(self.session)
+        window.exec_()
+        return None
 
     def __init_ui__(self):
         """
