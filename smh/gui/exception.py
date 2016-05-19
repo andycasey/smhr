@@ -7,10 +7,15 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
 import logging
+import os
+import requests
 import sys
 import traceback as tb
+from tempfile import mkstemp
+from urllib import quote
 from PySide import QtCore, QtGui
 
+from smh import __git_status__
 
 logger = logging.getLogger(__name__)
 
@@ -214,6 +219,10 @@ class ExceptionWidget(QtGui.QDialog):
 
         super(ExceptionWidget, self).__init__(*args)
 
+        self.message = message
+        self.exception_type = exception_type
+        self.traceback = traceback
+
         self.setGeometry(600, 400, 600, 400)
         self.move(QtGui.QApplication.desktop().screen().rect().center() \
             - self.rect().center())
@@ -236,15 +245,15 @@ class ExceptionWidget(QtGui.QDialog):
         vertical_layout.addWidget(label)
 
         # Text browser to display the exception details.
-        self.traceback = QtGui.QPlainTextEdit(self)
-        self.traceback.setFont(QtGui.QFont("Courier", 12))
-        self.traceback.setEnabled(False)
-        self.traceback.setPlainText("\n".join(tb.format_tb(traceback)))
+        self.show_traceback = QtGui.QPlainTextEdit(self)
+        self.show_traceback.setFont(QtGui.QFont("Courier", 12))
+        self.show_traceback.setEnabled(False)
+        self.show_traceback.setPlainText("\n".join(tb.format_tb(traceback)))
 
-        self.highlighter = PythonHighlighter(self.traceback.document())
+        self.highlighter = PythonHighlighter(self.show_traceback.document())
         
 
-        vertical_layout.addWidget(self.traceback)
+        vertical_layout.addWidget(self.show_traceback)
 
         # Horizontal layout with buttons.
         horizontal_layout = QtGui.QHBoxLayout()
@@ -254,7 +263,6 @@ class ExceptionWidget(QtGui.QDialog):
 
         self.btn_create_issue = QtGui.QPushButton(self)
         self.btn_create_issue.setText("Create GitHub issue")
-        self.btn_create_issue.setEnabled(False) # TODO
         horizontal_layout.addWidget(self.btn_create_issue)
 
         # Spacer with a minimum width.
@@ -294,17 +302,58 @@ class ExceptionWidget(QtGui.QDialog):
         Trigger for when the 'Create GitHub issue' button has been pushed.
         """
 
-        # Get the session, if we can.
-        try:
-            session = self.traceback.tb_frame.f_locals["self"].session
-        except:
-            try:
-                session = self.traceback.tb_frame.f_locals["self"].parent.session
-            except:
-                session = None
-
-        # TODO: NotImplementedError
         self.close()
+
+        # Get the parent and session etc.
+        parent = self.traceback.tb_frame.f_globals["APPLICATION_MAIN"]
+        session = parent.session
+
+        # Save and upload the session.
+        # TODO: Once we can save sessions..
+
+        # Get a screenshot of the main window and upload it.
+        screenshot_url = None
+        try:
+            screenshot = QtGui.QPixmap.grabWindow(parent.winId())
+            _, path = mkstemp()
+            screenshot.save("{}.png".format(path), "png")
+
+            response = requests.put(
+                url="https://transfer.sh/screenshot.png",
+                data=open("{}.png".format(path), "rb"))
+
+            if response.status_code == 200:
+                screenshot_url = response.text.strip()  
+
+        except:
+            logger.exception("No screenshot could be uploaded.")
+
+        body_template = \
+            "An exception was encountered in [this session]({session_url}) "\
+            "using version {application_version} on Python {sys_version}:\n\n"\
+            "````python\n"\
+            "{formatted_traceback}"\
+            "````\n\n"\
+            "Below is a screenshot from the application at the time that the "\
+            "exception occurred:\n\n"\
+            "![screenshot]({screenshot_url})\n\n"\
+            "**Additional details on how this exception occurred**:\n"
+
+        # Create text.
+        title = quote("Exception raised: {}".format(self.message))
+        body = quote(body_template.format(
+            session_url="soon",
+            application_version=__git_status__,
+            sys_version=sys.version.replace("\n", ""),
+            formatted_traceback="\n".join(tb.format_tb(self.traceback)),
+            screenshot_url=screenshot_url))
+
+        url = "https://github.com/andycasey/smhr/issues/new?title={}&body={}"\
+            .format(title, body)
+
+        os.system('open "{}"'.format(url))
+        return None
+
 
 
 if sys.platform == "darwin":

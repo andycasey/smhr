@@ -286,6 +286,7 @@ if __name__ == '__main__':
 
     # Allow certain exceptions to be ignored, and these can be added to through
     # the GUI.
+    foo = []
     ignore_exception_messages = []
     def exception_hook(exception_type, message, traceback):
         """
@@ -314,6 +315,8 @@ if __name__ == '__main__':
             exception_type, message, traceback)
         exception_gui.exec_()
 
+        foo.append(traceback)
+
         # Ignore future exceptions of this kind?
         if exception_gui.ignore_in_future:
             ignore_exception_messages.append(message.__repr__())
@@ -323,6 +326,6 @@ if __name__ == '__main__':
     sys.excepthook = exception_hook
 
     # Run the main application window.
-    window = Ui_MainWindow()
-    window.show()
+    APPLICATION_MAIN = Ui_MainWindow()
+    APPLICATION_MAIN.show()
     sys.exit(app.exec_())
