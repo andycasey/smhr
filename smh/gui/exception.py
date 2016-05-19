@@ -262,7 +262,7 @@ class ExceptionWidget(QtGui.QDialog):
         horizontal_layout.addWidget(self.btn_ignore)
 
         self.btn_create_issue = QtGui.QPushButton(self)
-        self.btn_create_issue.setText("Create GitHub issue")
+        self.btn_create_issue.setText("Create GitHub issue..")
         horizontal_layout.addWidget(self.btn_create_issue)
 
         # Spacer with a minimum width.
