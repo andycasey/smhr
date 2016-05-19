@@ -77,13 +77,13 @@ def test_exception():
     ll = LineList.read(datadir+'/linelists/complete.list')
     N = len(ll)
     ll2 = LineList.read(datadir+'/linelists/complete.list')
-    ll.merge(ll2)
+    ll.merge(ll2,skip_equal_loggf=True)
     assert len(ll)==N,"{} {}".format(len(ll),N)
     
     ll2[5]['loggf'] = -3.14159
     ll2[200]['loggf'] = -3.14159
     try:
-        ll.merge(ll2)
+        ll.merge(ll2,skip_equal_loggf=True)
     except linelists.LineListConflict as e:
         assert len(e.conflicts1) == 2
         assert len(e.conflicts2) == 2
