@@ -26,29 +26,37 @@ class LineListTableModel(QtCore.QAbstractTableModel):
     columns = ["wavelength", "element", "expot", "loggf", "damp_vdw", "dissoc_E",
         "comments"]
 
-    def __init__(self, session, *args):
+    def __init__(self, parent, session, *args):
         """
         An abstract model for line lists.
         """
-        super(LineListTableModel, self).__init__(*args)
+        super(LineListTableModel, self).__init__(parent, *args)
         self.session = session
 
     def rowCount(self, parent):
-        return len(self.session.metadata.get("line_list", []))
+        try:
+            N = len(self.session.metadata["line_list"])
+        except:
+            N = 0
+        return N
 
     def columnCount(self, parent):
         return len(self.headers)
 
     def data(self, index, role):
-        if not role == QtCore.Qt.DisplayRole:
-            return
-        column = self.columns[index.column()]
-        if "line_list" not in self.session.metadata:
+        if not index.isValid() or role != QtCore.Qt.DisplayRole:
             return None
 
+        column = self.columns[index.column()]
         value = self.session.metadata["line_list"][column][index.row()]
         if column not in ("element", "comments"):
             return "{:.3f}".format(value)
+        return value
+
+    def setData(self, index, value, role):
+
+        column = self.columns[index.column()]
+        self.session.metadata["line_list"][column][index.row()] = value
         return value
 
 
@@ -59,31 +67,32 @@ class LineListTableModel(QtCore.QAbstractTableModel):
         return None
 
 
-    """
     def sort(self, column, order):
 
+        if "line_list" not in self.session.metadata:
+            return None
+
         self.emit(QtCore.SIGNAL("layoutAboutToBeChanged()"))
-        self._data = sorted(self._data,
-            key=lambda sm: getattr(sm, self.attrs[column]))
-        
+
+        self.session.metadata["line_list"].sort(self.columns[column])
         if order == QtCore.Qt.DescendingOrder:
-            self._data.reverse()
+            self.session.metadata["line_list"].reverse()
 
         self.dataChanged.emit(self.createIndex(0, 0),
             self.createIndex(self.rowCount(0), self.columnCount(0)))
         self.emit(QtCore.SIGNAL("layoutChanged()"))
 
-    """
 
     def flags(self, index):
         if not index.isValid():
             return None
-        return QtCore.Qt.ItemIsSelectable|QtCore.Qt.ItemIsEnabled
+        return  QtCore.Qt.ItemIsEnabled|QtCore.Qt.ItemIsEditable|QtCore.Qt.ItemIsSelectable
+
 
 class LineListTableView(QtGui.QTableView):
 
-    def __init__(self, session, *args):
-        super(LineListTableView, self).__init__(*args)
+    def __init__(self, parent, session, *args):
+        super(LineListTableView, self).__init__(parent, *args)
         self.session = session
 
 
@@ -114,9 +123,6 @@ class LineListTableView(QtGui.QTableView):
         if action == import_action:
             self.import_from_filename()
 
-        else:
-            raise NotImplementedError("nope")
-
         return None
 
 
@@ -130,26 +136,21 @@ class LineListTableView(QtGui.QTableView):
         if not filenames:
             return None
 
-        # Load from file
-        line_list = self.session.metadata.get("line_list", None)
-        if line_list is None:
-            offset, line_list = (1, LineList.read(filenames[0]))
+        # Load from files.
+        line_list = LineList.read(filenames[0])
+        for filename in filenames[1:]:
+            line_list = line_list.merge(LineList.read(filename), in_place=False)
+
+        # Merge the line list with any existing line list in the session.
+        if self.session.metadata.get("line_list", None) is None:
+            self.session.metadata["line_list"] = line_list
         else:
-            offset = 0
-
-        for filename in filenames[offset:]:
-            line_list.merge(LineList.read(filename), in_place=True)
-
-        self.session.metadata["line_list"] = line_list
-        print("line list is ",self.session.metadata["line_list"])
-
-        # Update the data in the table model.
-        self.dataChanged(
-            self.model().createIndex(0, 0),
-            self.model().createIndex(self.model().rowCount(0), self.model().columnCount(0)))
-        #model.emit(QtCore.SIGNAL("layoutChanged()"))
-
+            self.session.metadata["line_list"] \
+                = self.session.metadata["line_list"].merge(
+                    line_list, in_place=False)
+        self.model().rowsInserted.emit(QtCore.QModelIndex(), 0, len(line_list)-1)
         return None
+
 
 
 class TransitionsDialog(QtGui.QDialog):
@@ -167,7 +168,7 @@ class TransitionsDialog(QtGui.QDialog):
 
         self.session = session
 
-        self.setGeometry(600, 400, 600, 400)
+        self.setGeometry(900, 400, 900, 400)
         self.move(QtGui.QApplication.desktop().screen().rect().center() \
             - self.rect().center())
         self.setWindowTitle("Manage transitions")
@@ -183,11 +184,14 @@ class TransitionsDialog(QtGui.QDialog):
 
         # Line list tab.
         self.linelist_tab = QtGui.QWidget()
-        self.linelist_view = LineListTableView(session, self.linelist_tab)
-        self.linelist_view.setModel(LineListTableModel(session))
-        self.linelist_view.resizeColumnsToContents()
+        self.linelist_view = LineListTableView(self.linelist_tab, session)
+        self.linelist_view.setModel(
+            LineListTableModel(self.linelist_tab, session))
         self.linelist_view.setSelectionBehavior(
             QtGui.QAbstractItemView.SelectRows)
+        self.linelist_view.setSortingEnabled(True)
+        self.linelist_view.resizeColumnsToContents()
+
         QtGui.QVBoxLayout(self.linelist_tab).addWidget(self.linelist_view)
         tabs.addTab(self.linelist_tab, "Atomic physics")
 
