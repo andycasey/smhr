@@ -52,7 +52,7 @@ class BaseSpectralModel(object):
         if len(self.transitions) == 1:
             return "{0:.1f}".format(self.transitions["wavelength"][0])
         else:
-            return "~{0:.1f}".format(np.mean(self.transitions["wavelength"]))
+            return "~{0:.0f}".format(np.mean(self.transitions["wavelength"]))
 
     @property
     def transitions(self):

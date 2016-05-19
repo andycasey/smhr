@@ -43,7 +43,7 @@
 - [ ] Quality control metrics filter (and GUI) for spectral models. #gui
 - [ ] Refactor method names in tabs to make them more consistent (e.g., _populate_widgets, redraw_*, __init_ui__)
 - [ ] Least-recently-used cacher for the stellar photosphere.
-
+- [ ] A widget to select element(s) from a list that will be part of a synthesis.
 
 
 *Easy*:
