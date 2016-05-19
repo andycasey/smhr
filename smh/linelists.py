@@ -20,7 +20,8 @@ class LineListConflict(Exception):
         self.conflicts1 = conflicts1
         self.conflicts2 = conflicts2
     def __str__(self):
-        return repr(self.conflicts1)+'\n'+repr(self.conflicts2)
+        return "LineListConflict ({} conflicts)".format(len(self.conflicts1)) 
+        #repr(self.conflicts1)+'\n'+repr(self.conflicts2)
 
 class LineList(Table):
     full_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments',
@@ -49,7 +50,15 @@ class LineList(Table):
         if 'default_thresh' in kwargs:
             self.default_thresh = kwargs.pop('default_thresh')
         else:
-            self.default_thresh = 0.01
+            self.default_thresh = 0.1
+        if 'default_loggf_thresh' in kwargs:
+            self.default_loggf_thresh = kwargs.pop('default_loggf_thresh')
+        else:
+            self.default_loggf_thresh = 0.01
+        if 'default_expot_thresh' in kwargs:
+            self.default_expot_thresh = kwargs.pop('default_expot_thresh')
+        else:
+            self.default_expot_thresh = 0.01
 
         super(LineList, self).__init__(*args,**kwargs)
 
@@ -89,23 +98,80 @@ class LineList(Table):
             print(error_msg)
         return False
 
-    def merge(self,new_ll,thresh=None,loggf_thresh=None,raise_exception=True,override_current=False,in_place=True):
+    @staticmethod
+    def identify_conflicts(ll1, ll2, skip_equal_loggf=False):
+        """
+        skip_equal_loggf: if True, skips single-line conflicts that are identical
+        """
+        if len(ll1) > len(ll2): #swap
+            swap = True
+            _ll = ll1; ll1 = ll2; ll2 = _ll
+        else:
+            swap = False
+        matches = np.zeros((len(ll1),len(ll2)),dtype=bool)
+        for i,line in enumerate(ll1):
+            ii1 = np.logical_and(np.logical_and(ll2['elem1']==line['elem1'], ll2['elem2']==line['elem2']), ll2['ion']==line['ion'])
+            ii2 = np.abs(ll2['wavelength']-line['wavelength']) < .1
+            ii3 = np.abs(ll2['expot']-line['expot']) < .01
+            matches[i,ii1&ii2&ii3] = True
+        #indices of all matches
+        conflicts = np.array(np.where(matches)).T
+        used = np.zeros(len(conflicts),dtype=bool)
+        equivalence_classes = [] #list of lists of indices of conflicts
+        while np.sum(used) != len(used):
+            next_conflict = np.min(np.where(~used)[0])
+            eq_class = [next_conflict]
+            used[next_conflict] = True
+            while True:
+                N_last = len(eq_class)
+                for conflict in conflicts[eq_class]:
+                    # find indices of all unused conflicts that match this conflict
+                    new_ii = np.where(np.logical_and(~used, np.logical_or(conflict[0]==conflicts[:,0], conflict[1]==conflicts[:,1])))[0]
+                    if len(new_ii)==0: continue
+                    eq_class.extend(list(new_ii))
+                    used[new_ii] = True
+                if len(eq_class) == N_last: break
+            equivalence_classes.append(eq_class)
+        assert np.sum([len(eq_class) for eq_class in equivalence_classes]) == len(conflicts)
+        equivalence_lines1 = []
+        equivalence_lines2 = []
+        for eq_class in equivalence_classes:
+            this_conflicts = conflicts[eq_class]
+            equivalence_lines1.append( ll1[np.unique(this_conflicts[:,0])] )
+            equivalence_lines2.append( ll2[np.unique(this_conflicts[:,1])] )
+        if skip_equal_loggf:
+            _new1 = []
+            _new2 = []
+            for x,y in zip(equivalence_lines1,equivalence_lines2):
+                if len(x)==1 and len(y)==1 and LineList.lines_equal(x[0],y[0]):
+                    equivalence_lines1.remove(x)
+                    equivalence_lines2.remove(y)
+        if swap: return equivalence_lines2, equivalence_lines1
+        return equivalence_lines1, equivalence_lines2
+
+    def merge(self,new_ll,thresh=None,loggf_thresh=None,raise_exception=True,
+              skip_equal_loggf=False,
+              override_current=False,in_place=True):
         """
         new_ll: 
             new LineList object to merge into this one
 
         thresh: 
             threshold for wavelength check when matching lines
-            Defaults to self.default_thresh (0.01)
+            Defaults to self.default_thresh (0.1)
 
         loggf_thresh: 
             threshold for loggf check when finding identical lines
-            Defaults to self.default_thresh (0.01)
+            Defaults to self.default_loggf_thresh (0.01)
 
         raise_exception:
             If True (default), finds all the conflicts and raises LineListConflict
               Note: if in_place == True, then it merges new lines BEFORE raising the error
             If False, uses self.pick_best_line() to pick a line to overwrite
+
+        skip_equal_loggf:
+            If True, skips lines that are exactly equal during the merge
+            If False (default), raises exception for duplicate lines
 
         override_current: 
             If True, uses new lines whenever duplicate lines are found.
@@ -113,11 +179,11 @@ class LineList(Table):
             Ignored if raise_exception == True
         
         in_place:
-            If True (default), merge new lines into this object
+            If True (default), merge new lines into this object. It will do so BEFORE throwing any LineListConflict exceptions!
             If False, return a new LineList
         """
         if thresh==None: thresh = self.default_thresh
-        if loggf_thresh==None: loggf_thresh = self.default_thresh
+        if loggf_thresh==None: loggf_thresh = self.default_loggf_thresh
         if len(self)==0: 
             if not in_place:
                 return new_ll
@@ -131,26 +197,13 @@ class LineList(Table):
         num_in_list = 0
         num_with_multiple_conflicts = 0
         lines_to_add = []
-        if raise_exception:
-            conflicts_in_this_list = []
-            conflicts_in_new_list = []
 
-        for new_line in new_ll:
+        for j,new_line in enumerate(new_ll):
             index = self.find_match(new_line,thresh)
             if index==-1: # New Line
                 lines_to_add.append(new_line)
-            elif raise_exception: # Record all conflicts
-                if index < -1: # Multiple conflicts
-                    num_with_multiple_conflicts += 1
-                    matches = self.find_match(new_line,thresh,return_multiples=True)
-                    conflicts_in_new_list.append(new_line)
-                    conflicts_in_this_list.append(matches)
-                elif index >= 0: # Exactly one conflict
-                    num_in_list += 1
-                    my_line = self[index]
-                    if np.abs(my_line['loggf'] - new_line['loggf']) >= loggf_thresh:
-                        conflicts_in_new_list.append(new_line)
-                        conflicts_in_this_list.append(self[index])
+            elif raise_exception: # Record all conflicts later
+                pass
             else: # use self.pick_best_line to find best line
                 if index < -1:
                     num_with_multiple_conflicts += 1
@@ -174,9 +227,11 @@ class LineList(Table):
                 # During the vstack creates an empty LineList and warns
                 new_data = table.vstack([old_lines,new_lines])
         
-        # Note: if in_place == True, then it merges new lines BEFORE raising the conflict
-        if raise_exception and len(conflicts_in_new_list) > 0:
-            raise LineListConflict(conflicts_in_this_list, conflicts_in_new_list)
+        # Note: if in_place == True, then it merges new lines BEFORE raising the exception
+        if raise_exception:
+            conflicts1,conflicts2 = self.identify_conflicts(self,new_ll,skip_equal_loggf=skip_equal_loggf)
+            if len(conflicts1) > 0:
+                raise LineListConflict(conflicts1, conflicts2)
         if self.verbose:
             print("Num lines added: {}".format(num_lines_added))
             print("Num lines {}: {}".format('replaced' if override_current else 'ignored', num_in_list))
@@ -218,9 +273,10 @@ class LineList(Table):
 
     def find_match(self,line,thresh=None,return_multiples=False):
         """
+        (This method is terrible and will probably be removed)
         See if the given line is in this line list
         Conditions: 
-        (1) species match
+        (1) elem1, elem2, ion match (but isotopes do not have to!)
         (2) wavelengeth match to within thresh
         (3) expot match to within 0.01 (hardcoded)
 
@@ -228,18 +284,18 @@ class LineList(Table):
 
         thresh:
             Wavelength tolerance to be considered identical lines
-            (defaults to self.default_thresh, which is .01 by default)
+            (defaults to self.default_thresh, which is 0.1 by default)
 
         return_multiples: 
-            if True, returns list/array of indices
+            if True, returns array of indices
             if False, Returns negative number for no or multiple matches
             -1: no matches
             < -1: that number of matches
         """
         if thresh==None: thresh = self.default_thresh
-        ii1 = self['species']==line['species']
+        ii1 = np.logical_and(np.logical_and(self['elem1']==line['elem1'], self['elem2']==line['elem2']), self['ion']==line['ion'])
         ii2 = np.abs(self['wavelength']-line['wavelength']) < thresh
-        ii3 = np.abs(self['expot']-line['expot']) < 0.01
+        ii3 = np.abs(self['expot']-line['expot']) < self.default_expot_thresh
         ii = np.logical_and(np.logical_and(ii1,ii2),ii3)
         num_match = np.sum(ii)
         if num_match==0: return -1

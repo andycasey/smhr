@@ -1,18 +1,20 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+import os
+
+from smh import linelists, utils
+from smh.linelists import LineList
 from nose.tools import assert_equals, assert_almost_equals, ok_
 from astropy import table
-from smh.linelists import LineList
-from smh import utils
-
 import numpy as np
 
 ll_filenames = ['masseron_linch.txt']
-ll_filenames = ['masseron_linch.txt','lin4077new','lin4554new','AJ_4398_Y.lin']
+ll_filenames = ['masseron_linch.txt','lin4077new','lin4554new']
 
-lls = [LineList.read(filename) for filename in ll_filenames]
-moog_lls = [LineList.read(filename,moog_columns=True) for filename in ll_filenames]
+datadir = os.path.dirname(os.path.abspath(__file__))+'/test_data'
+lls = [LineList.read(datadir+'/linelists/'+filename) for filename in ll_filenames]
+moog_lls = [LineList.read(datadir+'/linelists/'+filename,moog_columns=True) for filename in ll_filenames]
 
 def test_species_converting():
     # Species, elem1, isotope1, elem2, isotope2, ion
@@ -37,14 +39,11 @@ def test_species_converting():
 
 
 def test_colnames():
-    #required_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E',
-    #                     'E_hi','lande_hi','lande_lo','damp_stark','damp_rad','references']
     for ll in lls:
         required_colnames = ll.full_colnames
         for col in required_colnames:
             ok_(col in ll.columns)
 def test_moog_colnames():
-    #required_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','references']
     for ll in moog_lls:
         required_colnames = ll.moog_colnames
         for col in required_colnames:
@@ -52,18 +51,18 @@ def test_moog_colnames():
 def test_merge():
     ll1 = lls[0]
     ll2 = lls[1]
-    ll1.merge(ll2)
-    lls[0] = LineList.read_moog('masseron_linch.txt')
+    ll1.merge(ll2,raise_exception=False)
+    lls[0] = LineList.read_moog(datadir+'/linelists/masseron_linch.txt')
 def test_duplicates():
-    fname = 'lin4077new'
-    N = 100
+    fname = datadir+'/linelists/lin4077new'
+    N = 50
     ll1 = LineList.read_moog(fname)
     ll2 = LineList.read_moog(fname)
     ll = table.vstack([ll1,ll2[0:N]])
-    duplicate_indices,duplicate_lines = ll.find_duplicates()
+    duplicate_indices,duplicate_lines = ll.find_duplicates(thresh=.01)
     assert_equals(2*N,len(duplicate_indices))
 
-def test_readwrite(fname):
+def test_readwrite(fname=datadir+'/linelists/masseron_linch.txt'):
     ll = LineList.read(fname)
     ll = LineList.read(fname,format='moog')
     ll.write('_test.moog',format='moog')
@@ -73,25 +72,46 @@ def test_readwrite(fname):
             if isinstance(ll[i][col], str): continue
             diff = np.sum(np.abs(ll[i][col] - ll2[i][col]))
             assert np.isnan(diff) or diff < .001, "{} {}".format(ll[i][col],ll2[i][col])
-test_species_converting()
-test_colnames()
-test_moog_colnames()
-test_merge()
-test_duplicates()
-for fname in ll_filenames:
-    test_readwrite(fname)
+    os.remove('_test.moog')
+def test_exception():
+    ll = LineList.read(datadir+'/linelists/complete.list')
+    N = len(ll)
+    ll2 = LineList.read(datadir+'/linelists/complete.list')
+    ll.merge(ll2,skip_equal_loggf=True)
+    assert len(ll)==N,"{} {}".format(len(ll),N)
+    
+    ll2[5]['loggf'] = -3.14159
+    ll2[200]['loggf'] = -3.14159
+    try:
+        ll.merge(ll2,skip_equal_loggf=True)
+    except linelists.LineListConflict as e:
+        assert len(e.conflicts1) == 2
+        assert len(e.conflicts2) == 2
+    else:
+        raise RuntimeError("Conflicts didn't work")
 
-ll = LineList.read('complete.list')
-ll.verbose = True
-ll_ncap = LineList.read('linelist_he1523_ncap_2016_03_smh_ohne.dat')
-
-print("Merging to new object")
-new_ll = ll.merge(ll_ncap, in_place=False)
-
-print("Merging in place")
-ll.merge(ll_ncap)
-
-
+if __name__=="__main__":
+    test_species_converting()
+    test_colnames()
+    test_moog_colnames()
+    test_merge()
+    test_duplicates()
+    for fname in ll_filenames:
+        test_readwrite(datadir+'/linelists/'+fname)
+    test_exception()
+    
+    ll = LineList.read(datadir+'/linelists/complete.list')
+    ll.verbose = True
+    ll_ti = LineList.read(datadir+'/linelists/tiII.moog')
+    
+    print("Merging to new object")
+    new_ll = ll.merge(ll_ti, raise_exception=False, in_place=False)
+    
+    print("Merging in place")
+    ll.merge(ll_ti, raise_exception=False)
+    
+    print("Sorting")
+    ll.sort('wavelength')
 
 #print("Reading GES list")
 #ges = LineList.read('ges_master_v5.fits')
