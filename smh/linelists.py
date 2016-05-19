@@ -179,7 +179,7 @@ class LineList(Table):
             Ignored if raise_exception == True
         
         in_place:
-            If True (default), merge new lines into this object
+            If True (default), merge new lines into this object. It will do so BEFORE throwing any LineListConflict exceptions!
             If False, return a new LineList
         """
         if thresh==None: thresh = self.default_thresh
