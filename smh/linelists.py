@@ -17,50 +17,10 @@ class LineListConflict(Exception):
     """Exception raised for merging conflicts"""
     def __init__(self,conflicts1,conflicts2):
         assert len(conflicts1) == len(conflicts2)
-        conflicts1, conflicts2 = self.resolve_conflicts(conflicts1, conflicts2)
         self.conflicts1 = conflicts1
         self.conflicts2 = conflicts2
     def __str__(self):
         return repr(self.conflicts1)+'\n'+repr(self.conflicts2)
-    @staticmethod
-    def resolve_conflicts(conflicts1, conflicts2):
-        for y in conflicts2: assert len(y)==1
-        N = len(conflicts1)
-        overlaps = np.zeros((N,N),dtype=bool)
-        for i,ll1 in enumerate(conflicts1):
-            for j in range(i,N):
-                ll2 = conflicts2[j]
-                if ll1[0]['element'] != ll2[0]['element']: continue
-                #assert ll1[0]['element']==ll2[0]['element'],"{} {}".format(ll1[0]['element'],ll2[0]['element'])
-                for l1 in ll1:
-                    for l2 in ll2:
-                        if LineList.lines_equal(l1,l2,dwl_thresh=.1,dEP_thresh=.01,dgf_thresh=10):
-                            has_overlap=True
-                            break
-                    if has_overlap: break
-                if has_overlap:
-                    overlaps[i,j] = True
-        indexes = range(N)
-        equivalence_classes = []
-        while len(indexes) > 0:
-            equiv_class = [indexes.pop()]
-            while True:
-                last_N = len(equiv_class)
-                for ix in equiv_class:
-                    if ix in indexes:
-                        indexes.remove(ix)
-                        equiv_class.extend(list(np.where(overlaps[ix,:])[0]))
-                if len(equiv_class)==last_N:
-                    break
-            equivalence_classes.append(equiv_class)
-        new_conflicts1 = []
-        new_conflicts2 = []
-        for ixlist in equivalence_classes:
-            to_concat_1 = [conflicts1[ix] for ix in ixlist]
-            to_concat_2 = [conflicts2[ix] for ix in ixlist]
-            new_conflicts1.append(table.vstack(to_concat_1))
-            new_conflicts2.append(table.vstack(to_concat_2))
-        return new_conflicts1, new_conflicts2
 
 class LineList(Table):
     full_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments',
@@ -137,6 +97,47 @@ class LineList(Table):
             print(error_msg)
         return False
 
+    @staticmethod
+    def identify_conflicts(ll1, ll2):
+        if len(ll1) > len(ll2): #swap
+            swap = True
+            _ll = ll1; ll1 = ll2; ll2 = _ll
+        else:
+            swap = False
+        matches = np.zeros((len(ll1),len(ll2)),dtype=bool)
+        for i,line in enumerate(ll1):
+            ii1 = np.logical_and(np.logical_and(ll2['elem1']==line['elem1'], ll2['elem2']==line['elem2']), ll2['ion']==line['ion'])
+            ii2 = np.abs(ll2['wavelength']-line['wavelength']) < .1
+            ii3 = np.abs(ll2['expot']-line['expot']) < .01
+            matches[i,ii1&ii2&ii3] = True
+        #indices of all matches
+        conflicts = np.array(np.where(matches)).T
+        used = np.zeros(len(conflicts),dtype=bool)
+        equivalence_classes = [] #list of lists of indices of conflicts
+        while np.sum(used) != len(used):
+            next_conflict = np.min(np.where(~used)[0])
+            eq_class = [next_conflict]
+            used[next_conflict] = True
+            while True:
+                N_last = len(eq_class)
+                for conflict in conflicts[eq_class]:
+                    # find indices of all unused conflicts that match this conflict
+                    new_ii = np.where(np.logical_and(~used, np.logical_or(conflict[0]==conflicts[:,0], conflict[1]==conflicts[:,1])))[0]
+                    if len(new_ii)==0: continue
+                    eq_class.extend(list(new_ii))
+                    used[new_ii] = True
+                if len(eq_class) == N_last: break
+            equivalence_classes.append(eq_class)
+        assert np.sum([len(eq_class) for eq_class in equivalence_classes]) == len(conflicts)
+        equivalence_lines1 = []
+        equivalence_lines2 = []
+        for eq_class in equivalence_classes:
+            this_conflicts = conflicts[eq_class]
+            equivalence_lines1.append( ll1[np.unique(this_conflicts[:,0])] )
+            equivalence_lines2.append( ll2[np.unique(this_conflicts[:,1])] )
+        if swap: return equivalence_lines2, equivalence_lines1
+        return equivalence_lines1, equivalence_lines2
+
     def merge(self,new_ll,thresh=None,loggf_thresh=None,raise_exception=True,override_current=False,in_place=True):
         """
         new_ll: 
@@ -179,26 +180,13 @@ class LineList(Table):
         num_in_list = 0
         num_with_multiple_conflicts = 0
         lines_to_add = []
-        if raise_exception:
-            conflicts_in_this_list = []
-            conflicts_in_new_list = []
 
-        for new_line in new_ll:
+        for j,new_line in enumerate(new_ll):
             index = self.find_match(new_line,thresh)
             if index==-1: # New Line
                 lines_to_add.append(new_line)
-            elif raise_exception: # Record all conflicts
-                if index < -1: # Multiple conflicts
-                    num_with_multiple_conflicts += 1
-                    matches = self[self.find_match(new_line,thresh,return_multiples=True)]
-                    conflicts_in_new_list.append(LineList(new_line))
-                    conflicts_in_this_list.append(matches)
-                elif index >= 0: # Exactly one conflict
-                    num_in_list += 1
-                    my_line = self[index]
-                    if np.abs(my_line['loggf'] - new_line['loggf']) >= loggf_thresh:
-                        conflicts_in_new_list.append(LineList(new_line))
-                        conflicts_in_this_list.append(LineList(self[index]))
+            elif raise_exception: # Record all conflicts later
+                pass
             else: # use self.pick_best_line to find best line
                 if index < -1:
                     num_with_multiple_conflicts += 1
@@ -224,7 +212,77 @@ class LineList(Table):
         
         # Note: if in_place == True, then it merges new lines BEFORE raising the conflict
         if raise_exception and len(conflicts_in_new_list) > 0:
-            raise LineListConflict(conflicts_in_this_list, conflicts_in_new_list)
+            # This is a hacky way to get a good list of conflicts.
+            # First make conflicts_in_this_list unique indices
+            N = len(conflicts_in_this_list)
+            overlaps = np.zeros((N,N),dtype=bool)
+            for i in range(N):
+                for j in range(i+1,N):
+                    if len(conflicts_in_this_list[i].intersection(conflicts_in_this_list[j])) > 0:
+                        # overlapping lines in this list
+                        overlaps[i,j] = True
+                    else:
+                        pass
+            indexes = range(N)
+            equivalence_classes = []
+            while len(indexes) > 0:
+                ix = indexes.pop()
+                equiv_class = [ix]+list(np.where(overlaps[:,ix])[0])
+                while True:
+                    last_N = len(equiv_class)
+                    for ix in equiv_class:
+                        if ix in indexes:
+                            indexes.remove(ix)
+                            equiv_class.extend(list(np.where(overlaps[:,ix])[0]))
+                    if len(equiv_class)==last_N:
+                        break
+                equivalence_classes.append(np.unique(equiv_class))
+            conflicts1 = [] #in this list
+            conflicts2 = [] #in new list
+            for ixlist in equivalence_classes:
+                to_concat_1 = [self[np.unique(conflicts_in_this_list[ix])] for ix in ixlist]
+                to_concat_2 = [conflicts_in_new_list[ix] for ix in ixlist]
+                conflicts1.append(table.vstack(to_concat_1))
+                conflicts2.append(table.vstack(to_concat_2))
+            
+#            # Make conflicts_in_this_list unique indices
+#            overlaps = np.zeros((N,N),dtype=bool)
+#            for i,ixs in enumerate(conflicts_in_this_list):
+#                for j in range(i+1,N):
+#                    ll2 = conflicts2[j]
+#                    if self[ixs[0]]['element'] != ll2[0]['element']: continue
+#                    for ix1 in ixs:
+#                        l1 = self[ix1]
+#                        for l2 in ll2:
+#                            if LineList.lines_equal(l1,l2,dwl_thresh=.1,dEP_thresh=.01,dgf_thresh=10):
+#                                has_overlap=True
+#                                break
+#                        if has_overlap: break
+#                    if has_overlap:
+#                        overlaps[i,j] = True
+#            indexes = range(N)
+#            equivalence_classes = []
+#            while len(indexes) > 0:
+#                ix = indexes.pop()
+#                equiv_class = [ix]+list(np.where(overlaps[:,ix])[0])
+#                while True:
+#                    last_N = len(equiv_class)
+#                    for ix in equiv_class:
+#                        print(ix, ix in indexes, indexes)
+#                        if ix in indexes:
+#                            indexes.remove(ix)
+#                            equiv_class.extend(list(np.where(overlaps[:,ix])[0]))
+#                    if len(equiv_class)==last_N:
+#                        break
+#                equivalence_classes.append(np.unique(equiv_class))
+#            new_conflicts1 = []
+#            new_conflicts2 = []
+#            for ixlist in equivalence_classes:
+#                to_concat_1 = [conflicts1[ix] for ix in ixlist]
+#                to_concat_2 = [conflicts2[ix] for ix in ixlist]
+#                new_conflicts1.append(table.vstack(to_concat_1))
+#                new_conflicts2.append(table.vstack(to_concat_2))
+            raise LineListConflict(conflicts1, conflicts2)
         if self.verbose:
             print("Num lines added: {}".format(num_lines_added))
             print("Num lines {}: {}".format('replaced' if override_current else 'ignored', num_in_list))
@@ -279,7 +337,7 @@ class LineList(Table):
             (defaults to self.default_thresh, which is 0.1 by default)
 
         return_multiples: 
-            if True, returns list/array of indices
+            if True, returns array of indices
             if False, Returns negative number for no or multiple matches
             -1: no matches
             < -1: that number of matches

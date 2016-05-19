@@ -29,5 +29,28 @@ def test_conflicts():
     else:
         raise RuntimeError
     
+    # Merging multiple conflicts
+    
+
 if __name__=="__main__":
-    test_conflicts()
+    ll1 = linelists.LineList.read('test_data/linelists/complete.list')
+    ll2 = linelists.LineList.read('test_data/linelists/tiII.moog')
+    ll3 = linelists.LineList.read('test_data/linelists/lin4554new')
+    
+    c1, c2 = linelists.identify_conflicts(ll1,ll2)
+    #c1, c2 = linelists.identify_conflicts(ll1,ll3)
+    #c1, c2 = linelists.identify_conflicts(ll3,ll1)
+
+    #try:
+    #    ll = ll1.merge(ll3,in_place=False,thresh=.1)
+    #except linelists.LineListConflict as e:
+    #    c1 = e.conflicts1
+    #    c2 = e.conflicts2
+    #    for y in c2:
+    #        if np.all(y['element']=='Ba II'):
+    #            assert len(y)==15
+    #else:
+    #    raise RuntimeError
+    
+
+    #test_conflicts()
