@@ -16,9 +16,9 @@ import rv, normalization, summary, stellar_parameters
 import exception
 
 import smh
+from linelist_manager import TransitionsDialog
 
 logger = logging.getLogger(__name__)
-
 
 class Ui_MainWindow(QtGui.QMainWindow):
     """
@@ -79,6 +79,13 @@ class Ui_MainWindow(QtGui.QMainWindow):
         file_menu.addAction(save_session)
         file_menu.addAction(save_session_as)
 
+        self.action_transitions_manager = QtGui.QAction("&Transitions..", self,
+            statusTip="Manage line lists and spectral models",
+            triggered=self.transitions_manager)
+        self.action_transitions_manager.setEnabled(False)
+        edit_menu = self.menuBar().addMenu("&Edit")
+        edit_menu.addAction(self.action_transitions_manager)
+
         # Export menu.
         self._menu_export_normalized_spectrum \
             = QtGui.QAction("Normalized rest-frame spectrum", self,
@@ -123,6 +130,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Disable all tabs except for Summary and RV.
         for i in range(self.tabs.count()):
             self.tabs.setTabEnabled(i, i < 2)
+
+        # Enable relevant menu actions.
+        self.action_transitions_manager.setEnabled(True)
 
         # Re-populate widgets in all tabs.
         self.summary_tab._populate_widgets()
@@ -169,6 +179,10 @@ class Ui_MainWindow(QtGui.QMainWindow):
         raise NotImplementedError
 
         print("Open session")
+
+        # Enable relevant menu actions.
+        self.action_transitions_manager.setEnabled(True)
+
         return None
 
 
@@ -192,6 +206,16 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.session.normalized_spectrum.write("test.txt")
         print("wrote to test.txt")
 
+
+    def transitions_manager(self):
+        """
+        Open the transitions manager dialog to edit line lists and spectral
+        models.
+        """
+
+        window = TransitionsDialog(self.session)
+        window.exec_()
+        return None
 
 
     def __init_ui__(self):
@@ -286,7 +310,6 @@ if __name__ == '__main__':
 
     # Allow certain exceptions to be ignored, and these can be added to through
     # the GUI.
-    foo = []
     ignore_exception_messages = []
     def exception_hook(exception_type, message, traceback):
         """
@@ -315,8 +338,6 @@ if __name__ == '__main__':
             exception_type, message, traceback)
         exception_gui.exec_()
 
-        foo.append(traceback)
-
         # Ignore future exceptions of this kind?
         if exception_gui.ignore_in_future:
             ignore_exception_messages.append(message.__repr__())
@@ -326,6 +347,6 @@ if __name__ == '__main__':
     sys.excepthook = exception_hook
 
     # Run the main application window.
-    APPLICATION_MAIN = Ui_MainWindow()
-    APPLICATION_MAIN.show()
+    app.window = Ui_MainWindow()
+    app.window.show()
     sys.exit(app.exec_())

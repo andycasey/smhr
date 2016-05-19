@@ -19,7 +19,6 @@ from smh import __git_status__
 
 logger = logging.getLogger(__name__)
 
-
 def format(color, style=None):
     """
     Return a QTextCharFormat with the given attributes.
@@ -248,7 +247,8 @@ class ExceptionWidget(QtGui.QDialog):
         self.show_traceback = QtGui.QPlainTextEdit(self)
         self.show_traceback.setFont(QtGui.QFont("Courier", 12))
         self.show_traceback.setEnabled(False)
-        self.show_traceback.setPlainText("\n".join(tb.format_tb(traceback)))
+        self.show_traceback.setPlainText(
+            "\n".join(tb.format_exception(exception_type, message, traceback)))
 
         self.highlighter = PythonHighlighter(self.show_traceback.document())
         
@@ -305,7 +305,7 @@ class ExceptionWidget(QtGui.QDialog):
         self.close()
 
         # Get the parent and session etc.
-        parent = self.traceback.tb_frame.f_globals["APPLICATION_MAIN"]
+        parent = QtCore.QCoreApplication.instance().window
         session = parent.session
 
         # Save and upload the session.
@@ -313,6 +313,7 @@ class ExceptionWidget(QtGui.QDialog):
 
         # Get a screenshot of the main window and upload it.
         screenshot_url = None
+        logger.info("Taking and uploading screenshot..")
         try:
             screenshot = QtGui.QPixmap.grabWindow(parent.winId())
             _, path = mkstemp()
@@ -324,19 +325,20 @@ class ExceptionWidget(QtGui.QDialog):
 
             if response.status_code == 200:
                 screenshot_url = response.text.strip()  
-
+            else:
+                logger.warn("Screenshot could not be uploaded (response {})"\
+                    .format(response.status_code))
         except:
             logger.exception("No screenshot could be uploaded.")
 
+        logger.info("Creating issue..")
         body_template = \
             "An exception was encountered in [this session]({session_url}) "\
             "using version {application_version} on Python {sys_version}:\n\n"\
             "````python\n"\
-            "{formatted_traceback}"\
+            "{formatted_exception}"\
             "````\n\n"\
-            "Below is a screenshot from the application at the time that the "\
-            "exception occurred:\n\n"\
-            "![screenshot]({screenshot_url})\n\n"\
+            "{screenshot_str}"\
             "**Additional details on how this exception occurred**:\n"
 
         # Create text.
@@ -345,8 +347,12 @@ class ExceptionWidget(QtGui.QDialog):
             session_url="soon",
             application_version=__git_status__,
             sys_version=sys.version.replace("\n", ""),
-            formatted_traceback="\n".join(tb.format_tb(self.traceback)),
-            screenshot_url=screenshot_url))
+            formatted_exception="\n".join(tb.format_exception(
+                self.exception_type, self.message, self.traceback)),
+            screenshot_str="" if screenshot_url is None else 
+                "Below is a screenshot from the application at the time that "\
+                "the exception occurred:\n\n"\
+                "![screenshot]({screenshot_url})\n\n".format(screenshot_url)))
 
         url = "https://github.com/andycasey/smhr/issues/new?title={}&body={}"\
             .format(title, body)
