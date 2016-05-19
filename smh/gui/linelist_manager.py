@@ -165,7 +165,7 @@ class LineListTableView(QtGui.QTableView):
         N = len(transitions)
         for index in range(N):
             spectral_models_to_add.append(
-                ProfileFittingModel(transitions[[index]], self.session))
+                ProfileFittingModel(self.session, transitions["hash"][[index]]))
 
         self.session.metadata.setdefault("spectral_models", [])
         self.session.metadata["spectral_models"].extend(spectral_models_to_add)
@@ -184,8 +184,8 @@ class LineListTableView(QtGui.QTableView):
         """
 
         transitions = self.import_from_filename()
-        spectral_model = SpectralSynthesisModel(
-            transitions, self.session, transitions.unique_elements)
+        spectral_model = SpectralSynthesisModel(self.session, 
+            transitions["hash"], transitions.unique_elements)
 
         self.session.metadata.setdefault("spectral_models", [])
         self.session.metadata["spectral_models"].append(spectral_model)
@@ -204,9 +204,8 @@ class LineListTableView(QtGui.QTableView):
         spectral_models_to_add = []
         for row in self.selectionModel().selectedRows():
             spectral_models_to_add.append(
-                ProfileFittingModel(
-                    self.session.metadata["line_list"][[row.row()]],
-                    self.session))
+                ProfileFittingModel(self.session,
+                    self.session.metadata["line_list"]["hash"][[row.row()]]))
 
         self.session.metadata.setdefault("spectral_models", [])
         self.session.metadata["spectral_models"].extend(spectral_models_to_add)
@@ -236,8 +235,8 @@ class LineListTableView(QtGui.QTableView):
         if len(elements) > 1:
             raise NotImplementedError("ask the user which element(s)")
 
-        spectral_model = SpectralSynthesisModel(
-            transitions, self.session, elements)
+        spectral_model = SpectralSynthesisModel(self.session,
+            transitions["hash"], elements)
             
         self.session.metadata.setdefault("spectral_models", [])
         self.session.metadata["spectral_models"].append(spectral_model)
@@ -355,10 +354,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
     def setData(self, index, value, role):
         return False
-        column = self.columns[index.column()]
-        self.session.metadata["spectral_models"][column][index.row()] = value
-        return value
-
+    
 
     def headerData(self, col, orientation, role):
         if orientation == QtCore.Qt.Horizontal \
@@ -367,7 +363,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         return None
 
     """
-    def sort(self, column, order):
+        def sort(self, column, order):
 
         if "line_list" not in self.session.metadata:
             return None
@@ -381,7 +377,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         self.dataChanged.emit(self.createIndex(0, 0),
             self.createIndex(self.rowCount(0), self.columnCount(0)))
         self.emit(QtCore.SIGNAL("layoutChanged()"))
-        """
+    """
 
     def flags(self, index):
         if not index.isValid():
@@ -472,10 +468,10 @@ class TransitionsDialog(QtGui.QDialog):
         btn_save_as_default.setText("Save as default")
         hbox.addWidget(btn_save_as_default)
 
-        btn_apply_to_session = QtGui.QPushButton(self)
-        btn_apply_to_session.setText("Apply to session")
-        btn_apply_to_session.setFocus()
-        hbox.addWidget(btn_apply_to_session)
+        btn_ok = QtGui.QPushButton(self)
+        btn_ok.setText("OK")
+        btn_ok.setFocus()
+        hbox.addWidget(btn_ok)
 
         parent_vbox.addLayout(hbox)
 
@@ -483,7 +479,7 @@ class TransitionsDialog(QtGui.QDialog):
         btn_import.clicked.connect(self.import_transitions)
         btn_export.clicked.connect(self.export_transitions)
         btn_save_as_default.clicked.connect(self.save_as_default)
-        btn_apply_to_session.clicked.connect(self.apply_to_session)
+        btn_ok.clicked.connect(self.close)
 
         return None
 
@@ -503,14 +499,6 @@ class TransitionsDialog(QtGui.QDialog):
         Save the current line list and spectral models as the defaults for
         future SMH sessions.
         """
-        raise NotImplementedError
-
-
-    def apply_to_session(self):
-        """
-        Apply the current line list and spectral models to the current session.
-        """
-
         raise NotImplementedError
 
 

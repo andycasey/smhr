@@ -77,23 +77,23 @@ def approximate_spectral_synthesis(model, centroids, bounds):
 
 class SpectralSynthesisModel(BaseSpectralModel):
 
-    def __init__(self, transitions, session, elements, *args, **kwargs):
+    def __init__(self, session, transition_hashes, elements, **kwargs):
         """
-        A class to fit spectral data by synthesis, given a photospheric
-        structure.
-    
-        :param transitions:
-            Row(s) from a line list of transitions to associate with this model.
+        Initialize a base class for modelling spectra.
 
         :param session:
-            The parent session that this model will be associated with.
+            The session that this spectral model will be associated with.
 
+        :param transition_hashes:
+            The hashes of transitions in the parent session that will be
+            associated with this model.
+        
         :param elements:
             The element(s) to be measured from the data.
         """
         
-        super(SpectralSynthesisModel, self).__init__(
-            transitions, session, **kwargs)
+        super(SpectralSynthesisModel, self).__init__(session, transition_hashes,
+            **kwargs)
 
         # Initialize metadata with default fitting values.
         self.metadata.update({
@@ -127,14 +127,15 @@ class SpectralSynthesisModel(BaseSpectralModel):
             elements = [elements]
 
         elements = [str(element).title() for element in elements]
+        transitions = self.transitions
         for element in elements:
             # Is the element real?
             if element not in utils.periodic_table:
                 raise ValueError("element '{}' is not valid".format(element))
 
             # Is it in the transition list?
-            if  element not in self.transitions["elem1"] \
-            and element not in self.transitions["elem2"]:
+            if  element not in transitions["elem1"] \
+            and element not in transitions["elem2"]:
                 raise ValueError(
                     "element '{0}' does not appear in the transition list"\
                         .format(element))

@@ -14,24 +14,35 @@ from smh.session import BaseSession
 
 class BaseSpectralModel(object):
 
-    def __init__(self, transitions, session, **kwargs):
+    def __init__(self, session, transition_hashes, **kwargs):
         """
         Initialize a base class for modelling spectra.
 
-        :param transitions:
-            Row(s) from a line list of transitions to associate with this model.
-
         :param session:
-            The parent session that this model will be associated with.
-        """
+            The session that this spectral model will be associated with.
 
-        # TODO: validate the transitions
+        :param transition_hashes:
+            The hashes of transitions in the parent session that will be
+            associated with this model.
+        """
 
         if not isinstance(session, BaseSession):
             raise TypeError("session must be a sub-class from BaseSession")
 
+        if "line_list" not in session.metadata \
+        or len(session.metadata["line_list"]) == 0:
+            raise ValueError("session does not have a line list")
+
+        # Validate the transition_hashes
+        transition_hashes = list(transition_hashes)
+        for transition_hash in transition_hashes:
+            if transition_hash not in session.metadata["line_list"]["hash"]:
+                raise ValueError(
+                    "transition hash '{}' not found in parent session".format(
+                        transition_hash))
+
         self._session = session
-        self._transitions = transitions
+        self._transition_hashes = transition_hashes
 
         self.metadata = {}
 
@@ -57,7 +68,36 @@ class BaseSpectralModel(object):
     @property
     def transitions(self):
         """ Return the transitions associateed with this class. """
-        return self._transitions
+
+        try:
+            indices = self._transition_indices
+        except AttributeError:
+            indices = self._index_transitions()
+        else:
+            # Check hashes.
+            actual_hashes = self._session.metadata["line_list"][indices]["hash"]
+            if not np.all(actual_hashes == self._transition_hashes):
+                indices = self._index_transitions()
+
+        return self._session.metadata["line_list"][indices]
+
+
+    def _index_transitions(self):
+        """
+        Index the transitions to the parent session.
+        """
+
+        indices = np.zeros(len(self._transition_hashes), dtype=int)
+        for i, each in enumerate(self._transition_hashes):
+            index = np.where(
+                self._session.metadata["line_list"]["hash"] == each)[0]
+            assert len(index) == 1
+            indices[i] = index
+
+        self._transition_indices = indices
+        return indices
+
+
 
     @property
     def elements(self):
