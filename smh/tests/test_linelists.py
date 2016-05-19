@@ -59,7 +59,7 @@ def test_duplicates():
     ll1 = LineList.read_moog(fname)
     ll2 = LineList.read_moog(fname)
     ll = table.vstack([ll1,ll2[0:N]])
-    duplicate_indices,duplicate_lines = ll.find_duplicates()
+    duplicate_indices,duplicate_lines = ll.find_duplicates(thresh=.01)
     assert_equals(2*N,len(duplicate_indices))
 
 def test_readwrite(fname=datadir+'/linelists/masseron_linch.txt'):
