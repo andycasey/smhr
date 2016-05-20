@@ -53,6 +53,6 @@
 - [ ] Go through all 'TODO', 'HACK', or 'MAGIC' entries in the code and create
       GitHub issues. Assign labels and people.
 - [X] Implement 'Query Simbad..' button.
-- [ ] Change font style for name and position data in Summary tab. #gui
+- [X] Change font style for name and position data in Summary tab. #gui
 - [ ] Compile line lists together based on current "best" knowledge.
 - [ ] Integrate spectral_models widget (sans any models) into the chemical abundances tab. #gui

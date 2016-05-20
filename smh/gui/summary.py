@@ -56,10 +56,14 @@ class SummaryTab(QtGui.QWidget):
 
         # Star name label.
         self.star_label = QtGui.QLabel(self)
+        bold_monospaced = QtGui.QFont("Courier", 14)
+        bold_monospaced.setBold(True)
+        self.star_label.setFont(bold_monospaced)
         summary_layout.addWidget(self.star_label)
 
         # Coordinates label.
         self.coordinates_label = QtGui.QLabel(self)
+        self.coordinates_label.setFont(bold_monospaced)
         summary_layout.addWidget(self.coordinates_label)
 
         # Notes.
