@@ -714,11 +714,17 @@ class NormalizationTab(QtGui.QWidget):
 
 
         # Draw the widgets.
-        self.update_order_index(0)
-        self.update_continuum_mask(refresh=False)
-        self.fit_continuum(clobber=False)
-        self.draw_order(refresh=False)
-        self.draw_continuum(refresh=True)
+        try:
+            self.update_order_index(0)
+            self.update_continuum_mask(refresh=False)
+            self.fit_continuum(clobber=False)
+            self.draw_order(refresh=False)
+            self.draw_continuum(refresh=True)
+        except (AttributeError, KeyError):
+            # HACK
+            # when loading a fresh session, it will skip all those blocks
+            # I think this is okay?
+            pass
         return None
 
 
@@ -951,13 +957,9 @@ class NormalizationTab(QtGui.QWidget):
         session, index = self.parent.session, self.current_order_index
 
         # Is there continuum already for this new order?
-        try:
-            continuum = session.metadata["normalization"]["continuum"][index]
-            normalization_kwargs \
-                = session.metadata["normalization"]["normalization_kwargs"][index]
-        except (AttributeError, KeyError):
-            # This occurs when setting up a new session
-            return 
+        continuum = session.metadata["normalization"]["continuum"][index]
+        normalization_kwargs \
+            = session.metadata["normalization"]["normalization_kwargs"][index]
 
         # These keys don't have widgets, but need to be updated.
         extra_keys = ("additional_points", "exclude")
