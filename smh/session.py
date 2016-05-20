@@ -15,7 +15,7 @@ import yaml
 from six import string_types
 
 from .linelists import LineList
-from . import (photospheres, radiative_transfer, specutils, isoutils)
+from . import (photospheres, radiative_transfer, specutils, isoutils, utils)
 
 logger = logging.getLogger(__name__)
 

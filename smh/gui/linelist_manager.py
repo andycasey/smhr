@@ -16,6 +16,7 @@ from PySide import QtCore, QtGui
 
 from smh.linelists import LineList
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
+from smh.utils import spectral_model_conflicts
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +170,11 @@ class LineListTableView(QtGui.QTableView):
 
         self.session.metadata.setdefault("spectral_models", [])
         self.session.metadata["spectral_models"].extend(spectral_models_to_add)
+        self.session._spectral_model_conflicts = spectral_model_conflicts(
+            self.session.metadata["spectral_models"],
+            self.session.metadata["line_list"])
+
+
         
         # Update the spectral models abstract table model.
         self._parent.models_view.model().rowsInserted.emit(
@@ -189,6 +195,10 @@ class LineListTableView(QtGui.QTableView):
 
         self.session.metadata.setdefault("spectral_models", [])
         self.session.metadata["spectral_models"].append(spectral_model)
+        self.session._spectral_model_conflicts = spectral_model_conflicts(
+            self.session.metadata["spectral_models"],
+            self.session.metadata["line_list"])
+
         
         # Update the spectral models abstract table model.
         self._parent.models_view.model().rowsInserted.emit(
@@ -210,6 +220,11 @@ class LineListTableView(QtGui.QTableView):
         self.session.metadata.setdefault("spectral_models", [])
         self.session.metadata["spectral_models"].extend(spectral_models_to_add)
         
+        self.session._spectral_model_conflicts = spectral_model_conflicts(
+            self.session.metadata["spectral_models"],
+            self.session.metadata["line_list"])
+
+
         # Update the spectral models abstract table model.
         self._parent.models_view.model().rowsInserted.emit(
             QtCore.QModelIndex(), 0, len(spectral_models_to_add)-1)
@@ -240,6 +255,10 @@ class LineListTableView(QtGui.QTableView):
             
         self.session.metadata.setdefault("spectral_models", [])
         self.session.metadata["spectral_models"].append(spectral_model)
+
+        self.session._spectral_model_conflicts = spectral_model_conflicts(
+            self.session.metadata["spectral_models"],
+            self.session.metadata["line_list"])
 
         # Update the spectral models abstract table model.
         self._parent.models_view.model().rowsInserted.emit(
@@ -325,6 +344,78 @@ class LineListTableView(QtGui.QTableView):
 
 
 
+class LineListTableDelegate(QtGui.QItemDelegate):
+    def __init__(self, parent, session, *args):
+        super(LineListTableDelegate, self).__init__(parent, *args)
+        self.session = session
+
+
+    def paint(self, painter, option, index):
+        painter.save()
+
+        painter.setPen(QtGui.QPen(QtCore.Qt.NoPen))
+        if option.state & QtGui.QStyle.State_Selected:
+            painter.setBrush(QtGui.QBrush(
+                self.parent().palette().highlight().color()))
+        else:
+            painter.setBrush(QtGui.QBrush(QtCore.Qt.white))
+
+        painter.drawRect(option.rect)
+
+        painter.setPen(QtGui.QPen(QtCore.Qt.black))
+        painter.drawText(option.rect, QtCore.Qt.AlignLeft|QtCore.Qt.AlignCenter,
+            index.data())
+        painter.restore()
+
+
+_COLORS = ["#FFEBB0", "#FFB05A", "#F84322", "#C33A1A", "#9F3818"]
+
+
+class SpectralModelsTableDelegate(QtGui.QItemDelegate):
+    def __init__(self, parent, session, *args):
+        super(SpectralModelsTableDelegate, self).__init__(parent, *args)
+        self.session = session
+
+
+    def paint(self, painter, option, index):
+        if index.column() > 2:
+            super(SpectralModelsTableDelegate, self).paint(painter, option, index)
+            return None
+
+        painter.save()
+
+        # set background color
+        painter.setPen(QtGui.QPen(QtCore.Qt.NoPen))
+        if option.state & QtGui.QStyle.State_Selected:
+            painter.setBrush(QtGui.QBrush(
+                self.parent().palette().highlight().color()))
+        else:
+
+            # Does this row have a conflict?
+            conflicts = self.session._spectral_model_conflicts
+            conflict_indices = np.hstack([sum([], conflicts)])
+
+            row = index.row()
+            if row in conflict_indices:
+                for i, conflict in enumerate(conflicts):
+                    if row in conflict:
+                        color = _COLORS[i % len(_COLORS)]
+                        break
+
+                painter.setBrush(QtGui.QBrush(QtGui.QColor(color)))
+            else:
+                painter.setBrush(QtGui.QBrush(QtCore.Qt.white))
+            
+        painter.drawRect(option.rect)
+
+        # set text color
+        painter.setPen(QtGui.QPen(QtCore.Qt.black))
+        painter.drawText(option.rect, QtCore.Qt.AlignLeft|QtCore.Qt.AlignCenter, index.data())
+        painter.restore()
+
+
+
+
 class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
     headers = [u"Wavelength\n(Å)", "Elements\n", "Model type\n",
@@ -400,7 +491,13 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         else:
             self.session.metadata["spectral_models"][index.row()].metadata[a] = value
             self.dataChanged.emit(index, index)
-            
+
+            self.session._spectral_model_conflicts = spectral_model_conflicts(
+                self.session.metadata["spectral_models"],
+                self.session.metadata["line_list"])
+
+            self._parent.models_view.viewport().repaint()
+
             return value
     
 
@@ -430,6 +527,10 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
         if order == QtCore.Qt.DescendingOrder:
             self.session.metadata["spectral_models"].reverse()
+
+        self.session._spectral_model_conflicts = spectral_model_conflicts(
+            self.session.metadata["spectral_models"],
+            self.session.metadata["line_list"])
 
         self.dataChanged.emit(self.createIndex(0, 0),
             self.createIndex(self.rowCount(0), self.columnCount(0)))
@@ -493,6 +594,10 @@ class SpectralModelsTableView(QtGui.QTableView):
             for i, sm in enumerate(self.session.metadata["spectral_models"]) \
                 if i not in delete_indices]
 
+        self.session._spectral_model_conflicts = spectral_model_conflicts(
+            self.session.metadata["spectral_models"],
+            self.session.metadata["line_list"])
+
         # TODO: There *must* be a better way to do this..
         for i, index in enumerate(delete_indices):
             self.model().rowsRemoved.emit(
@@ -540,6 +645,7 @@ class TransitionsDialog(QtGui.QDialog):
         self.linelist_view.setSelectionBehavior(
             QtGui.QAbstractItemView.SelectRows)
         self.linelist_view.setSortingEnabled(True)
+        #self.linelist_view.setItemDelegate(LineListTableDelegate(self, session))
         self.linelist_view.resizeColumnsToContents()
 
         QtGui.QVBoxLayout(self.linelist_tab).addWidget(self.linelist_view)
@@ -552,6 +658,7 @@ class TransitionsDialog(QtGui.QDialog):
         self.models_view.setSelectionBehavior(
             QtGui.QAbstractItemView.SelectRows)
         self.models_view.setSortingEnabled(True)
+        self.models_view.setItemDelegate(SpectralModelsTableDelegate(self, session))
         self.models_view.resizeColumnsToContents()
 
         QtGui.QVBoxLayout(self.models_tab).addWidget(self.models_view)
