@@ -809,3 +809,122 @@ class RVTab(QtGui.QWidget):
             self.rv_plot.draw()
 
         return None
+
+class RVRegionDialog(QtGui.QDialog):
+    def __init__(self, session, rvtab, *args):
+        """
+        Initialise a dialog to set new RV correction regions.
+
+        :param session:
+            The session that will be inspected for transitions.
+        """
+
+        super(RVRegionDialog, self).__init__(*args)
+
+        self.session = session
+        self.rvtab   = rvtab
+
+        self.setGeometry(900, 400, 900, 400)
+        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+            - self.rect().center())
+
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.MinimumExpanding, 
+            QtGui.QSizePolicy.MinimumExpanding)
+        sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
+        self.setSizePolicy(sp)
+
+        spacerItem = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Minimum)
+        spacerItem1 = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
+        spacerItem2 = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
+
+        self.setObjectName("RVRegionDialog")
+        self.setAutoFillBackground(False)
+        self.horizontalLayout = QtGui.QHBoxLayout(self)
+        self.horizontalLayout_2 = QtGui.QHBoxLayout()
+
+        ## Left column
+        self.verticalLayout_2 = QtGui.QVBoxLayout()
+        self.verticalLayout_2.addItem(spacerItem)
+        self.listWidget = QtGui.QListWidget(self)
+        self.listWidget.setObjectName("listWidget")
+        self.verticalLayout_2.addWidget(self.listWidget)
+        self.button_savedefault = QtGui.QPushButton(self)
+        self.button_savedefault.setObjectName("button_savedefault")
+        self.verticalLayout_2.addWidget(self.button_savedefault)
+        self.verticalLayout_2.addItem(spacerItem1)
+        self.horizontalLayout_2.addLayout(self.verticalLayout_2)
+        #self.button_savedefault.clicked.connect(TODO)
+
+        ## Right column MPL widgets
+        self.verticalLayout = QtGui.QVBoxLayout()
+        blank_widget = QtGui.QWidget(self)
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        sp.setHorizontalStretch(0)
+        sp.setVerticalStretch(0)
+        sp.setHeightForWidth(blank_widget.sizePolicy().hasHeightForWidth())
+        blank_widget.setSizePolicy(sp)
+        blank_widget.setObjectName("blank_widget")
+        self.mpl_top = mpl.MPLWidget(blank_widget, tight_layout=True,
+                                            autofocus=True)
+        self.mpl_top.setObjectName("mpl_top")
+        self.verticalLayout.addWidget(self.mpl_top)
+        self.mpl_bot = mpl.MPLWidget(blank_widget, tight_layout=True,
+                                          autofocus=True)
+        self.mpl_bot.setObjectName("mpl_bot")
+        self.verticalLayout.addWidget(self.mpl_bot)
+
+        # Right column wavelength regions
+        self.horizontalLayout_4 = QtGui.QHBoxLayout()
+        self.horizontalLayout_4.setObjectName("horizontalLayout_4")
+        self.label = QtGui.QLabel(self)
+        self.label.setAlignment(QtCore.Qt.AlignCenter)
+        self.label.setObjectName("Lower Wavelength")
+        self.horizontalLayout_4.addWidget(self.label)
+        self.label_2 = QtGui.QLabel(self)
+        self.label_2.setAlignment(QtCore.Qt.AlignCenter)
+        self.label_2.setObjectName("Upper Wavelength")
+        self.horizontalLayout_4.addWidget(self.label_2)
+        self.verticalLayout.addLayout(self.horizontalLayout_4)
+        self.horizontalLayout_3 = QtGui.QHBoxLayout()
+        self.horizontalLayout_3.setObjectName("horizontalLayout_3")
+        self.text_lower_wl = QtGui.QLineEdit(self)
+        self.text_lower_wl.setObjectName("Lower Wavelength Value")
+        self.horizontalLayout_3.addWidget(self.text_lower_wl)
+        self.text_upper_wl = QtGui.QLineEdit(self)
+        self.text_upper_wl.setObjectName("Upper Wavelength Value")
+        self.horizontalLayout_3.addWidget(self.text_upper_wl)
+        self.verticalLayout.addLayout(self.horizontalLayout_3)
+        # Signals for wavelength region
+        #self.text_lower_wl.textChanged.connect(TODO)
+        #self.text_upper_wl.textChanged.connect(TODO)
+
+        # Right column buttons
+        self.button_savetolist = QtGui.QPushButton(self)
+        self.button_savetolist.setObjectName("button_savetolist")
+        self.verticalLayout.addWidget(self.button_savetolist)
+        self.verticalLayout.addItem(spacerItem2)
+        self.button_exit = QtGui.QPushButton(self)
+        self.button_exit.setObjectName("button_exit")
+        self.verticalLayout.addWidget(self.button_exit)
+        self.horizontalLayout_2.addLayout(self.verticalLayout)
+        self.horizontalLayout.addLayout(self.horizontalLayout_2)
+        #self.button_savetolist.clicked.connect(TODO)
+        #self.button_exit.clicked.connect(TODO)
+
+        # Set labels for everything
+        self.setWindowTitle(QtGui.QApplication.translate("self", "RVRegionDialog", None))
+        self.label.setText(QtGui.QApplication.translate("RVRegionDialog", "Lower Wavelength", None))
+        self.label_2.setText(QtGui.QApplication.translate("RVRegionDialog", "Upper Wavelength", None))
+        self.button_savedefault.setText(QtGui.QApplication.translate("RVRegionDialog", "Save as Default", None))
+        self.button_savetolist.setText(QtGui.QApplication.translate("RVRegionDialog", "Save to List", None))
+        self.button_exit.setText(QtGui.QApplication.translate("RVRegionDialog", "Exit", None))
+        QtCore.QMetaObject.connectSlotsByName(self)
+
+if __name__ == "__main__":
+
+    # This is just for development testing.
+    app = QtGui.QApplication(sys.argv)
+    window = RVRegionDialog(None)
+    window.exec_()
