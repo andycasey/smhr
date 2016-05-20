@@ -10,8 +10,10 @@ import operator
 import numpy as np
 from PySide import QtCore, QtGui
 from time import time
+from matplotlib.ticker import MaxNLocator
 
 import mpl
+import style_utils
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
@@ -183,11 +185,8 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.mpl_figure = mpl.MPLWidget(None, tight_layout=True)
         self.mpl_figure.figure.patch.set_facecolor([_/255. for _ in \
             self.palette().color(QtGui.QPalette.Window).getRgb()[:3]])
-        vbox_rhs.addWidget(self.mpl_figure)
-
-        self.mpl_axis = self.mpl_figure.figure.add_subplot(111)
-        self.mpl_axis.scatter([0, 1], [0.5, 0.2])
         self.mpl_figure.setMinimumSize(QtCore.QSize(0, 250))
+        vbox_rhs.addWidget(self.mpl_figure)
 
 
         # Model options.
@@ -379,7 +378,27 @@ class SpectralModelsDialog(QtGui.QDialog):
         vbox_rhs.addWidget(group_box)
         hbox_parent.addLayout(vbox_rhs)
 
-        
+
+        self.mpl_axis = self.mpl_figure.figure.add_subplot(111)
+        spectrum = self.spectral_models[0].session.normalized_spectrum
+        self.mpl_axis.plot(spectrum.dispersion, spectrum.flux, c="k",
+            drawstyle="steps-mid")
+        sigma = 1.0/np.sqrt(spectrum.ivar)
+        style_utils.fill_between_steps(self.mpl_axis, spectrum.dispersion,
+            spectrum.flux - sigma, spectrum.flux + sigma, facecolor="#CCCCCC",
+            edgecolor="None", alpha=0.5)
+        self.mpl_axis.set_xlim(spectrum.dispersion[0], spectrum.dispersion[-1])
+        self.mpl_axis.set_ylim(0, 1.2)
+
+        self.mpl_axis.set_xlabel(u"Wavelength (Å)")
+        self.mpl_axis.set_ylabel("Normalized flux")
+        self.mpl_axis.xaxis.set_major_locator(MaxNLocator(5))
+        self.mpl_axis.yaxis.set_major_locator(MaxNLocator(5))
+        self.mpl_figure.draw()
+
+        return None
+
+
 
 
 if __name__ == "__main__":
@@ -403,8 +422,8 @@ if __name__ == "__main__":
         "/Users/arc/codes/smh/hd44007red_multi.fits",
         "/Users/arc/codes/smh/hd44007blue_multi.fits",
     ])
-    session.normalized_spectrum = specutils.Spectrum1D.read(
-        "../smh/hd44007-rest.fits")
+    session.normalized_spectrum = specutils.Spectrum1D.read("test-spectrum.txt")
+    #    "../smh/hd44007-rest.fits")
 
     session.metadata["line_list"] = linelists.LineList.read("/Users/arc/research/ges/linelist/vilnius.ew.fe")
 

@@ -7,7 +7,7 @@ from __future__ import (division, print_function, absolute_import,
 
 __all__ = ["wavelength_to_hex"]
 
-from numpy import clip
+import numpy as np
 
 
 def wavelength_to_hex(wavelength):
@@ -58,8 +58,40 @@ def wavelength_to_hex(wavelength):
     else:
         factor = 0
 
-    red = int(clip(round(intensity * (red * factor)**gamma), 0, intensity))
-    green = int(clip(round(intensity * (green * factor)**gamma), 0, intensity))
-    blue = int(clip(round(intensity * (blue * factor)**gamma), 0, intensity))
+    red = int(np.clip(round(intensity * (red * factor)**gamma), 0, intensity))
+    green = int(np.clip(round(intensity * (green * factor)**gamma), 0, intensity))
+    blue = int(np.clip(round(intensity * (blue * factor)**gamma), 0, intensity))
 
     return "#{0:02x}{1:02x}{2:02x}".format(red, green, blue)
+
+
+def fill_between_steps(ax, x, y1, y2=0, h_align='mid', **kwargs):
+    """
+    Fill between for step plots in matplotlib.
+
+    **kwargs will be passed to the matplotlib fill_between() function.
+    """
+
+    # If no Axes opject given, grab the current one:
+
+    # First, duplicate the x values
+    xx = x.repeat(2)[1:]
+    # Now: the average x binwidth
+    xstep = np.repeat((x[1:] - x[:-1]), 2)
+    xstep = np.concatenate(([xstep[0]], xstep, [xstep[-1]]))
+    # Now: add one step at end of row.
+    xx = np.append(xx, xx.max() + xstep[-1])
+
+    # Make it possible to chenge step alignment.
+    if h_align == 'mid':
+        xx -= xstep / 2.
+    elif h_align == 'right':
+        xx -= xstep
+
+    # Also, duplicate each y coordinate in both arrays
+    y1 = y1.repeat(2)#[:-1]
+    if type(y2) == np.ndarray:
+        y2 = y2.repeat(2)#[:-1]
+
+    # now to the plotting part:
+    return ax.fill_between(xx, y1, y2=y2, **kwargs)
