@@ -246,8 +246,8 @@ class ExceptionWidget(QtGui.QDialog):
         # Text browser to display the exception details.
         self.show_traceback = QtGui.QPlainTextEdit(self)
         self.show_traceback.setFont(QtGui.QFont("Courier", 12))
-        self.show_traceback.setEnabled(False)
-        self.show_traceback.setPlainText(
+        self.show_traceback.setReadOnly(True)
+        self.show_traceback.setPlainText("\n" + \
             "\n".join(tb.format_exception(exception_type, message, traceback)))
 
         self.highlighter = PythonHighlighter(self.show_traceback.document())
