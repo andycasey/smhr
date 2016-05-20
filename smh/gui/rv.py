@@ -11,12 +11,15 @@ import os
 import sys
 import yaml
 from PySide import QtCore, QtGui
+import logging
 
 import mpl
 from matplotlib import (gridspec, pyplot as plt)
 
 from smh import (Session, specutils)
 from smh.linelists import LineList
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["RVTab"]
 
@@ -937,8 +940,8 @@ class RVRegionDialog(QtGui.QDialog):
         self.horizontalLayout_3.addWidget(self.text_upper_wl)
         self.verticalLayout.addLayout(self.horizontalLayout_3)
         # Signals for wavelength region
-        self.text_lower_wl.textChanged.connect(self.update_wl_region)
-        self.text_upper_wl.textChanged.connect(self.update_wl_region)
+        self.text_lower_wl.textChanged.connect(self.wl_value_changed)
+        self.text_upper_wl.textChanged.connect(self.wl_value_changed)
 
         # Right column buttons
         self.button_savetolist = QtGui.QPushButton(self)
@@ -964,11 +967,11 @@ class RVRegionDialog(QtGui.QDialog):
         QtCore.QMetaObject.connectSlotsByName(self)
         
         ## put wavelength regions into the listWidget
-        print(self.rv_tab.parent.session.metadata)
-        wavelength_regions = self.rv_tab.parent.session.metadata["rv"]["wavelength_regions"]
-        print(wavelength_regions)
+        wavelength_regions = self.rv_tab.parent.session.setting(["rv","wavelength_regions"])
         for each in wavelength_regions:
             self.listWidget.addItem(u"{0:.0f}-{1:.0f} Å".format(*each))
+        self.listWidget.setSortingEnabled(False)
+        self.listWidget.setCurrentRow(0)
         
         self.draw_template(refresh=True)
         #self.update_wl_region()
@@ -977,11 +980,19 @@ class RVRegionDialog(QtGui.QDialog):
         return None
 
     def get_regions_from_list(self):
-        raise NotImplementedError
+        N = self.listWidget.count()
+        regions = []
+        for i in range(N):
+            text = self.listWidget.item(i).text()
+            regions.append(tuple(text.split(' ')[0].split('-')))
+        return regions
     def save_as_default(self):
+        regions = self.get_regions_from_list()
         raise NotImplementedError
     def save_to_session(self):
-        raise NotImplementedError
+        regions = self.get_regions_from_list()
+        self.rv_tab.parent.session.metadata["rv"]["wavelength_regions"].update(regions)
+        logger.log("Saved wavelength regions to session: {}".format(regions))
     def save_to_list(self):
         wavelength_region = self.get_wavelength_region()
         if wavelength_region==None: return None
@@ -993,6 +1004,9 @@ class RVRegionDialog(QtGui.QDialog):
         if wl_lower >= wl_upper: return None
         return (wl_lower, wl_upper)
         
+    def wl_value_changed(self):
+        self.listWidget.setCurrentRow(-1)
+        self.update_wl_region()
     def update_wl_region(self):
         """
         Re-draw the order selected and the continuum fit, as well as the preview
