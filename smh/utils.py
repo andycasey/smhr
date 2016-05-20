@@ -11,6 +11,8 @@ import platform
 import sys
 import traceback
 
+from collections import Counter
+
 from commands import getstatusoutput
 from hashlib import sha1 as sha
 from socket import gethostname, gethostbyname
@@ -25,6 +27,60 @@ __all__ = ["element_to_species", "species_to_element", "get_common_letters", \
     "hashed_id"]
 
 logger = logging.getLogger(__name__)
+
+
+
+def spectral_model_conflicts(session):
+    """
+    Identify conflicts in the spectral models associated with a session.
+
+    :param session:
+        The session to examine.
+
+    :returns:
+        A list containing tuples of spectral model indices in the `session`
+        where there is a conflict about which spectral model to use for the
+        determination of stellar parameters and/or composition.
+    """
+
+    transition_hashes = {}
+    for i, spectral_model in enumerate(session.metadata["spectral_models"]):
+        for transition_hash in spectral_model._transition_hashes:
+            transition_hashes.setdefault(transition_hash, [])
+            transition_hashes[transition_hash].append(i)
+
+    # Which of the transition_hashes appear more than once?
+    conflicts = []
+    for transition_hash, indices in transition_hashes.iteritems():
+        if len(indices) < 2: continue
+
+        # OK, what element is this transition?
+        match = (session.metadata["line_list"]["hash"] == transition_hash)
+        element = session.metadata["line_list"]["element"][match][0].split()[0]
+
+        # Of the spectral models that use this spectral hash, what are they
+        # measuring?
+        conflict_indices = []
+        for index in indices:
+            if element not in session.metadata["spectral_models"][index].metadata["elements"]:
+                # This transition is not being measured in this spectral model.
+                continue
+
+            else:
+                # This spectral model is modeling this transition. Are there
+                # others?
+                conflict_indices.append(index)
+
+        if len(conflict_indices) > 1:
+            conflicts.append(conflict_indices)
+
+    
+    return conflicts
+
+
+
+
+
 
 
 # List the periodic table here so that we can use it outside of a single
@@ -314,4 +370,7 @@ def get_version():
         return "0.1dev:" + ":".join([getstatusoutput(command)[1] for command in git_commands])
     else:
         return "Unknown"
+
+
+
     

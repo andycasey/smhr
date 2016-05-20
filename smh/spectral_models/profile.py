@@ -86,19 +86,20 @@ class ProfileFittingModel(BaseSpectralModel):
         "voigt": (_voigt, ("mean", "fwhm", "amplitude", "shape"))
     }
 
-    def __init__(self, transitions, session, **kwargs):
+    def __init__(self, session, transition_hashes, **kwargs):
         """
-        A class to fit spectral data with an absorption profile and continuum.
-
-        :param transitions:
-            Row(s) from a line list of transitions to associate with this model.
+        Initialize a base class for modelling spectra.
 
         :param session:
-            The parent session that this model will be associated with.
+            The session that this spectral model will be associated with.
+
+        :param transition_hashes:
+            The hashes of transitions in the parent session that will be
+            associated with this model.
         """
 
-        super(ProfileFittingModel, self).__init__(
-            transitions, session, **kwargs)
+        super(ProfileFittingModel, self).__init__(session, transition_hashes,
+            **kwargs)
 
         # Initialize metadata with default fitting values.
         self.metadata.update({
@@ -130,16 +131,17 @@ class ProfileFittingModel(BaseSpectralModel):
         """
 
         # Check format first.
+        transitions = self.transitions
         super(ProfileFittingModel, self)._verify_transitions()
-        if len(self.transitions) > 1 and not isinstance(self.transitions, Row):
+        if len(transitions) > 1 and not isinstance(transitions, Row):
             raise ValueError("only a single transition can be associated with "
                              "a ProfileFittingModel")
 
         # Check that the transition does not have multiple element names.
         try:
-            elem2 = self.transitions["elem2"][0]
+            elem2 = transitions["elem2"][0]
         except IndexError:
-            elem2 = self.transitions["elem2"]
+            elem2 = transitions["elem2"]
         if elem2 != "":
             raise ValueError("only an atomic transition can be associated with "
                              "a ProfileFittingModel")
@@ -150,7 +152,7 @@ class ProfileFittingModel(BaseSpectralModel):
         """
         Return the element that will be measured by this model.
         """
-        return self.transitions["element"][0]
+        return self.transitions["element"][0].split()[0]
         
 
     def _verify_metadata(self):

@@ -43,7 +43,7 @@
 - [ ] Quality control metrics filter (and GUI) for spectral models. #gui
 - [ ] Refactor method names in tabs to make them more consistent (e.g., _populate_widgets, redraw_*, __init_ui__)
 - [ ] Least-recently-used cacher for the stellar photosphere.
-
+- [ ] A widget to select element(s) from a list that will be part of a synthesis.
 
 
 *Easy*:
@@ -53,6 +53,6 @@
 - [ ] Go through all 'TODO', 'HACK', or 'MAGIC' entries in the code and create
       GitHub issues. Assign labels and people.
 - [X] Implement 'Query Simbad..' button.
-- [ ] Change font style for name and position data in Summary tab. #gui
+- [X] Change font style for name and position data in Summary tab. #gui
 - [ ] Compile line lists together based on current "best" knowledge.
 - [ ] Integrate spectral_models widget (sans any models) into the chemical abundances tab. #gui
