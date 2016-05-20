@@ -352,7 +352,18 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
 
     def data(self, index, role):
-        if not index.isValid() or role != QtCore.Qt.DisplayRole:
+
+        if role == QtCore.Qt.CheckStateRole and index.isValid() \
+        and index.column() in (3, 4):
+
+            sm = self.session.metadata["spectral_models"][index.row()]
+            if index.column() == 3:
+                attr = "use_for_stellar_parameter_inference"
+            else:
+                attr = "use_for_stellar_composition_inference"
+            return QtCore.Qt.Checked if getattr(sm, attr) else QtCore.Qt.Unchecked
+
+        if role != QtCore.Qt.DisplayRole or not index.isValid():
             return None
 
         spectral_model = self.session.metadata["spectral_models"][index.row()]
@@ -373,11 +384,26 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
             else:
                 return "Unknown"
         else:
-            return "False"
+            return None
 
 
     def setData(self, index, value, role):
-        return False
+        print("set data", index, value, role)
+        try:
+            a = {
+                3: "use_for_stellar_parameter_inference",
+                4: "use_for_stellar_composition_inference"
+            }[index.column()]
+
+        except KeyError:
+            return False
+
+        else:
+            print("setting")
+            self.session.metadata["spectral_models"][index.row()].metadata[a] = value
+            print("set as ", self.session.metadata["spectral_models"][index.row()].metadata[a])
+            self.dataChanged.emit(index, index)
+            return value
     
 
     def headerData(self, col, orientation, role):
@@ -406,7 +432,16 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
     def flags(self, index):
         if not index.isValid():
             return None
-        return  QtCore.Qt.ItemIsEnabled|QtCore.Qt.ItemIsSelectable
+
+        if index.column() in (3, 4):
+            return  QtCore.Qt.ItemIsEditable|\
+                    QtCore.Qt.ItemIsEnabled|\
+                    QtCore.Qt.ItemIsUserCheckable
+
+        else:
+            return  QtCore.Qt.ItemIsSelectable|\
+                    QtCore.Qt.ItemIsEnabled
+                    
 
 
 

@@ -44,7 +44,12 @@ class BaseSpectralModel(object):
         self._session = session
         self._transition_hashes = transition_hashes
 
-        self.metadata = {}
+        self.metadata = {
+            "use_for_stellar_composition_inference": True,
+            "use_for_stellar_parameter_inference": (
+                "Fe I" in self.transitions["element"] or
+                "Fe II" in self.transitions["element"])
+        }
 
         return None
 
@@ -52,6 +57,25 @@ class BaseSpectralModel(object):
     def is_acceptable(self):
         """ Return whether this spectral model is acceptable. """
         return self.metadata.get("is_acceptable", False)
+
+
+    @property
+    def use_for_stellar_parameter_inference(self):
+        """
+        Return whether this spectral model should be used during the
+        determination of stellar parameters.
+        """
+        return self.metadata["use_for_stellar_parameter_inference"]
+
+
+    @property
+    def use_for_stellar_composition_inference(self):
+        """
+        Return whether this spectral model should be used for the determination
+        of stellar composition.
+        """
+        return self.metadata["use_for_stellar_composition_inference"]
+
 
     @property
     def _repr_element(self):
