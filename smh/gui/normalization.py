@@ -951,9 +951,13 @@ class NormalizationTab(QtGui.QWidget):
         session, index = self.parent.session, self.current_order_index
 
         # Is there continuum already for this new order?
-        continuum = session.metadata["normalization"]["continuum"][index]
-        normalization_kwargs \
-            = session.metadata["normalization"]["normalization_kwargs"][index]
+        try:
+            continuum = session.metadata["normalization"]["continuum"][index]
+            normalization_kwargs \
+                = session.metadata["normalization"]["normalization_kwargs"][index]
+        except (AttributeError, KeyError):
+            # This occurs when setting up a new session
+            return 
 
         # These keys don't have widgets, but need to be updated.
         extra_keys = ("additional_points", "exclude")
