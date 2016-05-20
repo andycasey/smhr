@@ -40,7 +40,7 @@ install:
   - python setup.py install --with-models
 script:
   - nosetests --with-coverage --cover-package=smh
-  #- pyuic4 exception.ui
+  - pyuic4 spectral_models.ui
 after_success:
   coveralls
 #branches:

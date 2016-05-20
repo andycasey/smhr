@@ -639,10 +639,6 @@ class SpectralModelsTableView(QtGui.QTableView):
 
 
             raise NotImplementedError
-            self._parent.models_view.model().dataChanged.emit(
-                self.createIndex(row.c
-                row.row(), row.column()
-            QtCore.QModelIndex(), QtCore.QModelIndex())
 
             self.dataChanged.emit(self.createIndex(0, 0),
             self.createIndex(self.rowCount(0), self.columnCount(0)))
