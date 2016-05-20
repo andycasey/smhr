@@ -388,7 +388,6 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
 
     def setData(self, index, value, role):
-        print("set data", index, value, role)
         try:
             a = {
                 3: "use_for_stellar_parameter_inference",
@@ -399,10 +398,9 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
             return False
 
         else:
-            print("setting")
             self.session.metadata["spectral_models"][index.row()].metadata[a] = value
-            print("set as ", self.session.metadata["spectral_models"][index.row()].metadata[a])
             self.dataChanged.emit(index, index)
+            
             return value
     
 
@@ -412,22 +410,31 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
             return self.headers[col]
         return None
 
-    """
-        def sort(self, column, order):
 
-        if "line_list" not in self.session.metadata:
+    def sort(self, column, order):
+
+        if "spectral_models" not in self.session.metadata:
             return None
 
         self.emit(QtCore.SIGNAL("layoutAboutToBeChanged()"))
 
-        self.session.metadata["line_list"].sort(self.columns[column])
+        sorters = {
+            0: lambda sm: sm.transitions["wavelength"].mean(),
+            1: lambda sm: sm._repr_element,
+            2: lambda sm: isinstance(sm, SpectralSynthesisModel),
+            3: lambda sm: sm.use_for_stellar_parameter_inference,
+            4: lambda sm: sm.use_for_stellar_composition_inference
+        }
+
+        self.session.metadata["spectral_models"].sort(key=sorters[column])
+
         if order == QtCore.Qt.DescendingOrder:
-            self.session.metadata["line_list"].reverse()
+            self.session.metadata["spectral_models"].reverse()
 
         self.dataChanged.emit(self.createIndex(0, 0),
             self.createIndex(self.rowCount(0), self.columnCount(0)))
         self.emit(QtCore.SIGNAL("layoutChanged()"))
-    """
+
 
     def flags(self, index):
         if not index.isValid():
@@ -544,6 +551,7 @@ class TransitionsDialog(QtGui.QDialog):
             SpectralModelsTableModel(self, session))
         self.models_view.setSelectionBehavior(
             QtGui.QAbstractItemView.SelectRows)
+        self.models_view.setSortingEnabled(True)
         self.models_view.resizeColumnsToContents()
 
         QtGui.QVBoxLayout(self.models_tab).addWidget(self.models_view)
