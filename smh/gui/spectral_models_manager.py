@@ -135,177 +135,12 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
 
 
+
 class SpectralModelsDialog(QtGui.QDialog):
 
     def __init__(self, session, stellar_parameter_models=True,
         stellar_abundance_models=True, *args):
-        """
-        Initialise a dialog to fit spectral models.
-
-        :param session:
-            An analysis session with spectral models.
-
-        :param stellar_parameter_models: [optional]
-            Include spectral models that are associated with the determination
-            of stellar parameters.
-
-        :param stellar_abundance_models: [optional]
-            Include spectral models that are associated with the determination
-            of stellar abundances.
-        """
-
         super(SpectralModelsDialog, self).__init__(*args)
-
-        self.session = session
-
-        # Create a list of the spectral models that we will display here.
-        self.spectral_models = []
-        for spectral_model in self.session.metadata.get("spectral_models", []):
-            if (stellar_parameter_models and 
-                spectral_model.use_for_stellar_parameter_inference) \
-            or (stellar_abundance_models and
-                spectral_model.use_for_stellar_composition_inference):
-                self.spectral_models.append(spectral_model)
-
-        self.setGeometry(800, 500, 800, 500)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
-            - self.rect().center())
-        self.setWindowTitle("Fit spectral models")
-
-        sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.MinimumExpanding, 
-            QtGui.QSizePolicy.MinimumExpanding)
-        sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
-        self.setSizePolicy(sp)
-
-        parent_layout = QtGui.QHBoxLayout(self)
-        self.table_view = QtGui.QTableView(self)
-        self.table_view.setModel(SpectralModelsTableModel(self))
-
-        parent_layout.addWidget(self.table_view)
-
-
-        # Create a matplotlib widget.
-        blank_widget = QtGui.QWidget(self)
-        sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
-        sp.setHorizontalStretch(0)
-        sp.setVerticalStretch(0)
-        sp.setHeightForWidth(blank_widget.sizePolicy().hasHeightForWidth())
-        blank_widget.setSizePolicy(sp)
-        
-        self.mpl_figure = mpl.MPLWidget(blank_widget, 
-            tight_layout=True, autofocus=True)
-
-        mpl_layout = QtGui.QVBoxLayout(blank_widget)
-        mpl_layout.addWidget(self.mpl_figure, 1)
-
-        rhs_layout = QtGui.QVBoxLayout()
-        rhs_layout.addLayout(mpl_layout)
-
-
-        # Model options.
-        group_box = QtGui.QGroupBox(self)
-        vbox = QtGui.QVBoxLayout(group_box)
-        vbox.setContentsMargins(6, 12, 6, 6)
-
-        self.tabs = QtGui.QTabWidget(group_box)
-
-        # Common model options.
-        self.tab_common = QtGui.QWidget()
-        vbox_common = QtGui.QVBoxLayout(self.tab_common)
-
-        grid_common = QtGui.QGridLayout()
-        grid_common.addItem(QtGui.QSpacerItem(40, 20, 
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum), 1, 2, 1, 1)
-
-        # Window.
-        label = QtGui.QLabel(self.tab_common)
-        label.setText("Data fitting window")
-        grid_common.addWidget(label, 0, 1, 1, 1)
-
-        self.edit_window = QtGui.QLineEdit(self.tab_common)
-        self.edit_window.setMinimumSize(QtCore.QSize(60, 0))
-        self.edit_window.setMaximumSize(QtCore.QSize(60, 16777215))
-        grid_common.addWidget(self.edit_window, 0, 3, 1, 1)
-        
-
-        # Continuum.
-        label = QtGui.QLabel(self.tab_common)
-        label.setText("Model continuum with polynomial order")
-        grid_common.addWidget(label, 1, 1, 1, 1)
-
-        self.continuum_checkbox = QtGui.QCheckBox(self.tab_common)
-        self.continuum_checkbox.setText("")
-        grid_common.addWidget(self.continuum_checkbox, 1, 0, 1, 1)
-
-        self.continuum_combo = QtGui.QComboBox(self.tab_common)
-        self.continuum_combo.setMinimumSize(QtCore.QSize(60, 0))
-        self.continuum_combo.setMaximumSize(QtCore.QSize(60, 16777215))
-        grid_common.addWidget(self.continuum_combo, 1, 3, 1, 1)
-
-
-        # Residual radial velocity tolerance.
-        label = QtGui.QLabel(self.tab_common)
-        label.setText("Set tolerance on residual radial velocity")
-        grid_common.addWidget(label, 2, 1, 1, 1)
-
-        self.vrad_tolerance_checkbox = QtGui.QCheckBox(self.tab_common)
-        self.vrad_tolerance_checkbox.setText("")
-        grid_common.addWidget(self.vrad_tolerance_checkbox, 2, 0, 1, 1)
-
-        self.edit_vrad = QtGui.QLineEdit(self.tab_common)
-        self.edit_vrad.setMinimumSize(QtCore.QSize(60, 0))
-        self.edit_vrad.setMaximumSize(QtCore.QSize(60, 16777215))
-        grid_common.addWidget(self.edit_vrad, 2, 3, 1, 1)
-        
-        vbox_common.addLayout(grid_common)
-        vbox_common.addItem(QtGui.QSpacerItem(20, 40,
-            QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
-
-        self.tabs.addTab(self.tab_common, "Common")
-
-        
-        vbox.addWidget(self.tabs)
-
-
-        hbox_btns = QtGui.QHBoxLayout()
-        self.btn_save_as_default = QtGui.QPushButton(group_box)
-        self.btn_save_as_default.setAutoDefault(True)
-        self.btn_save_as_default.setDefault(False)
-        self.btn_save_as_default.setText("Save as default options")
-        hbox_btns.addWidget(self.btn_save_as_default)
-
-        hbox_btns.addItem(QtGui.QSpacerItem(40, 20, 
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
-
-
-        self.btn_apply_to_all = QtGui.QPushButton(group_box)
-        self.btn_apply_to_all.setDefault(True)
-        self.btn_apply_to_all.setText("Apply to all models")
-        hbox_btns.addWidget(self.btn_apply_to_all)
-
-        vbox.addLayout(hbox_btns)
-
-        #self.tabs.raise_()
-        #hbox.addLayout(vbox)
-
-        rhs_layout.addWidget(group_box)
-        #parent_layout.addLayout(rhs_layout)
-
-        return None
-
-
-
-def _translate(ignore, use, ok):
-    return use
-
-
-class SpectralModelsDialog2(QtGui.QDialog):
-
-    def __init__(self, session, stellar_parameter_models=True,
-        stellar_abundance_models=True, *args):
-        super(SpectralModelsDialog2, self).__init__(*args)
 
         self.session = session
 
@@ -345,10 +180,9 @@ class SpectralModelsDialog2(QtGui.QDialog):
 
         vbox_rhs = QtGui.QVBoxLayout()
 
-        blank_widget = QtGui.QWidget(self)
-        blank_widget.setVisible(False) # To fix visual bug.
-
-        self.mpl_figure = mpl.MPLWidget(blank_widget, tight_layout=True)
+        self.mpl_figure = mpl.MPLWidget(None, tight_layout=True)
+        self.mpl_figure.figure.patch.set_facecolor([_/255. for _ in \
+            self.palette().color(QtGui.QPalette.Window).getRgb()[:3]])
         vbox_rhs.addWidget(self.mpl_figure)
 
         self.mpl_axis = self.mpl_figure.figure.add_subplot(111)
@@ -587,7 +421,7 @@ if __name__ == "__main__":
     except RuntimeError:
         None
 
-    window = SpectralModelsDialog2(session)
+    window = SpectralModelsDialog(session)
     window.exec_()
 
 
