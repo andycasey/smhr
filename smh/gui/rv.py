@@ -883,10 +883,14 @@ class RVRegionDialog(QtGui.QDialog):
         sp.setHeightForWidth(blank_widget.sizePolicy().hasHeightForWidth())
         blank_widget.setSizePolicy(sp)
         blank_widget.setObjectName("blank_widget")
-        self.verticalLayout.addWidget(blank_widget)
         self.mpl_plot = mpl.MPLWidget(blank_widget, tight_layout=True,
                                       autofocus=True)
         self.mpl_plot.setObjectName("mpl_plot")
+
+        layout = QtGui.QVBoxLayout(blank_widget)
+        layout.addWidget(self.mpl_plot, 1)
+        self.verticalLayout.addWidget(blank_widget)
+
         # Copied from above; TODO refactor?
         gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1])
         self.ax_order = self.mpl_plot.figure.add_subplot(gs[0])
