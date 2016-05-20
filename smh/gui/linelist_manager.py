@@ -593,9 +593,39 @@ class SpectralModelsTableView(QtGui.QTableView):
             "Do not use for stellar abundance determination")
 
 
-        any_selected = len(self.selectionModel().selectedRows()) > 0
+        selected = self.selectionModel().selectedRows()
+        any_selected = len(selected) > 0
         if not any_selected:
             delete_action.setEnabled(False)
+
+        else:
+            a = "use_for_stellar_parameter_inference"
+            values = list(set(
+                self.session.metadata["spectral_models"][row.row()].metadata[a]\
+                for row in selected))
+
+            if len(values) == 1:
+                if values[0]:
+                    # All of the selected rows are already set to be used for
+                    # the determination of stellar parameters.
+                    # Therefore set that option as disabled.
+                    select_for_sp_determination.setEnabled(False)
+                else:
+                    deselect_for_sp_determination.setEnabled(False)
+
+            a = "use_for_stellar_composition_inference"
+            values = list(set(
+                self.session.metadata["spectral_models"][row.row()].metadata[a]\
+                for row in selected))
+
+            if len(values) == 1:
+                if values[0]:
+                    # All of the selected rows are already set to be used for
+                    # the determination of stellar abundances.
+                    # Therefore set that option as disabled.
+                    select_for_sp_abundances.setEnabled(False)
+                else:
+                    deselect_for_sp_abundances.setEnabled(False)
 
         action = menu.exec_(self.mapToGlobal(event.pos()))
         if action == delete_action:
@@ -633,15 +663,17 @@ class SpectralModelsTableView(QtGui.QTableView):
             "use_for_stellar_parameter_inference",
             "use_for_stellar_composition_inference"
         ][index]
-        for row in self.selectionModel():
+        model = self._parent.models_view.model()
+        for row in self.selectionModel().selectedRows():
             self.session.metadata["spectral_models"][row.row()].metadata[attr] \
                 = value
 
+            model.dataChanged.emit(
+                model.createIndex(row.row(), 3 + index),
+                model.createIndex(row.row(), 3 + index)
+            )
+        return None
 
-            raise NotImplementedError
-
-            self.dataChanged.emit(self.createIndex(0, 0),
-            self.createIndex(self.rowCount(0), self.columnCount(0)))
 
     def delete_selected_rows(self):
         """ Delete the selected spectral models. """
