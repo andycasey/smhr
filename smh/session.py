@@ -95,6 +95,7 @@ class Session(BaseSession):
 
         return None
 
+
     @property
     def rt(self):
         """
@@ -371,6 +372,7 @@ class Session(BaseSession):
 
         # Fit & store continuum for all input spectra.
         raise NotImplementedError
+
 
     @property
     def stellar_photosphere(self):

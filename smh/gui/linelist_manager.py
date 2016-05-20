@@ -45,6 +45,7 @@ class LineListTableModel(QtCore.QAbstractTableModel):
         super(LineListTableModel, self).__init__(parent, *args)
         self.session = session
 
+
     def rowCount(self, parent):
         try:
             N = len(self.session.metadata["line_list"])
@@ -52,8 +53,10 @@ class LineListTableModel(QtCore.QAbstractTableModel):
             N = 0
         return N
 
+
     def columnCount(self, parent):
         return len(self.headers)
+
 
     def data(self, index, role):
         if not index.isValid() or role != QtCore.Qt.DisplayRole:
@@ -64,6 +67,7 @@ class LineListTableModel(QtCore.QAbstractTableModel):
         if column not in ("element", "comments"):
             return "{:.3f}".format(value)
         return value
+
 
     def setData(self, index, value, role):
 
@@ -574,6 +578,21 @@ class SpectralModelsTableView(QtGui.QTableView):
         menu = QtGui.QMenu(self)
         delete_action = menu.addAction("Delete")
 
+        # Select 'use for stellar parameter determination'
+        menu.addSeparator()
+        select_for_sp_determination = menu.addAction(
+            "Use for stellar parameter determination")
+        deselect_for_sp_determination = menu.addAction(
+            "Do not use for stellar parameter determination")
+        
+        # Select 'use for stellar abundance determination'
+        menu.addSeparator()
+        select_for_sp_abundances = menu.addAction(
+            "Use for stellar abundance determination")
+        deselect_for_sp_abundances = menu.addAction(
+            "Do not use for stellar abundance determination")
+
+
         any_selected = len(self.selectionModel().selectedRows()) > 0
         if not any_selected:
             delete_action.setEnabled(False)
@@ -582,8 +601,51 @@ class SpectralModelsTableView(QtGui.QTableView):
         if action == delete_action:
             self.delete_selected_rows()
 
+        elif action == select_for_sp_determination:
+            self.flag_selected(0, True)
+
+        elif action == deselect_for_sp_determination:
+            self.flag_selected(0, False)
+
+        elif action == select_for_sp_abundances:
+            self.flag_selected(1, True)
+
+        elif action == deselect_for_sp_abundances:
+            self.flag_selected(1, False)
+
         return None
 
+
+    def flag_selected(self, index, value):
+        """
+        Flag the selected rows as either being used (or not) for the stellar
+        parameter or abundance determination.
+
+        :param index:
+            The index of the checkbox. 0 indicates stellar parameters, and 1
+            indicates stellar abundances.
+
+        :param value:
+            The value to set the flag (ticked/unticked).
+        """
+
+        attr = [
+            "use_for_stellar_parameter_inference",
+            "use_for_stellar_composition_inference"
+        ][index]
+        for row in self.selectionModel():
+            self.session.metadata["spectral_models"][row.row()].metadata[attr] \
+                = value
+
+
+            raise NotImplementedError
+            self._parent.models_view.model().dataChanged.emit(
+                self.createIndex(row.c
+                row.row(), row.column()
+            QtCore.QModelIndex(), QtCore.QModelIndex())
+
+            self.dataChanged.emit(self.createIndex(0, 0),
+            self.createIndex(self.rowCount(0), self.columnCount(0)))
 
     def delete_selected_rows(self):
         """ Delete the selected spectral models. """
