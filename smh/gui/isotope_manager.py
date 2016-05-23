@@ -49,8 +49,8 @@ class IsotopeDialog(QtGui.QDialog):
             if isinstance(needed_isotopes, dict):
                 logger.warn("IsotopeDialog: Using session, clobbering needed_isotopes...")
             needed_isotopes = None
-            # TODO rename as needed
-            linelist = session.metadata['line_list']
+            if 'line_list' in session.metadata.keys():
+                linelist = session.metadata['line_list']
         self.session = session
 
         # Ensure that orig_isotopes is actually isotopes
@@ -74,11 +74,10 @@ class IsotopeDialog(QtGui.QDialog):
                 # No needed isotopes!
                 needed_isotopes = {}
 
-        # This is the data we will work with TODO
+        # This is the data we will work with
         current_isotopes = orig_isotopes.copy()
         self.orig_isotopes = orig_isotopes
         self.needed_isotopes = needed_isotopes
-        self.current_isotopes = current_isotopes
 
         self.default_isotopes = [isoutils.load_isotope_data(x) for x in ['rproc','sproc','sneden','asplund']]
 
@@ -240,18 +239,17 @@ class IsotopeTableView(QtGui.QTableView):
     def __init__(self, parent, *args):
         super(IsotopeTableView, self).__init__(parent, *args)
         self.parent = parent
-    #def contextMenuEvent(self, event):
-    #    """
-    #    Right-click menu
-    #    """
-    #    menu = QtGui.QMenu(self)
-    #    insert_action = menu.addAction("Insert Line")
-    #    delete_action = menu.addAction("Delete Line")
-    #    
-    #    #insert_action.setEnabled(False)
-    #    #delete_action.setEnabled(False)
-    #    action = menu.exec_(self.mapToGlobal(event.pos()))
-#
+    def contextMenuEvent(self, event):
+        """
+        Right-click menu
+        """
+        menu = QtGui.QMenu(self)
+        insert_action = menu.addAction("Insert Line")
+        delete_action = menu.addAction("Delete Line")
+        
+        insert_action.setEnabled(False)
+        delete_action.setEnabled(False)
+#        action = menu.exec_(self.mapToGlobal(event.pos()))
 #        if action == delete_action:
 #            self.parent.delete_row()
 #        elif action == insert_action:
@@ -300,7 +298,7 @@ class IsotopeModel(QtCore.QAbstractTableModel):
     
     def insertRow(self,row,parent=QtCore.QModelIndex()):
         self.beginInsertRows(parent,row,row)
-        self.tab = np.insert(self.tab,row,['??','xxx','1.0'],axis=0)
+        self.tab = np.insert(self.tab,row,['??','0','1.0'],axis=0)
         self.endInsertRows()
     def removeRow(self,row,parent=QtCore.QModelIndex()):
         self.beginRemoveRows(parent,row,row)
