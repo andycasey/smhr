@@ -103,7 +103,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
 
 class SpectralModelsWidget(QtGui.QWidget):
-    def __init__(self, spectral_models, normalized_spectrum=None, *args):
+    def __init__(self, spectral_models, *args):
         """
         Initialize a widget for inspecting a list of spectral models.
 
@@ -114,9 +114,6 @@ class SpectralModelsWidget(QtGui.QWidget):
 
         super(SpectralModelsWidget, self).__init__(*args)
         self.spectral_models = spectral_models
-
-        if normalized_spectrum is None:
-            normalized_spectrum = spectral_models[0].session.normalized_spectrum
 
         self.setGeometry(300, 200, 570, 450)
         self.setWindowTitle("Spectral models")
@@ -162,6 +159,7 @@ class SpectralModelsWidget(QtGui.QWidget):
         self.mpl_axis = self.mpl_figure.figure.add_subplot(111)
         
         # Draw the spectrum first. 
+        normalized_spectrum = self.spectral_models[0].session.normalized_spectrum
         self.mpl_axis.plot(
             normalized_spectrum.dispersion,
             normalized_spectrum.flux,
@@ -456,7 +454,7 @@ if __name__ == "__main__":
     import sys
 
     from smh import linelists, Session, specutils
-    transitions = linelists.LineList.read("/Users/arc/research/ges/linelist/vilnius.ew")
+    transitions = linelists.LineList.read("/Users/arc/research/ges/linelist/vilnius.ew.fe")
 
     session = Session([
         "/Users/arc/codes/smh/hd44007red_multi.fits",
@@ -466,34 +464,20 @@ if __name__ == "__main__":
     session.normalized_spectrum = specutils.Spectrum1D.read(
         "../smh/hd44007-rest.fits")
 
+    session.metadata["line_list"] = transitions
 
     from smh import spectral_models as sm
     foo = []
     for i in range(len(transitions)):
         if i % 2:
-            foo.append(sm.ProfileFittingModel(transitions[[i]], session))
+            foo.append(sm.ProfileFittingModel(session, transitions["hash"][[i]]))
         else:
-            foo.append(sm.SpectralSynthesisModel(transitions[[i]],
-                session, transitions["elem1"][i]))
+            foo.append(sm.SpectralSynthesisModel(session, transitions["hash"][[i]],
+                transitions["elem1"][i]))
 
-    for each in foo[:10]:
-        each.fit()
-    
-    """
-    foo = [
-        sm.SpectralSynthesisModel(
-            linelists.LineList.read("../smh/smh/data/linelists/yII_5320.txt"), session, "Y"),
-        sm.SpectralSynthesisModel(
-            linelists.LineList.read("../smh/smh/data/linelists/linch_AF"), session, "C"),
-        sm.ProfileFittingModel(
-            linelists.LineList.read("../smh/eu.txt"), session),
-        sm.SpectralSynthesisModel(
-            linelists.LineList.read("../smh/eu.txt"), session, "Eu"),
-    ]
-    """
     
     app = QtGui.QApplication(sys.argv)
-    window = SpectralModelsWidget(foo, session.normalized_spectrum)
+    window = SpectralModelsWidget(foo)
     window.show()
     sys.exit(app.exec_())
     

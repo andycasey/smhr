@@ -15,7 +15,7 @@
 
 *Hard*:
 - [X] Widget for when an exception occurs, asking to submit GH issue. Catch all GUI-related exceptions with this. #gui
-- [ ] Fix matplotlib visualization bug for figures on the RHS. #gui
+- [X] Fix matplotlib visualization bug for figures on the RHS. #gui
 - [ ] Edit masks GUI for normalization tab. #gui
 - [ ] I/O: Save/load new session format.
 - [ ] I/O: Create session .from_filename.

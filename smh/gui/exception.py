@@ -352,7 +352,7 @@ class ExceptionWidget(QtGui.QDialog):
             screenshot_str="" if screenshot_url is None else 
                 "Below is a screenshot from the application at the time that "\
                 "the exception occurred:\n\n"\
-                "![screenshot]({screenshot_url})\n\n".format(screenshot_url)))
+                "![screenshot]({})\n\n".format(screenshot_url)))
 
         url = "https://github.com/andycasey/smhr/issues/new?title={}&body={}"\
             .format(title, body)

@@ -15,7 +15,7 @@ import yaml
 from six import string_types
 
 from .linelists import LineList
-from . import (photospheres, radiative_transfer, specutils, isoutils)
+from . import (photospheres, radiative_transfer, specutils, isoutils, utils)
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +94,7 @@ class Session(BaseSession):
         })
 
         return None
+
 
     @property
     def rt(self):
@@ -371,6 +372,7 @@ class Session(BaseSession):
 
         # Fit & store continuum for all input spectra.
         raise NotImplementedError
+
 
     @property
     def stellar_photosphere(self):

@@ -89,6 +89,7 @@ class SummaryTab(QtGui.QWidget):
 
         # Create a matplotlib widget in the right hand pane.
         blank_widget = QtGui.QWidget(self)
+        blank_widget.setVisible(False)
         blank_widget.setFixedWidth(400)
 
         sp = QtGui.QSizePolicy(
@@ -100,13 +101,16 @@ class SummaryTab(QtGui.QWidget):
 
 
         self.figure = mpl.MPLWidget(blank_widget, tight_layout=True)
+        self.figure.setFixedWidth(400)
 
         layout = QtGui.QVBoxLayout(blank_widget)
-        layout.addWidget(self.figure, 1)
+        layout.addWidget(self.figure)
         tab_layout.addWidget(blank_widget)
+
 
         self.ax_top_comparison = self.figure.figure.add_subplot(211)
         self.ax_bottom_comparison = self.figure.figure.add_subplot(212)
+        blank_widget.setVisible(True)
 
         # Initialize the widgets.
         self._populate_widgets()
