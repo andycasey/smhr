@@ -15,7 +15,7 @@ import yaml
 from six import string_types
 
 from .linelists import LineList
-from . import (photospheres, radiative_transfer, specutils, isoutils)
+from . import (photospheres, radiative_transfer, specutils, isoutils, utils)
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +95,7 @@ class Session(BaseSession):
 
         return None
 
+
     @property
     def rt(self):
         """
@@ -137,8 +138,9 @@ class Session(BaseSession):
             return value
 
 
+    """
     def _default(self, input_value, default_key_tree):
-        """
+        ""
         Return the input value if it is valid (i.e., not `None`), or return the
         default session value.
 
@@ -147,7 +149,7 @@ class Session(BaseSession):
 
         :param default_key_tree:
             A tuple containing a tree of dictionary keys.
-        """
+        ""
 
         if input_value is not None:
             return input_value
@@ -163,7 +165,7 @@ class Session(BaseSession):
                     default_key_tree))
                 
         return default
-
+    """
 
 
     @classmethod
@@ -263,14 +265,16 @@ class Session(BaseSession):
         """
 
         # Read in everything from defaults as necessary.
-        template_spectrum = \
-            self._default(template_spectrum, ("rv", "template_spectrum"))
-        wavelength_region = \
-            self._default(wavelength_region, ("rv", "wavelength_regions"))
-        resample = self._default(resample, ("rv", "resample"))
-        apodize = self._default(apodize, ("rv", "apodize"))
-        normalization_kwargs = \
-            self._default(normalization_kwargs, ("rv", "normalization"))
+        if template_spectrum is None:
+            template_spectrum = self.setting(("rv", "template_spectrum"))
+        if wavelength_region is None:
+            wavelength_region = self.setting(("rv", "wavelength_regions"))
+        if resample is None:
+            resample = self.setting(("rv", "resample"))
+        if apodize is None:
+            apodize = self.setting(("rv", "apodize"))
+        if normalization_kwargs is None:
+            normalization_kwargs = self.setting(("rv", "normalization"))
 
         # Is the template spectrum actually a filename?
         if isinstance(template_spectrum, string_types):
@@ -371,6 +375,7 @@ class Session(BaseSession):
 
         # Fit & store continuum for all input spectra.
         raise NotImplementedError
+
 
     @property
     def stellar_photosphere(self):

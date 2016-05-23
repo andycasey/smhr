@@ -30,21 +30,24 @@ logger = logging.getLogger(__name__)
 
 
 
-def spectral_model_conflicts(session):
+def spectral_model_conflicts(spectral_models, line_list):
     """
-    Identify conflicts in the spectral models associated with a session.
+    Identify abundance conflicts in a list of spectral models.
 
-    :param session:
-        The session to examine.
+    :param spectral_models:
+        A list of spectral models to check for conflicts.
+
+    :param line_list:
+        A table of energy transitions.
 
     :returns:
-        A list containing tuples of spectral model indices in the `session`
-        where there is a conflict about which spectral model to use for the
-        determination of stellar parameters and/or composition.
+        A list containing tuples of spectral model indices where there is a
+        conflict about which spectral model to use for the determination of
+        stellar parameters and/or composition.
     """
 
     transition_hashes = {}
-    for i, spectral_model in enumerate(session.metadata["spectral_models"]):
+    for i, spectral_model in enumerate(spectral_models):
         for transition_hash in spectral_model._transition_hashes:
             transition_hashes.setdefault(transition_hash, [])
             transition_hashes[transition_hash].append(i)
@@ -55,25 +58,27 @@ def spectral_model_conflicts(session):
         if len(indices) < 2: continue
 
         # OK, what element is this transition?
-        match = (session.metadata["line_list"]["hash"] == transition_hash)
-        element = session.metadata["line_list"]["element"][match][0].split()[0]
+        match = (line_list["hash"] == transition_hash)
+        element = line_list["element"][match][0].split()[0]
 
         # Of the spectral models that use this spectral hash, what are they
         # measuring?
         conflict_indices = []
         for index in indices:
-            if element not in session.metadata["spectral_models"][index].metadata["elements"]:
+            if element not in spectral_models[index].metadata["elements"]:
                 # This transition is not being measured in this spectral model.
                 continue
 
             else:
-                # This spectral model is modeling this transition. Are there
-                # others?
-                conflict_indices.append(index)
+                # This spectral model is modeling this transition. 
+                # Does it say this should be used for the determination of
+                # stellar parameters or composition?
+                if spectral_models[index].use_for_stellar_parameter_inference \
+                or spectral_models[index].use_for_stellar_composition_inference:
+                    conflict_indices.append(index)
 
         if len(conflict_indices) > 1:
             conflicts.append(conflict_indices)
-
     
     return conflicts
 

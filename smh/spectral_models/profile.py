@@ -298,7 +298,7 @@ class ProfileFittingModel(BaseSpectralModel):
             if not any(iterative_mask):
                 self.metadata["is_acceptable"] = False
                 del self._result
-                self._transitions["equivalent_width"] = np.nan
+                self.transitions["equivalent_width"] = np.nan
 
                 return failure
 
@@ -317,7 +317,7 @@ class ProfileFittingModel(BaseSpectralModel):
                 if iteration == 0:
                     self.metadata["is_acceptable"] = False
                     del self._result
-                    self._transitions["equivalent_width"] = np.nan
+                    self.transitions["equivalent_width"] = np.nan
 
                     return failure
 
@@ -485,7 +485,7 @@ class ProfileFittingModel(BaseSpectralModel):
         }
 
         # Update the equivalent width in the transition.
-        self._transitions["equivalent_width"] = ew
+        self.transitions["equivalent_width"] = ew
 
         # Convert p_opt to ordered dictionary
         named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
