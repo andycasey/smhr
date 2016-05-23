@@ -473,13 +473,13 @@ class RVTab(QtGui.QWidget):
         Populate widgets with values from the current SMH session, or the
         default SMH settings file.
         """
-
-
-
         # TODO: Put the default I/O somewhere else since it will be common to many
         #       tabs.
-        with open(Session._default_settings_path, "rb") as fp:
-            defaults = yaml.load(fp)["rv"]
+        try:
+            defaults = self.parent.session.metadata["rv"]
+        except (AttributeError, KeyError):
+            with open(Session._default_settings_path, "rb") as fp:
+                defaults = yaml.load(fp)["rv"]
 
         # Template filename.
         self.template_path.setReadOnly(False)
@@ -819,6 +819,12 @@ class RVTab(QtGui.QWidget):
     def launch_rvregion_dialog(self):
         dialog = RVRegionDialog(self)
         code = dialog.exec_()
+        logger.debug("RVRegionDialog Code: {}".format(code))
+        self._populate_widgets()
+        self.draw_template()
+        self.update_wl_region()
+        self.rv_plot.draw()
+
         return code
     
 class RVRegionDialog(QtGui.QDialog):
@@ -983,16 +989,16 @@ class RVRegionDialog(QtGui.QDialog):
         N = self.listWidget.count()
         regions = []
         for i in range(N):
-            text = self.listWidget.item(i).text()
-            regions.append(tuple(text.split(' ')[0].split('-')))
+            wl1,wl2 = self.listWidget.item(i).text().split(' ')[0].split('-')
+            regions.append((float(wl1),float(wl2)))
         return regions
     def save_as_default(self):
         regions = self.get_regions_from_list()
         raise NotImplementedError
     def save_to_session(self):
         regions = self.get_regions_from_list()
-        self.rv_tab.parent.session.metadata["rv"]["wavelength_regions"].update(regions)
-        logger.log("Saved wavelength regions to session: {}".format(regions))
+        self.rv_tab.parent.session.metadata["rv"]["wavelength_regions"] = regions
+        logger.debug("Saved wavelength regions to session: {}".format(regions))
     def save_to_list(self):
         wavelength_region = self.get_wavelength_region()
         if wavelength_region==None: return None
@@ -1039,7 +1045,6 @@ class RVRegionDialog(QtGui.QDialog):
             flux_limits[0],
             flux_limits[1] + (np.ptp(flux_limits) * 0.10)
         )
-        print("Plotting!")
 
         # Update the continuum fit.
         self.fit_and_redraw_normalized_order()
@@ -1090,7 +1095,6 @@ class RVRegionDialog(QtGui.QDialog):
             self.rv_tab._cache["normalized_order"].flux,
         ])
         self.ax_order_norm.set_xlim(self.rv_tab._cache["input"]["wavelength_region"])
-        print(self.rv_tab._cache["input"]["wavelength_region"])
 
         if refresh:
             self.mpl_plot.draw()
