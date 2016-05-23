@@ -96,6 +96,7 @@ class StellarParametersTab(QtGui.QWidget):
         # Start the grid layout for the stellar parameters tab.
         input_parameters_grid = QtGui.QGridLayout()
 
+        """
         # Photospheres.
         self.photospheres_label = QtGui.QLabel(self)
         self.photospheres_label.setText("Photospheres")
@@ -110,6 +111,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         for description, kind, basename in available_photospheres:
             self.photospheres.addItem(description)
+        """
 
         # Effective temperature.
         self.effective_temperature_label = QtGui.QLabel(self)
@@ -194,6 +196,10 @@ class StellarParametersTab(QtGui.QWidget):
             40, 20, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
 
 
+        # Additional options button.
+        self.btn_additional_options = QtGui.QPushButton(self)
+
+        
         # Add a 'Measure abundances' button.
         self.measure_abundances = QtGui.QPushButton(self)
         sp = QtGui.QSizePolicy(
@@ -300,11 +306,13 @@ class StellarParametersTab(QtGui.QWidget):
     def measure_transitions(self):
         """ Trigger for when the 'Message transitions..' button is clicked. """
 
-        # Is there any line list?
-        # TODO: Don't check just for lines, check for spectral models associated
-        #       with the stellar parameter determination.
-        if len(self.parent.session.metadata.get("line_list", [])) == 0:
+        # Are there any spectral models to be used for the determination of
+        # stellar parameters?
 
+        for sm in self.parent.session.metadata.get("spectral_models", []):
+            if sm.use_for_stellar_parameter_inference: break
+
+        else:
             reply = QtGui.QMessageBox.information(self,
                 "No spectral models found",
                 "No spectral models are currently associated with the "
@@ -316,22 +324,19 @@ class StellarParametersTab(QtGui.QWidget):
                 dialog = TransitionsDialog(self.parent.session)
                 dialog.exec_()
 
-                # Do we even have transitions now?
-                # TODO: as above.
-                if len(self.parent.session.metadata.get("line_list", [])) == 0:
-                    return None
+                # Do we even have any spectral models now?
+                for sm in self.parent.session.metadata.get("spectral_models", []):
+                    if sm.use_for_stellar_parameter_inference: break
                 else:
-                    self.measure_transitions()
+                    return None
             else:
                 return None
 
-        else:
+        print("OK show measure transitions dialog")
 
-            print("OK show measure transitions dialog")
+        # TODO HACK
 
-            # TODO HACK
-            dialog = TransitionsDialog(self.parent.session)
-            dialog.exec_()
+        return None
 
     def _populate_widgets(self):
         """
