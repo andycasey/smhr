@@ -231,7 +231,7 @@ class Session(BaseSession):
 
 
     def rv_measure(self, template_spectrum=None, wavelength_region=None,
-        resample=None, apodize=None, normalization_kwargs=None):
+        resample=None, apodize=None, normalization_kwargs=None, **kwargs):
         """
         Measure the observed radial velocity by cross-correlating an individual
         echelle order with a normalized rest-frame template spectrum. The most
@@ -257,6 +257,9 @@ class Session(BaseSession):
         :param normalization_kwargs: [optional]
             Keyword arguments that are passed directly to the 
             `Spectrum1D.fit_continuum` function.
+
+        :param kwargs:
+            Dummy variable to take all extra keywords
 
         Note
         ----

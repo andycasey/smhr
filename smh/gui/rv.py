@@ -983,11 +983,12 @@ class RVRegionDialog(QtGui.QDialog):
         wavelength_regions = self.rv_tab.parent.session.setting(["rv","wavelength_regions"])
         for each in wavelength_regions:
             self.listWidget.addItem(u"{0:.0f}-{1:.0f} Å".format(*each))
+        self.listWidget.currentItemChanged.connect(self.list_selection_changed)
         self.listWidget.setSortingEnabled(False)
         self.listWidget.setCurrentRow(0)
         
         self.draw_template(refresh=True)
-        #self.update_wl_region()
+        self.update_wl_region()
         self.mpl_plot.draw()
 
         return None
@@ -1012,14 +1013,40 @@ class RVRegionDialog(QtGui.QDialog):
         self.listWidget.addItem(u"{0:.0f}-{1:.0f} Å".format(*wavelength_region))
 
     def get_wavelength_region(self):
-        wl_lower = float(self.text_lower_wl.text())
-        wl_upper = float(self.text_upper_wl.text())
+        try:
+            wl_lower = float(self.text_lower_wl.text())
+        except ValueError:
+            wl_lower = None
+            self.text_lower_wl.setStyleSheet(\
+                'QLineEdit { background-color: %s }' % '#f6989d') #red
+        else:
+            self.text_lower_wl.setStyleSheet(\
+                'QLineEdit { background-color: %s }' % 'none')
+        try:
+            wl_upper = float(self.text_upper_wl.text())
+        except ValueError:
+            wl_upper = None
+            self.text_upper_wl.setStyleSheet(\
+                'QLineEdit { background-color: %s }' % '#f6989d') #red
+        else:
+            self.text_upper_wl.setStyleSheet(\
+                'QLineEdit { background-color: %s }' % 'none')
+
+        if wl_lower is None or wl_upper is None: return None
         if wl_lower >= wl_upper: return None
         return (wl_lower, wl_upper)
-        
     def wl_value_changed(self):
         self.listWidget.setCurrentRow(-1)
         self.update_wl_region()
+    def list_selection_changed(self):
+        current_item = self.listWidget.currentItem()
+        if current_item is None: return
+        current_text = current_item.text()
+        wl1,wl2 = current_text.split(" ")[0].split("-")
+        self.text_lower_wl.setText(wl1)
+        self.text_upper_wl.setText(wl2)
+        self.update_wl_region()
+
     def update_wl_region(self):
         """
         Re-draw the order selected and the continuum fit, as well as the preview
