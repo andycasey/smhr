@@ -342,9 +342,9 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.edit_initial_abundance_bound.setMaximumSize(QtCore.QSize(60, 16777215))
         grid_synthesis.addWidget(self.edit_initial_abundance_bound, 0, 3, 1, 1)
 
-        self.check_model_smoothing = QtGui.QCheckBox(self.tab_synthesis)
-        self.check_model_smoothing.setText("")
-        grid_synthesis.addWidget(self.check_model_smoothing, 1, 0, 1, 1)
+        self.checkbox_model_smoothing = QtGui.QCheckBox(self.tab_synthesis)
+        self.checkbox_model_smoothing.setText("")
+        grid_synthesis.addWidget(self.checkbox_model_smoothing, 1, 0, 1, 1)
         label = QtGui.QLabel(self.tab_synthesis)
         label.setText("Model observed resolution by smoothing")
         grid_synthesis.addWidget(label, 1, 1, 1, 1)
@@ -413,6 +413,9 @@ class SpectralModelsDialog(QtGui.QDialog):
         # Select the first entry.
         self.table_view.selectRow(0)
 
+        # TODO: SET VALIDATORS ON THE MODEL INPUTS
+        #       AND CUSTOM TEXT REPRS TO SHOW UNITS
+
         # Connect signals.
         # Common options.
         self.edit_window.textChanged.connect(self.update_edit_window)
@@ -425,6 +428,31 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.edit_vrad_tolerance.textChanged.connect(
             self.update_vrad_tolerance)
 
+        # Profile options.
+        self.combo_profile.currentIndexChanged.connect(
+            self.update_combo_profile)
+        self.edit_detection_sigma.textChanged.connect(
+            self.update_detection_sigma)
+        self.edit_detection_pixels.textChanged.connect(
+            self.update_detection_pixels)
+        self.checkbox_use_central_weighting.stateChanged.connect(
+            self.clicked_checkbox_use_central_weighting)
+        self.checkbox_wavelength_tolerance.stateChanged.connect(
+            self.clicked.checkbox_wavelength_tolerance)
+        self.edit_wavelength_tolerance.textChanged.connect(
+            self.update_wavelength_tolerance)
+
+        # Synthesis options.
+        self.edit_initial_abundance_bound.textChanged.connect(
+            self.update_initial_abundance_bound)
+        self.checkbox_model_smoothing.stateChanged.connect(
+            self.clicked_checkbox_model_smoothing)
+        self.edit_smoothing_bound.textChanged.connect(
+            self.update_smoothing_bound)
+        self.btn_specify_abundances.clicked.connect(
+            self.clicked_btn_specify_abundances)
+
+        return None
 
     def update_edit_window(self):
         """ The window value has been updated. """
@@ -475,6 +503,80 @@ class SpectralModelsDialog(QtGui.QDialog):
         return None
 
 
+    def update_detection_sigma(self):
+        """ The detection sigma for nearby lines has been updated. """
+        self._get_selected_model().metadata["detection_sigma"] \
+            = float(self.edit_detection_sigma.text())
+        return None
+
+
+    def update_detection_pixels(self):
+        """ The number of pixels to qualify a detection has been updated. """
+        self._get_selected_model().metadata["detection_pixels"] \
+            = int(self.edit_detection_pixels.text())
+        return None
+
+
+    def clicked_checkbox_use_central_weighting(self):
+        """ The checkbox to use central weighting has been clicked. """
+
+        self._get_selected_model().metadata["central_weighting"] \
+            = self.checkbox_use_central_weighting.isChecked()
+        return None
+
+
+    def clicked_checkbox_wavelength_tolerance(self):
+        """ The checkbox to set a wavelength tolerance has been clicked. """
+        if self.checkbox_wavelength_tolerance.isChecked():
+            self.edit_wavelength_tolerance.setEnabled(True)
+            self.update_wavelength_tolerance()
+        else:
+            self.edit_wavelength_tolerance.setEnabled(False)
+            self._get_selected_model().metadata["wavelength_tolerance"] = None
+        return None
+
+
+    def update_wavelength_tolerance(self):
+        """ The wavelength tolerance for a profile centroid has been updated. """
+
+        self._get_selected_model().metadata["wavelength_tolerance"] \
+            = float(self.edit_wavelength_tolerance.text())
+        return None
+
+
+    def update_initial_abundance_bound(self):
+        """ The initial abundance bound has been updated. """
+        self._get_selected_model().metadata["initial_abundance_bounds"] \
+            = float(self.edit_initial_abundance_bound.text())
+        return None
+
+
+    def clicked_checkbox_model_smoothing(self):
+        """ The checkbox to smooth the model spectrum has been clicked. """
+
+        if self.checkbox_model_smoothing.isChecked():
+            self._get_selected_model().metadata["smoothing_kernel"] = True
+            self.edit_smoothing_bound.setEnabled(True)
+            self.update_smoothing_bound()
+
+        else:
+            self._get_selected_model().metadata["smoothing_kernel"] = False
+            self.edit_smoothing_bound.setEnabled(False)
+        return None
+
+
+    def update_smoothing_bound(self):
+        """ The limits on the smoothing kernel have been updated. """
+        value = float(self.edit_smoothing_bound.text())
+        self._get_selected_model().metadata["sigma_smooth"] = (-value, value)
+        return None
+        
+
+    def clicked_btn_specify_abundances(self):
+        """ Button to specify abundances for a synthesis setup was clicked. """
+
+        raise NotImplementedError
+
 
     def _get_selected_model(self):
         index = self.table_view.selectionModel().selectedRows()[0].row()
@@ -490,8 +592,6 @@ class SpectralModelsDialog(QtGui.QDialog):
             selected_model = self._get_selected_model()
         except IndexError:
             return None
-
-
 
         # Common model.
         self.edit_window.setText("{}".format(selected_model.metadata["window"]))
@@ -560,7 +660,7 @@ class SpectralModelsDialog(QtGui.QDialog):
         # Synthesis options.
         synthesis_items = (
             self.edit_initial_abundance_bound,
-            self.check_model_smoothing,
+            self.checkbox_model_smoothing,
             self.edit_smoothing_bound,
             self.btn_specify_abundances,
         )
@@ -572,7 +672,7 @@ class SpectralModelsDialog(QtGui.QDialog):
             self.edit_initial_abundance_bound.setText(
                 "{}".format(selected_model.metadata["initial_abundance_bounds"]))
             
-            self.check_model_smoothing.setEnabled(
+            self.checkbox_model_smoothing.setEnabled(
                 selected_model.metadata["smoothing_kernel"])
 
             # TODO: sigma smooth.
