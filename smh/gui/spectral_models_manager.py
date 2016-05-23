@@ -20,7 +20,6 @@ from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
 
-
 class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
     header = [" ", u"Wavelength\n(Å)", "Element", u"Equivalent Width\n(mÅ)",
@@ -189,7 +188,8 @@ class SpectralModelsDialog(QtGui.QDialog):
 
         vbox_rhs = QtGui.QVBoxLayout()
 
-        self.mpl_figure = mpl.MPLWidget(None, tight_layout=True)
+        self.mpl_figure = mpl.MPLWidget(None, tight_layout=True,
+            autofocus=True)
         self.mpl_figure.figure.patch.set_facecolor([_/255. for _ in \
             self.palette().color(QtGui.QPalette.Window).getRgb()[:3]])
         self.mpl_figure.setMinimumSize(QtCore.QSize(0, 250))
@@ -218,6 +218,8 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.edit_window = QtGui.QLineEdit(self.tab_common)
         self.edit_window.setMinimumSize(QtCore.QSize(60, 0))
         self.edit_window.setMaximumSize(QtCore.QSize(60, 16777215))
+        self.edit_window.setValidator(
+            QtGui.QDoubleValidator(0, 1000, 1, self.edit_window))
         grid_common.addWidget(self.edit_window, 0, 3, 1, 1)
 
         self.checkbox_continuum = QtGui.QCheckBox(self.tab_common)
@@ -245,6 +247,8 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.edit_vrad_tolerance = QtGui.QLineEdit(self.tab_common)
         self.edit_vrad_tolerance.setMinimumSize(QtCore.QSize(60, 0))
         self.edit_vrad_tolerance.setMaximumSize(QtCore.QSize(60, 16777215))
+        self.edit_vrad_tolerance.setValidator(
+            QtGui.QDoubleValidator(0, 100, 2, self.edit_vrad_tolerance))
         grid_common.addWidget(self.edit_vrad_tolerance, 2, 3, 1, 1)
 
         grid_common.addItem(QtGui.QSpacerItem(40, 20, 
@@ -283,6 +287,8 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.edit_detection_sigma = QtGui.QLineEdit(self.tab_profile)
         self.edit_detection_sigma.setMinimumSize(QtCore.QSize(60, 0))
         self.edit_detection_sigma.setMaximumSize(QtCore.QSize(60, 16777215))
+        self.edit_detection_sigma.setValidator(
+            QtGui.QDoubleValidator(0, 100, 1, self.edit_detection_sigma))
         hbox.addWidget(self.edit_detection_sigma)
         grid_profile.addLayout(hbox, 1, 3, 1, 1)
 
@@ -296,6 +302,8 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.edit_detection_pixels = QtGui.QLineEdit(self.tab_profile)
         self.edit_detection_pixels.setMinimumSize(QtCore.QSize(60, 0))
         self.edit_detection_pixels.setMaximumSize(QtCore.QSize(60, 16777215))
+        self.edit_detection_pixels.setValidator(
+            QtGui.QIntValidator(0, 100, self.edit_detection_pixels))
         hbox.addWidget(self.edit_detection_pixels)
         grid_profile.addLayout(hbox, 2, 3, 1, 1)
 
@@ -320,6 +328,8 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.edit_wavelength_tolerance = QtGui.QLineEdit(self.tab_profile)
         self.edit_wavelength_tolerance.setMinimumSize(QtCore.QSize(50, 0))
         self.edit_wavelength_tolerance.setMaximumSize(QtCore.QSize(60, 16777215))
+        self.edit_wavelength_tolerance.setValidator(
+            QtGui.QDoubleValidator(0, 10, 2, self.edit_wavelength_tolerance))
         hbox.addWidget(self.edit_wavelength_tolerance)
         grid_profile.addLayout(hbox, 3, 3, 1, 1)
 
@@ -340,6 +350,8 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.edit_initial_abundance_bound = QtGui.QLineEdit(self.tab_synthesis)
         self.edit_initial_abundance_bound.setMinimumSize(QtCore.QSize(60, 0))
         self.edit_initial_abundance_bound.setMaximumSize(QtCore.QSize(60, 16777215))
+        self.edit_initial_abundance_bound.setValidator(
+            QtGui.QDoubleValidator(0, 2, 1, self.edit_initial_abundance_bound))
         grid_synthesis.addWidget(self.edit_initial_abundance_bound, 0, 3, 1, 1)
 
         self.checkbox_model_smoothing = QtGui.QCheckBox(self.tab_synthesis)
@@ -355,6 +367,8 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.edit_smoothing_bound = QtGui.QLineEdit(self.tab_synthesis)
         self.edit_smoothing_bound.setMinimumSize(QtCore.QSize(60, 0))
         self.edit_smoothing_bound.setMaximumSize(QtCore.QSize(60, 16777215))
+        self.edit_smoothing_bound.setValidator(
+            QtGui.QDoubleValidator(0, 10, 1, self.edit_smoothing_bound))
         grid_synthesis.addWidget(self.edit_smoothing_bound, 2, 3, 1, 1)
 
         self.btn_specify_abundances = QtGui.QPushButton(self.tab_synthesis)
@@ -401,6 +415,14 @@ class SpectralModelsDialog(QtGui.QDialog):
         style_utils.fill_between_steps(self.mpl_axis, spectrum.dispersion,
             spectrum.flux - sigma, spectrum.flux + sigma, facecolor="#CCCCCC",
             edgecolor="None", alpha=0.5)
+
+        self._lines = {
+            "transitions_center": self.mpl_axis.axvline(
+                np.nan, c="#666666", linestyle=":", zorder=-1),
+            "model_fit": self.mpl_axis.plot([], [], c="r")[0],
+            "nearby_lines": [],
+            "model_masks": [],
+        }
         self.mpl_axis.set_xlim(spectrum.dispersion[0], spectrum.dispersion[-1])
         self.mpl_axis.set_ylim(0, 1.2)
 
@@ -412,9 +434,9 @@ class SpectralModelsDialog(QtGui.QDialog):
 
         # Select the first entry.
         self.table_view.selectRow(0)
+        self.spectral_models[0].fit()
 
-        # TODO: SET VALIDATORS ON THE MODEL INPUTS
-        #       AND CUSTOM TEXT REPRS TO SHOW UNITS
+        # TODO: AND CUSTOM TEXT REPRS TO SHOW UNITS
 
         # Connect signals.
         # Common options.
@@ -438,7 +460,7 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.checkbox_use_central_weighting.stateChanged.connect(
             self.clicked_checkbox_use_central_weighting)
         self.checkbox_wavelength_tolerance.stateChanged.connect(
-            self.clicked.checkbox_wavelength_tolerance)
+            self.clicked_checkbox_wavelength_tolerance)
         self.edit_wavelength_tolerance.textChanged.connect(
             self.update_wavelength_tolerance)
 
@@ -452,13 +474,38 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.btn_specify_abundances.clicked.connect(
             self.clicked_btn_specify_abundances)
 
+        # Connect matplotlib.
+        self.mpl_figure.mpl_connect(
+            "button_press_event", self.figure_mouse_press)
+        self.mpl_figure.mpl_connect(
+            "button_release_event", self.figure_mouse_release)
+
         return None
+
 
     def update_edit_window(self):
         """ The window value has been updated. """
 
         model = self._get_selected_model()
-        model.metadata["window"] = float(self.edit_window.text())
+        try:
+            window = float(self.edit_window.text())
+
+        except:
+            return None
+
+        else:
+            model.metadata["window"] = window
+
+            # Just update the axis limits.
+            model = self._get_selected_model()
+            transitions = model.transitions
+
+            self.mpl_axis.set_xlim(
+                transitions["wavelength"][0] - window,
+                transitions["wavelength"][-1] + window,
+            )
+            self.mpl_figure.draw()
+
         return None
 
 
@@ -486,20 +533,29 @@ class SpectralModelsDialog(QtGui.QDialog):
     def clicked_checkbox_vrad_tolerance(self):
         """ The checkbox for velocity tolerance was clicked. """
 
-        is self.checkbox_vrad_tolerance.isChecked():
-            self.update_vrad_tolerance.setEnabled(True)
+        if self.checkbox_vrad_tolerance.isChecked():
+            self.edit_vrad_tolerance.setEnabled(True)
             self.update_vrad_tolerance()
         else:
-            self.update_vrad_tolerance.setEnabled(False)
+            self.edit_vrad_tolerance.setEnabled(False)
             self._get_selected_model().metadata["velocity_tolerance"] = None
         return None
 
 
     def update_vrad_tolerance(self):
         """ The tolerance on radial velocity was updated. """
+        try:
+            value = float(self.edit_vrad_tolerance.text())
+        except:
+            value = None
+        self._get_selected_model().metadata["velocity_tolerance"] = value
+        return None
 
-        self._get_selected_model().metadata["velocity_tolerance"] \
-            = float(self.update_vrad_tolerance.text())
+
+    def update_combo_profile(self):
+        """ Update the profile that is used for fitting atomic transitions. """
+        self._get_selected_model().metadata["profile"] \
+            = self.update_combo_profile.currentText().lower()
         return None
 
 
@@ -570,7 +626,7 @@ class SpectralModelsDialog(QtGui.QDialog):
         value = float(self.edit_smoothing_bound.text())
         self._get_selected_model().metadata["sigma_smooth"] = (-value, value)
         return None
-        
+
 
     def clicked_btn_specify_abundances(self):
         """ Button to specify abundances for a synthesis setup was clicked. """
@@ -578,9 +634,168 @@ class SpectralModelsDialog(QtGui.QDialog):
         raise NotImplementedError
 
 
-    def _get_selected_model(self):
+    def _get_selected_model(self, full_output=False):
         index = self.table_view.selectionModel().selectedRows()[0].row()
-        return self.spectral_models[index]
+        model = self.spectral_models[index]
+        return (model, index) if full_output else model
+
+
+    def figure_mouse_press(self, event):
+        """
+        Mouse button was pressed on the matplotlib widget.
+
+        :param event:
+            The matplotlib event.
+        """
+
+        if event.dblclick:
+
+            # Double click.
+            spectral_model, index = self._get_selected_model(True)
+            for i, (s, e) in enumerate(spectral_model.metadata["mask"][::-1]):
+                if e >= event.xdata >= s:
+
+                    mask = spectral_model.metadata["mask"]
+                    index = len(mask) - 1 - i
+                    del mask[index]
+
+                    # Re-fit the current spectral_model.
+                    spectral_model.fit()
+
+                    # Update the table view for this row.
+                    table_model = self.table_view.model()
+                    table_model.dataChanged.emit(
+                        table_model.createIndex(index, 0),
+                        table_model.createIndex(
+                            index, table_model.columnCount(0)))
+
+                    # Update the view of the current model.
+                    self.redraw_figure()
+                    break
+
+            else:
+                # No match with a masked region. Add a point that will be used
+                # for the determination of continuum.
+                # TODO
+                None
+
+        else:
+            # Single click.
+            xmin, xmax, ymin, ymax = (event.xdata, np.nan, -1e8, +1e8)
+            try:
+                self._interactive_mask_region
+
+            except AttributeError:
+                self._interactive_mask_region = self.mpl_axis.axvspan(**{
+                    "xmin": xmin,
+                    "xmax": xmax,
+                    "ymin": ymin,
+                    "ymax": ymax,
+                    "facecolor": "r",
+                    "edgecolor": "none", # go home matplotlib, you're drunk
+                    "alpha": 0.25,
+                    "zorder": -1
+                })
+
+            else:
+                self._interactive_mask_region.set_xy([
+                    [xmin, ymin],
+                    [xmin, ymax],
+                    [xmax, ymax],
+                    [xmax, ymin],
+                    [xmin, ymin]
+                ])
+
+            # Set the signal and the time.
+            self._interactive_mask_region_signal = (
+                time(),
+                self.mpl_figure.mpl_connect(
+                    "motion_notify_event", self.update_mask_region)
+            )
+
+        return None
+
+
+    def update_mask_region(self, event):
+        """
+        Update the visible selected masked region for the selected spectral
+        model. This function is linked to a callback for when the mouse position
+        moves.
+
+        :para event:
+            The matplotlib motion event to show the current mouse position.
+        """
+
+        if event.xdata is None: return
+
+        signal_time, signal_cid = self._interactive_mask_region_signal
+        if time() - signal_time > DOUBLE_CLICK_INTERVAL:
+
+            data = self._interactive_mask_region.get_xy()
+
+            # Update xmax.
+            data[2:4, 0] = event.xdata
+            self._interactive_mask_region.set_xy(data)
+            self.mpl_figure.draw()
+
+        return None
+
+
+    def figure_mouse_release(self, event):
+        """
+        Mouse button was released from the matplotlib widget.
+
+        :param event:
+            The matplotlib event.
+        """
+
+        try:
+            signal_time, signal_cid = self._interactive_mask_region_signal
+
+        except AttributeError:
+            return None
+
+        xy = self._interactive_mask_region.get_xy()
+
+        if event.xdata is None:
+            # Out of axis; exclude based on the closest axis limit
+            xdata = xy[2, 0]
+        else:
+            xdata = event.xdata
+
+
+        # If the two mouse events were within some time interval,
+        # then we should not add a mask because those signals were probably
+        # part of a double-click event.
+        if  time() - signal_time > DOUBLE_CLICK_INTERVAL \
+        and np.abs(xy[0,0] - xdata) > 0:
+            
+            # Get current spectral model.
+            spectral_model, index = self._get_selected_model(True)
+
+            # Add mask metadata.
+            spectral_model.metadata["mask"].append([xy[0,0], xy[2, 0]])
+
+            # Re-fit the spectral model.
+            spectral_model.fit()
+
+            # Update the table view for this row.
+            table_model = self.table_view.model()
+            table_model.dataChanged.emit(
+                table_model.createIndex(index, 0),
+                table_model.createIndex(
+                    index, table_model.columnCount(0)))
+
+            # Update the view of the spectral model.
+            self.redraw_figure()
+
+        xy[:, 0] = np.nan
+        self._interactive_mask_region.set_xy(xy)
+
+        self.mpl_figure.mpl_disconnect(signal_cid)
+        self.mpl_figure.draw()
+        del self._interactive_mask_region_signal
+        return None
 
 
     def selected_model_changed(self):
@@ -617,19 +832,8 @@ class SpectralModelsDialog(QtGui.QDialog):
             self.edit_vrad_tolerance.setText("{}".format(vrad_tolerance))
 
         # Profile options.
-        profile_items = (
-            self.combo_profile,
-            self.edit_detection_sigma,
-            self.edit_detection_pixels,
-            self.checkbox_use_central_weighting,
-            self.checkbox_wavelength_tolerance,
-            self.edit_wavelength_tolerance,
-        )
         if isinstance(selected_model, ProfileFittingModel):
-
-            # Set them as enabled.
-            for item in profile_items:
-                item.setEnabled(True)
+            self.tab_profile.setEnabled(True)
 
             self.combo_profile.setCurrentIndex(
                 ["gaussian", "lorentzian", "voight"].index(
@@ -652,21 +856,11 @@ class SpectralModelsDialog(QtGui.QDialog):
                     "{}".format(tolerance))
 
         else:
-            # Set them as disabled.
-            for item in profile_items:
-                item.setEnabled(False)
+            self.tab_profile.setEnabled(False)
 
-        
         # Synthesis options.
-        synthesis_items = (
-            self.edit_initial_abundance_bound,
-            self.checkbox_model_smoothing,
-            self.edit_smoothing_bound,
-            self.btn_specify_abundances,
-        )
         if isinstance(selected_model, SpectralSynthesisModel):
-            for item in synthesis_items:
-                item.setEnabled(True)
+            self.tab_synthesis.setEnabled(True)
 
             # Update widgets.
             self.edit_initial_abundance_bound.setText(
@@ -675,18 +869,107 @@ class SpectralModelsDialog(QtGui.QDialog):
             self.checkbox_model_smoothing.setEnabled(
                 selected_model.metadata["smoothing_kernel"])
 
-            # TODO: sigma smooth.
-
+            # TODO sigma smooth tolerance needs implementing.
         else:
-            for item in synthesis_items:
-                item.setEnabled(False)
+            self.tab_synthesis.setEnabled(False)
 
 
         # Update figure view.
+        self.redraw_figure()
 
 
+    def redraw_figure(self):
+        """ Re-draw the matplotlib window based on a triggered changed. """
 
-    # Triggers for all updates.
+        # Set the axes.
+        selected_model = self._get_selected_model()
+        transitions = selected_model.transitions
+
+        window = selected_model.metadata["window"]
+        limits = [
+            transitions["wavelength"][0] - window,
+            transitions["wavelength"][-1] + window,
+        ]
+
+        # Zoom to region.
+        self.mpl_axis.set_xlim(limits)
+
+        if isinstance(selected_model, ProfileFittingModel):
+            self._lines["transitions_center"].set_data(
+                [transitions["wavelength"][0], transitions["wavelength"][0]],
+                [0, 1.2])
+
+
+        # Model masks specified by the user.
+        # (These should be shown regardless of whether there is a fit or not.)
+        for i, (start, end) in enumerate(selected_model.metadata["mask"]):
+            try:
+                patch = self._lines["model_masks"][i]
+            except IndexError:
+                self._lines["model_masks"].append(self.mpl_axis.axvspan(
+                    np.nan, np.nan, facecolor="r", edgecolor="none",
+                    alpha=0.25))
+                patch = self._lines["model_masks"][-1]
+
+            patch.set_xy([
+                [start, -1e8],
+                [start, +1e8],
+                [end,   +1e8],
+                [end,   -1e8],
+                [start, -1e8]
+            ])
+            patch.set_visible(True)
+
+        # Hide unnecessary ones.
+        N = len(selected_model.metadata["mask"])
+        for unused_patch in self._lines["model_masks"][N:]:
+            unused_patch.set_visible(False)
+
+        # Things to show if there is a fitted result.
+        try:
+            (named_p_opt, cov, meta) = selected_model._result
+
+        except:
+            meta = {}
+            self._lines["model_fit"].set_data([], [])
+           
+        else:
+            self._lines["model_fit"].set_data(
+                meta["model_x"], meta["model_y"])
+
+            # Model yerr.
+
+            # Model masks due to nearby lines.
+            if "nearby_lines" in meta:
+                for i, (_, (start, end)) in enumerate(meta["nearby_lines"]):
+                    try:
+                        patch = self._lines["nearby_lines"][i]
+                
+                    except IndexError:
+                        self._lines["nearby_lines"].append(
+                            self.mpl_axis.axvspan(np.nan, np.nan,
+                                facecolor="b", edgecolor="none", alpha=0.25))
+                        patch = self._lines["nearby_lines"][-1]
+
+                    patch.set_xy([
+                        [start, -1e8],
+                        [start, +1e8],
+                        [end,   +1e8],
+                        [end,   -1e8],
+                        [start, -1e8]
+                    ])
+                    patch.set_visible(True)
+                    
+
+        # Hide any masked model regions due to nearby lines.
+        N = len(meta.get("nearby_lines", []))
+        for each in self._lines["nearby_lines"][N:]:
+            each.set_visible(False)
+
+        # Hide any other model spectra?
+        self.mpl_figure.draw()
+
+        return None
 
 
 if __name__ == "__main__":
@@ -710,8 +993,7 @@ if __name__ == "__main__":
         "/Users/arc/codes/smh/hd44007red_multi.fits",
         "/Users/arc/codes/smh/hd44007blue_multi.fits",
     ])
-    session.normalized_spectrum = specutils.Spectrum1D.read("test-spectrum.txt")
-    #    "../smh/hd44007-rest.fits")
+    session.normalized_spectrum = specutils.Spectrum1D.read("../smh/hd44007-rest.fits")
 
     session.metadata["line_list"] = linelists.LineList.read("/Users/arc/research/ges/linelist/vilnius.ew.fe")
 
