@@ -9,13 +9,17 @@ from __future__ import (division, print_function, absolute_import,
 import numpy as np
 import os
 import sys
-import yaml
 from PySide import QtCore, QtGui
+from six import string_types
 
 import mpl
 from matplotlib import (gridspec, pyplot as plt)
 
 from smh import (Session, specutils)
+from smh.linelists import LineList
+
+import logging
+logger = logging.getLogger(__name__)
 
 __all__ = ["RVTab"]
 
@@ -124,7 +128,7 @@ class RVTab(QtGui.QWidget):
         wl_region_layout.addWidget(rv_wl_region_edit)
         template_tab_layout.addLayout(wl_region_layout)
         rv_wl_region_edit.setText("Edit list")
-        
+
         # Add a horizontal line.
         hr = QtGui.QFrame(template_tab_widget)
         hr.setFrameShape(QtGui.QFrame.HLine)
@@ -415,6 +419,7 @@ class RVTab(QtGui.QWidget):
         rv_cross_correlate_btn.clicked.connect(self.cross_correlate) 
         rv_correct_btn.clicked.connect(self.correct_radial_velocity)
         rv_ccc_btn.clicked.connect(self.cross_correlate_and_correct)
+        rv_wl_region_edit.clicked.connect(self.launch_rvregion_dialog)
 
         # Create signals for when any of these things change.
         rv_select_template_btn.clicked.connect(self.select_template)
@@ -468,20 +473,34 @@ class RVTab(QtGui.QWidget):
         Populate widgets with values from the current SMH session, or the
         default SMH settings file.
         """
+        if self.parent.session is None:
+            return None
+        defaults = self.parent.session.metadata["rv"]
 
+        # The cache allows us to store things that won't necessarily go into the
+        # session, but will update views, etc. For example, previewing continua
+        # before actually using it in cross-correlation, etc.
+        self._cache = {
+            "input": defaults.copy()
+        }
 
-
-        # TODO: Put the default I/O somewhere else since it will be common to many
-        #       tabs.
-        with open(Session._default_settings_path, "rb") as fp:
-            defaults = yaml.load(fp)["rv"]
+        # Wavelength regions should just be a single range.
+        self._cache["input"]["wavelength_region"] \
+            = self._cache["input"]["wavelength_regions"][0]
+        del self._cache["input"]["wavelength_regions"]
 
         # Template filename.
         self.template_path.setReadOnly(False)
-        self.template_path.setText(defaults["template_spectrum"])
+        if isinstance(defaults["template_spectrum"], string_types):
+            self.template_path.setText(defaults["template_spectrum"])
+        else:
+            self.template_path.setText(defaults["template_spectrum_name"])
         self.template_path.setReadOnly(True)
 
         # Wavelength regions.
+        # Clear combo box (triggers self.update_wl_region(), be careful)
+        for i in range(self.wl_region.count()):
+            self.wl_region.removeItem(0)
         for each in defaults["wavelength_regions"]:
             self.wl_region.addItem(u"{0:.0f}-{1:.0f} Å".format(*each))
 
@@ -513,17 +532,6 @@ class RVTab(QtGui.QWidget):
         self.norm_knot_spacing.setText(
             str(defaults["normalization"]["knot_spacing"]))
 
-        # The cache allows us to store things that won't necessarily go into the
-        # session, but will update views, etc. For example, previewing continua
-        # before actually using it in cross-correlation, etc.
-        self._cache = {
-            "input": defaults.copy()
-        }
-
-        # Wavelength regions should just be a single range.
-        self._cache["input"]["wavelength_region"] \
-            = self._cache["input"]["wavelength_regions"][0]
-        del self._cache["input"]["wavelength_regions"]
         return None
 
 
@@ -740,6 +748,8 @@ class RVTab(QtGui.QWidget):
     def update_from_new_session(self):
 
         # Update cache.
+        self._populate_widgets()
+
         # Update plots.
 
         self.draw_template()
@@ -756,8 +766,10 @@ class RVTab(QtGui.QWidget):
         if self.parent.session is None: return
 
         # Parse and cache the wavelength region.
+        current_text = self.wl_region.currentText()
+        if current_text == "": return
         wavelength_region = [float(_) \
-            for _ in self.wl_region.currentText().split(" ")[0].split("-")]
+                   for _ in current_text.split(" ")[0].split("-")]
         self._cache["input"]["wavelength_region"] = wavelength_region
 
         # Get the right order.
@@ -809,3 +821,362 @@ class RVTab(QtGui.QWidget):
             self.rv_plot.draw()
 
         return None
+
+
+    def launch_rvregion_dialog(self):
+        dialog = RVRegionDialog(self)
+        code = dialog.exec_()
+        logger.debug("RVRegionDialog Code: {}".format(code))
+        self._populate_widgets()
+        self.draw_template()
+        self.update_wl_region()
+        self.rv_plot.draw()
+
+        return code
+    
+class RVRegionDialog(QtGui.QDialog):
+    def __init__(self, rv_tab, *args):
+        """
+        Initialise a dialog to set new RV correction regions.
+
+        :param session:
+            The session that will be inspected for transitions.
+        """
+
+        super(RVRegionDialog, self).__init__(*args)
+
+        self.rv_tab = rv_tab
+
+        self.setGeometry(900, 900, 900, 600)
+        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+            - self.rect().center())
+
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.MinimumExpanding, 
+            QtGui.QSizePolicy.MinimumExpanding)
+        sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
+        self.setSizePolicy(sp)
+
+        spacerItem = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Minimum)
+        spacerItem1 = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
+        spacerItem2 = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Minimum)
+
+        self.setObjectName("RVRegionDialog")
+        self.setAutoFillBackground(False)
+        self.horizontalLayout = QtGui.QHBoxLayout(self)
+        self.horizontalLayout_2 = QtGui.QHBoxLayout()
+
+        ## Left column
+        self.verticalLayout_2 = QtGui.QVBoxLayout()
+        self.verticalLayout_2.addItem(spacerItem)
+        self.listWidget = QtGui.QListWidget(self)
+        self.listWidget.setObjectName("listWidget")
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Minimum)
+        sp.setHorizontalStretch(0)
+        sp.setVerticalStretch(0)
+        sp.setHeightForWidth(self.listWidget.sizePolicy().hasHeightForWidth())
+        self.listWidget.setSizePolicy(sp)
+        self.verticalLayout_2.addWidget(self.listWidget)
+        self.button_savedefault = QtGui.QPushButton(self)
+        self.button_savedefault.setObjectName("button_savedefault")
+        self.button_savesession = QtGui.QPushButton(self)
+        self.button_savesession.setObjectName("button_savesession")
+        self.verticalLayout_2.addWidget(self.button_savedefault)
+        self.verticalLayout_2.addWidget(self.button_savesession)
+        self.verticalLayout_2.addItem(spacerItem1)
+        self.horizontalLayout_2.addLayout(self.verticalLayout_2)
+        self.button_savedefault.clicked.connect(self.save_as_default)
+        self.button_savesession.clicked.connect(self.save_to_session)
+
+        ## Right column MPL widget
+        self.verticalLayout = QtGui.QVBoxLayout()
+        blank_widget = QtGui.QWidget(self)
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.MinimumExpanding)
+        sp.setHorizontalStretch(0)
+        sp.setVerticalStretch(0)
+        sp.setHeightForWidth(blank_widget.sizePolicy().hasHeightForWidth())
+        blank_widget.setSizePolicy(sp)
+        blank_widget.setObjectName("blank_widget")
+        self.mpl_plot = mpl.MPLWidget(blank_widget, tight_layout=True,
+                                      autofocus=True)
+        self.mpl_plot.setObjectName("mpl_plot")
+
+        layout = QtGui.QVBoxLayout(blank_widget)
+        layout.addWidget(self.mpl_plot, 1)
+        self.verticalLayout.addWidget(blank_widget)
+
+        # Copied from above; TODO refactor?
+        gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1])
+        self.ax_order = self.mpl_plot.figure.add_subplot(gs[0])
+        self.ax_order_norm = self.mpl_plot.figure.add_subplot(gs[1])
+        self.ax_order.text(0.99, 0.9, "Data", color="k",
+            transform=self.ax_order.transAxes, horizontalalignment="right")
+        self.ax_order.text(0.99, 0.8, "Continuum", color="r", 
+            transform=self.ax_order.transAxes, horizontalalignment="right")
+        self.ax_order.text(0.99, 0.7, "Template", color="b", 
+            transform=self.ax_order.transAxes, horizontalalignment="right")
+        self.ax_order.set_xticklabels([])
+        self.ax_order_norm.set_yticks([0, 1])
+        self.ax_order_norm.set_ylim(0, 1.2)
+        self.ax_order_norm.set_xlabel(u"Wavelength (Å)")
+        self.ax_order.set_ylabel("Flux")
+        self.ax_order.plot([], [], c='k', drawstyle='steps-mid')
+        self.ax_order.plot([], [], c='r', zorder=2)
+        self.ax_order.set_ylim([0, 1])
+        self.ax_order_norm.axhline(1, linestyle=":", c="#666666", zorder=-1)
+        self.ax_order_norm.plot([], [], c='k', drawstyle='steps-mid')
+        self.ax_order_norm.plot([], [], c='b') # Template.
+        self.ax_order_norm.set_ylabel("Normalized flux")
+
+
+        # Right column wavelength regions
+        self.horizontalLayout_4 = QtGui.QHBoxLayout()
+        self.horizontalLayout_4.setObjectName("horizontalLayout_4")
+        self.label = QtGui.QLabel(self)
+        self.label.setAlignment(QtCore.Qt.AlignCenter)
+        self.label.setObjectName("Lower Wavelength")
+        self.horizontalLayout_4.addWidget(self.label)
+        self.label_2 = QtGui.QLabel(self)
+        self.label_2.setAlignment(QtCore.Qt.AlignCenter)
+        self.label_2.setObjectName("Upper Wavelength")
+        self.horizontalLayout_4.addWidget(self.label_2)
+        self.verticalLayout.addLayout(self.horizontalLayout_4)
+        self.horizontalLayout_3 = QtGui.QHBoxLayout()
+        self.horizontalLayout_3.setObjectName("horizontalLayout_3")
+        self.text_lower_wl = QtGui.QLineEdit(self)
+        self.text_lower_wl.setObjectName("Lower Wavelength Value")
+        self.horizontalLayout_3.addWidget(self.text_lower_wl)
+        self.text_upper_wl = QtGui.QLineEdit(self)
+        self.text_upper_wl.setObjectName("Upper Wavelength Value")
+        self.horizontalLayout_3.addWidget(self.text_upper_wl)
+        self.verticalLayout.addLayout(self.horizontalLayout_3)
+        # Signals for wavelength region
+        self.text_lower_wl.textChanged.connect(self.wl_value_changed)
+        self.text_upper_wl.textChanged.connect(self.wl_value_changed)
+
+        # Right column buttons
+        self.button_savetolist = QtGui.QPushButton(self)
+        self.button_savetolist.setObjectName("button_savetolist")
+        self.verticalLayout.addWidget(self.button_savetolist)
+        self.verticalLayout.addItem(spacerItem2)
+        self.button_exit = QtGui.QPushButton(self)
+        self.button_exit.setObjectName("button_exit")
+        self.verticalLayout.addWidget(self.button_exit)
+        self.horizontalLayout_2.addLayout(self.verticalLayout)
+        self.horizontalLayout.addLayout(self.horizontalLayout_2)
+        self.button_savetolist.clicked.connect(self.save_to_list)
+        self.button_exit.clicked.connect(self.accept)
+
+        # Set labels for everything
+        self.setWindowTitle("RVRegionDialog")
+        self.label.setText("Lower Wavelength (Å)")
+        self.label_2.setText("Upper Wavelength (Å)")
+        self.button_savedefault.setText("Save as Default")
+        self.button_savesession.setText("Save to Session")
+        self.button_savetolist.setText("Save to List")
+        self.button_exit.setText("Exit")
+        QtCore.QMetaObject.connectSlotsByName(self)
+        
+        ## put wavelength regions into the listWidget
+        wavelength_regions = self.rv_tab.parent.session.setting(["rv","wavelength_regions"])
+        for each in wavelength_regions:
+            self.listWidget.addItem(u"{0:.0f}-{1:.0f} Å".format(*each))
+        self.listWidget.currentItemChanged.connect(self.list_selection_changed)
+        self.listWidget.setSortingEnabled(False)
+        self.listWidget.setCurrentRow(0)
+        
+        self.draw_template(refresh=True)
+        self.update_wl_region()
+        self.mpl_plot.draw()
+
+        return None
+
+    def get_regions_from_list(self):
+        N = self.listWidget.count()
+        regions = []
+        for i in range(N):
+            wl1,wl2 = self.listWidget.item(i).text().split(' ')[0].split('-')
+            regions.append((float(wl1),float(wl2)))
+        return regions
+    def save_as_default(self):
+        regions = self.get_regions_from_list()
+        raise NotImplementedError
+    def save_to_session(self):
+        regions = self.get_regions_from_list()
+        self.rv_tab.parent.session.metadata["rv"]["wavelength_regions"] = regions
+        logger.debug("Saved wavelength regions to session: {}".format(regions))
+    def save_to_list(self):
+        wavelength_region = self.get_wavelength_region()
+        if wavelength_region==None: return None
+        self.listWidget.addItem(u"{0:.0f}-{1:.0f} Å".format(*wavelength_region))
+
+    def get_wavelength_region(self):
+        try:
+            wl_lower = float(self.text_lower_wl.text())
+        except ValueError:
+            wl_lower = None
+            self.text_lower_wl.setStyleSheet(\
+                'QLineEdit { background-color: %s }' % '#f6989d') #red
+        else:
+            self.text_lower_wl.setStyleSheet(\
+                'QLineEdit { background-color: %s }' % 'none')
+        try:
+            wl_upper = float(self.text_upper_wl.text())
+        except ValueError:
+            wl_upper = None
+            self.text_upper_wl.setStyleSheet(\
+                'QLineEdit { background-color: %s }' % '#f6989d') #red
+        else:
+            self.text_upper_wl.setStyleSheet(\
+                'QLineEdit { background-color: %s }' % 'none')
+
+        if wl_lower is None or wl_upper is None: return None
+        if wl_lower >= wl_upper: return None
+        return (wl_lower, wl_upper)
+    def wl_value_changed(self):
+        self.listWidget.setCurrentRow(-1)
+        self.update_wl_region()
+    def list_selection_changed(self):
+        current_item = self.listWidget.currentItem()
+        if current_item is None: return
+        current_text = current_item.text()
+        wl1,wl2 = current_text.split(" ")[0].split("-")
+        self.text_lower_wl.setText(wl1)
+        self.text_upper_wl.setText(wl2)
+        self.update_wl_region()
+
+    def update_wl_region(self):
+        """
+        Re-draw the order selected and the continuum fit, as well as the preview
+        of the normalized spectrum.
+        """
+
+        # Parse and cache the wavelength region.
+        wavelength_region = self.get_wavelength_region()
+        if wavelength_region==None: return
+
+        self.rv_tab._cache["input"]["wavelength_region"] = wavelength_region
+
+        # Get the right order.
+        self.rv_tab._cache["overlap_order"], _, __ = \
+            self.rv_tab.parent.session._get_overlap_order([wavelength_region])
+
+        # Draw this order in the top axes.
+        self.ax_order.lines[0].set_data([
+            self.rv_tab._cache["overlap_order"].dispersion,
+            self.rv_tab._cache["overlap_order"].flux,
+        ])
+
+        # Update the limits for this axis.
+        self.ax_order.set_xlim(wavelength_region)
+        flux_limits = (
+            np.nanmin(self.rv_tab._cache["overlap_order"].flux),
+            np.nanmax(self.rv_tab._cache["overlap_order"].flux)
+        )
+        self.ax_order.set_ylim(
+            flux_limits[0],
+            flux_limits[1] + (np.ptp(flux_limits) * 0.10)
+        )
+
+        # Update the continuum fit.
+        self.fit_and_redraw_normalized_order()
+
+        return None
+
+    def fit_and_redraw_normalized_order(self):
+        """
+        Fit and redraw the continuum, and the normalized order.
+        """
+
+        self.rv_tab.fit_continuum()
+        self.redraw_continuum()
+        self.redraw_normalized_order(True)
+        return None
+    
+    def redraw_continuum(self, refresh=False):
+        """
+        Redraw the continuum.
+
+        :param refresh: [optional]
+            Force the figure to update.
+        """
+
+        self.ax_order.lines[1].set_data([
+            self.rv_tab._cache["overlap_order"].dispersion,
+            self.rv_tab._cache["continuum"]
+        ])
+        if refresh:
+            self.mpl_plot.draw()
+        return None
+    def redraw_normalized_order(self, refresh=False):
+        """
+        Redraw the normalized order.
+
+        :param refresh: [optional]
+            Force the figure to update.
+        """
+
+        # Redshift the normalized order by the 'RV-applied', if it exists.
+        try:
+            rv_applied = self.rv_tab.parent.session.metadata["rv"]["rv_applied"]
+        except (AttributeError, KeyError):
+            rv_applied = 0
+
+        self.ax_order_norm.lines[1].set_data([
+            self.rv_tab._cache["normalized_order"].dispersion * (1 - rv_applied/c),
+            self.rv_tab._cache["normalized_order"].flux,
+        ])
+        self.ax_order_norm.set_xlim(self.rv_tab._cache["input"]["wavelength_region"])
+
+        if refresh:
+            self.mpl_plot.draw()
+
+        return None
+    def draw_template(self, refresh=False):
+        """
+        Draw the template spectrum in the figure.
+        """
+
+        path = self.rv_tab.template_path.text()
+        if not os.path.exists(path): return
+
+        template = specutils.Spectrum1D.read(path)
+        self.ax_order_norm.lines[2].set_data([
+            template.dispersion,
+            template.flux
+        ])
+
+        if refresh:
+            self.mpl_plot.draw()
+
+        return None
+
+
+if __name__ == "__main__":
+
+    # This is just for development testing.
+    app = QtGui.QApplication(sys.argv)
+    #window = RVRegionDialog(None)
+    #window.exec_()
+    widget = QtGui.QWidget(None)
+
+    with open(Session._default_settings_path, "rb") as fp:
+        defaults = yaml.load(fp)
+    datadir = os.path.dirname(os.path.abspath(__file__))+'/../tests/test_data'
+    session = Session([datadir+"/spectra/hd122563.fits"])
+    widget.session = session
+    session.metadata.update(defaults)
+
+    ll = LineList.read(os.path.dirname(os.path.abspath(__file__))+'/../tests/test_data/linelists/lin4554new')
+    session.metadata['line_list'] = ll
+    
+    rv_tab = RVTab(widget)
+    rv_tab.update_from_new_session()
+    rv_tab.template_path = QtGui.QLineEdit()
+    rv_tab.template_path.setText(datadir+'/spectra/hd122563.fits')
+    
+    dialog = RVRegionDialog(rv_tab)
+
+    dialog.exec_()
