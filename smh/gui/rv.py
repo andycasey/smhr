@@ -930,7 +930,6 @@ class RVRegionDialog(QtGui.QDialog):
         self.ax_order_norm.plot([], [], c='b') # Template.
         self.ax_order_norm.set_ylabel("Normalized flux")
 
-
         # Right column wavelength regions
         self.horizontalLayout_4 = QtGui.QHBoxLayout()
         self.horizontalLayout_4.setObjectName("horizontalLayout_4")
@@ -986,6 +985,10 @@ class RVRegionDialog(QtGui.QDialog):
         self.listWidget.currentItemChanged.connect(self.list_selection_changed)
         self.listWidget.setSortingEnabled(False)
         self.listWidget.setCurrentRow(0)
+
+        # allow right-click to delete menu
+        self.listWidget.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.listWidget.customContextMenuRequested.connect(self.list_context_menu)
         
         self.draw_template(refresh=True)
         self.update_wl_region()
@@ -993,6 +996,18 @@ class RVRegionDialog(QtGui.QDialog):
 
         return None
 
+    def list_context_menu(self, pos):
+        """
+        """
+        menu = QtGui.QMenu(self.listWidget)
+        delete_action = menu.addAction("Delete")
+        any_selected = len(self.listWidget.selectionModel().selectedRows()) > 0
+        if not any_selected:
+            delete_action.setEnabled(False)
+        action = menu.exec_(self.listWidget.mapToGlobal(pos))
+        if action == delete_action:
+            self.delete_current_line()
+        return None
     def get_regions_from_list(self):
         N = self.listWidget.count()
         regions = []
@@ -1011,6 +1026,10 @@ class RVRegionDialog(QtGui.QDialog):
         wavelength_region = self.get_wavelength_region()
         if wavelength_region==None: return None
         self.listWidget.addItem(u"{0:.0f}-{1:.0f} Å".format(*wavelength_region))
+
+    def delete_current_line(self):
+        self.listWidget.takeItem(self.listWidget.currentRow())
+        return None
 
     def get_wavelength_region(self):
         try:
