@@ -15,6 +15,8 @@ from matplotlib.ticker import MaxNLocator
 import mpl
 import style_utils
 
+from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
+
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
 
@@ -138,6 +140,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
 
 
+
 class SpectralModelsDialog(QtGui.QDialog):
 
     def __init__(self, session, stellar_parameter_models=True,
@@ -176,6 +179,10 @@ class SpectralModelsDialog(QtGui.QDialog):
             QtGui.QAbstractItemView.SelectRows)
         self.table_view.setSortingEnabled(True)
         self.table_view.resizeColumnsToContents()
+
+
+        _ = self.table_view.selectionModel()
+        _.selectionChanged.connect(self.selected_model_changed)
 
         hbox_parent.addWidget(self.table_view)
 
@@ -224,6 +231,11 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.combo_continuum.setMaximumSize(QtCore.QSize(60, 16777215))
         grid_common.addWidget(self.combo_continuum, 1, 3, 1, 1)
 
+
+        for i in range(10):
+            self.combo_continuum.addItem("{:.0f}".format(i))
+
+
         self.checkbox_vrad_tolerance = QtGui.QCheckBox(self.tab_common)
         self.checkbox_vrad_tolerance.setText("")
         grid_common.addWidget(self.checkbox_vrad_tolerance, 2, 0, 1, 1)
@@ -259,6 +271,8 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.combo_profile = QtGui.QComboBox(self.tab_profile)
         grid_profile.addWidget(self.combo_profile, 0, 3, 1, 1)
 
+        for each in ("Gaussian", "Lorentzian", "Voigt"):
+            self.combo_profile.addItem(each)
 
         label = QtGui.QLabel(self.tab_profile)
         label.setText("Detection sigma for nearby absorption lines")
@@ -396,9 +410,183 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.mpl_axis.yaxis.set_major_locator(MaxNLocator(5))
         self.mpl_figure.draw()
 
+        # Select the first entry.
+        self.table_view.selectRow(0)
+
+        # Connect signals.
+        # Common options.
+        self.edit_window.textChanged.connect(self.update_edit_window)
+        self.checkbox_continuum.stateChanged.connect(
+            self.clicked_checkbox_continuum)
+        self.combo_continuum.currentIndexChanged.connect(
+            self.update_continuum_order)
+        self.checkbox_vrad_tolerance.stateChanged.connect(
+            self.clicked_checkbox_vrad_tolerance)
+        self.edit_vrad_tolerance.textChanged.connect(
+            self.update_vrad_tolerance)
+
+
+    def update_edit_window(self):
+        """ The window value has been updated. """
+
+        model = self._get_selected_model()
+        model.metadata["window"] = float(self.edit_window.text())
         return None
 
 
+    def clicked_checkbox_continuum(self):
+        """ The checkbox for modeling the continuum was clicked. """
+
+        if self.checkbox_continuum.isChecked():
+            self.combo_continuum.setEnabled(True)
+            self.update_continuum_order()
+        else:
+            self._get_selected_model().metadata["continuum_order"] = -1
+            self.combo_continuum.setEnabled(False)
+
+        return None
+
+
+    def update_continuum_order(self):
+        """ The continuum order to use in model fitting was changed. """
+
+        self._get_selected_model().metadata["continuum_order"] \
+            = int(self.combo_continuum.currentText())
+        return None
+
+
+    def clicked_checkbox_vrad_tolerance(self):
+        """ The checkbox for velocity tolerance was clicked. """
+
+        is self.checkbox_vrad_tolerance.isChecked():
+            self.update_vrad_tolerance.setEnabled(True)
+            self.update_vrad_tolerance()
+        else:
+            self.update_vrad_tolerance.setEnabled(False)
+            self._get_selected_model().metadata["velocity_tolerance"] = None
+        return None
+
+
+    def update_vrad_tolerance(self):
+        """ The tolerance on radial velocity was updated. """
+
+        self._get_selected_model().metadata["velocity_tolerance"] \
+            = float(self.update_vrad_tolerance.text())
+        return None
+
+
+
+    def _get_selected_model(self):
+        index = self.table_view.selectionModel().selectedRows()[0].row()
+        return self.spectral_models[index]
+
+
+    def selected_model_changed(self):
+        """
+        Populate the widgets because the selected spectral model has changed.
+        """
+
+        try:
+            selected_model = self._get_selected_model()
+        except IndexError:
+            return None
+
+
+
+        # Common model.
+        self.edit_window.setText("{}".format(selected_model.metadata["window"]))
+
+        # Continuum order.
+        continuum_order = selected_model.metadata["continuum_order"]
+        if continuum_order < 0:
+            self.checkbox_continuum.setChecked(False)
+            self.combo_continuum.setEnabled(False)
+        else:
+            self.checkbox_continuum.setChecked(True)
+            self.combo_continuum.setEnabled(True)
+            self.combo_continuum.setCurrentIndex(continuum_order)
+
+        # Radial velocity tolerance.
+        vrad_tolerance = selected_model.metadata.get("velocity_tolerance", None)
+        if vrad_tolerance is None:
+            self.checkbox_vrad_tolerance.setChecked(False)
+            self.edit_vrad_tolerance.setEnabled(False)
+        else:
+            self.checkbox_vrad_tolerance.setChecked(True)
+            self.edit_vrad_tolerance.setEnabled(True)
+            self.edit_vrad_tolerance.setText("{}".format(vrad_tolerance))
+
+        # Profile options.
+        profile_items = (
+            self.combo_profile,
+            self.edit_detection_sigma,
+            self.edit_detection_pixels,
+            self.checkbox_use_central_weighting,
+            self.checkbox_wavelength_tolerance,
+            self.edit_wavelength_tolerance,
+        )
+        if isinstance(selected_model, ProfileFittingModel):
+
+            # Set them as enabled.
+            for item in profile_items:
+                item.setEnabled(True)
+
+            self.combo_profile.setCurrentIndex(
+                ["gaussian", "lorentzian", "voight"].index(
+                    selected_model.metadata["profile"]))
+
+            self.edit_detection_sigma.setText("{}".format(
+                selected_model.metadata["detection_sigma"]))
+            self.edit_detection_pixels.setText("{}".format(
+                selected_model.metadata["detection_pixels"]))
+
+            self.checkbox_use_central_weighting.setEnabled(
+                selected_model.metadata["central_weighting"])
+
+            tolerance = selected_model.metadata.get("wavelength_tolerance", None)
+            if tolerance is None:
+                self.checkbox_wavelength_tolerance.setEnabled(False)
+            else:
+                self.checkbox_wavelength_tolerance.setEnabled(True)
+                self.edit_wavelength_tolerance.setText(
+                    "{}".format(tolerance))
+
+        else:
+            # Set them as disabled.
+            for item in profile_items:
+                item.setEnabled(False)
+
+        
+        # Synthesis options.
+        synthesis_items = (
+            self.edit_initial_abundance_bound,
+            self.check_model_smoothing,
+            self.edit_smoothing_bound,
+            self.btn_specify_abundances,
+        )
+        if isinstance(selected_model, SpectralSynthesisModel):
+            for item in synthesis_items:
+                item.setEnabled(True)
+
+            # Update widgets.
+            self.edit_initial_abundance_bound.setText(
+                "{}".format(selected_model.metadata["initial_abundance_bounds"]))
+            
+            self.check_model_smoothing.setEnabled(
+                selected_model.metadata["smoothing_kernel"])
+
+            # TODO: sigma smooth.
+
+        else:
+            for item in synthesis_items:
+                item.setEnabled(False)
+
+
+        # Update figure view.
+
+
+
+    # Triggers for all updates.
 
 
 if __name__ == "__main__":
@@ -433,6 +621,12 @@ if __name__ == "__main__":
             spectral_models.ProfileFittingModel(
                 session,
                 session.metadata["line_list"]["hash"][[i]]))
+
+    session.metadata["spectral_models"].append(
+        spectral_models.SpectralSynthesisModel(
+            session,
+            session.metadata["line_list"]["hash"][[i+1]],
+            "Fe"))
 
     print("opening")
     try:
