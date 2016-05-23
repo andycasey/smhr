@@ -157,7 +157,7 @@ class SpectralModelsDialog(QtGui.QDialog):
                 spectral_model.use_for_stellar_composition_inference):
                 self.spectral_models.append(spectral_model)
 
-        self.setGeometry(800, 500, 800, 500)
+        self.setGeometry(1000, 500, 1000, 500)
         self.move(QtGui.QApplication.desktop().screen().rect().center() \
             - self.rect().center())
         self.setWindowTitle("Fit spectral models")
@@ -171,13 +171,17 @@ class SpectralModelsDialog(QtGui.QDialog):
         hbox_parent = QtGui.QHBoxLayout(self)
 
         self.table_view = QtGui.QTableView(self)
-        self.table_view.setMinimumSize(QtCore.QSize(0, 0))
-        self.table_view.setMaximumSize(QtCore.QSize(16777215, 16777215))
+        self.table_view.setMinimumSize(QtCore.QSize(450, 0))
+        self.table_view.setMaximumSize(QtCore.QSize(450, 16777215))
         self.table_view.setModel(SpectralModelsTableModel(self))
         self.table_view.setSelectionBehavior(
             QtGui.QAbstractItemView.SelectRows)
         self.table_view.setSortingEnabled(True)
         self.table_view.resizeColumnsToContents()
+        self.table_view.setColumnWidth(0, 30)
+        self.table_view.setColumnWidth(1, 80)
+
+        self.table_view.horizontalHeader().setStretchLastSection(True)
 
 
         _ = self.table_view.selectionModel()
@@ -430,15 +434,19 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.mpl_axis.set_ylabel("Normalized flux")
         self.mpl_axis.xaxis.set_major_locator(MaxNLocator(5))
         self.mpl_axis.yaxis.set_major_locator(MaxNLocator(5))
+        self.mpl_axis.xaxis.get_major_formatter().set_useOffset(False)
         self.mpl_figure.draw()
 
         # Select the first entry.
-        self.table_view.selectRow(0)
         self.spectral_models[0].fit()
+        self.table_view.selectRow(0)
 
         # TODO: AND CUSTOM TEXT REPRS TO SHOW UNITS
 
         # Connect signals.
+        self.btn_save_as_default.clicked.connect(self.clicked_save_as_default)
+        self.btn_apply_to_all.clicked.connect(self.clicked_apply_to_all)
+
         # Common options.
         self.edit_window.textChanged.connect(self.update_edit_window)
         self.checkbox_continuum.stateChanged.connect(
@@ -481,6 +489,16 @@ class SpectralModelsDialog(QtGui.QDialog):
             "button_release_event", self.figure_mouse_release)
 
         return None
+
+
+    def clicked_save_as_default(self):
+        """ The 'Save as default' button has been clicked. """
+        raise NotImplementedError
+
+
+    def clicked_apply_to_all(self):
+        """ The 'Apply to all models' button has been clicked. """
+        raise NotImplementedError
 
 
     def update_edit_window(self):
@@ -674,10 +692,23 @@ class SpectralModelsDialog(QtGui.QDialog):
                     break
 
             else:
-                # No match with a masked region. Add a point that will be used
-                # for the determination of continuum.
-                # TODO
-                None
+                # No match with a masked region. 
+
+                # TODO: Add a point that will be used for the continuum?
+
+                # For the moment just refit the model.
+                spectral_model.fit()
+
+                # Update the table view for this row.
+                table_model = self.table_view.model()
+                table_model.dataChanged.emit(
+                    table_model.createIndex(index, 0),
+                    table_model.createIndex(
+                        index, table_model.columnCount(0)))
+
+                # Update the view of the current model.
+                self.redraw_figure()
+                return None
 
         else:
             # Single click.
