@@ -9,7 +9,6 @@ from __future__ import (division, print_function, absolute_import,
 import numpy as np
 import os
 import sys
-import yaml
 from PySide import QtCore, QtGui
 
 from matplotlib import (gridspec, pyplot as plt)

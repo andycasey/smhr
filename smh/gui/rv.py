@@ -9,13 +9,16 @@ from __future__ import (division, print_function, absolute_import,
 import numpy as np
 import os
 import sys
-import yaml
 from PySide import QtCore, QtGui
+from six import string_types
 
 import mpl
 from matplotlib import (gridspec, pyplot as plt)
 
 from smh import (Session, specutils)
+
+import logging
+logger = logging.getLogger(__name__)
 
 __all__ = ["RVTab"]
 
@@ -468,20 +471,34 @@ class RVTab(QtGui.QWidget):
         Populate widgets with values from the current SMH session, or the
         default SMH settings file.
         """
+        if self.parent.session is None:
+            return None
+        defaults = self.parent.session.metadata["rv"]
 
+        # The cache allows us to store things that won't necessarily go into the
+        # session, but will update views, etc. For example, previewing continua
+        # before actually using it in cross-correlation, etc.
+        self._cache = {
+            "input": defaults.copy()
+        }
 
-
-        # TODO: Put the default I/O somewhere else since it will be common to many
-        #       tabs.
-        with open(Session._default_settings_path, "rb") as fp:
-            defaults = yaml.load(fp)["rv"]
+        # Wavelength regions should just be a single range.
+        self._cache["input"]["wavelength_region"] \
+            = self._cache["input"]["wavelength_regions"][0]
+        del self._cache["input"]["wavelength_regions"]
 
         # Template filename.
         self.template_path.setReadOnly(False)
-        self.template_path.setText(defaults["template_spectrum"])
+        if isinstance(defaults["template_spectrum"], string_types):
+            self.template_path.setText(defaults["template_spectrum"])
+        else:
+            self.template_path.setText(defaults["template_spectrum_name"])
         self.template_path.setReadOnly(True)
 
         # Wavelength regions.
+        # Clear combo box (triggers self.update_wl_region(), be careful)
+        for i in range(self.wl_region.count()):
+            self.wl_region.removeItem(0)
         for each in defaults["wavelength_regions"]:
             self.wl_region.addItem(u"{0:.0f}-{1:.0f} Å".format(*each))
 
@@ -513,17 +530,6 @@ class RVTab(QtGui.QWidget):
         self.norm_knot_spacing.setText(
             str(defaults["normalization"]["knot_spacing"]))
 
-        # The cache allows us to store things that won't necessarily go into the
-        # session, but will update views, etc. For example, previewing continua
-        # before actually using it in cross-correlation, etc.
-        self._cache = {
-            "input": defaults.copy()
-        }
-
-        # Wavelength regions should just be a single range.
-        self._cache["input"]["wavelength_region"] \
-            = self._cache["input"]["wavelength_regions"][0]
-        del self._cache["input"]["wavelength_regions"]
         return None
 
 
@@ -740,6 +746,8 @@ class RVTab(QtGui.QWidget):
     def update_from_new_session(self):
 
         # Update cache.
+        self._populate_widgets()
+
         # Update plots.
 
         self.draw_template()

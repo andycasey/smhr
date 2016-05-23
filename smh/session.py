@@ -278,6 +278,7 @@ class Session(BaseSession):
 
         # Is the template spectrum actually a filename?
         if isinstance(template_spectrum, string_types):
+            self.metadata["rv"]["template_spectrum_name"] = template_spectrum
             template_spectrum = specutils.Spectrum1D.read(template_spectrum,
                 debug=True)
 
