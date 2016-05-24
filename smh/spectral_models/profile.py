@@ -544,18 +544,15 @@ class ProfileFittingModel(BaseSpectralModel):
 
         # Fixed Issue #38
         transitions = self.transitions.copy()
-        # There is only ONE transition for profile fits
         assert len(transitions)==1,len(transitions)
-        transitions['equivalent_width'] = self.metadata["fitted_result"][2]["equivalent_width"][0]
-        abundance = self.session.rt.abundance_cog(
+        # A to mA
+        transitions['equivalent_width'] = 1000.*self.metadata["fitted_result"][2]["equivalent_width"][0]
+        abundances = self.session.rt.abundance_cog(
             self.session.stellar_photosphere,
             transitions)
-        assert len(abundance)==1,abundance
-        abundance = abundance[0]
-        self.metadata["abundance"] = abundance
-        return abundance
-        #raise NotImplementedError
-
+        assert len(abundances)==1,abundances
+        self.metadata["fitted_result"][2]["abundances"] = abundances
+        return abundances
 
 if __name__ == "__main__":
 

@@ -408,3 +408,18 @@ class Session(BaseSession):
 
         return photosphere
 
+
+    def optimize_stellar_parameters(self, **kwargs):
+        """
+        Optimize the stellar parameters for this star using the spectral models
+        associated with stellar parameter inference.
+        """
+
+        # Get the list of relevant spectral models.
+
+        # Any synth?
+        # raise NotImplementedError yet.
+
+        # interpolator, do obj. function
+
+        raise NotImplementedError

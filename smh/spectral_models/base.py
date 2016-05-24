@@ -105,14 +105,6 @@ class BaseSpectralModel(object):
 
         return self._session.metadata["line_list"][indices]
 
-    @property
-    def abundance(self):
-        try:
-            return self.metadata["abundance"]
-        except KeyError:
-            logger.info("Calculating abundance")
-        return self.abundances()
-
     def _index_transitions(self):
         """
         Index the transitions to the parent session.

@@ -170,6 +170,8 @@ class LineListTableView(QtGui.QTableView):
 
         spectral_models_to_add = []
         transitions = self.import_from_filename()
+        if transitions is None: return None
+
         N = len(transitions)
         for index in range(N):
             spectral_models_to_add.append(
@@ -197,6 +199,8 @@ class LineListTableView(QtGui.QTableView):
         """
 
         transitions = self.import_from_filename()
+        if transitions is None: return None
+
         spectral_model = SpectralSynthesisModel(self.session, 
             transitions["hash"], transitions.unique_elements)
 

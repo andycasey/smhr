@@ -95,3 +95,39 @@ def fill_between_steps(ax, x, y1, y2=0, h_align='mid', **kwargs):
 
     # now to the plotting part:
     return ax.fill_between(xx, y1, y2=y2, **kwargs)
+
+
+
+
+def relim_axes(ax, percent=0.05):
+    """
+    Generate new axes for a matplotlib axes based on the collections present.
+
+    :param axes:
+        The matplotlib axes.
+
+    :param percent: [optional]
+        The percent of the data to extend past the minimum and maximum data
+        points.
+
+    :returns:
+        A two-length tuple containing the lower and upper limits in the x- and
+        y-axis, respectively.
+    """
+
+
+    data = np.array([collection.get_offsets() for collection in ax.collections])
+    data = data.reshape(-1, 2)
+    x, y = data[:,0], data[:, 1]
+
+    xlim = [
+        np.min(x) - np.ptp(x) * percent,
+        np.max(x) + np.ptp(x) * percent,
+    ]
+    ylim = [
+        np.min(y) - np.ptp(y) * percent,
+        np.max(y) + np.ptp(y) * percent
+    ]
+    
+    return (xlim, ylim)
+

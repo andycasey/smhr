@@ -11,7 +11,7 @@ from PySide import QtCore, QtGui
 import yaml
 
 # Import functionality related to each tab
-import rv, normalization, summary, stellar_parameters, lines
+import rv, normalization, summary, stellar_parameters
 
 # Functions related to warnings and exceptions.
 import exception
@@ -144,6 +144,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.summary_tab._populate_widgets()
         self.rv_tab.update_from_new_session()
         self.normalization_tab._populate_widgets()
+        self.stellar_parameters_tab.populate_widgets()
 
         self._update_window_title()
 
@@ -223,9 +224,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
         window = TransitionsDialog(self.session)
         window.exec_()
 
-        # Update the spectral models view in the various tabs.
-        self.line_measurements_tab._spectral_models_updated()
-
         return None
 
 
@@ -274,11 +272,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.normalization_tab = normalization.NormalizationTab(self)
         self.tabs.addTab(self.normalization_tab, "Normalization")
 
-        # Create tab for measuring lines (spectral models) that will be used in
-        # the determination of stellar parameters.
-        self.line_measurements_tab = lines.MeasureLinesTab(self)
-        self.tabs.addTab(self.line_measurements_tab, "Line measurements")
-
         # Create stellar parameters tab.
         self.stellar_parameters_tab \
             = stellar_parameters.StellarParametersTab(self)
@@ -292,8 +285,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
             self.tabs.addTab(tab, tab_name)
         
         # Disable all tabs except the first one.
-        for i in range(self.tabs.count()):
-            self.tabs.setTabEnabled(i, i == 0)
+        #for i in range(self.tabs.count()):
+        #    self.tabs.setTabEnabled(i, i == 0)
 
         cw_vbox.addWidget(self.tabs)
         self.setCentralWidget(cw)

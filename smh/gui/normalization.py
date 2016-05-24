@@ -377,7 +377,6 @@ class NormalizationTab(QtGui.QWidget):
         # Enable the next two tabs (line measurements and stellar parameters).
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 1, True)
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 2, True)
-        self.parent.line_measurements_tab._spectral_models_updated()
 
         return None
 
