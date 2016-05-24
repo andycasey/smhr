@@ -303,9 +303,13 @@ class Session(BaseSession):
         try:
             v_helio, v_bary = specutils.motions.corrections_from_headers(
                 overlap_order.metadata)
-        except:
-            logger.exception(
+        except Exception as e:
+            # TODO not raising an exception for testing purposes, but may want to
+            #logger.exception(
+            #    "Exception in calculating heliocentric and barycentric motions")
+            logger.error(
                 "Exception in calculating heliocentric and barycentric motions")
+            logger.error(e)
             v_helio, v_bary = (np.nan, np.nan)
 
         else:

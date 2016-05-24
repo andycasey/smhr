@@ -270,8 +270,7 @@ class Spectrum1D(object):
 
             flux = image[0].data
             if len(image) == 1:
-                # HACK TODO: Issue 4
-                ivar = np.nan * np.ones_like(flux)
+                ivar = np.ones_like(flux)
             else:
                 ivar = image[1].data
 
