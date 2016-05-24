@@ -5,7 +5,7 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
-__all__ = ["wavelength_to_hex"]
+__all__ = ["wavelength_to_hex", "relim_axes", "fill_between_steps"]
 
 import numpy as np
 
@@ -117,6 +117,9 @@ def relim_axes(ax, percent=0.05):
 
 
     data = np.array([collection.get_offsets() for collection in ax.collections])
+    if data.size == 0:
+        return (None, None)
+    
     data = data.reshape(-1, 2)
     x, y = data[:,0], data[:, 1]
 

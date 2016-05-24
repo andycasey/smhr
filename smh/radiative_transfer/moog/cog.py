@@ -95,7 +95,7 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
 
     if full_output:
         raise NotImplementedError
-        return (transitions_array[:, -2], linear_fits)
+        return (transitions_array, linear_fits)
     
     return transitions_array[:, -2]
     
@@ -165,6 +165,6 @@ def _parse_abfind_summary(summary_out_path):
                 = map(float, [value.replace('D-', 'E-') for value in \
                     [line[4], line[7], line[11]]])
             
-    transitions_array = np.array(abundances, dtype=np.float)
+    transitions_array = np.array(abundances, dtype=np.float).reshape((-1, 8))
 
     return (transitions_array, moog_slopes)
