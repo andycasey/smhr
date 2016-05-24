@@ -46,6 +46,9 @@ class AbundTreeView(QtGui.QTreeView):
         super(AbundTreeView, self).__init__(parent, *args)
         self.session = session
         self._parent = parent
+        font = QtGui.QFont("Monospace")
+        font.setStyleHint(QtGui.QFont.TypeWriter)
+        self.setFont(font)
     def span_cols(self):
         for i in range(len(self.model().summaries)):
             self.setFirstColumnSpanned(i,self.rootIndex(), True)
