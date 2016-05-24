@@ -256,7 +256,7 @@ class ProfileFittingModel(BaseSpectralModel):
 
     def fit(self, spectrum=None, **kwargs):
         """
-        Fit an asborption profile to the transition in the spectrum.
+        Fit an absorption profile to the transition in the spectrum.
 
         :param spectrum: [optional]
             The observed spectrum to fit the profile transition model. If None
@@ -495,6 +495,7 @@ class ProfileFittingModel(BaseSpectralModel):
         }
 
         # Update the equivalent width in the transition.
+        # TODO BUG for some reason the LineList is not updating....
         self.transitions["equivalent_width"] = ew
 
         # Convert p_opt to ordered dictionary
@@ -543,8 +544,9 @@ class ProfileFittingModel(BaseSpectralModel):
 
         foo = self.session.rt.abundance_cog(
             self.session.stellar_photosphere,
-            self.transition)
+            self.transitions)
 
+        print(foo)
         raise NotImplementedError
 
 

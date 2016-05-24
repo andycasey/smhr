@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 with resource_stream(__name__, "defaults.yaml") as fp:
     _moog_defaults = yaml.load(fp)
 
+class MOOGError(BaseException):
+    pass
+
 def abundance_cog(photosphere, transitions, verbose=False, **kwargs):
     """
     Calculate atomic line abundances by interpolating the measured 
@@ -49,6 +52,7 @@ def abundance_cog(photosphere, transitions, verbose=False, **kwargs):
     photosphere.write(model_in, format="moog")
 
     # Write out the transitions.
+    # Note that this must write out the EW too
     transitions.write(lines_in, format="moog")
     
     # Load the abfind driver template.
@@ -64,7 +68,7 @@ def abundance_cog(photosphere, transitions, verbose=False, **kwargs):
             "lines": 3, # 4 is max verbosity, but MOOG falls over.
         })
 
-    # Isotopes formatted
+    # No isotopes here
 
     # Parse keyword arguments.
     kwds.update(kwargs)
@@ -86,18 +90,35 @@ def abundance_cog(photosphere, transitions, verbose=False, **kwargs):
     code, out, err = utils.moogsilent(moog_in, **kwargs)
 
     # Returned normally?
-    assert code == 0 # HACK # TODO
+    if code != 0:
+        logger.error("MOOG returned the following standard output:")
+        logger.error(out)
+        logger.error("MOOG returned the following errors (code: {0:d}):".format(code))
+        logger.error(err)
+        logger.exception(MOOGError(err))
+    else:
+        logger.info("MOOG executed {0} successfully".format(moog_in))
+        #logger.info("Standard output:")
+        #logger.info(strip_control_characters(out))
+        #logger.info("Standard error:")
+        #logger.info(err.rstrip())
 
     # Parse the output.
     transitions_array, linear_fits = _parse_abfind_summary(kwds["summary_out"])
 
     # Match transitions. Check for anything missing.
+    print(transitions_array)
+    print(linear_fits)
 
     # Return abundances w.r.t. the inputs.
 
     raise NotImplementedError
 
 
+def strip_control_characters(out):
+    for x in np.unique(re.findall(r"\x1b\[K|\x1b\[\d+;1H",out)):
+        out = out.replace(x,'')
+    return out
 
 def _parse_abfind_summary(summary_out_path):
     """
