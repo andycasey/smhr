@@ -14,6 +14,7 @@ import numpy as np
 import sys
 from PySide import QtCore, QtGui
 from matplotlib.ticker import MaxNLocator
+from time import time
 
 import mpl, style_utils
 from smh.photospheres import available as available_photospheres
@@ -32,6 +33,9 @@ if sys.platform == "darwin":
     for substitute in substitutes:
         QtGui.QFont.insertSubstitution(*substitute)
 
+
+DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
+PICKER_TOLERANCE = 10 # MAGIC HACK
 
 
 class StellarParametersTab(QtGui.QWidget):
@@ -120,9 +124,10 @@ class StellarParametersTab(QtGui.QWidget):
         # Buttons for solving/measuring.        
         hbox = QtGui.QHBoxLayout()
         self.btn_measure = QtGui.QPushButton(self)
-        self.btn_measure.setAutoDefault(False)
+        self.btn_measure.setAutoDefault(True)
         self.btn_measure.setDefault(True)
         self.btn_measure.setText("Measure")
+
         hbox.addWidget(self.btn_measure)
 
         self.btn_options = QtGui.QPushButton(self)
@@ -183,37 +188,45 @@ class StellarParametersTab(QtGui.QWidget):
         gs_bottom.update(hspace=0)
 
         self.ax_excitation = self.figure.figure.add_subplot(gs_top[0])
-        self.ax_excitation.scatter([], [], facecolor="k")
+        self.ax_excitation.scatter([], [], 
+            s=30, facecolor="#CCCCCC", edgecolor="k", picker=PICKER_TOLERANCE)
+        self.ax_excitation.legend()
+
         self.ax_excitation.xaxis.get_major_formatter().set_useOffset(False)
         self.ax_excitation.yaxis.set_major_locator(MaxNLocator(5))
-        self.ax_excitation.yaxis.set_major_locator(MaxNLocator(3))
+        self.ax_excitation.yaxis.set_major_locator(MaxNLocator(4))
         self.ax_excitation.set_xlabel("Excitation potential (eV)")
-        self.ax_excitation.set_ylabel("[X/M]")
+        self.ax_excitation.set_ylabel("[X/H]") #TODO: X/M
 
         self.ax_line_strength = self.figure.figure.add_subplot(gs_top[1])
-        self.ax_line_strength.scatter([], [], facecolor="k")
+        self.ax_line_strength.scatter([], [],
+            s=30, facecolor="#CCCCCC", edgecolor="k", picker=PICKER_TOLERANCE)
         self.ax_line_strength.xaxis.get_major_formatter().set_useOffset(False)
         self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(5))
-        self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(3))
+        self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(4))
         self.ax_line_strength.set_xlabel(r"$\log({\rm EW}/\lambda)$")
-        self.ax_line_strength.set_ylabel("[X/M]")
+        self.ax_line_strength.set_ylabel("[X/H]") # TODO: X/M
 
         self.ax_residual = self.figure.figure.add_subplot(gs_bottom[2])
         self.ax_residual.axhline(0, c="#666666")
         self.ax_residual.xaxis.set_major_locator(MaxNLocator(5))
         self.ax_residual.yaxis.set_major_locator(MaxNLocator(2))
         self.ax_residual.set_xticklabels([])
-        self.ax_residual.set_ylabel(r"$\Delta$")
 
         self.ax_spectrum = self.figure.figure.add_subplot(gs_bottom[3])
         self.ax_spectrum.xaxis.get_major_formatter().set_useOffset(False)
         self.ax_spectrum.xaxis.set_major_locator(MaxNLocator(5))
-        self.ax_spectrum.yaxis.set_major_locator(MaxNLocator(3))
         self.ax_spectrum.set_xlabel(u"Wavelength (Å)")
         self.ax_spectrum.set_ylabel(r"Normalized flux")
 
         # Some empty figure objects that we will use later.
         self._lines = {
+            "selected_point": [
+                self.ax_excitation.scatter([], [],
+                    edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=2),
+                self.ax_line_strength.scatter([], [],
+                    edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=2)
+            ],
             "spectrum": None,
             "transitions_center_main": self.ax_spectrum.axvline(
                 np.nan, c="#666666", linestyle=":"),
@@ -222,7 +235,15 @@ class StellarParametersTab(QtGui.QWidget):
             "model_masks": [],
             "nearby_lines": [],
             "model_fit": self.ax_spectrum.plot([], [], c="r")[0],
-            "model_residual": self.ax_residual.plot([], [], c="k")[0]
+            "model_residual": self.ax_residual.plot([], [], c="k")[0],
+            "interactive_mask": [
+                self.ax_spectrum.axvspan(xmin=np.nan, xmax=np.nan, ymin=np.nan,
+                    ymax=np.nan, facecolor="r", edgecolor="none", alpha=0.25,
+                    zorder=-5),
+                self.ax_residual.axvspan(xmin=np.nan, xmax=np.nan, ymin=np.nan,
+                    ymax=np.nan, facecolor="r", edgecolor="none", alpha=0.25,
+                    zorder=-5)
+            ]
         }
 
 
@@ -232,6 +253,16 @@ class StellarParametersTab(QtGui.QWidget):
         self.btn_measure.clicked.connect(self.measure_abundances)
         self.btn_options.clicked.connect(self.options)
         self.btn_solve.clicked.connect(self.solve_parameters)
+        self.edit_teff.returnPressed.connect(self.btn_measure.clicked)
+        self.edit_logg.returnPressed.connect(self.btn_measure.clicked)
+        self.edit_metallicity.returnPressed.connect(self.btn_measure.clicked)
+        self.edit_xi.returnPressed.connect(self.btn_measure.clicked)
+
+        # Connect matplotlib.
+        self.figure.mpl_connect("button_press_event", self.figure_mouse_press)
+        self.figure.mpl_connect("button_release_event", self.figure_mouse_release)
+        self.figure.figure.canvas.callbacks.connect(
+            "pick_event", self.figure_mouse_pick)
 
         return None
 
@@ -254,6 +285,206 @@ class StellarParametersTab(QtGui.QWidget):
             widget.setText(format.format(metadata[key]))
 
         return None
+
+
+    def figure_mouse_pick(self, event):
+        """
+        Trigger for when the mouse is used to select an item in the figure.
+
+        :param event:
+            The matplotlib event.
+        """
+
+        # Select the row. That will trigger the rest.
+        self.table_view.selectRow(self._spectral_model_indices[event.ind[0]])
+        return None
+
+
+    def figure_mouse_press(self, event):
+        """
+        Trigger for when the mouse button is pressed in the figure.
+
+        :param event:
+            The matplotlib event.
+        """
+
+        if event.inaxes in (self.ax_residual, self.ax_spectrum):
+            self.spectrum_axis_mouse_press(event)
+        return None
+
+
+    def figure_mouse_release(self, event):
+        """
+        Trigger for when the mouse button is released in the figure.
+
+        :param event:
+            The matplotlib event.
+        """
+
+        if event.inaxes in (self.ax_residual, self.ax_spectrum):
+            self.spectrum_axis_mouse_release(event)
+        return None
+
+
+    def spectrum_axis_mouse_press(self, event):
+        """
+        The mouse button was pressed in the spectrum axis.
+
+        :param event:
+            The matplotlib event.
+        """
+
+        if event.dblclick:
+
+            # Double click.
+            spectral_model, index = self._get_selected_model(True)
+            for i, (s, e) in enumerate(spectral_model.metadata["mask"][::-1]):
+                if e >= event.xdata >= s:
+
+                    mask = spectral_model.metadata["mask"]
+                    index = len(mask) - 1 - i
+                    del mask[index]
+
+                    # Re-fit the current spectral_model.
+                    spectral_model.fit()
+
+                    # Update the table view for this row.
+                    table_model = self.table_view.model()
+                    table_model.dataChanged.emit(
+                        table_model.createIndex(index, 0),
+                        table_model.createIndex(
+                            index, table_model.columnCount(0)))
+
+                    # Update the view of the current model.
+                    self.update_spectrum_figure()
+                    break
+
+            else:
+                # No match with a masked region. 
+
+                # TODO: Add a point that will be used for the continuum?
+
+                # For the moment just refit the model.
+                spectral_model.fit()
+
+                # Update the table view for this row.
+                table_model = self.table_view.model()
+                table_model.dataChanged.emit(
+                    table_model.createIndex(index, 0),
+                    table_model.createIndex(
+                        index, table_model.columnCount(0)))
+
+                # Update the view of the current model.
+                self.update_spectrum_figure()
+                return None
+
+        else:
+            # Single click.
+            xmin, xmax, ymin, ymax = (event.xdata, np.nan, -1e8, +1e8)
+            for patch in self._lines["interactive_mask"]:
+                patch.set_xy([
+                    [xmin, ymin],
+                    [xmin, ymax],
+                    [xmax, ymax],
+                    [xmax, ymin],
+                    [xmin, ymin]
+                ])
+
+            # Set the signal and the time.
+            self._interactive_mask_region_signal = (
+                time(),
+                self.figure.mpl_connect(
+                    "motion_notify_event", self.update_mask_region)
+            )
+
+        return None
+
+
+    def update_mask_region(self, event):
+        """
+        Update the visible selected masked region for the selected spectral
+        model. This function is linked to a callback for when the mouse position
+        moves.
+
+        :para event:
+            The matplotlib motion event to show the current mouse position.
+        """
+
+        if event.xdata is None: return
+
+        signal_time, signal_cid = self._interactive_mask_region_signal
+        if time() - signal_time > DOUBLE_CLICK_INTERVAL:
+
+            data = self._lines["interactive_mask"][0].get_xy()
+
+            # Update xmax.
+            data[2:4, 0] = event.xdata
+            for patch in self._lines["interactive_mask"]:
+                patch.set_xy(data)
+
+            self.figure.draw()
+
+        return None
+
+
+
+    def spectrum_axis_mouse_release(self, event):
+        """
+        Mouse button was released from the spectrum axis.
+
+        :param event:
+            The matplotlib event.
+        """
+
+        try:
+            signal_time, signal_cid = self._interactive_mask_region_signal
+
+        except AttributeError:
+            return None
+
+        xy = self._lines["interactive_mask"][0].get_xy()
+
+        if event.xdata is None:
+            # Out of axis; exclude based on the closest axis limit
+            xdata = xy[2, 0]
+        else:
+            xdata = event.xdata
+
+
+        # If the two mouse events were within some time interval,
+        # then we should not add a mask because those signals were probably
+        # part of a double-click event.
+        if  time() - signal_time > DOUBLE_CLICK_INTERVAL \
+        and np.abs(xy[0,0] - xdata) > 0:
+            
+            # Get current spectral model.
+            spectral_model, index = self._get_selected_model(True)
+
+            # Add mask metadata.
+            spectral_model.metadata["mask"].append([xy[0,0], xy[2, 0]])
+
+            # Re-fit the spectral model.
+            spectral_model.fit()
+
+            # Update the table view for this row.
+            table_model = self.table_view.model()
+            table_model.dataChanged.emit(
+                table_model.createIndex(index, 0),
+                table_model.createIndex(
+                    index, table_model.columnCount(0)))
+
+            # Update the view of the spectral model.
+            self.update_spectrum_figure()
+
+        xy[:, 0] = np.nan
+        for patch in self._lines["interactive_mask"]:
+            patch.set_xy(xy)
+
+        self.figure.mpl_disconnect(signal_cid)
+        self.figure.draw()
+        del self._interactive_mask_region_signal
+        return None
+
 
 
     def update_stellar_parameters(self):
@@ -327,10 +558,15 @@ class StellarParametersTab(QtGui.QWidget):
         # Collate the transitions from spectral models that are profiles.
         indices = []
         equivalent_widths = []
-        for model in self.spectral_models:
+        models = []
+        self._spectral_model_indices = []
+        for i, model in enumerate(self.spectral_models):
             if not model.is_acceptable: continue
 
+            # TODO THIS IS ALL BAD CODE.
+            self._spectral_model_indices.append(i)
             indices.extend(model._transition_indices)
+            models.append(model)
             equivalent_widths.append(
                 1e3 * model.metadata["fitted_result"][2]["equivalent_width"][0])
         indices = np.array(indices)
@@ -342,7 +578,6 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Update the session with the stellar parameters in the GUI.
         self.update_stellar_parameters()
-
 
         # Calculate abundances.
         abundances = self.parent.session.rt.abundance_cog(
@@ -360,8 +595,17 @@ class StellarParametersTab(QtGui.QWidget):
         style_utils.relim_axes(self.ax_excitation)
         style_utils.relim_axes(self.ax_line_strength)
 
-        self.figure.draw()
+        for model, abundance in zip(models, abundances):
+            model.metadata["fitted_result"][-1]["abundances"] = [abundance]
 
+        # Update selected entries.
+        for collection in self._lines["selected_point"]:
+            collection.set_offsets(np.array([np.nan, np.nan]).T)
+
+        # Update table view model.
+        self.table_view.model().reset()
+
+        self.figure.draw()
 
         return None
 
@@ -378,9 +622,34 @@ class StellarParametersTab(QtGui.QWidget):
         """
 
         # Show point on excitation/line strength plot.
+        selected_model = self._get_selected_model()
+        try:
+            metadata = selected_model.metadata["fitted_result"][-1]
+            abundances = metadata["abundances"]
+            equivalent_width = metadata["equivalent_width"][0]
+
+        except (IndexError, KeyError):
+            abundances = [np.nan]
+
+        assert len(abundances) == 1
+        abundance = abundances[0]
+        if not np.isfinite(abundance):
+            excitation_potential, rew = (np.nan, np.nan)
+
+        else:
+            transitions = selected_model.transitions
+            assert len(transitions) == 1
+
+            excitation_potential = transitions["expot"][0]
+            rew = np.log10(equivalent_width/transitions["wavelength"][0])
+
+
+        point_excitation, point_strength = self._lines["selected_point"]
+        point_excitation.set_offsets(np.array([excitation_potential,
+            abundance]).T)
+        point_strength.set_offsets(np.array([rew, abundance]).T)
 
         # Show spectrum.
-
         self.update_spectrum_figure()
 
         return None
@@ -396,17 +665,21 @@ class StellarParametersTab(QtGui.QWidget):
             # Draw the spectrum.
             spectrum = self.parent.session.normalized_spectrum
             self._lines["spectrum"] = self.ax_spectrum.plot(spectrum.dispersion,
-                spectrum.flux, c="k")
+                spectrum.flux, c="k", drawstyle="steps-mid")
 
             sigma = 1.0/np.sqrt(spectrum.ivar)
             style_utils.fill_between_steps(self.ax_spectrum, spectrum.dispersion,
                 spectrum.flux - sigma, spectrum.flux + sigma, 
-                facecolor="#CCCCCC", edgecolor="None", alpha=0.5)
+                facecolor="#cccccc", edgecolor="#cccccc", alpha=1)
+
+            style_utils.fill_between_steps(self.ax_residual, spectrum.dispersion,
+                -sigma, +sigma, facecolor="#CCCCCC", edgecolor="none", alpha=1)
 
             self.ax_spectrum.set_xlim(
                 spectrum.dispersion[0], spectrum.dispersion[-1])
             self.ax_residual.set_xlim(self.ax_spectrum.get_xlim())
             self.ax_spectrum.set_ylim(0, 1.2)
+            self.ax_spectrum.set_yticks([0, 0.5, 1])
             self.ax_residual.set_ylim(-0.05, 0.05)
 
             self.figure.draw()
@@ -434,10 +707,10 @@ class StellarParametersTab(QtGui.QWidget):
         # (These should be shown regardless of whether there is a fit or not.)
         for i, (start, end) in enumerate(selected_model.metadata["mask"]):
             try:
-                patches = self._lines["model_mask"][i]
+                patches = self._lines["model_masks"][i]
 
             except IndexError:
-                self._lines["model_masks_main"].append([
+                self._lines["model_masks"].append([
                     self.ax_spectrum.axvspan(np.nan, np.nan,
                         facecolor="r", edgecolor="none", alpha=0.25),
                     self.ax_residual.axvspan(np.nan, np.nan,
@@ -480,9 +753,16 @@ class StellarParametersTab(QtGui.QWidget):
         except KeyError:
             meta = {}
             self._lines["model_fit"].set_data([], [])
-           
+            self._lines["model_residual"].set_data([], [])
+
         else:
+            assert len(meta["model_x"]) == len(meta["model_y"])
+            assert len(meta["model_x"]) == len(meta["residual"])
+            assert len(meta["model_x"]) == len(meta["model_yerr"])
+
             self._lines["model_fit"].set_data(meta["model_x"], meta["model_y"])
+            self._lines["model_residual"].set_data(meta["model_x"], 
+                meta["residual"])
 
             # Model yerr.
             if np.any(np.isfinite(meta["model_yerr"])):
@@ -506,7 +786,6 @@ class StellarParametersTab(QtGui.QWidget):
                                 facecolor="b", edgecolor="none", alpha=0.25)
                         ])
                         patches = self._lines["nearby_lines"][-1]
-
 
                     for patch in patches:                            
                         patch.set_xy([
@@ -724,24 +1003,21 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         return value
 
 
-    """
     def sort(self, column, order):
     
         self.emit(QtCore.SIGNAL("layoutAboutToBeChanged()"))
 
         def get_equivalent_width(model):
             try:
-                return "{0:.1f}".format(
-                    model.metadata["fitted_result"][-1]["equivalent_width"])
+                return model.metadata["fitted_result"][-1]["equivalent_width"][0]
             except (IndexError, KeyError):
-                return ""
+                return np.nan
 
         def get_abundance(model):
             try:
-                return "{0:.2f}".format(
-                    model.metadata["fitted_result"][-1]["abundance"])
+                return model.metadata["fitted_result"][-1]["abundances"][0]
             except (IndexError, KeyError):
-                return ""
+                return np.nan
 
         sorter = {
             0: lambda model: model.is_acceptable,
@@ -761,7 +1037,6 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
             self.createIndex(self.rowCount(0), self.columnCount(0)))
         self.emit(QtCore.SIGNAL("layoutChanged()"))
         return None
-    """
 
 
     def flags(self, index):

@@ -183,17 +183,9 @@ class LineListTableView(QtGui.QTableView):
             self.session.metadata["spectral_models"],
             self.session.metadata["line_list"])
 
-
-        
         # Update the spectral models abstract table model.
         self._parent.models_view.model().reset()
-        """
-        self._parent.models_view.model().rowsInserted.emit(
-            QtCore.QModelIndex(), 0, N-1)
-        self._parent.models_view.model().dataChanged.emit(
-            QtCore.QModelIndex(), QtCore.QModelIndex())
-        self._parent.models_view.resizeColumnsToContents()
-        """
+        return None
 
     def add_imported_lines_as_synthesis_model(self):
         """
@@ -212,16 +204,9 @@ class LineListTableView(QtGui.QTableView):
             self.session.metadata["spectral_models"],
             self.session.metadata["line_list"])
 
-        
         # Update the spectral models abstract table model.
         self._parent.models_view.model().reset()
-        """
-        self._parent.models_view.model().rowsInserted.emit(
-            QtCore.QModelIndex(), 0, 0)
-        self._parent.models_view.model().dataChanged.emit(
-            QtCore.QModelIndex(), QtCore.QModelIndex())
-        self._parent.models_view.resizeColumnsToContents()
-        """
+        return None
 
 
     def add_selected_rows_as_profile_models(self):
@@ -240,16 +225,8 @@ class LineListTableView(QtGui.QTableView):
             self.session.metadata["spectral_models"],
             self.session.metadata["line_list"])
 
-
         # Update the spectral models abstract table model.
         self._parent.models_view.model().reset()
-        """
-        self._parent.models_view.model().rowsInserted.emit(
-            QtCore.QModelIndex(), 0, len(spectral_models_to_add)-1)
-        self._parent.models_view.model().dataChanged.emit(
-            QtCore.QModelIndex(), QtCore.QModelIndex())
-        self._parent.models_view.resizeColumnsToContents()
-        """
         return None
 
 
@@ -280,13 +257,6 @@ class LineListTableView(QtGui.QTableView):
 
         # Update the spectral models abstract table model.
         self._parent.models_view.model().reset()
-        """
-        self._parent.models_view.model().rowsInserted.emit(
-            QtCore.QModelIndex(), 0, 0)
-        self._parent.models_view.model().dataChanged.emit(
-            QtCore.QModelIndex(), QtCore.QModelIndex())
-        self._parent.models_view.resizeColumnsToContents()
-        """
         return None
 
 
@@ -324,10 +294,6 @@ class LineListTableView(QtGui.QTableView):
         self.session.metadata["line_list"] \
             = self.session.metadata["line_list"][mask]
 
-        # TODO: There *must* be a better way to do this..
-        #for i, index in enumerate(np.sort(np.where(~mask)[0])):
-        #    self.model().rowsRemoved.emit(
-        #        QtCore.QModelIndex(), index - i, index - i)
         self._parent.models_view.model().reset()
 
         self.clearSelection()
@@ -357,11 +323,7 @@ class LineListTableView(QtGui.QTableView):
             self.session.metadata["line_list"] \
                 = self.session.metadata["line_list"].merge(
                     line_list, in_place=False)
-        """
-        self.model().rowsInserted.emit(QtCore.QModelIndex(), 0, N - 1)
-        self.model().dataChanged.emit(
-            QtCore.QModelIndex(), QtCore.QModelIndex())
-        """
+
         self.model().reset()
 
         return line_list
@@ -708,12 +670,8 @@ class SpectralModelsTableView(QtGui.QTableView):
             self.session.metadata["spectral_models"],
             self.session.metadata["line_list"])
 
-        # TODO: There *must* be a better way to do this..
-        #for i, index in enumerate(delete_indices):
-        #    self.model().rowsRemoved.emit(
-        #        QtCore.QModelIndex(), index - i, index - i)
         self.model().reset()
-        
+
         self.clearSelection()
         return None
 
@@ -756,6 +714,8 @@ class TransitionsDialog(QtGui.QDialog):
         self.linelist_view.setSelectionBehavior(
             QtGui.QAbstractItemView.SelectRows)
         self.linelist_view.setSortingEnabled(True)
+        self.linelist_view.horizontalHeader().setStretchLastSection(True)
+
         #self.linelist_view.setItemDelegate(LineListTableDelegate(self, session))
         self.linelist_view.resizeColumnsToContents()
 
