@@ -9,12 +9,13 @@ from __future__ import (division, print_function, absolute_import,
 __all__ = ["StellarParametersTab"]
 
 import logging
+import matplotlib.gridspec
 import numpy as np
 import sys
 from PySide import QtCore, QtGui
-from matplotlib import gridspec
+from matplotlib.ticker import MaxNLocator
 
-import mpl
+import mpl, style_utils
 from smh.photospheres import available as available_photospheres
 from linelist_manager import TransitionsDialog
 
@@ -31,26 +32,6 @@ if sys.platform == "darwin":
         QtGui.QFont.insertSubstitution(*substitute)
 
 
-def relim(ax, percent=0.05):
-
-    data = ax.collections[0].get_offsets()
-    x, y = data[:,0], data[:, 1]
-    xlim = [
-        np.min(x) - np.ptp(x) * percent,
-        np.max(x) + np.ptp(x) * percent,
-    ]
-    ylim = [
-        np.min(y) - np.ptp(y) * percent,
-        np.max(y) + np.ptp(y) * percent
-    ]
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-
-    return (xlim, ylim)
-
-
-
-
 
 class StellarParametersTab(QtGui.QWidget):
 
@@ -65,210 +46,162 @@ class StellarParametersTab(QtGui.QWidget):
 
         super(StellarParametersTab, self).__init__(parent)
 
-        panel_size = 350
-        self.parent = parent
 
-        sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.MinimumExpanding,
-            QtGui.QSizePolicy.MinimumExpanding
-        )
-        sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
-        self.setSizePolicy(sp)
-
-        # Create a top-level horizontal layout to contain a MPL figure and
-        # a vertical layout of settings.
-        tab_layout = QtGui.QHBoxLayout(self)
-        tab_layout.setContentsMargins(10, 10, 10, 10)
-        
-        input_parameters = QtGui.QWidget()
-        input_parameters_layout = QtGui.QVBoxLayout(input_parameters)
-        input_parameters.setFixedWidth(panel_size)
-        
-
-
-        # Start the grid layout for the stellar parameters tab.
-        input_parameters_grid = QtGui.QGridLayout()
-
-        """
-        # Photospheres.
-        self.photospheres_label = QtGui.QLabel(self)
-        self.photospheres_label.setText("Photospheres")
-        input_parameters_grid.addWidget(self.photospheres_label, 0, 0, 1, 1)
-        
-        hbox = QtGui.QHBoxLayout()
-        hbox.addItem(QtGui.QSpacerItem(
-            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
-        self.photospheres = QtGui.QComboBox(self)
-        hbox.addWidget(self.photospheres)
-        input_parameters_grid.addLayout(hbox, 0, 1, 1, 1)
-
-        for description, kind, basename in available_photospheres:
-            self.photospheres.addItem(description)
-        """
+        self.parent_layout = QtGui.QHBoxLayout(self)
+        lhs_layout = QtGui.QVBoxLayout()
+        grid_layout = QtGui.QGridLayout()
 
         # Effective temperature.
         label = QtGui.QLabel(self)
-        label.setText("Effective temperature (K)")
-        input_parameters_grid.addWidget(label, 1, 0, 1, 1)
-        
+        label.setText("Effective temperature")
+        grid_layout.addWidget(label, 0, 0, 1, 1)
         hbox = QtGui.QHBoxLayout()
-        hbox.addItem(QtGui.QSpacerItem(
-            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, 
+            QtGui.QSizePolicy.Minimum))
+        self.edit_teff = QtGui.QLineEdit(self)
+        self.edit_teff.setMinimumSize(QtCore.QSize(40, 0))
+        self.edit_teff.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_teff.setValidator(
+            QtGui.QDoubleValidator(3000, 8000, 0, self.edit_teff))
 
-        self.edit_effective_temperature = QtGui.QLineEdit(self)
-        self.edit_effective_temperature.setMaximumSize(QtCore.QSize(40, 16777215))
-        self.edit_effective_temperature.setAlignment(QtCore.Qt.AlignCenter)
-        self.edit_effective_temperature.setValidator(
-            QtGui.QDoubleValidator(3000, 8000, 0, self.edit_effective_temperature))
-        hbox.addWidget(self.edit_effective_temperature)
-        input_parameters_grid.addLayout(hbox, 1, 1, 1, 1)
-
+        hbox.addWidget(self.edit_teff)
+        grid_layout.addLayout(hbox, 0, 1, 1, 1)
+        
         # Surface gravity.
         label = QtGui.QLabel(self)
         label.setText("Surface gravity")
-        input_parameters_grid.addWidget(label, 2, 0, 1, 1)
-        
+        grid_layout.addWidget(label, 1, 0, 1, 1)
         hbox = QtGui.QHBoxLayout()
-        hbox.addItem(QtGui.QSpacerItem(
-            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
-
-        self.edit_surface_gravity = QtGui.QLineEdit(self)
-        self.edit_surface_gravity.setMaximumSize(QtCore.QSize(40, 16777215))
-        self.edit_surface_gravity.setAlignment(QtCore.Qt.AlignCenter)
-        self.edit_surface_gravity.setValidator(
-            QtGui.QDoubleValidator(-1, 6, 2, self.edit_surface_gravity))
-        hbox.addWidget(self.edit_surface_gravity)
-        input_parameters_grid.addLayout(hbox, 2, 1, 1, 1)
+        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, 
+            QtGui.QSizePolicy.Minimum))
+        self.edit_logg = QtGui.QLineEdit(self)
+        self.edit_logg.setMinimumSize(QtCore.QSize(40, 0))
+        self.edit_logg.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_logg.setValidator(
+            QtGui.QDoubleValidator(-1, 6, 3, self.edit_logg))
+        hbox.addWidget(self.edit_logg)
+        grid_layout.addLayout(hbox, 1, 1, 1, 1)
 
         # Metallicity.
         label = QtGui.QLabel(self)
         label.setText("Metallicity")
-        input_parameters_grid.addWidget(label, 3, 0, 1, 1)
-        
+        grid_layout.addWidget(label, 2, 0, 1, 1)
         hbox = QtGui.QHBoxLayout()
-        hbox.addItem(QtGui.QSpacerItem(
-            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
-
+        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, 
+            QtGui.QSizePolicy.Minimum))
         self.edit_metallicity = QtGui.QLineEdit(self)
-        self.edit_metallicity.setMaximumSize(QtCore.QSize(40, 16777215))
-        self.edit_metallicity.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit_metallicity.setMinimumSize(QtCore.QSize(40, 0))
+        self.edit_metallicity.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_metallicity.setValidator(
-            QtGui.QDoubleValidator(-7, 1, 2, self.edit_metallicity))
+            QtGui.QDoubleValidator(-5, 1, 3, self.edit_metallicity))
         hbox.addWidget(self.edit_metallicity)
-        input_parameters_grid.addLayout(hbox, 3, 1, 1, 1)
-
-        # Depending on the photospheres: alpha-enhancement.
+        grid_layout.addLayout(hbox, 2, 1, 1, 1)
 
 
-        # Depending on the radiative transfer code used: microturbulence.
+        # Microturbulence.
         label = QtGui.QLabel(self)
-        label.setText("Microturbulence (km/s)")
-        input_parameters_grid.addWidget(label, 4, 0, 1, 1)
-        
+        label.setText("Microturbulence")
+        grid_layout.addWidget(label, 3, 0, 1, 1)
         hbox = QtGui.QHBoxLayout()
-        hbox.addItem(QtGui.QSpacerItem(
-            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, 
+            QtGui.QSizePolicy.Minimum))
+        self.edit_xi = QtGui.QLineEdit(self)
+        self.edit_xi.setMinimumSize(QtCore.QSize(40, 0))
+        self.edit_xi.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_xi.setValidator(QtGui.QDoubleValidator(0, 5, 3, self.edit_xi))
+        hbox.addWidget(self.edit_xi)
+        grid_layout.addLayout(hbox, 3, 1, 1, 1)
 
-        self.edit_microturbulence = QtGui.QLineEdit(self)
-        self.edit_microturbulence.setMaximumSize(QtCore.QSize(40, 16777215))
-        self.edit_microturbulence.setAlignment(QtCore.Qt.AlignCenter)
-        self.edit_microturbulence.setValidator(
-            QtGui.QDoubleValidator(0, 5, 2, self.edit_microturbulence))
-        hbox.addWidget(self.edit_microturbulence)
-        input_parameters_grid.addLayout(hbox, 4, 1, 1, 1)
+        # Optionally TODO: alpha-enhancement.
 
+        lhs_layout.addLayout(grid_layout)
 
-        input_parameters_layout.addLayout(input_parameters_grid)
+        # Buttons for solving/measuring.        
+        hbox = QtGui.QHBoxLayout()
+        self.btn_measure = QtGui.QPushButton(self)
+        self.btn_measure.setAutoDefault(False)
+        self.btn_measure.setDefault(True)
+        self.btn_measure.setText("Measure")
+        hbox.addWidget(self.btn_measure)
 
-        # Add a spacer.
-        input_parameters_layout.addItem(QtGui.QSpacerItem(
-            40, 20, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
+        self.btn_options = QtGui.QPushButton(self)
+        self.btn_options.setText("Options..")
+        hbox.addWidget(self.btn_options)
 
-        
-        # Add a 'Measure abundances' button.
-        self.btn_measure_abundances = QtGui.QPushButton(self)
-        sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Fixed)
-        sp.setHorizontalStretch(0)
-        sp.setVerticalStretch(0)
-        sp.setHeightForWidth(
-            self.btn_measure_abundances.sizePolicy().hasHeightForWidth())
-        self.btn_measure_abundances.setSizePolicy(sp)
-        self.btn_measure_abundances.setMinimumSize(
-            QtCore.QSize(panel_size, 0))
-        self.btn_measure_abundances.setMaximumSize(
-            QtCore.QSize(panel_size, 16777215))
-        font = QtGui.QFont()
-        font.setBold(True)
-        font.setWeight(75)
-        self.btn_measure_abundances.setFont(font)
-        self.btn_measure_abundances.setCursor(
-            QtGui.QCursor(QtCore.Qt.PointingHandCursor))
-        self.btn_measure_abundances.setDefault(True)
-        self.btn_measure_abundances.setObjectName("measure_abundances")
-        self.btn_measure_abundances.setText("Measure abundances")
-        if sys.platform == "darwin":
-            self.btn_measure_abundances.setStyleSheet('QPushButton {color: white}')
+        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, 
+            QtGui.QSizePolicy.Minimum))
 
-        input_parameters_layout.addWidget(self.btn_measure_abundances)
+        self.btn_solve = QtGui.QPushButton(self)
+        self.btn_solve.setText("Solve")
+        hbox.addWidget(self.btn_solve)
+        lhs_layout.addLayout(hbox)
 
+        line = QtGui.QFrame(self)
+        line.setFrameShape(QtGui.QFrame.HLine)
+        line.setFrameShadow(QtGui.QFrame.Sunken)
+        lhs_layout.addWidget(line)
 
-        tab_layout.addWidget(input_parameters)
-
-
-        # Create a matplotlib widget.
-        blank_widget = QtGui.QWidget(self)
-        sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
-        sp.setHorizontalStretch(0)
-        sp.setVerticalStretch(0)
-        sp.setHeightForWidth(blank_widget.sizePolicy().hasHeightForWidth())
-        blank_widget.setSizePolicy(sp)
-        blank_widget.setObjectName("sp_plot")
+        self.spectral_models = []
+        self.table_view = QtGui.QTableView(self)
+        self.table_view.setModel(SpectralModelsTableModel(self))
+        self.table_view.setSelectionBehavior(
+            QtGui.QAbstractItemView.SelectRows)
+        self.table_view.setSortingEnabled(True)
+        self.table_view.resizeColumnsToContents()
+        self.table_view.setColumnWidth(0, 30) # MAGIC
+        self.table_view.horizontalHeader().setStretchLastSection(True)
 
 
-        self.figure = mpl.MPLWidget(blank_widget, tight_layout=True,
-            autofocus=True)
+        lhs_layout.addWidget(self.table_view)
+        self.parent_layout.addLayout(lhs_layout)
 
-        layout = QtGui.QVBoxLayout(blank_widget)
-        layout.addWidget(self.figure, 1)
-        tab_layout.addWidget(blank_widget)
 
-        # Set up the plot.
-        N = 3
-        gs = gridspec.GridSpec(3, 1)
-        self.ax_excitation = self.figure.figure.add_subplot(gs[0])
+        # Matplotlib figure.
+        self.figure = mpl.MPLWidget(None, tight_layout=True, autofocus=True)
+        self.figure.setMinimumSize(QtCore.QSize(800, 300))
+        self.figure.figure.patch.set_facecolor([(_ - 10)/255. for _ in \
+            self.palette().color(QtGui.QPalette.Window).getRgb()[:3]])
 
-        # Scatter transitions.
+        gs_top = matplotlib.gridspec.GridSpec(4, 1)
+        gs_bottom = matplotlib.gridspec.GridSpec(4, 1, 
+            height_ratios=[2, 2, 1, 2])
+        gs_bottom.update(hspace=0)
+
+        self.ax_excitation = self.figure.figure.add_subplot(gs_top[0])
         self.ax_excitation.scatter([], [], facecolor="k")
-    
-        # Line of best fit? Error regions?
+        self.ax_excitation.xaxis.get_major_formatter().set_useOffset(False)
+        self.ax_excitation.yaxis.set_major_locator(MaxNLocator(5))
+        self.ax_excitation.yaxis.set_major_locator(MaxNLocator(3))
         self.ax_excitation.set_xlabel("Excitation potential (eV)")
         self.ax_excitation.set_ylabel("[X/M]")
 
-        self.ax_line_strength = self.figure.figure.add_subplot(gs[1])
+        self.ax_line_strength = self.figure.figure.add_subplot(gs_top[1])
         self.ax_line_strength.scatter([], [], facecolor="k")
-
-        self.ax_line_strength.set_xlabel(r"$\log_{e}({\rm EW}/\lambda)$")
+        self.ax_line_strength.xaxis.get_major_formatter().set_useOffset(False)
+        self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(5))
+        self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(3))
+        self.ax_line_strength.set_xlabel(r"$\log({\rm EW}/\lambda)$")
         self.ax_line_strength.set_ylabel("[X/M]")
 
-        if N == 3:
-            self.ax_opacity = self.figure.figure.add_subplot(gs[2])
-            self.ax_opacity.scatter([], [], facecolor="k")
-            self.ax_opacity.set_xlabel(r"Wavelength")
-            self.ax_opacity.set_ylabel(r"Abundance")
+        self.ax_residuals = self.figure.figure.add_subplot(gs_bottom[2])
+        self.ax_residuals.axhline(0, c="#666666")
+        self.ax_residuals.set_xticklabels([])
+        self.ax_residuals.yaxis.set_major_locator(MaxNLocator(2))
+        self.ax_residuals.set_ylabel(r"$\Delta$")
 
-        else:
-            self.ax_opacity = None
+        self.ax_spectrum = self.figure.figure.add_subplot(gs_bottom[3])
+        self.ax_spectrum.xaxis.get_major_formatter().set_useOffset(False)
+        self.ax_spectrum.xaxis.set_major_locator(MaxNLocator(5))
+        self.ax_spectrum.yaxis.set_major_locator(MaxNLocator(3))
+        self.ax_spectrum.set_xlabel(u"Wavelength (Å)")
+        self.ax_spectrum.set_ylabel(r"Normalized flux")
 
-        self.figure.draw()
-
-
+        self.parent_layout.addWidget(self.figure)
 
         # Connect buttons.
-        self.btn_measure_abundances.clicked.connect(self.measure_abundances)
-
-        self.populate_widgets()
+        self.btn_measure.clicked.connect(self.measure_abundances)
+        self.btn_options.clicked.connect(self.options)
+        self.btn_solve.clicked.connect(self.solve_parameters)
 
         return None
 
@@ -276,12 +209,13 @@ class StellarParametersTab(QtGui.QWidget):
     def populate_widgets(self):
         """ Update the stellar parameter edit boxes from the session. """
 
-        if self.parent.session is None: return None
+        if not hasattr(self.parent, "session") or self.parent.session is None:
+            return None
 
         metadata = self.parent.session.metadata["stellar_parameters"]
-        self.edit_effective_temperature.setText("{0:.0f}".format(
+        self.edit_teff.setText("{0:.0f}".format(
             metadata["effective_temperature"]))
-        self.edit_surface_gravity.setText("{0:.2f}".format(
+        self.edit_logg.setText("{0:.2f}".format(
             metadata["surface_gravity"]))
         self.edit_metallicity.setText("{0:+.2f}".format(
             metadata["metallicity"]))
@@ -290,14 +224,27 @@ class StellarParametersTab(QtGui.QWidget):
         return None
 
 
+    def update_stellar_parameters(self):
+        """ Update the stellar parameters with the values in the GUI. """
 
-    def measure_abundances(self):
-        """ Trigger for when the 'Message abundances' button is clicked. """
+        self.parent.session.metadata["stellar_parameters"].update({
+            "effective_temperature": float(self.edit_teff.text()),
+            "surface_gravity": float(self.edit_logg.text()),
+            "metallicity": float(self.edit_metallicity.text()),
+            "microturbulence": float(self.edit_xi.text())
+        })
+        return True
+
+
+
+    def _check_for_spectral_models(self):
+        """
+        Check the session for any valid spectral models that are associated with
+        the determination of stellar parameters.
+        """
 
         # Are there any spectral models to be used for the determination of
         # stellar parameters?
-
-        """
         for sm in self.parent.session.metadata.get("spectral_models", []):
             if sm.use_for_stellar_parameter_inference: break
 
@@ -317,13 +264,19 @@ class StellarParametersTab(QtGui.QWidget):
                 for sm in self.parent.session.metadata.get("spectral_models", []):
                     if sm.use_for_stellar_parameter_inference: break
                 else:
-                    return None
+                    return False
             else:
-                return None
-        """
+                return False
 
-        if self.parent.session is None:
+        return True
+
+
+    def measure_abundances(self):
+        """ The measure abundances button has been clicked. """
+
+        if self.parent.session is None or not self._check_for_spectral_models():
             return None
+
 
         # Collate the transitions from spectral models that are profiles.
         indices = []
@@ -342,41 +295,188 @@ class StellarParametersTab(QtGui.QWidget):
         transitions = self.parent.session.metadata["line_list"][indices].copy()
         transitions["equivalent_width"] = np.array(equivalent_widths)
 
+        # Update the session with the stellar parameters in the GUI.
+        self.update_stellar_parameters()
 
-        self.parent.session.metadata["stellar_parameters"].update({
-            "effective_temperature": float(self.edit_effective_temperature.text()),
-            "surface_gravity": float(self.edit_surface_gravity.text()),
-            "metallicity": float(self.edit_metallicity.text()),
-            "microturbulence": float(self.edit_microturbulence.text())
-        })
-
+        # Calculate abundances.
         abundances = self.parent.session.rt.abundance_cog(
             self.parent.session.stellar_photosphere, transitions)
 
-        print("indices", indices)
-        print(abundances)
-
         # Update figures.
-        self.ax_excitation.collections[0].set_offsets(np.array([
-            transitions["expot"], abundances]).T)
-        relim(self.ax_excitation)
-        
+        self.ax_excitation.collections[0].set_offsets(
+            np.array([transitions["expot"], abundances]).T)
 
-        rew = np.log10(1e-3 * transitions["equivalent_width"] \
-            / transitions["wavelength"])
+        rew = 1e-3 * transitions["equivalent_width"]/transitions["wavelength"]
         self.ax_line_strength.collections[0].set_offsets(
-            np.array([rew, abundances]).T)
-        relim(self.ax_line_strength)
-
-
-        if self.ax_opacity is not None:
-            self.ax_opacity.collections[0].set_offsets(np.array([
-                transitions["wavelength"], abundances]).T)
-            relim(self.ax_opacity)
+            np.array([np.log10(rew), abundances]).T)
+        
+        # Update limits on the excitation and line strength figures.
+        style_utils.relim(self.ax_excitation)
+        style_utils.relim(self.ax_line_strength)
 
         self.figure.draw()
 
+        # Update the table?
         return None
 
+
+    def options(self):
+        """ Open a GUI for the radiative transfer and solver options. """
+        raise NotImplementedError
+
+
+    def solve_parameters(self):
+        """ Solve the stellar parameters. """
+        raise NotImplementedError
+
+
+
+
+class SpectralModelsTableModel(QtCore.QAbstractTableModel):
+
+    header = ["", u"λ\n(Å)", "Element\n", u"E. W.\n(mÅ)",
+        "log ε\n(dex)"]
+    attrs = ("is_acceptable", "_repr_wavelength", "_repr_element", 
+        "equivalent_width", "abundance")
+
+    def __init__(self, parent, *args):
+        """
+        An abstract table model for spectral models.
+
+        :param parent:
+            The parent widget.
+        """
+
+        super(SpectralModelsTableModel, self).__init__(parent, *args)
+        self._parent = parent
+        return None
+
+
+    def rowCount(self, parent):
+        """ Return the number of rows in the table. """
+        return len(self._parent.spectral_models)
+
+
+    def columnCount(self, parent):
+        """ Return the number of columns in the table. """
+        return len(self.header)
+
+
+    def data(self, index, role):
+        """
+        Display the data.
+
+        :param index:
+            The table index.
+
+        :param role:
+            The display role.
+        """
+
+        if not index.isValid():
+            return None
+
+        column = index.column()
+        if  column == 0 \
+        and role in (QtCore.Qt.DisplayRole, QtCore.Qt.CheckStateRole):
+            value = self._parent.spectral_models[index.row()].is_acceptable
+            if role == QtCore.Qt.CheckStateRole:
+                return QtCore.Qt.Checked if value else QtCore.Qt.Unchecked
+            else:
+                return None
+
+        elif column == 1:
+            value = self._parent.spectral_models[index.row()]._repr_wavelength
+
+        elif column == 2:
+            value = self._parent.spectral_models[index.row()]._repr_element
+
+        elif column == 3:
+            try:
+                spectral_model = self._parent.spectral_models[index.row()]
+                result = spectral_model.metadata["fitted_result"][2]
+                equivalent_width = result["equivalent_width"][0]
+            except:
+                equivalent_width = np.nan
+
+            value = "{0:.1f}".format(1000 * equivalent_width) \
+                if np.isfinite(equivalent_width) else ""
+
+        elif column == 4:
+            try:
+                spectral_model = self._parent.spectral_models[index.row()]
+                abundances \
+                    = spectral_model.metadata["fitted_result"][2]["abundances"]
+
+            except (IndexError, KeyError):
+                value = ""
+
+            else:
+                # How many elements were measured?
+                value = "; ".join(["{0:.2f}".format(abundance) \
+                    for abundance in abundances])
+
+        return value if role == QtCore.Qt.DisplayRole else None
+
+
+    def headerData(self, col, orientation, role):
+        if orientation == QtCore.Qt.Horizontal \
+        and role == QtCore.Qt.DisplayRole:
+            return self.header[col]
+        return None
+
+
+    def setData(self, index, value, role=QtCore.Qt.DisplayRole):
+        if index.column() != 0 or value:
+            return False
+
+        model = self._parent.spectral_models[index.row()]
+        model.metadata["is_acceptable"] = value
+
+        # Emit data change for this row.
+        self.dataChanged.emit(
+            self.createIndex(index.row(), 0),
+            self.createIndex(index.row(), self.columnCount(0)))
+
+        # Refresh the view.
+        try:
+            del model.metadata["fitted_result"]
+
+        except KeyError:
+            None
+
+        self._parent.redraw_figure()
+
+        return value
+
+    """
+    # TODO
+    def sort(self, column, order):
+        raise NotImplementedError
+        self.emit(QtCore.SIGNAL("layoutAboutToBeChanged()"))
+        sorter = {
+            0: lambda model: model.is_acceptable,
+            1: lambda model: model._repr_wavelength,
+            2: lambda model: model._repr_element,
+            3: lambda model: model.metadata.get("fitted_result", [])[-1]
+        }
+
+        self.spectral_models = sorted(self.spectral_models,
+            key=lambda sm: getattr(sm, self.attrs[column]))
+        
+        if order == QtCore.Qt.DescendingOrder:
+            self.spectral_models.reverse()
+
+        self.dataChanged.emit(self.createIndex(0, 0),
+            self.createIndex(self.rowCount(0), self.columnCount(0)))
+        self.emit(QtCore.SIGNAL("layoutChanged()"))
+    """
+
+
+    def flags(self, index):
+        if not index.isValid(): return
+        return  QtCore.Qt.ItemIsSelectable|\
+                QtCore.Qt.ItemIsEnabled|\
+                QtCore.Qt.ItemIsUserCheckable
 
 
