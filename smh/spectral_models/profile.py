@@ -305,7 +305,7 @@ class ProfileFittingModel(BaseSpectralModel):
                 except KeyError:
                     None
 
-                self.transitions["equivalent_width"] = np.nan
+                #self.transitions["equivalent_width"] = np.nan
 
                 return failure
 
@@ -327,7 +327,7 @@ class ProfileFittingModel(BaseSpectralModel):
                         del self.metadata["fitted_result"]
                     except KeyError:
                         None
-                    self.transitions["equivalent_width"] = np.nan
+                    #self.transitions["equivalent_width"] = np.nan
 
                     return failure
 
@@ -495,8 +495,8 @@ class ProfileFittingModel(BaseSpectralModel):
         }
 
         # Update the equivalent width in the transition.
-        # TODO BUG for some reason the LineList is not updating....
-        self.transitions["equivalent_width"] = ew
+        # REMOVED: see Issue #38
+        #self.transitions["equivalent_width"] = ew
 
         # Convert p_opt to ordered dictionary
         named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
@@ -542,12 +542,19 @@ class ProfileFittingModel(BaseSpectralModel):
         # Does the hash match the last calculation?
         # If so, return that value. If not, calculate the new value.
 
-        foo = self.session.rt.abundance_cog(
+        # Fixed Issue #38
+        transitions = self.transitions.copy()
+        # There is only ONE transition for profile fits
+        assert len(transitions)==1,len(transitions)
+        transitions['equivalent_width'] = self.metadata["fitted_result"][2]["equivalent_width"][0]
+        abundance = self.session.rt.abundance_cog(
             self.session.stellar_photosphere,
-            self.transitions)
-
-        print(foo)
-        raise NotImplementedError
+            transitions)
+        assert len(abundance)==1,abundance
+        abundance = abundance[0]
+        self.metadata["abundance"] = abundance
+        return abundance
+        #raise NotImplementedError
 
 
 if __name__ == "__main__":

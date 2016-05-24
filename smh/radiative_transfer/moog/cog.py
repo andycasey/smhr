@@ -53,6 +53,7 @@ def abundance_cog(photosphere, transitions, verbose=False, **kwargs):
 
     # Write out the transitions.
     # Note that this must write out the EW too
+    # TODO remove and replace bad EW
     transitions.write(lines_in, format="moog")
     
     # Load the abfind driver template.
@@ -98,21 +99,49 @@ def abundance_cog(photosphere, transitions, verbose=False, **kwargs):
         logger.exception(MOOGError(err))
     else:
         logger.info("MOOG executed {0} successfully".format(moog_in))
-        #logger.info("Standard output:")
-        #logger.info(strip_control_characters(out))
-        #logger.info("Standard error:")
-        #logger.info(err.rstrip())
+        #logger.debug("Standard output:")
+        #logger.debug(strip_control_characters(out))
+        #logger.debug("Standard error:")
+        #logger.debug(err.rstrip())
 
     # Parse the output.
     transitions_array, linear_fits = _parse_abfind_summary(kwds["summary_out"])
 
+    #logger.debug(transitions_array)
+    #logger.debug(linear_fits)
+
+    if len(transitions_array)==0:
+        logger.debug("Standard output:")
+        logger.debug(strip_control_characters(out))
+        logger.debug("Standard error:")
+        logger.debug(err.rstrip())
+        raise MOOGError("No measurements returned!")
+    if len(transitions_array)!=len(transitions):
+        logger.debug("Standard output:")
+        logger.debug(strip_control_characters(out))
+        logger.debug("Standard error:")
+        logger.debug(err.rstrip())
+        raise MOOGError("Num lines returned {} != {} Num lines input".format(len(transitions_array),len(transitions)))
+    
     # Match transitions. Check for anything missing.
-    print(transitions_array)
-    print(linear_fits)
-
+    col_wl, col_species, col_ep, col_loggf, col_ew, col_logrw, col_abund, col_del_avg = range(8)
+    moog_wl      = transitions_array[:,col_wl]
+    moog_species = transitions_array[:,col_species]
+    moog_abund   = transitions_array[:,col_abund]
+    
+    ii_orig = np.lexsort((transitions['species'],transitions['wavelength']))
+    ii_moog = np.lexsort((moog_species,moog_wl))
+    tol = .01
+    matched_abund = np.zeros(len(transitions))*np.nan
+    for ii1,ii2 in zip(ii_orig,ii_moog):
+        assert transitions['species'][ii1]==moog_species[ii2]
+        assert np.abs(transitions['wavelength'][ii1]-moog_wl[ii2]) < tol
+        matched_abund[ii1] = moog_abund[ii2]
+    
     # Return abundances w.r.t. the inputs.
+    return matched_abund
 
-    raise NotImplementedError
+    #raise NotImplementedError
 
 
 def strip_control_characters(out):
