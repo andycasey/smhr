@@ -200,7 +200,7 @@ class SummaryTab(QtGui.QWidget):
         dec = str(self.parent.session.metadata["DEC"]).strip()
 
         # Execute a system call to open a URL with the default browser.
-        url = "http://simbad.u-strasbg.fr/simbad/sim-coo?Coord={ra}{dec}"\
+        url = "http://simbad.u-strasbg.fr/simbad/sim-coo?Coord={ra}%20{dec}"\
               "&CooFrame=FK5&CooEpoch=2000&CooEqui=2000&CooDefinedFrames"\
               "=none&Radius=5&Radius.unit=arcsec&submit=submit+query&CoordList="
         url = url.format(ra=quote(ra), dec=quote(dec))

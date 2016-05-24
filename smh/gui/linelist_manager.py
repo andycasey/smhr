@@ -72,7 +72,10 @@ class LineListTableModel(QtCore.QAbstractTableModel):
     def setData(self, index, value, role):
 
         column = self.columns[index.column()]
-        self.session.metadata["line_list"][column][index.row()] = value
+        try:
+            self.session.metadata["line_list"][column][index.row()] = value
+        except:
+            return False
         return value
 
 

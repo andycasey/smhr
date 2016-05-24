@@ -6,6 +6,7 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+import logging
 import operator
 import numpy as np
 from PySide import QtCore, QtGui
@@ -18,6 +19,8 @@ import style_utils
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
+
+logger = logging.getLogger(__name__)
 
 
 class SpectralModelsTableModel(QtCore.QAbstractTableModel):
@@ -138,18 +141,26 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
     """
     def sort(self, column, order):
-
+        raise NotImplementedError
         self.emit(QtCore.SIGNAL("layoutAboutToBeChanged()"))
-        self._data = sorted(self._data,
+        sorter = {
+            0: lambda model: model.is_acceptable,
+            1: lambda model: model._repr_wavelength,
+            2: lambda model: model._repr_element,
+            3: lambda model: model.metadata.get("fitted_result", [])[-1]
+        }
+
+        self.spectral_models = sorted(self.spectral_models,
             key=lambda sm: getattr(sm, self.attrs[column]))
         
         if order == QtCore.Qt.DescendingOrder:
-            self._data.reverse()
+            self.spectral_models.reverse()
 
         self.dataChanged.emit(self.createIndex(0, 0),
             self.createIndex(self.rowCount(0), self.columnCount(0)))
         self.emit(QtCore.SIGNAL("layoutChanged()"))
     """
+    
 
     def flags(self, index):
         if not index.isValid(): return
@@ -194,8 +205,6 @@ class MeasureLinesTab(QtGui.QWidget):
         self.table_view.setSortingEnabled(True)
         self.table_view.resizeColumnsToContents()
         self.table_view.setColumnWidth(0, 30) # MAGIC
-        self.table_view.setColumnWidth(1, 80) # MAGIC
-        self.table_view.setColumnWidth(3, 60) # MAGIC
 
         self.table_view.horizontalHeader().setStretchLastSection(True)
 
@@ -700,7 +709,7 @@ class MeasureLinesTab(QtGui.QWidget):
     def update_combo_profile(self):
         """ Update the profile that is used for fitting atomic transitions. """
         self._get_selected_model().metadata["profile"] \
-            = self.update_combo_profile.currentText().lower()
+            = self.combo_profile.currentText().lower()
         return None
 
 
