@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 with resource_stream(__name__, "defaults.yaml") as fp:
     _moog_defaults = yaml.load(fp)
 
-def abundance_cog(photosphere, transitions, verbose=False, **kwargs):
+def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
+    **kwargs):
     """
     Calculate atomic line abundances by interpolating the measured 
     equivalent width from the curve-of-growth. 
@@ -64,8 +65,6 @@ def abundance_cog(photosphere, transitions, verbose=False, **kwargs):
             "lines": 3, # 4 is max verbosity, but MOOG falls over.
         })
 
-    # Isotopes formatted
-
     # Parse keyword arguments.
     kwds.update(kwargs)
 
@@ -92,11 +91,14 @@ def abundance_cog(photosphere, transitions, verbose=False, **kwargs):
     transitions_array, linear_fits = _parse_abfind_summary(kwds["summary_out"])
 
     # Match transitions. Check for anything missing.
+    assert len(transitions_array) == len(transitions)
 
-    # Return abundances w.r.t. the inputs.
-
-    raise NotImplementedError
-
+    if full_output:
+        raise NotImplementedError
+        return (transitions_array[:, -2], linear_fits)
+    
+    return transitions_array[:, -2]
+    
 
 
 def _parse_abfind_summary(summary_out_path):
@@ -129,15 +131,18 @@ def _parse_abfind_summary(summary_out_path):
             
             _ = line.split('Species')[1].split('(')[0].strip()
             species = element_to_species(_)
-            moog_slopes[species] = {}
+            moog_slopes.setdefault(species, {})
             
+            """
             if len(abundances) > 0:
                 # Check to see if we already have abundances for this species
                 exists = np.where(np.array(abundances)[:, 1] == species)
                 
-                if len(exists[0]) > 0:
-                    logger.debug("Detecting more than one iteration from MOOG")
-                    abundances = list(np.delete(abundances, exists, axis=0))
+                #if len(exists[0]) > 0:
+                #    raise a
+                #    logger.debug("Detecting more than one iteration from MOOG")
+                #    abundances = list(np.delete(abundances, exists, axis=0))
+            """
             
         elif re.match("^\s{2,3}[0-9]", line):
             if species is None:

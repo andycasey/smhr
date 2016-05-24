@@ -31,6 +31,27 @@ if sys.platform == "darwin":
         QtGui.QFont.insertSubstitution(*substitute)
 
 
+def relim(ax, percent=0.05):
+
+    data = ax.collections[0].get_offsets()
+    x, y = data[:,0], data[:, 1]
+    xlim = [
+        np.min(x) - np.ptp(x) * percent,
+        np.max(x) + np.ptp(x) * percent,
+    ]
+    ylim = [
+        np.min(y) - np.ptp(y) * percent,
+        np.max(y) + np.ptp(y) * percent
+    ]
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+
+    return (xlim, ylim)
+
+
+
+
+
 class StellarParametersTab(QtGui.QWidget):
 
     def __init__(self, parent):
@@ -63,34 +84,6 @@ class StellarParametersTab(QtGui.QWidget):
         input_parameters_layout = QtGui.QVBoxLayout(input_parameters)
         input_parameters.setFixedWidth(panel_size)
         
-        # Top-level button to measure transitions.
-        self.btn_measure_transitions = QtGui.QPushButton(self)
-        sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Fixed)
-        sp.setHorizontalStretch(0)
-        sp.setVerticalStretch(0)
-        sp.setHeightForWidth(
-            self.btn_measure_transitions.sizePolicy().hasHeightForWidth())
-        self.btn_measure_transitions.setSizePolicy(sp)
-        self.btn_measure_transitions.setMinimumSize(
-            QtCore.QSize(panel_size, 0))
-        self.btn_measure_transitions.setMaximumSize(
-            QtCore.QSize(panel_size, 16777215))
-
-        font = QtGui.QFont()
-        font.setBold(True)
-        font.setWeight(75)
-        self.btn_measure_transitions.setFont(font)
-        self.btn_measure_transitions.setCursor(
-            QtGui.QCursor(QtCore.Qt.PointingHandCursor))
-        self.btn_measure_transitions.setDefault(True)
-        self.btn_measure_transitions.setObjectName("btn_measure_transitions")
-        self.btn_measure_transitions.setText("Measure transitions..")
-        if sys.platform == "darwin":
-            self.btn_measure_transitions.setStyleSheet(
-                'QPushButton {color: white}')
-
-        input_parameters_layout.addWidget(self.btn_measure_transitions)
 
 
         # Start the grid layout for the stellar parameters tab.
@@ -114,78 +107,74 @@ class StellarParametersTab(QtGui.QWidget):
         """
 
         # Effective temperature.
-        self.effective_temperature_label = QtGui.QLabel(self)
-        self.effective_temperature_label.setText("Effective temperature (K)")
-        input_parameters_grid.addWidget(
-            self.effective_temperature_label, 1, 0, 1, 1)
+        label = QtGui.QLabel(self)
+        label.setText("Effective temperature (K)")
+        input_parameters_grid.addWidget(label, 1, 0, 1, 1)
         
         hbox = QtGui.QHBoxLayout()
         hbox.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
 
-        self.effective_temperature = QtGui.QLineEdit(self)
-        self.effective_temperature.setMaximumSize(QtCore.QSize(40, 16777215))
-        self.effective_temperature.setAlignment(QtCore.Qt.AlignCenter)
-        self.effective_temperature.setValidator(
-            QtGui.QDoubleValidator(3000, 8000, 0, self.effective_temperature))
-        hbox.addWidget(self.effective_temperature)
+        self.edit_effective_temperature = QtGui.QLineEdit(self)
+        self.edit_effective_temperature.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.edit_effective_temperature.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit_effective_temperature.setValidator(
+            QtGui.QDoubleValidator(3000, 8000, 0, self.edit_effective_temperature))
+        hbox.addWidget(self.edit_effective_temperature)
         input_parameters_grid.addLayout(hbox, 1, 1, 1, 1)
 
         # Surface gravity.
-        self.surface_gravity_label = QtGui.QLabel(self)
-        self.surface_gravity_label.setText("Surface gravity")
-        input_parameters_grid.addWidget(
-            self.surface_gravity_label, 2, 0, 1, 1)
+        label = QtGui.QLabel(self)
+        label.setText("Surface gravity")
+        input_parameters_grid.addWidget(label, 2, 0, 1, 1)
         
         hbox = QtGui.QHBoxLayout()
         hbox.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
 
-        self.surface_gravity = QtGui.QLineEdit(self)
-        self.surface_gravity.setMaximumSize(QtCore.QSize(40, 16777215))
-        self.surface_gravity.setAlignment(QtCore.Qt.AlignCenter)
-        self.surface_gravity.setValidator(
-            QtGui.QDoubleValidator(-1, 6, 2, self.surface_gravity))
-        hbox.addWidget(self.surface_gravity)
+        self.edit_surface_gravity = QtGui.QLineEdit(self)
+        self.edit_surface_gravity.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.edit_surface_gravity.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit_surface_gravity.setValidator(
+            QtGui.QDoubleValidator(-1, 6, 2, self.edit_surface_gravity))
+        hbox.addWidget(self.edit_surface_gravity)
         input_parameters_grid.addLayout(hbox, 2, 1, 1, 1)
 
         # Metallicity.
-        self.metallicity_label = QtGui.QLabel(self)
-        self.metallicity_label.setText("Metallicity")
-        input_parameters_grid.addWidget(
-            self.metallicity_label, 3, 0, 1, 1)
+        label = QtGui.QLabel(self)
+        label.setText("Metallicity")
+        input_parameters_grid.addWidget(label, 3, 0, 1, 1)
         
         hbox = QtGui.QHBoxLayout()
         hbox.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
 
-        self.metallicity = QtGui.QLineEdit(self)
-        self.metallicity.setMaximumSize(QtCore.QSize(40, 16777215))
-        self.metallicity.setAlignment(QtCore.Qt.AlignCenter)
-        self.metallicity.setValidator(
-            QtGui.QDoubleValidator(-7, 1, 2, self.metallicity))
-        hbox.addWidget(self.metallicity)
+        self.edit_metallicity = QtGui.QLineEdit(self)
+        self.edit_metallicity.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.edit_metallicity.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit_metallicity.setValidator(
+            QtGui.QDoubleValidator(-7, 1, 2, self.edit_metallicity))
+        hbox.addWidget(self.edit_metallicity)
         input_parameters_grid.addLayout(hbox, 3, 1, 1, 1)
 
         # Depending on the photospheres: alpha-enhancement.
 
 
         # Depending on the radiative transfer code used: microturbulence.
-        self.microturbulence_label = QtGui.QLabel(self)
-        self.microturbulence_label.setText("Microturbulence (km/s)")
-        input_parameters_grid.addWidget(
-            self.microturbulence_label, 4, 0, 1, 1)
+        label = QtGui.QLabel(self)
+        label.setText("Microturbulence (km/s)")
+        input_parameters_grid.addWidget(label, 4, 0, 1, 1)
         
         hbox = QtGui.QHBoxLayout()
         hbox.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
 
-        self.microturbulence = QtGui.QLineEdit(self)
-        self.microturbulence.setMaximumSize(QtCore.QSize(40, 16777215))
-        self.microturbulence.setAlignment(QtCore.Qt.AlignCenter)
-        self.microturbulence.setValidator(
-            QtGui.QDoubleValidator(0, 5, 2, self.microturbulence))
-        hbox.addWidget(self.microturbulence)
+        self.edit_microturbulence = QtGui.QLineEdit(self)
+        self.edit_microturbulence.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.edit_microturbulence.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit_microturbulence.setValidator(
+            QtGui.QDoubleValidator(0, 5, 2, self.edit_microturbulence))
+        hbox.addWidget(self.edit_microturbulence)
         input_parameters_grid.addLayout(hbox, 4, 1, 1, 1)
 
 
@@ -195,37 +184,33 @@ class StellarParametersTab(QtGui.QWidget):
         input_parameters_layout.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
 
-
-        # Additional options button.
-        self.btn_additional_options = QtGui.QPushButton(self)
-
         
         # Add a 'Measure abundances' button.
-        self.measure_abundances = QtGui.QPushButton(self)
+        self.btn_measure_abundances = QtGui.QPushButton(self)
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Fixed)
         sp.setHorizontalStretch(0)
         sp.setVerticalStretch(0)
         sp.setHeightForWidth(
-            self.measure_abundances.sizePolicy().hasHeightForWidth())
-        self.measure_abundances.setSizePolicy(sp)
-        self.measure_abundances.setMinimumSize(
+            self.btn_measure_abundances.sizePolicy().hasHeightForWidth())
+        self.btn_measure_abundances.setSizePolicy(sp)
+        self.btn_measure_abundances.setMinimumSize(
             QtCore.QSize(panel_size, 0))
-        self.measure_abundances.setMaximumSize(
+        self.btn_measure_abundances.setMaximumSize(
             QtCore.QSize(panel_size, 16777215))
         font = QtGui.QFont()
         font.setBold(True)
         font.setWeight(75)
-        self.measure_abundances.setFont(font)
-        self.measure_abundances.setCursor(
+        self.btn_measure_abundances.setFont(font)
+        self.btn_measure_abundances.setCursor(
             QtGui.QCursor(QtCore.Qt.PointingHandCursor))
-        self.measure_abundances.setDefault(True)
-        self.measure_abundances.setObjectName("measure_abundances")
-        self.measure_abundances.setText("Measure abundances")
+        self.btn_measure_abundances.setDefault(True)
+        self.btn_measure_abundances.setObjectName("measure_abundances")
+        self.btn_measure_abundances.setText("Measure abundances")
         if sys.platform == "darwin":
-            self.measure_abundances.setStyleSheet('QPushButton {color: white}')
+            self.btn_measure_abundances.setStyleSheet('QPushButton {color: white}')
 
-        input_parameters_layout.addWidget(self.measure_abundances)
+        input_parameters_layout.addWidget(self.btn_measure_abundances)
 
 
         tab_layout.addWidget(input_parameters)
@@ -250,65 +235,69 @@ class StellarParametersTab(QtGui.QWidget):
         tab_layout.addWidget(blank_widget)
 
         # Set up the plot.
-        gs = gridspec.GridSpec(2, 1)
-        self.ax_first = self.figure.figure.add_subplot(gs[0])
+        N = 3
+        gs = gridspec.GridSpec(3, 1)
+        self.ax_excitation = self.figure.figure.add_subplot(gs[0])
 
         # Scatter transitions.
-        self.ax_first.scatter([0.5, 0.6], [0, 1], facecolor="k")
+        self.ax_excitation.scatter([], [], facecolor="k")
     
         # Line of best fit? Error regions?
-        self.ax_first.set_xlabel("Excitation potential (eV)")
-        self.ax_first.set_ylabel("[X/M]")
+        self.ax_excitation.set_xlabel("Excitation potential (eV)")
+        self.ax_excitation.set_ylabel("[X/M]")
 
-        self.ax_second = self.figure.figure.add_subplot(gs[1])
-        self.ax_second.scatter([0.4, 0.2], [0.1, 0.3], facecolor="k")
+        self.ax_line_strength = self.figure.figure.add_subplot(gs[1])
+        self.ax_line_strength.scatter([], [], facecolor="k")
 
-        self.ax_second.set_xlabel(r"$\log_{e}({\rm EW}/\lambda)$")
-        self.ax_second.set_ylabel("[X/M]")
+        self.ax_line_strength.set_xlabel(r"$\log_{e}({\rm EW}/\lambda)$")
+        self.ax_line_strength.set_ylabel("[X/M]")
+
+        if N == 3:
+            self.ax_opacity = self.figure.figure.add_subplot(gs[2])
+            self.ax_opacity.scatter([], [], facecolor="k")
+            self.ax_opacity.set_xlabel(r"Wavelength")
+            self.ax_opacity.set_ylabel(r"Abundance")
+
+        else:
+            self.ax_opacity = None
+
         self.figure.draw()
 
 
+
         # Connect buttons.
-        self.btn_measure_transitions.clicked.connect(self.measure_transitions)
+        self.btn_measure_abundances.clicked.connect(self.measure_abundances)
 
-        """
-        # Create signals.
-        self.measure_abundances.clicked.connect(self.normalize_and_stitch)
+        self.populate_widgets()
 
-        # Note that key_press_event is linked to figure.canvas, while the
-        # mouse events are linked to figure.
-        # I don't know why, but that's how it works.
-        self.figure.canvas.mpl_connect(
-            "key_press_event", self.figure_key_press)
-        self.figure.mpl_connect(
-            "button_press_event", self.figure_mouse_press)
-        self.figure.mpl_connect(
-            "button_release_event", self.figure_mouse_release)
-        
-        self.function.currentIndexChanged.connect(
-            self.update_normalization_function)
-        self.order.currentIndexChanged.connect(
-            self.update_normalization_order)
-        self.norm_max_iter.currentIndexChanged.connect(
-            self.update_normalization_max_iterations)
-        self.low_sigma_clip.textChanged.connect(
-            self.update_low_sigma_clip)
-        self.high_sigma_clip.textChanged.connect(
-            self.update_high_sigma_clip)
-        self.knot_spacing.textChanged.connect(self.update_knot_spacing)
-
-        self.low_sigma_clip.textChanged.connect(self.check_state)
-        self.high_sigma_clip.textChanged.connect(self.check_state)
-        self.knot_spacing.textChanged.connect(self.check_state)
-        """
+        return None
 
 
-    def measure_transitions(self):
-        """ Trigger for when the 'Message transitions..' button is clicked. """
+    def populate_widgets(self):
+        """ Update the stellar parameter edit boxes from the session. """
+
+        if self.parent.session is None: return None
+
+        metadata = self.parent.session.metadata["stellar_parameters"]
+        self.edit_effective_temperature.setText("{0:.0f}".format(
+            metadata["effective_temperature"]))
+        self.edit_surface_gravity.setText("{0:.2f}".format(
+            metadata["surface_gravity"]))
+        self.edit_metallicity.setText("{0:+.2f}".format(
+            metadata["metallicity"]))
+        self.edit_microturbulence.setText("{0:.2f}".format(
+            metadata["microturbulence"]))
+        return None
+
+
+
+    def measure_abundances(self):
+        """ Trigger for when the 'Message abundances' button is clicked. """
 
         # Are there any spectral models to be used for the determination of
         # stellar parameters?
 
+        """
         for sm in self.parent.session.metadata.get("spectral_models", []):
             if sm.use_for_stellar_parameter_inference: break
 
@@ -331,17 +320,62 @@ class StellarParametersTab(QtGui.QWidget):
                     return None
             else:
                 return None
-
-        print("OK show measure transitions dialog")
-
-        # TODO HACK
-
-        return None
-
-    def _populate_widgets(self):
         """
-        Populate the widgets in this tab with the default parameters.
-        """
+
+        if self.parent.session is None:
+            return None
+
+        # Collate the transitions from spectral models that are profiles.
+        indices = []
+        equivalent_widths = []
+        for model in self.parent.session.metadata["spectral_models"]:
+            if not model.use_for_stellar_parameter_inference \
+            or not model.is_acceptable: continue
+
+            indices.extend(model._transition_indices)
+            equivalent_widths.append(
+                1e3 * model.metadata["fitted_result"][2]["equivalent_width"][0])
+        indices = np.array(indices)
+
+        # For any spectral models to be used for SPs that are not profiles,
+        # re-fit them.
+        transitions = self.parent.session.metadata["line_list"][indices].copy()
+        transitions["equivalent_width"] = np.array(equivalent_widths)
+
+
+        self.parent.session.metadata["stellar_parameters"].update({
+            "effective_temperature": float(self.edit_effective_temperature.text()),
+            "surface_gravity": float(self.edit_surface_gravity.text()),
+            "metallicity": float(self.edit_metallicity.text()),
+            "microturbulence": float(self.edit_microturbulence.text())
+        })
+
+        abundances = self.parent.session.rt.abundance_cog(
+            self.parent.session.stellar_photosphere, transitions)
+
+        print("indices", indices)
+        print(abundances)
+
+        # Update figures.
+        self.ax_excitation.collections[0].set_offsets(np.array([
+            transitions["expot"], abundances]).T)
+        relim(self.ax_excitation)
+        
+
+        rew = np.log10(1e-3 * transitions["equivalent_width"] \
+            / transitions["wavelength"])
+        self.ax_line_strength.collections[0].set_offsets(
+            np.array([rew, abundances]).T)
+        relim(self.ax_line_strength)
+
+
+        if self.ax_opacity is not None:
+            self.ax_opacity.collections[0].set_offsets(np.array([
+                transitions["wavelength"], abundances]).T)
+            relim(self.ax_opacity)
+
+        self.figure.draw()
+
         return None
 
 

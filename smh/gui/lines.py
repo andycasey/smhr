@@ -125,8 +125,9 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         model.metadata["is_acceptable"] = value
 
         # Emit data change for this row.
-        self.dataChanged.emit(index,
-            self.createIndex(index, self.columnCount(0)))
+        self.dataChanged.emit(
+            self.createIndex(index.row(), 0),
+            self.createIndex(index.row(), self.columnCount(0)))
 
         # Refresh the view.
         try:
@@ -160,7 +161,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
             self.createIndex(self.rowCount(0), self.columnCount(0)))
         self.emit(QtCore.SIGNAL("layoutChanged()"))
     """
-    
+
 
     def flags(self, index):
         if not index.isValid(): return
