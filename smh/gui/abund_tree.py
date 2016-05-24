@@ -8,10 +8,13 @@ from PySide import QtCore, QtGui
 from six import string_types
 
 from smh import (Session, specutils)
+import smh.spectral_models
+import smh.radiative_transfer as rt
 from smh.linelists import LineList
 
 from astropy import table
 
+import time
 import logging
 logger = logging.getLogger(__name__)
 
@@ -123,17 +126,59 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
             raise NotImplementedError
     def obtain_measurements_from_session(self):
         # TODO actually do this from the session
+        print("Summarizing measurements"); start = time.time()
         session = self.session
-        ll = LineList.read("/Users/alexji/smhr/smh/tests/test_data/linelists/complete.list")
-        col1 = table.Column(np.ones(len(ll)),name='A(X)')
-        col2 = table.Column(np.ones(len(ll)),name='e(X)')
-        col3 = table.Column(np.ones(len(ll), dtype=bool),name='is_selected')
-        ll.add_columns([col1,col2,col3])
-        ll['equivalent_width'] = 2.0
-        ll = table.Table(ll)
-        cols = ['wavelength','expot','loggf','element','species','A(X)','e(X)','is_selected','equivalent_width']
-        ll = ll[cols]
-        tab = ll.group_by('species')
+        measurements = session.metadata["spectral_models"]
+        wl = []
+        EP = []
+        loggf = []
+        element = []
+        species = []
+        abund = []
+        err = []
+        is_selected = []
+        EW = []
+        for m in measurements:
+            if isinstance(m,smh.spectral_models.ProfileFittingModel):
+                try:
+                    ab = m.abundances[0]
+                except KeyError:
+                    abund.append(np.nan)
+                    err.append(np.nan)
+                    EW.append(np.nan)
+                    is_selected.append(False)
+                except rt.RTError:
+                    abund.append(np.nan)
+                    err.append(np.nan)
+                    EW.append(1000.*m.metadata["fitted_result"][2]["equivalent_width"][0])
+                    is_selected.append(False)
+                else:
+                    abund.append(ab)
+                    err.append(0.1) #TODO
+                    EW.append(1000.*m.metadata["fitted_result"][2]["equivalent_width"][0])
+                    is_selected.append(m.metadata['is_acceptable'])
+                line = m.transitions[0]
+                wl.append(line['wavelength'])
+                EP.append(line['expot'])
+                loggf.append(line['loggf'])
+                element.append(line['element'])
+                species.append(line['species'])
+            if isinstance(m,smh.spectral_models.SpectralSynthesisModel):
+                raise NotImplementedError
+        tab = table.Table([wl,EP,loggf,element,species,abund,err,is_selected,EW],
+                          names=['wavelength','expot','loggf','element','species','A(X)','e(X)','is_selected','equivalent_width'])
+        tab = tab.group_by('species')
+        print("Computed! {:.1f}s".format(time.time()-start))
+        #ll = LineList.read("/Users/alexji/smhr/smh/tests/test_data/linelists/complete.list")
+        #col1 = table.Column(np.ones(len(ll)),name='A(X)')
+        #col2 = table.Column(np.ones(len(ll)),name='e(X)')
+        #col3 = table.Column(np.ones(len(ll), dtype=bool),name='is_selected')
+        #ll.add_columns([col1,col2,col3])
+        #ll['equivalent_width'] = 2.0
+        #ll = table.Table(ll)
+        #cols = ['wavelength','expot','loggf','element','species','A(X)','e(X)','is_selected','equivalent_width']
+        #ll = ll[cols]
+        #tab = ll.group_by('species')
         #ll['wavelength'].format = "7.2f"
         #ll['expot'].format = "4.2f"
         #ll['loggf'].format = "7.3f"
@@ -232,7 +277,11 @@ if __name__=="__main__":
     session.metadata.update(defaults)
     ll = LineList.read(os.path.dirname(os.path.abspath(__file__))+'/../tests/test_data/linelists/complete.list')
     session.metadata['line_list'] = ll
-    
+    import cPickle as pickle
+    print("Loading pre-saved spectral models"); start = time.time()
+    with open(datadir+'/ewtest.pkl','rb') as fp:
+        session.metadata['spectral_models'] = pickle.load(fp)
+    print("Done!",time.time()-start)
 
     app = QtGui.QApplication(sys.argv)
     abundtree = AbundTreeView(None,None)

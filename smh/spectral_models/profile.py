@@ -531,7 +531,7 @@ class ProfileFittingModel(BaseSpectralModel):
         
         return y
 
-
+    @property
     def abundances(self):
         """
         Calculate the abundance from the curve-of-growth given the fitted
@@ -545,6 +545,12 @@ class ProfileFittingModel(BaseSpectralModel):
         # Does the hash match the last calculation?
         # If so, return that value. If not, calculate the new value.
 
+        try:
+            return self.metadata["fitted_result"][2]["abundances"]
+        except KeyError:
+            pass
+
+        logger.info("Fitting COG for "+str(self))
         # Fixed Issue #38
         transitions = self.transitions.copy()
         assert len(transitions)==1,len(transitions)
