@@ -714,11 +714,17 @@ class NormalizationTab(QtGui.QWidget):
 
 
         # Draw the widgets.
-        self.update_order_index(0)
-        self.update_continuum_mask(refresh=False)
-        self.fit_continuum(clobber=False)
-        self.draw_order(refresh=False)
-        self.draw_continuum(refresh=True)
+        try:
+            self.update_order_index(0)
+            self.update_continuum_mask(refresh=False)
+            self.fit_continuum(clobber=False)
+            self.draw_order(refresh=False)
+            self.draw_continuum(refresh=True)
+        except (AttributeError, KeyError):
+            # HACK
+            # when loading a fresh session, it will skip all those blocks
+            # I think this is okay?
+            pass
         return None
 
 

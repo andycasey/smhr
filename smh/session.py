@@ -138,8 +138,9 @@ class Session(BaseSession):
             return value
 
 
+    """
     def _default(self, input_value, default_key_tree):
-        """
+        ""
         Return the input value if it is valid (i.e., not `None`), or return the
         default session value.
 
@@ -148,7 +149,7 @@ class Session(BaseSession):
 
         :param default_key_tree:
             A tuple containing a tree of dictionary keys.
-        """
+        ""
 
         if input_value is not None:
             return input_value
@@ -164,7 +165,7 @@ class Session(BaseSession):
                     default_key_tree))
                 
         return default
-
+    """
 
 
     @classmethod
@@ -230,7 +231,7 @@ class Session(BaseSession):
 
 
     def rv_measure(self, template_spectrum=None, wavelength_region=None,
-        resample=None, apodize=None, normalization_kwargs=None):
+        resample=None, apodize=None, normalization_kwargs=None, **kwargs):
         """
         Measure the observed radial velocity by cross-correlating an individual
         echelle order with a normalized rest-frame template spectrum. The most
@@ -257,6 +258,9 @@ class Session(BaseSession):
             Keyword arguments that are passed directly to the 
             `Spectrum1D.fit_continuum` function.
 
+        :param kwargs:
+            Dummy variable to take all extra keywords
+
         Note
         ----
         If these parameters are not specified, then defaults are read from the
@@ -264,17 +268,20 @@ class Session(BaseSession):
         """
 
         # Read in everything from defaults as necessary.
-        template_spectrum = \
-            self._default(template_spectrum, ("rv", "template_spectrum"))
-        wavelength_region = \
-            self._default(wavelength_region, ("rv", "wavelength_regions"))
-        resample = self._default(resample, ("rv", "resample"))
-        apodize = self._default(apodize, ("rv", "apodize"))
-        normalization_kwargs = \
-            self._default(normalization_kwargs, ("rv", "normalization"))
+        if template_spectrum is None:
+            template_spectrum = self.setting(("rv", "template_spectrum"))
+        if wavelength_region is None:
+            wavelength_region = self.setting(("rv", "wavelength_regions"))
+        if resample is None:
+            resample = self.setting(("rv", "resample"))
+        if apodize is None:
+            apodize = self.setting(("rv", "apodize"))
+        if normalization_kwargs is None:
+            normalization_kwargs = self.setting(("rv", "normalization"))
 
         # Is the template spectrum actually a filename?
         if isinstance(template_spectrum, string_types):
+            self.metadata["rv"]["template_spectrum_name"] = template_spectrum
             template_spectrum = specutils.Spectrum1D.read(template_spectrum,
                 debug=True)
 
