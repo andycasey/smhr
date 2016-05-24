@@ -110,6 +110,23 @@ class SpectralSynthesisModel(BaseSpectralModel):
         self._update_parameter_names()
         self._verify_transitions()
 
+        if len(self.elements) == 1:
+            # Which of these lines is in the line list?
+            matches = (self.transitions["elem1"] == self.elements[0])
+
+            if not np.any(matches):
+                self._repr_element = ", ".join(self.elements)
+            else:
+                unique_species = np.unique(self.transitions["element"][matches])
+                if len(unique_species) == 1:
+                    self._repr_element = unique_species[0]
+                else:
+                    self._repr_element = ", ".join(self.elements)
+        else:
+            # Many elements fitted simultaneously.
+            self._repr_element = ", ".join(self.elements)
+
+
         return None
 
     def _verify_elements(self, elements):
@@ -326,10 +343,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
         # Convert result to ordered dict.
         named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
-        self._result = (named_p_opt, cov, fitting_metadata)
+        self.metadata["fitted_result"] = (named_p_opt, cov, fitting_metadata)
         self.metadata["is_acceptable"] = True
         
-        return self._result
+        return self.metadata["fitted_result"]
 
 
     def __call__(self, dispersion, *parameters):

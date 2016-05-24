@@ -121,6 +121,9 @@ class ProfileFittingModel(BaseSpectralModel):
         self._verify_transitions()
         self._verify_metadata()
 
+        # Create a _repr_element for this.
+        self._repr_element = self.transitions["element"][0]
+
         return None
 
 
@@ -297,7 +300,11 @@ class ProfileFittingModel(BaseSpectralModel):
                 
             if not any(iterative_mask):
                 self.metadata["is_acceptable"] = False
-                del self._result
+                try:
+                    del self.metadata["fitted_result"]
+                except KeyError:
+                    None
+
                 self.transitions["equivalent_width"] = np.nan
 
                 return failure
@@ -316,7 +323,10 @@ class ProfileFittingModel(BaseSpectralModel):
 
                 if iteration == 0:
                     self.metadata["is_acceptable"] = False
-                    del self._result
+                    try:
+                        del self.metadata["fitted_result"]
+                    except KeyError:
+                        None
                     self.transitions["equivalent_width"] = np.nan
 
                     return failure
@@ -489,10 +499,10 @@ class ProfileFittingModel(BaseSpectralModel):
 
         # Convert p_opt to ordered dictionary
         named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
-        self._result = (named_p_opt, p_cov, fitting_metadata)
+        self.metadata["fitted_result"] = (named_p_opt, p_cov, fitting_metadata)
         self.metadata["is_acceptable"] = True
 
-        return self._result
+        return self.metadata["fitted_result"]
 
 
     def __call__(self, dispersion, *parameters):

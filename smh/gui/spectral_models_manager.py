@@ -22,7 +22,7 @@ DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
 class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
-    header = [" ", u"Wavelength\n(Å)", "Element", u"Equivalent Width\n(mÅ)",
+    header = [" ", u"Wavelength\n(Å)", "Element", u"E. W.\n(mÅ)",
         "Abundance\n(dex)"]
     attrs = ("is_acceptable", "_repr_wavelength", "_repr_element", 
         "equivalent_width", "abundance")
@@ -82,16 +82,12 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         elif column == 3:
             try:
                 result = self._parent.spectral_models[index.row()]._result[2]
-                equivalent_width = result["equivalent_width"]
+                equivalent_width = result["equivalent_width"][0]
             except:
-                equivalent_width = (np.nan, np.nan, np.nan)
+                equivalent_width = np.nan
 
-            if not np.any(np.isfinite(equivalent_width)):
-                value = ""
-            else:
-                value = "{0:.1f} +/- {1:.1f}".format(
-                    1000 * equivalent_width[0],
-                    1000 * np.max(np.abs(equivalent_width[1:])))
+            value = "{0:.1f}".format(1000 * equivalent_width) \
+                if np.isfinite(equivalent_width) else ""
 
         elif column == 4:
             value = ""
@@ -956,6 +952,18 @@ class SpectralModelsDialog(QtGui.QDialog):
         for unused_patch in self._lines["model_masks"][N:]:
             unused_patch.set_visible(False)
 
+        # Hide previous model_errs
+        try:
+            self._lines["model_yerr"].set_visible(False)
+            del self._lines["model_yerr"]
+            # TODO: This is wrong. It doesn't actually delete them so if
+            #       you ran this forever then you would get a real bad 
+            #       memory leak in Python. But for now, re-calculating
+            #       the PolyCollection is in the too hard basket.
+
+        except KeyError:
+            None
+
         # Things to show if there is a fitted result.
         try:
             (named_p_opt, cov, meta) = selected_model._result
@@ -969,6 +977,13 @@ class SpectralModelsDialog(QtGui.QDialog):
                 meta["model_x"], meta["model_y"])
 
             # Model yerr.
+            if np.any(np.isfinite(meta["model_yerr"])):
+                self._lines["model_yerr"] = self.mpl_axis.fill_between(
+                    meta["model_x"],
+                    meta["model_y"] + meta["model_yerr"],
+                    meta["model_y"] - meta["model_yerr"],
+                    facecolor="r", edgecolor="none", alpha=0.5)
+
 
             # Model masks due to nearby lines.
             if "nearby_lines" in meta:

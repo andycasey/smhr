@@ -44,14 +44,26 @@ class BaseSpectralModel(object):
         self._session = session
         self._transition_hashes = transition_hashes
 
+        indices = self._index_transitions()
+        transitions = self._session.metadata["line_list"][indices]
+
         self.metadata = {
             "use_for_stellar_composition_inference": True,
             "use_for_stellar_parameter_inference": (
-                "Fe I" in self.transitions["element"] or
-                "Fe II" in self.transitions["element"])
+                "Fe I" in transitions["element"] or
+                "Fe II" in transitions["element"])
         }
 
+        # Create a _repr_wavelength property.
+        if len(transitions) == 1:
+            self._repr_wavelength \
+                = "{0:.1f}".format(transitions["wavelength"][0])
+        else:
+            self._repr_wavelength \
+                = "~{0:.0f}".format(np.mean(transitions["wavelength"]))
+
         return None
+
 
     @property
     def is_acceptable(self):
@@ -76,18 +88,6 @@ class BaseSpectralModel(object):
         """
         return self.metadata["use_for_stellar_composition_inference"]
 
-
-    @property
-    def _repr_element(self):
-        """ Return a view of the element(s) for this model. """
-        return ", ".join(self.elements)
-
-    @property
-    def _repr_wavelength(self):
-        if len(self.transitions) == 1:
-            return "{0:.1f}".format(self.transitions["wavelength"][0])
-        else:
-            return "~{0:.0f}".format(np.mean(self.transitions["wavelength"]))
 
     @property
     def transitions(self):
