@@ -346,7 +346,7 @@ class Session(BaseSession):
             The radial velocity correction (in km/s) to apply.
         """
 
-        self.metadata["rv"]["rv_applied"] = float(rv)
+        self.metadata["rv"]["rv_applied"] = -float(rv)
         return None
 
 
@@ -361,6 +361,10 @@ class Session(BaseSession):
                 continuum * spectrum.ivar * continuum))
 
         self.normalized_spectrum = specutils.spectrum.stitch(normalized_orders)
+
+        # Ensure the radial velocity is accounted for.
+        self.normalized_spectrum.redshift(v=self.metadata["rv"]["rv_applied"])
+
         return self.normalized_spectrum
 
 

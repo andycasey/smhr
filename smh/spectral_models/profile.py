@@ -444,9 +444,11 @@ class ProfileFittingModel(BaseSpectralModel):
             ew_uncertainty = np.percentile(ew_alt, percentiles) - ew
         
         # Calculate chi-square for the points that we modelled.
-        ivar = spectrum.ivar[mask][iterative_mask]
+        ivar = spectrum.ivar[mask]
         if not np.any(np.isfinite(ivar)): ivar = 1
-        chi_sq = (y[iterative_mask] - self(x[iterative_mask], *p_opt))**2 * ivar
+        residuals = y - self(x, *p_opt)
+        residuals[~iterative_mask] = np.nan
+        chi_sq = residuals**2 * ivar
 
         dof = np.isfinite(chi_sq).sum() - len(p_opt) - 1
         chi_sq = np.nansum(chi_sq)
@@ -480,8 +482,8 @@ class ProfileFittingModel(BaseSpectralModel):
         """
         
         # Convert x, model_y, etc back to real-spectrum indices.
-        x, model_y, model_yerr = self._fill_masked_arrays(
-            spectrum, x, model_y, model_yerr)
+        x, model_y, model_yerr, residuals = self._fill_masked_arrays(
+            spectrum, x, model_y, model_yerr, residuals)
 
         fitting_metadata = {
             "equivalent_width": (ew, ew_uncertainty[0], ew_uncertainty[1]),
@@ -489,6 +491,7 @@ class ProfileFittingModel(BaseSpectralModel):
             "model_x": x,
             "model_y": model_y,
             "model_yerr": model_yerr,
+            "residual": residuals,
             "nearby_lines": nearby_lines,
             "chi_sq": chi_sq,
             "dof": dof
