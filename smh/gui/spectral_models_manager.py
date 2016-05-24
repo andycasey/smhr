@@ -81,7 +81,8 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
         elif column == 3:
             try:
-                result = self._parent.spectral_models[index.row()]._result[2]
+                spectral_model = self._parent.spectral_models[index.row()]
+                result = spectral_model.metadata["fitted_result"][2]
                 equivalent_width = result["equivalent_width"][0]
             except:
                 equivalent_width = np.nan
@@ -90,7 +91,18 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
                 if np.isfinite(equivalent_width) else ""
 
         elif column == 4:
-            value = ""
+            try:
+                spectral_model = self._parent.spectral_models[index.row()]
+                abundances \
+                    = spectral_model.metadata["fitted_result"][2]["abundances"]
+
+            except (IndexError, KeyError):
+                value = ""
+
+            else:
+                # How many elements were measured?
+                value = "; ".join(["{0:.2f}".format(abundance) \
+                    for abundance in abundances])
 
         return value if role == QtCore.Qt.DisplayRole else None
 
@@ -167,15 +179,16 @@ class SpectralModelsDialog(QtGui.QDialog):
         hbox_parent = QtGui.QHBoxLayout(self)
 
         self.table_view = QtGui.QTableView(self)
-        self.table_view.setMinimumSize(QtCore.QSize(450, 0))
-        self.table_view.setMaximumSize(QtCore.QSize(450, 16777215))
+        self.table_view.setMinimumSize(QtCore.QSize(300, 0))
+        self.table_view.setMaximumSize(QtCore.QSize(16777215, 16777215))
         self.table_view.setModel(SpectralModelsTableModel(self))
         self.table_view.setSelectionBehavior(
             QtGui.QAbstractItemView.SelectRows)
         self.table_view.setSortingEnabled(True)
         self.table_view.resizeColumnsToContents()
-        self.table_view.setColumnWidth(0, 30)
-        self.table_view.setColumnWidth(1, 80)
+        self.table_view.setColumnWidth(0, 30) # MAGIC
+        self.table_view.setColumnWidth(1, 80) # MAGIC
+        self.table_view.setColumnWidth(3, 60) # MAGIC
 
         self.table_view.horizontalHeader().setStretchLastSection(True)
 
@@ -966,9 +979,9 @@ class SpectralModelsDialog(QtGui.QDialog):
 
         # Things to show if there is a fitted result.
         try:
-            (named_p_opt, cov, meta) = selected_model._result
+            (named_p_opt, cov, meta) = selected_model.metadata["fitted_result"]
 
-        except:
+        except KeyError:
             meta = {}
             self._lines["model_fit"].set_data([], [])
            

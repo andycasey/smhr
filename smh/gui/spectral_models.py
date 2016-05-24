@@ -43,7 +43,8 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
                 
         except AttributeError:
             try:
-                value = self._data[index.row()]._result[2][attr]
+                result = self._data[index.row()].metadata["fitted_result"] 
+                value = result[2][attr]
             except (AttributeError, KeyError):
                 value = np.nan
 
@@ -406,8 +407,8 @@ class SpectralModelsWidget(QtGui.QWidget):
 
         # Any result for the selected spectral model?
         try:
-            opt, cov, meta = model._result
-        except:
+            opt, cov, meta = model.metadata["fitted_result"]
+        except KeyError:
             # Hide the model data and any masked regions.
             self.mpl_axis.lines[1].set_data([], [])
 

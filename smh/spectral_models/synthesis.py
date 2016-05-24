@@ -338,7 +338,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
             "model_y": model_y,
             "model_yerr": model_yerr,
             "chi_sq": chi_sq,
-            "dof": dof
+            "dof": dof,
+            "abundances": p_opt[:len(self.elements)]
         }
 
         # Convert result to ordered dict.
