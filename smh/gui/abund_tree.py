@@ -18,15 +18,18 @@ logger = logging.getLogger(__name__)
 _treecols = ['is_selected','wavelength','expot','loggf','element','A(X)','e(X)','equivalent_width','A(X)','A(X)']
 _treecolmap = dict(zip(range(len(_treecols)),_treecols))
 
-def summarize_abundances_species(ttab):
+def summarize_abundances_species(ttab,use_weights=True):
     element = ttab['element'][0]
     ttab = ttab[ttab['is_selected']]
     N = len(ttab)
     if N==0: return [element, N, np.nan, np.nan, np.nan, np.nan]
-    weights = 1./ttab['e(X)']**2
+    if use_weights:
+        weights = 1./ttab['e(X)']**2
+    else:
+        weights = np.ones(N)
     total_weights = np.sum(weights)
-    abund = np.mean(ttab['A(X)']*weights)/total_weights
-    stdev = np.std(ttab['A(X)']) #TODO weight
+    abund = np.sum(ttab['A(X)']*weights)/total_weights
+    stdev = np.sum(ttab['e(X)']*weights**2)/(total_weights**2)
     XH = np.nan
     XFe = np.nan
     return [element,N,abund,stdev,XH,XFe]
@@ -39,7 +42,13 @@ def summarize_abundances(tab):
     return summary
 
 class AbundTreeView(QtGui.QTreeView):
-    pass
+    def __init__(self, parent, session, *args):
+        super(AbundTreeView, self).__init__(parent, *args)
+        self.session = session
+        self._parent = parent
+    def span_cols(self):
+        for i in range(len(self.model().summaries)):
+            self.setFirstColumnSpanned(i,self.rootIndex(), True)
 class AbundTreeItem(object):
     def __init__(self, parent, row):
         self.parent = parent
@@ -58,14 +67,19 @@ class AbundTreeElementSummaryItem(AbundTreeItem):
         super(AbundTreeElementSummaryItem, self).__init__(parent, index)
         
         self.compute_summary()
+        self.fmts = ["{:5}", "N={:3}", "A(X)={:5.2f}", "e(X)={:5.2f}", "[X/H]={:5.2f}", "[X/Fe]={:5.2f}"]
+        self.precols = ['','N=','A(X)=','e(X)=','[X/H]=','[X/Fe]=']
     def _getChildren(self):
         N = len(self.model.tab.groups[self.index])
         return [AbundTreeMeasurementItem(row,self) for row in range(N)]
     def columnCount(self):
-        return 6
+        return 6 #1
     def data(self, column):
         if column >= self.columnCount(): return None
-        return str(self.summary[column])
+        return self.fmts[column].format(self.summary[column])
+        #return self.print_summary()
+    def print_summary(self):
+        return "{0:5} N={1:3} A(X)={2:5.2f} e(X)={3:5.2f} [X/H]={4:5.2f} [X/Fe]={5:5.2f}".format(*self.summary)
     def compute_summary(self):
         ttab = self.model.tab.groups[self.index]
         self.summary = summarize_abundances_species(ttab)
@@ -91,7 +105,7 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
     def __init__(self, session=None, parent=None):
         super(AbundTreeModel, self).__init__(parent)
         self.session = session
-        self.tab = self.obtain_measurements_from_session(session)
+        self.tab = self.obtain_measurements_from_session()
         # TODO set up a map from spectral models to items in the tree
         # That way you can selectively update the internal table here
         self.summaries = self._getSummaries()
@@ -117,6 +131,12 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         cols = ['wavelength','expot','loggf','element','species','A(X)','e(X)','is_selected','equivalent_width']
         ll = ll[cols]
         tab = ll.group_by('species')
+        #ll['wavelength'].format = "7.2f"
+        #ll['expot'].format = "4.2f"
+        #ll['loggf'].format = "7.3f"
+        #ll['A(X)'].format = "5.2f"
+        #ll['e(X)'].format = "5.2f"
+        #ll['equivalent_width'].format = "5.1f"
         return tab
 
     def _getSummaries(self):
@@ -168,7 +188,6 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         return item.data(index.column())
 
     def setData(self, index, value, role):
-        print("Setting data")
         item = index.internalPointer()
         if isinstance(item, AbundTreeMeasurementItem) and index.column()==0:
             # Check or uncheck a box
@@ -203,9 +222,18 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         
 if __name__=="__main__":
     app = QtGui.QApplication(sys.argv)
-    abundtree = AbundTreeView()
+    abundtree = AbundTreeView(None,None)
     model = AbundTreeModel()
     abundtree.setModel(model)
+    #abundtree.span_cols()
+    abundtree.setGeometry(900, 400, 900, 400)
+    abundtree.move(QtGui.QApplication.desktop().screen().rect().center() \
+                  - abundtree.rect().center())
+    sp = QtGui.QSizePolicy(
+        QtGui.QSizePolicy.MinimumExpanding, 
+        QtGui.QSizePolicy.MinimumExpanding)
+    sp.setHeightForWidth(abundtree.sizePolicy().hasHeightForWidth())
+    abundtree.setSizePolicy(sp)
     
     abundtree.show()
     sys.exit(app.exec_())
