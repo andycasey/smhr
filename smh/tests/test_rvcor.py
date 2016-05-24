@@ -12,6 +12,7 @@ def test_rv():
     with open(Session._default_settings_path, "rb") as fp:
         defaults = yaml.load(fp)
     session.metadata.update(defaults)
+    session.metadata["rv"]["template_spectrum"] = datadir+'/spectra/hd122563.fits'
     rv, rv_uncertainty = session.rv_measure()
     session.rv_correct(rv)
 

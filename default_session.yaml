@@ -31,6 +31,13 @@ normalization:
       obs_wavelength:
         - [7593, 7618] # Part of the telluric A-band
       #pixel:
+isotopes:
+  Ba:
+    136: 0.0
+    137: 0.351
+    138: 0.279
+    134: 0.0
+    135: 0.370
 summary:
   top_axis:
     star_x: teff
