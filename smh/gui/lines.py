@@ -115,12 +115,25 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
 
     def setData(self, index, value, role=QtCore.Qt.DisplayRole):
-        if index.column() != 0:
+        if index.column() != 0 or value:
             return False
 
-        self._parent.spectral_models[index.row()].metadata["is_acceptable"] \
-            = value
-        self.dataChanged.emit(index, index)
+        model = self._parent.spectral_models[index.row()]
+        model.metadata["is_acceptable"] = value
+
+        # Emit data change for this row.
+        self.dataChanged.emit(index,
+            self.createIndex(index, self.columnCount(0)))
+
+        # Refresh the view.
+        try:
+            del model.metadata["fitted_result"]
+
+        except KeyError:
+            None
+
+        self._parent.redraw_figure()
+
         return value
 
     """
@@ -145,42 +158,36 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
                 QtCore.Qt.ItemIsUserCheckable
 
 
+class MeasureLinesTab(QtGui.QWidget):
 
+    def __init__(self, parent, session=None):
+        """
+        Create a tab for the normalization of spectra.
+        
+        :param parent:
+            The parent widget.
+        """
 
+        super(MeasureLinesTab, self).__init__(parent)
+        self.parent = parent
+        session = session or self.parent.session
 
-class SpectralModelsDialog(QtGui.QDialog):
-
-    def __init__(self, session, stellar_parameter_models=True,
-        stellar_abundance_models=True, *args):
-        super(SpectralModelsDialog, self).__init__(*args)
-
-        self.session = session
-
-        # Create a list of the spectral models that we will display here.
         self.spectral_models = []
-        for spectral_model in self.session.metadata.get("spectral_models", []):
-            if (stellar_parameter_models and 
-                spectral_model.use_for_stellar_parameter_inference) \
-            or (stellar_abundance_models and
-                spectral_model.use_for_stellar_composition_inference):
-                self.spectral_models.append(spectral_model)
 
-        self.setGeometry(1000, 500, 1000, 500)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
-            - self.rect().center())
-        self.setWindowTitle("Fit spectral models")
-
+        # Establish the GUI for this tab.
         sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.MinimumExpanding, 
-            QtGui.QSizePolicy.MinimumExpanding)
+            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.MinimumExpanding)
         sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
         self.setSizePolicy(sp)
-
+        
         hbox_parent = QtGui.QHBoxLayout(self)
+        hbox_parent.setContentsMargins(10, 10, 10, 10)
+
+        lhs_widget = QtGui.QWidget()
+        lhs_widget.setFixedWidth(300)
 
         self.table_view = QtGui.QTableView(self)
-        self.table_view.setMinimumSize(QtCore.QSize(300, 0))
-        self.table_view.setMaximumSize(QtCore.QSize(16777215, 16777215))
+        #self.table_view.setMinimumSize(QtCore.QSize(300, 0))
         self.table_view.setModel(SpectralModelsTableModel(self))
         self.table_view.setSelectionBehavior(
             QtGui.QAbstractItemView.SelectRows)
@@ -192,20 +199,54 @@ class SpectralModelsDialog(QtGui.QDialog):
 
         self.table_view.horizontalHeader().setStretchLastSection(True)
 
-
         _ = self.table_view.selectionModel()
         _.selectionChanged.connect(self.selected_model_changed)
 
-        hbox_parent.addWidget(self.table_view)
+
+        vbox_lhs = QtGui.QVBoxLayout()
+        vbox_lhs.addWidget(lhs_widget)
+        vbox_lhs.addWidget(self.table_view)
+
+        self.btn_measure_all = QtGui.QPushButton(self)
+        self.btn_measure_all.setDefault(True)
+        self.btn_measure_all.setText("Fit all models")
+
+        self.btn_filter = QtGui.QPushButton(self)
+        self.btn_filter.setText("Filter..")
+
+        self.btn_quality_control = QtGui.QPushButton(self)
+        self.btn_quality_control.setText("Quality control..")
+
+        hbox = QtGui.QHBoxLayout()
+        hbox.addWidget(self.btn_measure_all)
+        hbox.addItem(QtGui.QSpacerItem(40, 20, 
+                QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum),
+        )
+        hbox.addWidget(self.btn_filter)
+        hbox.addWidget(self.btn_quality_control)
+
+        vbox_lhs.addLayout(hbox)
+
+        hbox_parent.addLayout(vbox_lhs)
 
 
         vbox_rhs = QtGui.QVBoxLayout()
 
+
         self.mpl_figure = mpl.MPLWidget(None, tight_layout=True,
             autofocus=True)
-        self.mpl_figure.figure.patch.set_facecolor([_/255. for _ in \
+        self.mpl_figure.figure.patch.set_facecolor([(_ - 10)/255. for _ in \
             self.palette().color(QtGui.QPalette.Window).getRgb()[:3]])
-        self.mpl_figure.setMinimumSize(QtCore.QSize(0, 250))
+
+        self.mpl_figure.setMaximumSize(QtCore.QSize(16777215, 200))
+        self.mpl_figure.setMinimumSize(QtCore.QSize(0, 100))
+
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        sp.setHorizontalStretch(0)
+        sp.setVerticalStretch(0)
+        sp.setHeightForWidth(self.mpl_figure.sizePolicy().hasHeightForWidth())
+        self.mpl_figure.setSizePolicy(sp)
         vbox_rhs.addWidget(self.mpl_figure)
 
 
@@ -274,8 +315,7 @@ class SpectralModelsDialog(QtGui.QDialog):
 
         # Profile model options.
         self.tab_profile = QtGui.QWidget()
-        vbox_profile = QtGui.QVBoxLayout(self.tab_profile)
-        grid_profile = QtGui.QGridLayout()
+        grid_profile = QtGui.QGridLayout(self.tab_profile)
 
 
         label = QtGui.QLabel(self.tab_profile)
@@ -346,9 +386,6 @@ class SpectralModelsDialog(QtGui.QDialog):
         hbox.addWidget(self.edit_wavelength_tolerance)
         grid_profile.addLayout(hbox, 3, 3, 1, 1)
 
-        vbox_profile.addLayout(grid_profile)
-        vbox_profile.addItem(QtGui.QSpacerItem(20, 10, 
-            QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
         self.tabWidget.addTab(self.tab_profile, "Profile options")
 
 
@@ -400,16 +437,14 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.verticalLayout.addWidget(self.tabWidget)
         hbox_btns = QtGui.QHBoxLayout()
         self.btn_save_as_default = QtGui.QPushButton(group_box)
-        self.btn_save_as_default.setAutoDefault(False)
-        self.btn_save_as_default.setDefault(False)
         self.btn_save_as_default.setText("Save as default options")
-        hbox_btns.addWidget(self.btn_save_as_default)
 
         hbox_btns.addItem(QtGui.QSpacerItem(40, 20, 
             QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
 
+        hbox_btns.addWidget(self.btn_save_as_default)
+
         self.btn_apply_to_all = QtGui.QPushButton(group_box)
-        self.btn_apply_to_all.setDefault(True)
         self.btn_apply_to_all.setText("Apply options to all models")
         hbox_btns.addWidget(self.btn_apply_to_all)
 
@@ -421,14 +456,9 @@ class SpectralModelsDialog(QtGui.QDialog):
 
 
         self.mpl_axis = self.mpl_figure.figure.add_subplot(111)
-        spectrum = self.spectral_models[0].session.normalized_spectrum
-        self.mpl_axis.plot(spectrum.dispersion, spectrum.flux, c="k",
+        
+        self.mpl_axis.plot([], [], c="k",
             drawstyle="steps-mid")
-        sigma = 1.0/np.sqrt(spectrum.ivar)
-        style_utils.fill_between_steps(self.mpl_axis, spectrum.dispersion,
-            spectrum.flux - sigma, spectrum.flux + sigma, facecolor="#CCCCCC",
-            edgecolor="None", alpha=0.5)
-
         self._lines = {
             "transitions_center": self.mpl_axis.axvline(
                 np.nan, c="#666666", linestyle=":", zorder=-1),
@@ -436,7 +466,6 @@ class SpectralModelsDialog(QtGui.QDialog):
             "nearby_lines": [],
             "model_masks": [],
         }
-        self.mpl_axis.set_xlim(spectrum.dispersion[0], spectrum.dispersion[-1])
         self.mpl_axis.set_ylim(0, 1.2)
 
         self.mpl_axis.set_xlabel(u"Wavelength (Å)")
@@ -446,15 +475,17 @@ class SpectralModelsDialog(QtGui.QDialog):
         self.mpl_axis.xaxis.get_major_formatter().set_useOffset(False)
         self.mpl_figure.draw()
 
-        # Select the first entry.
-        self.spectral_models[0].fit()
-        self.table_view.selectRow(0)
+        # Select the first entry and initialize the view.
+        self._spectral_models_updated()
 
         # TODO: AND CUSTOM TEXT REPRS TO SHOW UNITS
 
         # Connect signals.
+        self.btn_measure_all.clicked.connect(self.clicked_measure_all)
         self.btn_save_as_default.clicked.connect(self.clicked_save_as_default)
         self.btn_apply_to_all.clicked.connect(self.clicked_apply_to_all)
+        self.btn_filter.clicked.connect(self.clicked_filter)
+        self.btn_quality_control.clicked.connect(self.clicked_quality_control)
 
         # Common options.
         self.edit_window.textChanged.connect(self.update_edit_window)
@@ -498,6 +529,93 @@ class SpectralModelsDialog(QtGui.QDialog):
             "button_release_event", self.figure_mouse_release)
 
         return None
+
+
+    def _spectral_models_updated(self):
+
+        # Create a list of the spectral models that we will display here.        
+        self.spectral_models = []
+        try:
+            for model in self.parent.session.metadata["spectral_models"]:
+                if model.use_for_stellar_parameter_inference:
+                    self.spectral_models.append(model)
+
+        except (AttributeError, KeyError):
+            # No spectral models set yet.
+            None
+
+        # Reset the model/view.
+        self.table_view.model().reset()
+
+
+        # Select and fit the first row.
+        if len(self.spectral_models) > 0:
+            self.spectral_models[0].fit()
+
+            spectrum = self.spectral_models[0].session.normalized_spectrum
+            self.mpl_axis.lines[0].set_data(spectrum.dispersion, spectrum.flux)
+            sigma = 1.0/np.sqrt(spectrum.ivar)
+            style_utils.fill_between_steps(self.mpl_axis, spectrum.dispersion,
+                spectrum.flux - sigma, spectrum.flux + sigma, facecolor="#CCCCCC",
+                edgecolor="None", alpha=0.5)
+
+            self.mpl_axis.set_xlim(
+                spectrum.dispersion[0], spectrum.dispersion[-1])
+            
+            self.table_view.selectRow(0)
+
+        else:
+            try:
+                spectrum = self.parent.session.normalized_spectrum
+            except AttributeError:
+                None
+            else:
+
+                self.mpl_axis.lines[0].set_data(spectrum.dispersion, spectrum.flux)
+                sigma = 1.0/np.sqrt(spectrum.ivar)
+                style_utils.fill_between_steps(self.mpl_axis, spectrum.dispersion,
+                    spectrum.flux - sigma, spectrum.flux + sigma, facecolor="#CCCCCC",
+                    edgecolor="None", alpha=0.5)
+
+                self.mpl_axis.set_xlim(
+                    spectrum.dispersion[0], spectrum.dispersion[-1])
+            
+        return None
+
+
+    def clicked_measure_all(self):
+        """ The 'Measure all' button was clicked. """
+
+        # Fit all.
+        table_model = self.table_view.model()
+        for index, spectral_model in enumerate(self.spectral_models):
+            try:
+                spectral_model.fit()
+            except:
+                logger.exception("Exception in fitting model {}: {}".format(
+                    index, spectral_model))
+                # TODO: re-raise?
+                continue
+
+            # Update this row in the table.
+            table_model.dataChanged.emit(
+                table_model.createIndex(index, 0),
+                table_model.createIndex(
+                    index, table_model.columnCount(0)))
+
+        # Update the view of the highlighted model.
+        self.redraw_figure()
+        return None
+
+
+    def clicked_quality_control(self):
+        """ The 'Quality control..' button was clicked. """
+        raise NotImplementedError
+
+
+    def clicked_filter(self):
+        """ The 'Filter..' button was clicked. """
+        raise NotImplementedError
 
 
     def clicked_save_as_default(self):
@@ -1075,7 +1193,7 @@ if __name__ == "__main__":
     except RuntimeError:
         None
 
-    window = SpectralModelsDialog(session)
-    window.exec_()
+    window = MeasureLinesTab(None, session)
+    window.show()
 
 

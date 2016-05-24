@@ -11,7 +11,7 @@ from PySide import QtCore, QtGui
 import yaml
 
 # Import functionality related to each tab
-import rv, normalization, summary, stellar_parameters
+import rv, normalization, summary, stellar_parameters, lines
 
 # Functions related to warnings and exceptions.
 import exception
@@ -222,6 +222,10 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         window = TransitionsDialog(self.session)
         window.exec_()
+
+        # Update the spectral models view in the various tabs.
+        self.line_measurements_tab._spectral_models_updated()
+
         return None
 
 
@@ -270,6 +274,11 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.normalization_tab = normalization.NormalizationTab(self)
         self.tabs.addTab(self.normalization_tab, "Normalization")
 
+        # Create tab for measuring lines (spectral models) that will be used in
+        # the determination of stellar parameters.
+        self.line_measurements_tab = lines.MeasureLinesTab(self)
+        self.tabs.addTab(self.line_measurements_tab, "Line measurements")
+
         # Create stellar parameters tab.
         self.stellar_parameters_tab \
             = stellar_parameters.StellarParametersTab(self)
@@ -290,8 +299,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.setCentralWidget(cw)
 
         self.tabs.setCurrentIndex(0)
-        #QtCore.QMetaObject.connectSlotsByName(self)
-
         self._update_window_title()
 
 
@@ -300,7 +307,12 @@ if __name__ == '__main__':
     import sys
 
     # Create the app and clean up any style bugs.
-    app = QtGui.QApplication(sys.argv)
+    try:
+        app = QtGui.QApplication(sys.argv)
+
+    except RuntimeError:
+        # For development.
+        None
 
     if sys.platform == "darwin":
             
