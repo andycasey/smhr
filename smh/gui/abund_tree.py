@@ -76,11 +76,11 @@ class AbundTreeElementSummaryItem(AbundTreeItem):
         N = len(self.model.tab.groups[self.index])
         return [AbundTreeMeasurementItem(row,self) for row in range(N)]
     def columnCount(self):
-        return 6 #1
+        return 1 #6
     def data(self, column):
         if column >= self.columnCount(): return None
-        return self.fmts[column].format(self.summary[column])
-        #return self.print_summary()
+        #return self.fmts[column].format(self.summary[column])
+        return self.print_summary()
     def print_summary(self):
         return "{0:5} N={1:3} A(X)={2:5.2f} e(X)={3:5.2f} [X/H]={4:5.2f} [X/Fe]={5:5.2f}".format(*self.summary)
     def compute_summary(self):
@@ -105,7 +105,7 @@ class AbundTreeMeasurementItem(AbundTreeItem):
         return str(data)
     
 class AbundTreeModel(QtCore.QAbstractItemModel):
-    def __init__(self, session=None, parent=None):
+    def __init__(self, session, parent=None):
         super(AbundTreeModel, self).__init__(parent)
         self.session = session
         self.tab = self.obtain_measurements_from_session()
@@ -224,11 +224,21 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         return None
         
 if __name__=="__main__":
+    import yaml
+    with open(Session._default_settings_path, "rb") as fp:
+        defaults = yaml.load(fp)
+    datadir = os.path.dirname(os.path.abspath(__file__))+'/../tests/test_data'
+    session = Session([datadir+"/spectra/hd122563.fits"])
+    session.metadata.update(defaults)
+    ll = LineList.read(os.path.dirname(os.path.abspath(__file__))+'/../tests/test_data/linelists/complete.list')
+    session.metadata['line_list'] = ll
+    
+
     app = QtGui.QApplication(sys.argv)
     abundtree = AbundTreeView(None,None)
-    model = AbundTreeModel()
+    model = AbundTreeModel(session)
     abundtree.setModel(model)
-    #abundtree.span_cols()
+    abundtree.span_cols()
     abundtree.setGeometry(900, 400, 900, 400)
     abundtree.move(QtGui.QApplication.desktop().screen().rect().center() \
                   - abundtree.rect().center())
