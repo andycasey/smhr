@@ -19,9 +19,9 @@
 - [ ] Edit masks GUI for normalization tab. #gui
 - [ ] I/O: Save/load new session format.
 - [ ] I/O: Create session .from_filename.
-- [ ] Line list manager widget --> transitions/spectral_models/assigned to #category.
-- [ ] Can the spectral_models __init__ arguments be abstracted more from the session?
-- [ ] Include interactive fitting options in the spectral_models management GUI. #gui
+- [X] Line list manager widget --> transitions/spectral_models/assigned to #category.
+- [X] Can the spectral_models __init__ arguments be abstracted more from the session?
+- [X] Include interactive fitting options in the spectral_models management GUI. #gui
 - [ ] Functionality to export all intermediate-step data to maximize reproducibility.
 - [ ] Script to format old SMH session files into the new format.
 - [ ] Sketch up flexible GUI to be able to use stellar parameter information from other sources (e.g., teff from H-alpha, logg from isochrones). Similarly, ensure this is in context of *where* the H-alpha, isochrone stuff can be inputted.
@@ -34,7 +34,7 @@
 
 *Medium*:
 - [ ] An edit list widget for wavelength regions in the RV tab. #gui
-- [ ] Allow click-to-mask + additional point functionality in RV tab. #gui
+- [ ] ~Allow click-to-mask + additional point functionality in RV tab. #gui~
 - [ ] Implement literature comparison stuff based on data description in the defaults.yaml file.
 - [ ] Show 'heliocentric correction for UTDATE' info in RV tab if it could be calculated.
 - [ ] Ensure inverse variance arrays are being properly used in continuum fitting, and that the fits are correct at the edges.
@@ -55,4 +55,4 @@
 - [X] Implement 'Query Simbad..' button.
 - [X] Change font style for name and position data in Summary tab. #gui
 - [ ] Compile line lists together based on current "best" knowledge.
-- [ ] Integrate spectral_models widget (sans any models) into the chemical abundances tab. #gui
+- [ ] ~Integrate spectral_models widget (sans any models) into the chemical abundances tab. #gui~
