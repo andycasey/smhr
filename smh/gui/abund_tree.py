@@ -144,7 +144,7 @@ class AbundTreeMeasurementItem(AbundTreeItem):
                 return m.transitions['element'][0]
             elif column==5: #A(X)
                 try:
-                    return m.metadata["fitted_result"][2]["abundances"]
+                    return "{:5.2f}".format(m.metadata["fitted_result"][2]["abundances"][0])
                 except:
                     return str(np.nan)
             elif column==6: #e(X)
@@ -152,7 +152,7 @@ class AbundTreeMeasurementItem(AbundTreeItem):
                 return "{:4.2f}".format(0.1)
             elif column==7: #equivalent_width
                 try:
-                    return m.metadata["fitted_result"][2]["equivalent_width"][0]*1000.
+                    return "{:6.2f}".format(m.metadata["fitted_result"][2]["equivalent_width"][0]*1000.)
                 except:
                     return str(np.nan)
             else:
