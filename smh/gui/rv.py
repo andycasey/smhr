@@ -49,7 +49,7 @@ class RVTab(QtGui.QWidget):
         # Create a top-level horizontal layout to contain a matplotlib figure and
         # a vertical layout of settings..
         rv_tab_layout = QtGui.QHBoxLayout(self)
-        rv_tab_layout.setContentsMargins(10, 10, 10, 10)
+        rv_tab_layout.setContentsMargins(20, 20, 20, 0)
 
         # This vertical layout will be for input settings.
         rv_settings_vbox = QtGui.QVBoxLayout()
@@ -326,12 +326,6 @@ class RVTab(QtGui.QWidget):
         hbox.addWidget(rv_correct_btn)
         rv_settings_vbox.addLayout(hbox)
 
-
-        # Add a spacer until the big button.
-        rv_settings_vbox.addItem(QtGui.QSpacerItem(
-            20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
-
-
         # The cross-correlate and correct button.
         rv_ccc_btn = QtGui.QPushButton(self)
         sp = QtGui.QSizePolicy(
@@ -354,6 +348,10 @@ class RVTab(QtGui.QWidget):
             rv_ccc_btn.setStyleSheet('QPushButton {color: white}')
 
         rv_settings_vbox.addWidget(rv_ccc_btn)
+
+        # Add a spacer after the big button.
+        rv_settings_vbox.addItem(QtGui.QSpacerItem(
+            20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
 
         rv_tab_layout.addLayout(rv_settings_vbox)
 
@@ -638,7 +636,7 @@ class RVTab(QtGui.QWidget):
             rv_applied = 0
 
         self.ax_order_norm.lines[1].set_data([
-            self._cache["normalized_order"].dispersion * (1 - rv_applied/c),
+            self._cache["normalized_order"].dispersion * (1 + rv_applied/c),
             self._cache["normalized_order"].flux,
         ])
         self.ax_order_norm.set_xlim(self._cache["input"]["wavelength_region"])
@@ -1114,6 +1112,7 @@ class RVRegionDialog(QtGui.QDialog):
         self.redraw_normalized_order(True)
         return None
     
+
     def redraw_continuum(self, refresh=False):
         """
         Redraw the continuum.
@@ -1129,6 +1128,8 @@ class RVRegionDialog(QtGui.QDialog):
         if refresh:
             self.mpl_plot.draw()
         return None
+
+
     def redraw_normalized_order(self, refresh=False):
         """
         Redraw the normalized order.
@@ -1144,7 +1145,7 @@ class RVRegionDialog(QtGui.QDialog):
             rv_applied = 0
 
         self.ax_order_norm.lines[1].set_data([
-            self.rv_tab._cache["normalized_order"].dispersion * (1 - rv_applied/c),
+            self.rv_tab._cache["normalized_order"].dispersion * (1 + rv_applied/c),
             self.rv_tab._cache["normalized_order"].flux,
         ])
         self.ax_order_norm.set_xlim(self.rv_tab._cache["input"]["wavelength_region"])
@@ -1153,6 +1154,8 @@ class RVRegionDialog(QtGui.QDialog):
             self.mpl_plot.draw()
 
         return None
+
+
     def draw_template(self, refresh=False):
         """
         Draw the template spectrum in the figure.
