@@ -163,11 +163,7 @@ class StellarParametersTab(QtGui.QWidget):
             lambda model: model.use_for_stellar_parameter_inference)
 
         self.proxy_spectral_models.setDynamicSortFilter(False)
-        # Link the SpectralModelsTableModel directly to the parent window
-        # because the parent window has the `.session` attribute that we want
-        # to link against.
-        self.proxy_spectral_models.setSourceModel(
-            SpectralModelsTableModel(parent))
+        self.proxy_spectral_models.setSourceModel(SpectralModelsTableModel(self))
 
         self.table_view.setModel(self.proxy_spectral_models)
         self.table_view.setSelectionBehavior(
@@ -365,9 +361,16 @@ class StellarParametersTab(QtGui.QWidget):
             The matplotlib event.
         """
 
-        # Select the row(s). That will trigger the rest.
-        for index in self._spectral_model_indices[event.ind]:
-            self.table_view.selectRow(index)
+        print("picking ", event.ind, event.__dict__)
+
+        #self.table_view.setSelectionMode(QtGui.QAbstractItemView.SingleSelection)
+        self.table_view.selectRow(event.ind[0])
+        #self.table_view.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
+        #for index in event.ind[1:]:
+        #    self.table_view.selectRow(index)
+        #self.table_view.setSelectionMode(QtGui.QAbstractItemView.SingleSelection)
+
+        
         return None
 
 
@@ -630,26 +633,11 @@ class StellarParametersTab(QtGui.QWidget):
         return True
 
 
-    def measure_abundances(self):
-        """ The measure abundances button has been clicked. """
+    def update_scatter_plots(self, redraw=False):
 
-        if self.parent.session is None or not self._check_for_spectral_models():
-            return None
-
-        # Update the session with the stellar parameters in the GUI, and then
-        # calculate abundances.
-        self.update_stellar_parameters()
-
-        try:
-            transitions, state, self._spectral_model_indices \
-                = self.parent.session.stellar_parameter_state(full_output=True)
-
-        except ValueError:
-            logger.warn("No measured transitions to calculate abundances for.")
-            return None
 
         # Update figures.
-        for group in transitions.group_by("species").groups:
+        for group in self._state_transitions.group_by("species").groups:
 
             species = group["species"][0]
             try:
@@ -675,6 +663,38 @@ class StellarParametersTab(QtGui.QWidget):
         style_utils.relim_axes(self.ax_excitation)
         style_utils.relim_axes(self.ax_line_strength)
 
+        if redraw:
+            self.figure.draw()
+        return None
+
+
+    def measure_abundances(self):
+        """ The measure abundances button has been clicked. """
+
+        if self.parent.session is None or not self._check_for_spectral_models():
+            return None
+
+        # Update the session with the stellar parameters in the GUI, and then
+        # calculate abundances.
+        self.update_stellar_parameters()
+
+        try:
+            self._state_transitions, state, self._spectral_model_indices \
+                = self.parent.session.stellar_parameter_state(full_output=True)
+
+        except ValueError:
+            logger.warn("No measured transitions to calculate abundances for.")
+            return None
+
+        # The number of transitions should match what is shown in the view.
+        assert len(self._state_transitions) == self.table_view.model().rowCount(
+            QtCore.QModelIndex())
+
+
+        self.update_scatter_plots()
+
+        # Draw trend lines based on the data already there.
+        """
 
         for group in transitions.group_by("species").groups:
 
@@ -713,12 +733,24 @@ class StellarParametersTab(QtGui.QWidget):
 
 
             print("mean", species, np.median(group["abundance"]))
+        """
 
         # Update selected entries.
         self.selected_model_changed()
 
-        # Update table view model for all rows.
-        self.proxy_spectral_models.reset()
+        # Update abundance column for all rows.
+        data_model = self.proxy_spectral_models.sourceModel()
+        # 3 is the abundance column
+        data_model.dataChanged.emit(
+            data_model.createIndex(0, 3),
+            data_model.createIndex(
+                data_model.rowCount(QtCore.QModelIndex()), 3))
+
+        # It ought to be enough just to emit the dataChanged signal, but
+        # there is a bug when using proxy models where the data table is
+        # updated but the view is not, so we do this hack to make it
+        # work:
+        self.table_view.columnMoved(3, 3, 3)
 
         return None
 
@@ -730,6 +762,30 @@ class StellarParametersTab(QtGui.QWidget):
         index = self.proxy_spectral_models.mapToSource(proxy_index).row()
         model = self.parent.session.metadata["spectral_models"][index]
         return (model, proxy_index, index) if full_output else model
+
+
+    def update_selected_points(self, redraw=False):
+        # Show selected points.
+        indices = np.unique(np.array([index.row() for index in \
+            self.table_view.selectionModel().selectedIndexes()]))
+
+        try:
+            x_excitation = self._state_transitions["expot"][indices]
+            x_strength = self._state_transitions["reduced_equivalent_width"][indices]
+            y = self._state_transitions["abundance"][indices]
+
+        except:
+            x_excitation, x_strength, y = (np.nan, np.nan, np.nan)
+
+
+        point_excitation, point_strength = self._lines["selected_point"]
+        point_excitation.set_offsets(np.array([x_excitation, y]).T)
+        point_strength.set_offsets(np.array([x_strength, y]).T)
+
+        if redraw:
+            self.figure.draw()
+
+        return None
 
 
     def selected_model_changed(self):
@@ -757,27 +813,7 @@ class StellarParametersTab(QtGui.QWidget):
         except (IndexError, KeyError):
             abundances = [np.nan]
 
-        assert len(abundances) == 1
-        abundance = abundances[0]
-        if not np.isfinite(abundance):
-            excitation_potential, rew = (np.nan, np.nan)
-
-        else:
-            transitions = selected_model.transitions
-            assert len(transitions) == 1
-
-            excitation_potential = transitions["expot"][0]
-            rew = np.log10(equivalent_width/transitions["wavelength"][0])
-
-
-
-        # Show points from many models.
-        # TODO:        
-
-        point_excitation, point_strength = self._lines["selected_point"]
-        point_excitation.set_offsets(np.array([excitation_potential,
-            abundance]).T)
-        point_strength.set_offsets(np.array([rew, abundance]).T)
+        self.update_selected_points()
 
         # Show spectrum.
         self.update_spectrum_figure()
@@ -1115,22 +1151,15 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
             The index of the item in the data table.
         """
 
-        if not isinstance(data_index, int) and not data_index.isValid():
-            return data_index
-
-        if isinstance(data_index, int):
-            proxy_index = self.filter_indices[:data_index].sum()
-            print("map from source a", data_index, proxy_index)
-            return proxy_index
-
-
-        else:
+        if not isinstance(data_index, int):
+            if not data_index.isValid():
+                return data_index
 
             proxy_index = self.filter_indices[:data_index.row()].sum()
-            print("map from source", data_index, proxy_index)
             return self.createIndex(proxy_index, data_index.column())
 
-
+        else:
+            return self.filter_indices[:data_index].sum()
 
 
     def mapToSource(self, proxy_index):
@@ -1177,7 +1206,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         An abstract table model for spectral models.
 
         :param parent:
-            The parent. This *must* have an attribute of `parent.session`.
+            The parent. This *must* have an attribute of `parent.parent.session`.
         """
 
         super(SpectralModelsTableModel, self).__init__(parent, *args)
@@ -1191,10 +1220,9 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
     @property
     def spectral_models(self):
         try:
-            return self.parent.session.metadata.get("spectral_models", [])
+            return self.parent.parent.session.metadata.get("spectral_models", [])
 
         except AttributeError:
-            print("parent has no session")
             # session is None
             return []
 
@@ -1296,15 +1324,25 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         # updated but the view is not, so we do this hack to make it
         # work:
 
-        # This is REALLY clunky,...
-        # TODO revisit this
-        # TODO this is REALLY clunky:
-        self.parent.stellar_parameters_tab.update_spectrum_figure()
-        proxy_index = self.parent.stellar_parameters_tab.table_view.model()\
-            .mapFromSource(index.row())
-        self.parent.stellar_parameters_tab.table_view.rowMoved(proxy_index,
-            proxy_index, proxy_index)
+        # TODO: This means when this model is used in a tab, that tab
+        #       (or whatever the parent is)
+        #       should have a .table_view widget and an .update_spectrum_figure
+        #       method.
+        proxy_index = self.parent.table_view.model().mapFromSource(index.row())
+        self.parent.table_view.rowMoved(proxy_index, proxy_index, proxy_index)
 
+        # TODO THIS IS CLUMSY:
+        # If we have a cache of the state transitions, update the entries.
+        if hasattr(self.parent, "_state_transitions"):
+            cols = ("equivalent_width", "reduced_equivalent_width", "abundance")
+            for col in cols:
+                self.parent._state_transitions[col][proxy_index] = np.nan
+            self.parent.update_scatter_plots(redraw=False)
+            self.parent.update_selected_points(redraw=False)
+            
+        # Hide the 
+        self.parent.update_spectrum_figure()
+        
         return value
 
     """
