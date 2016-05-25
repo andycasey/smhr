@@ -132,7 +132,7 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
             # TODO update just those items with the new measurements
             raise NotImplementedError
     def obtain_measurements_from_parent_tab(self):
-        print("Summarizing measurements"); start = time.time()
+        logger.debug("Summarizing measurements from tab..."); start = time.time()
         measurements = self.parenttab.spectral_models
         wl = []
         EP = []
@@ -146,7 +146,7 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         for m in measurements:
             if isinstance(m,smh.spectral_models.ProfileFittingModel):
                 try:
-                    ab = m.abundances[0]
+                    ab = m.metadata["fitted_result"][2]["abundances"][0]
                 except KeyError:
                     abund.append(np.nan)
                     err.append(np.nan)
@@ -173,7 +173,7 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         tab = table.Table([wl,EP,loggf,element,species,abund,err,is_selected,EW],
                           names=['wavelength','expot','loggf','element','species','A(X)','e(X)','is_selected','equivalent_width'])
         tab = tab.group_by('species')
-        print("Computed! {:.1f}s".format(time.time()-start))
+        logger.debug("Computed! {:.1f}s".format(time.time()-start))
         self.tab = tab
 
     def _getSummaries(self):

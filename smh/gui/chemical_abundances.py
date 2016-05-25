@@ -17,6 +17,7 @@ import time
 import mpl, style_utils
 from matplotlib.ticker import MaxNLocator
 #from smh.photospheres import available as available_photospheres
+import smh.radiative_transfer as rt
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 from abund_tree import AbundTreeView, AbundTreeModel
 from linelist_manager import TransitionsDialog
@@ -70,9 +71,18 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         # Buttons
         hbox = QtGui.QHBoxLayout()
+        self.btn_fit_all = QtGui.QPushButton(self)
+        self.btn_fit_all.setText("Fit and Measure all")
         self.btn_refresh = QtGui.QPushButton(self)
         self.btn_refresh.setText("Refresh table")
+        hbox.addWidget(self.btn_fit_all)
         hbox.addWidget(self.btn_refresh)
+        lhs_layout.addLayout(hbox)
+
+        hbox = QtGui.QHBoxLayout()
+        self.btn_save_to_session = QtGui.QPushButton(self)
+        self.btn_save_to_session.setText("Save to session")
+        hbox.addWidget(self.btn_save_to_session)
         lhs_layout.addLayout(hbox)
         
         # Model options
@@ -144,7 +154,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.parent_splitter.addWidget(self.figure)
 
         # Connect buttons
+        self.btn_fit_all.clicked.connect(self.fit_all)
         self.btn_refresh.clicked.connect(self.refresh_table)
+        self.btn_save_to_session.clicked.connect(self.save_to_session)
 
         # Connect matplotlib.
         self.figure.mpl_connect("button_press_event", self.figure_mouse_press)
@@ -161,8 +173,40 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def refresh_table(self):
         self._check_for_spectral_models()
         self.updated_spectral_models() # TODO duplicated
-        print("Resetting model")
+        logger.debug("Resetting tree model")
         self.abundtree.model().reset()
+
+    def fit_all(self):
+        self._check_for_spectral_models()
+        self.updated_spectral_models()
+        # TODO order by complexity
+        logger.debug("Looping through spectral models...")
+        for m in self.spectral_models:
+            if isinstance(m, SpectralSynthesisModel):
+                # TODO 
+                logger.debug("Skipping syntheses",m)
+                continue
+            try:
+                res = m.fit()
+            except (ValueError, RuntimeError) as e:
+                logger.debug("Fitting error",m)
+                logger.debug(e)
+                continue
+            #if not m.is_acceptable:
+            #    logger.debug("Skipping",m)
+            #    continue
+            try:
+                ab = m.abundances
+            except rt.RTError as e:
+                logger.debug("Abundance error",m)
+                logger.debug(e)
+                continue
+        self.abundtree.model().reset()
+
+    def save_to_session(self):
+        self.parent.session.metadata["spectral_models"] = self.spectral_models
+        logger.debug("ChemicalAbundanceTab: Overwrote session spectral_models!")
+        # TODO trigger relevant stuff
 
     def updated_spectral_models(self):
         self.spectral_models = []
