@@ -73,10 +73,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         hbox = QtGui.QHBoxLayout()
         self.btn_fit_all = QtGui.QPushButton(self)
         self.btn_fit_all.setText("Fit and Measure all")
+        hbox.addWidget(self.btn_fit_all)
+        lhs_layout.addLayout(hbox)
+
+        hbox = QtGui.QHBoxLayout()
         self.btn_refresh = QtGui.QPushButton(self)
         self.btn_refresh.setText("Refresh table")
-        hbox.addWidget(self.btn_fit_all)
+        self.btn_replot  = QtGui.QPushButton(self)
+        self.btn_replot.setText("Refresh plots")
         hbox.addWidget(self.btn_refresh)
+        hbox.addWidget(self.btn_replot)
         lhs_layout.addLayout(hbox)
 
         hbox = QtGui.QHBoxLayout()
@@ -161,6 +167,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # Connect buttons
         self.btn_fit_all.clicked.connect(self.fit_all)
         self.btn_refresh.clicked.connect(self.refresh_table)
+        self.btn_replot.clicked.connect(self.refresh_plots)
         self.btn_save_to_session.clicked.connect(self.save_to_session)
 
         # Connect matplotlib.
@@ -169,7 +176,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.figure.figure.canvas.callbacks.connect(
             "pick_event", self.figure_mouse_pick)
         
-        self.currently_plotted_species = np.nan
+        self.currently_plotted_species = None
         self.populate_widgets()
 
     def populate_widgets(self):
@@ -185,6 +192,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.updated_spectral_models() # TODO duplicated
         logger.debug("Resetting tree model")
         self.abundtree.model().reset()
+        return None
+
+    def refresh_plots(self):
+        self.update_spectrum_figure(False)
+        self.update_line_strength_figure(True)
         return None
 
     def fit_all(self):
@@ -259,10 +271,17 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         :param event:
             The matplotlib event.
         """
-        logger.debug("Mouse picked"+str(event))
-        # Select the row(s). That will trigger the rest.
-        #for index in self._spectral_model_indices[event.ind]:
-        #    self.table_view.selectRow(index)
+        if self.currently_plotted_species is None: return None
+        logger.debug("Mouse picked {} from {}".format(event.ind,self.currently_plotted_species))
+        model = self.abundtree.model()
+        ii = model.all_species == self.currently_plotted_species
+        assert np.sum(ii) == 1, "{} {}".format(self.currently_plotted_species, model.all_species)
+        summary_index = np.where(ii)[0]
+        summary = model.summaries[summary_index]
+        item = summary.subnodes[event.ind[0]]
+        index = model.createIndex(event.ind[0],0,item)
+        self.abundtree.setCurrentIndex(index)
+        self.selected_model_changed()
         return None
 
 
@@ -327,7 +346,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                         tree_model.createIndex(0, item.columnCount(), item))
 
                     # Update the view of the current model.
-                    self.update_spectrum_figure()
+                    self.update_spectrum_figure(True)
                     break
 
             else:
@@ -345,7 +364,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     tree_model.createIndex(0, item.columnCount(), item))
 
                 # Update the view of the current model.
-                self.update_spectrum_figure()
+                self.update_spectrum_figure(True)
                 return None
 
         else:
@@ -482,8 +501,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 collection.set_offsets(np.array([np.nan, np.nan]).T)
             self.figure.draw()
             return None
+        
         logger.debug("Changing selected model: "+str(selected_model))
-
         # TODO currently assumes all models are ProfileFittingModel
         assert isinstance(selected_model, ProfileFittingModel)
         try:
@@ -505,13 +524,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         point_strength = self._lines["selected_point"][0]
         point_strength.set_offsets(np.array([rew, abundance]).T)
         
-        self.currently_plotted_species = None
-        self.update_spectrum_figure()
-        self.update_line_strength_figure()
+        self.update_spectrum_figure(False)
+        self.update_line_strength_figure(True)
         
         return None
 
-    def update_spectrum_figure(self):
+    def update_spectrum_figure(self, refresh=False):
         """
         TODO refactor
         Currently copied straight from stellar_parameters.py with minor changes
@@ -539,7 +557,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.ax_spectrum.set_yticks([0, 0.5, 1])
             self.ax_residual.set_ylim(-0.05, 0.05)
 
-            self.figure.draw()
+            if refresh: self.figure.draw()
         
         selected_model = self._get_selected_model()
         transitions = selected_model.transitions
@@ -661,11 +679,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             for unused_patch in unused_patches:
                 unused_patch.set_visible(False)
 
-        self.figure.draw()
+        if refresh: self.figure.draw()
 
         return None
 
-    def update_line_strength_figure(self):
+    def update_line_strength_figure(self, refresh=False):
         selected_model, index = self._get_selected_model(True)
         if selected_model is None:
             # TODO clear plot?
@@ -676,14 +694,20 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         # If the species is already plotted, don't replot
         assert isinstance(selected_model, ProfileFittingModel)
-        if selected_model.transitions["species"][0] == self.currently_plotted_species:
-            return None
+        ## TODO this doesn't update the plot when selecting/deselecting
+        #if selected_model.transitions["species"][0] == self.currently_plotted_species:
+        #    if refresh: self.figure.draw()
+        #    return None
         
         rew_list = []
         abund_list = []
         for node in summary.subnodes:
             m = self.spectral_models[node.sm_ix]
-            if not m.is_acceptable: continue
+            if not m.is_acceptable: 
+                # Append these to keep indices straight between [de]selected points and the plot
+                rew_list.append(np.nan)
+                abund_list.append(np.nan)
+                continue
             # TODO SpectralSynthesisModel
             assert isinstance(m, ProfileFittingModel), m
             try:
@@ -706,8 +730,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         collections = self._points
         collections[0].set_offsets(np.array([rew_list,abund_list]).T)
         style_utils.relim_axes(self.ax_line_strength)
-        #self.currently_plotted_species = m.transitions['species"][0]
+        
+        # TODO this will work for now but is a hack
+        self.currently_plotted_species = m.transitions["species"][0]
         
         # TODO trend lines
         
-        self.figure.draw()
+        if refresh: self.figure.draw()
+        return None

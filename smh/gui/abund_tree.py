@@ -51,6 +51,7 @@ class AbundTreeView(QtGui.QTreeView):
         font = QtGui.QFont("Monospace")
         font.setStyleHint(QtGui.QFont.TypeWriter)
         self.setFont(font)
+        self.setUniformRowHeights(True)
     def span_cols(self):
         """
         Have to call after connecting a model
@@ -165,10 +166,11 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         super(AbundTreeModel, self).__init__(parenttab, *args)
         #there were some display bugs when this was named "parent"!
         self.parenttab = parenttab 
+        # Summaries and all_species should be the same size
+        self.summaries = []
         self.all_species = []
         self.all_sm_indices = {}
         self.all_ab_indices = {}
-        self.summaries = []
 
     def session_updated(self,spectral_model=None):
         # TODO call this whenever the session updates measurements in any way
