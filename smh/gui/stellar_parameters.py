@@ -757,7 +757,6 @@ class StellarParametersTab(QtGui.QWidget):
 
 
         # Show points from many models.
-        # TODO:        
 
         point_excitation, point_strength = self._lines["selected_point"]
         point_excitation.set_offsets(np.array([excitation_potential,

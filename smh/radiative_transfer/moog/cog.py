@@ -106,9 +106,6 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
     # Parse the output.
     transitions_array, linear_fits = _parse_abfind_summary(kwds["summary_out"])
 
-    logger.debug(transitions_array)
-    logger.debug(linear_fits)
-
     if len(transitions_array)==0:
         logger.debug("Standard output:")
         logger.debug(strip_control_characters(out))

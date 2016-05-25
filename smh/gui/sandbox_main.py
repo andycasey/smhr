@@ -104,7 +104,7 @@ if __name__ == '__main__':
 
     # Load in line_list
     ll = LineList.read(os.path.dirname(os.path.abspath(__file__))+'/../tests/test_data/linelists/complete.list')
-    session.metadata['line_list'] = ll[50:100]
+    session.metadata['line_list'] = ll[90:100]
 
     # Load in spectral_models from linelist
     #from linelist_manager import TransitionsDialog
@@ -114,6 +114,11 @@ if __name__ == '__main__':
         sm.append(smh.spectral_models.ProfileFittingModel(session, [hash]))
     session.metadata['spectral_models'] = sm
     print("Done! {:.1f}s".format(time.time()-start))
+
+    print("Fitting lines..."); start = time.time()
+    app.window.chemical_abundances_tab.fit_all()
+    print("Done! {:.1f}s".format(time.time()-start))
+    app.window.tabs.setCurrentIndex(4)
 
     app.window.show()
     sys.exit(app.exec_())

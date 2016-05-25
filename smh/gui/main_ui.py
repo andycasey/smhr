@@ -235,7 +235,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # been closed.
         window = TransitionsDialog(self.session, callbacks=[
             self.stellar_parameters_tab.proxy_spectral_models.reset,
-            ])        window.exec_()
+            ])
+        window.exec_()
 
         self.stellar_parameters_tab.updated_spectral_models()
 

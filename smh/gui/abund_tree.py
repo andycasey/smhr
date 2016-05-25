@@ -18,26 +18,26 @@ import time
 import logging
 logger = logging.getLogger(__name__)
 
-_treecols = ['is_selected','wavelength','expot','loggf','element','A(X)','e(X)','equivalent_width','A(X)','A(X)']
+_treecols = ["is_selected","wavelength","expot","loggf","element","A(X)","e(X)","equivalent_width","A(X)","A(X)"]
 _treecolmap = dict(zip(range(len(_treecols)),_treecols))
 
 def summarize_abundances_species(ttab,use_weights=True):
-    element = ttab['element'][0]
-    ttab = ttab[ttab['is_selected']]
+    element = ttab["element"][0]
+    ttab = ttab[ttab["is_selected"]]
     N = len(ttab)
     if N==0: return [element, N, np.nan, np.nan, np.nan, np.nan]
     if use_weights:
-        weights = 1./ttab['e(X)']**2
+        weights = 1./ttab["e(X)"]**2
     else:
         weights = np.ones(N)
     total_weights = np.sum(weights)
-    abund = np.sum(ttab['A(X)']*weights)/total_weights
-    stdev = np.sum(ttab['e(X)']*weights**2)/(total_weights**2)
+    abund = np.sum(ttab["A(X)"]*weights)/total_weights
+    stdev = np.sum(ttab["e(X)"]*weights**2)/(total_weights**2)
     XH = np.nan
     XFe = np.nan
     return [element,N,abund,stdev,XH,XFe]
 def summarize_abundances(tab):
-    tab = tab.group_by('species')
+    tab = tab.group_by("species")
     summary = []
     for i,species in enumerate(tab.groups.keys):
         ttab = tab.groups[i]
@@ -81,7 +81,7 @@ class AbundTreeElementSummaryItem(AbundTreeItem):
         
         self.compute_summary()
         self.fmts = ["{:5}", "N={:3}", "A(X)={:5.2f}", "e(X)={:5.2f}", "[X/H]={:5.2f}", "[X/Fe]={:5.2f}"]
-        self.precols = ['','N=','A(X)=','e(X)=','[X/H]=','[X/Fe]=']
+        self.precols = ["","N=","A(X)=","e(X)=","[X/H]=","[X/Fe]="]
     def _getChildren(self):
         N = len(self.sm_indices)
         return [AbundTreeMeasurementItem(row,self.sm_indices[row],self.ab_indices[row],self) for row in range(N)]
@@ -135,13 +135,13 @@ class AbundTreeMeasurementItem(AbundTreeItem):
             return m.is_acceptable
         if isinstance(m,ProfileFittingModel):
             if column==1: #wl
-                return "{:6.1f}".format(m.transitions['wavelength'][0])
+                return "{:6.1f}".format(m.transitions["wavelength"][0])
             elif column==2: #expot
-                return "{:4.2f}".format(m.transitions['expot'][0])
+                return "{:4.2f}".format(m.transitions["expot"][0])
             elif column==3: #loggf
-                return "{:7.3f}".format(m.transitions['loggf'][0])
+                return "{:7.3f}".format(m.transitions["loggf"][0])
             elif column==4: #element
-                return m.transitions['element'][0]
+                return m.transitions["element"][0]
             elif column==5: #A(X)
                 try:
                     return "{:5.2f}".format(m.metadata["fitted_result"][2]["abundances"][0])
@@ -185,7 +185,7 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         for i,m in enumerate(measurements):
             if isinstance(m,ProfileFittingModel):
                 line = m.transitions[0]
-                species = line['species']
+                species = line["species"]
                 if species in all_sm_indices: 
                     all_sm_indices[species].append(i)
                     all_ab_indices[species].append(0)
@@ -211,7 +211,7 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         return summaries
 
     def index(self, row, column, parent):
-        if not parent.isValid(): # Root node
+        if not parent.isValid(): # Root node, get a summary
             return self.createIndex(row, column, self.summaries[row])
         parentNode = parent.internalPointer()
         return self.createIndex(row, column, parentNode.subnodes[row])
@@ -224,6 +224,9 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         else:
             return self.createIndex(node.parent.row, 0, node.parent)
     def reset(self):
+        # TODO figure out current open/closed/selected
+        # repopulate after resetting the model
+        
         #self.beginResetModel()
         self.session_updated()
         self.summaries = self._getSummaries()
@@ -244,7 +247,7 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         if role == QtCore.Qt.CheckStateRole and index.column()==0:
             item = index.internalPointer()
             if isinstance(item, AbundTreeMeasurementItem):
-                checked = item.data(0)# == 'True' #grrr
+                checked = item.data(0)# == "True" #grrr
                 if checked: return QtCore.Qt.Checked
                 else: return QtCore.Qt.Unchecked
             else: return None
@@ -282,7 +285,7 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
 
     def headerData(self, section, orientation, role):
         if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
-            cols = ['','wl','EP','loggf','elem','A(X)','e(X)','EW','A(X)','A(X)']
+            cols = ["","wl","EP","loggf","elem","A(X)","e(X)","EW","A(X)","A(X)"]
             if section < len(cols):
                 return cols[section]
         return None
@@ -299,15 +302,15 @@ if __name__=="__main__":
     import yaml
     with open(Session._default_settings_path, "rb") as fp:
         defaults = yaml.load(fp)
-    datadir = os.path.dirname(os.path.abspath(__file__))+'/../tests/test_data'
+    datadir = os.path.dirname(os.path.abspath(__file__))+"/../tests/test_data"
     session = Session([datadir+"/spectra/hd122563.fits"])
     session.metadata.update(defaults)
-    ll = LineList.read(os.path.dirname(os.path.abspath(__file__))+'/../tests/test_data/linelists/complete.list')
-    session.metadata['line_list'] = ll
+    ll = LineList.read(os.path.dirname(os.path.abspath(__file__))+"/../tests/test_data/linelists/complete.list")
+    session.metadata["line_list"] = ll
     import cPickle as pickle
     print("Loading pre-saved spectral models"); start = time.time()
-    with open(datadir+'/ewtest.pkl','rb') as fp:
-        session.metadata['spectral_models'] = pickle.load(fp)
+    with open(datadir+"/ewtest.pkl","rb") as fp:
+        session.metadata["spectral_models"] = pickle.load(fp)
     print("Done!",time.time()-start)
 
     app.window.session = session
