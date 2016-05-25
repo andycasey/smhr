@@ -48,7 +48,7 @@ class SummaryTab(QtGui.QWidget):
         # Create a top-level horizontal layout to contain a MPL figure and
         # a vertical layout of settings..
         tab_layout = QtGui.QHBoxLayout(self)
-        tab_layout.setContentsMargins(10, 10, 10, 10)
+        tab_layout.setContentsMargins(20, 20, 20, 0)
 
         # Create the left hand pane.
         summary_widget = QtGui.QWidget()

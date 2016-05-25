@@ -40,6 +40,7 @@ PICKER_TOLERANCE = 10 # MAGIC HACK
 
 class StellarParametersTab(QtGui.QWidget):
 
+
     def __init__(self, parent):
         """
         Create a tab for the determination of stellar parameters by excitation
@@ -53,12 +54,14 @@ class StellarParametersTab(QtGui.QWidget):
         self.parent = parent
 
         self.parent_layout = QtGui.QHBoxLayout(self)
+        self.parent_layout.setContentsMargins(20, 20, 20, 0)
+
         lhs_layout = QtGui.QVBoxLayout()
         grid_layout = QtGui.QGridLayout()
 
         # Effective temperature.
         label = QtGui.QLabel(self)
-        label.setText("Effective temperature")
+        label.setText("Effective temperature (K)")
         grid_layout.addWidget(label, 0, 0, 1, 1)
         hbox = QtGui.QHBoxLayout()
         hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, 
@@ -68,6 +71,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_teff.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_teff.setValidator(
             QtGui.QDoubleValidator(3000, 8000, 0, self.edit_teff))
+        self.edit_teff.textChanged.connect(self._check_lineedit_state)
 
         hbox.addWidget(self.edit_teff)
         grid_layout.addLayout(hbox, 0, 1, 1, 1)
@@ -84,6 +88,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_logg.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_logg.setValidator(
             QtGui.QDoubleValidator(-1, 6, 3, self.edit_logg))
+        self.edit_logg.textChanged.connect(self._check_lineedit_state)
         hbox.addWidget(self.edit_logg)
         grid_layout.addLayout(hbox, 1, 1, 1, 1)
 
@@ -99,13 +104,14 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_metallicity.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_metallicity.setValidator(
             QtGui.QDoubleValidator(-5, 1, 3, self.edit_metallicity))
+        self.edit_metallicity.textChanged.connect(self._check_lineedit_state)
         hbox.addWidget(self.edit_metallicity)
         grid_layout.addLayout(hbox, 2, 1, 1, 1)
 
 
         # Microturbulence.
         label = QtGui.QLabel(self)
-        label.setText("Microturbulence")
+        label.setText("Microturbulence (km/s)")
         grid_layout.addWidget(label, 3, 0, 1, 1)
         hbox = QtGui.QHBoxLayout()
         hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, 
@@ -114,6 +120,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_xi.setMinimumSize(QtCore.QSize(40, 0))
         self.edit_xi.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_xi.setValidator(QtGui.QDoubleValidator(0, 5, 3, self.edit_xi))
+        self.edit_xi.textChanged.connect(self._check_lineedit_state)
         hbox.addWidget(self.edit_xi)
         grid_layout.addLayout(hbox, 3, 1, 1, 1)
 
@@ -155,6 +162,10 @@ class StellarParametersTab(QtGui.QWidget):
         self.table_view.setSortingEnabled(True)
         self.table_view.resizeColumnsToContents()
         self.table_view.setColumnWidth(0, 30) # MAGIC
+        self.table_view.setColumnWidth(1, 70) # MAGIC
+        self.table_view.setColumnWidth(2, 70) # MAGIC
+        self.table_view.setColumnWidth(3, 70) # MAGIC
+        self.table_view.setMinimumSize(QtCore.QSize(240, 0))
         self.table_view.horizontalHeader().setStretchLastSection(True)
         lhs_layout.addWidget(self.table_view)
 
@@ -183,15 +194,20 @@ class StellarParametersTab(QtGui.QWidget):
             self.palette().color(QtGui.QPalette.Window).getRgb()[:3]])
 
         gs_top = matplotlib.gridspec.GridSpec(4, 1)
+        gs_top.update(top=1, bottom=0.05, hspace=0.40)
         gs_bottom = matplotlib.gridspec.GridSpec(4, 1, 
             height_ratios=[2, 2, 1, 2])
         gs_bottom.update(hspace=0)
 
-        self.ax_excitation = self.figure.figure.add_subplot(gs_top[0])
-        self.ax_excitation.scatter([], [], 
-            s=30, facecolor="#CCCCCC", edgecolor="k", picker=PICKER_TOLERANCE)
-        self.ax_excitation.legend()
+        self._colors = {
+            26.0: "k",
+            26.1: "r"
+        }
 
+        self._points = {}
+        self._trend_lines = {}
+
+        self.ax_excitation = self.figure.figure.add_subplot(gs_top[0])
         self.ax_excitation.xaxis.get_major_formatter().set_useOffset(False)
         self.ax_excitation.yaxis.set_major_locator(MaxNLocator(5))
         self.ax_excitation.yaxis.set_major_locator(MaxNLocator(4))
@@ -199,8 +215,6 @@ class StellarParametersTab(QtGui.QWidget):
         self.ax_excitation.set_ylabel("[X/H]") #TODO: X/M
 
         self.ax_line_strength = self.figure.figure.add_subplot(gs_top[1])
-        self.ax_line_strength.scatter([], [],
-            s=30, facecolor="#CCCCCC", edgecolor="k", picker=PICKER_TOLERANCE)
         self.ax_line_strength.xaxis.get_major_formatter().set_useOffset(False)
         self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(5))
         self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(4))
@@ -253,6 +267,8 @@ class StellarParametersTab(QtGui.QWidget):
         self.btn_measure.clicked.connect(self.measure_abundances)
         self.btn_options.clicked.connect(self.options)
         self.btn_solve.clicked.connect(self.solve_parameters)
+        self.btn_filter.clicked.connect(self.filter_models)
+        self.btn_quality_control.clicked.connect(self.quality_control)
         self.edit_teff.returnPressed.connect(self.btn_measure.clicked)
         self.edit_logg.returnPressed.connect(self.btn_measure.clicked)
         self.edit_metallicity.returnPressed.connect(self.btn_measure.clicked)
@@ -287,6 +303,45 @@ class StellarParametersTab(QtGui.QWidget):
         return None
 
 
+    def _check_lineedit_state(self, *args, **kwargs):
+        """
+        Update the background color of a QLineEdit object based on whether the
+        input is valid.
+        """
+
+        # TODO: Implement from
+        # http://stackoverflow.com/questions/27159575/pyside-modifying-widget-colour-at-runtime-without-overwriting-stylesheet
+
+        sender = self.sender()
+        validator = sender.validator()
+        state = validator.validate(sender.text(), 0)[0]
+        if state == QtGui.QValidator.Acceptable:
+            color = 'none' # normal background color
+        elif state == QtGui.QValidator.Intermediate:
+            color = '#fff79a' # yellow
+        else:
+            color = '#f6989d' # red
+        sender.setStyleSheet('QLineEdit { background-color: %s }' % color)
+    
+        return None
+
+
+    def filter_models(self):
+        """
+        Filter the view of the models used in the determination of stellar
+        parameters.
+        """
+        raise NotImplementedError
+
+
+    def quality_control(self):
+        """
+        Show a dialog to specify quality control constraints for spectral models
+        used in the determination of stellar parameters.
+        """
+        raise NotImplementedError
+
+
     def figure_mouse_pick(self, event):
         """
         Trigger for when the mouse is used to select an item in the figure.
@@ -295,8 +350,9 @@ class StellarParametersTab(QtGui.QWidget):
             The matplotlib event.
         """
 
-        # Select the row. That will trigger the rest.
-        self.table_view.selectRow(self._spectral_model_indices[event.ind[0]])
+        # Select the row(s). That will trigger the rest.
+        for index in self._spectral_model_indices[event.ind]:
+            self.table_view.selectRow(index)
         return None
 
 
@@ -541,6 +597,9 @@ class StellarParametersTab(QtGui.QWidget):
                     if sm.use_for_stellar_parameter_inference: break
                 else:
                     return False
+
+                self.updated_spectral_models()
+
             else:
                 return False
 
@@ -553,59 +612,85 @@ class StellarParametersTab(QtGui.QWidget):
         if self.parent.session is None or not self._check_for_spectral_models():
             return None
 
-        self.updated_spectral_models()
-
-        # Collate the transitions from spectral models that are profiles.
-        indices = []
-        equivalent_widths = []
-        models = []
-        self._spectral_model_indices = []
-        for i, model in enumerate(self.spectral_models):
-            if not model.is_acceptable: continue
-
-            # TODO THIS IS ALL BAD CODE.
-            self._spectral_model_indices.append(i)
-            indices.extend(model._transition_indices)
-            models.append(model)
-            equivalent_widths.append(
-                1e3 * model.metadata["fitted_result"][2]["equivalent_width"][0])
-        indices = np.array(indices)
-
-        # For any spectral models to be used for SPs that are not profiles,
-        # re-fit them.
-        transitions = self.parent.session.metadata["line_list"][indices].copy()
-        transitions["equivalent_width"] = np.array(equivalent_widths)
-
-        # Update the session with the stellar parameters in the GUI.
+        # Update the session with the stellar parameters in the GUI, and then
+        # calculate abundances.
         self.update_stellar_parameters()
-
-        # Calculate abundances.
-        abundances = self.parent.session.rt.abundance_cog(
-            self.parent.session.stellar_photosphere, transitions)
+        transitions, state, self._spectral_model_indices \
+            = self.parent.session.stellar_parameter_state(full_output=True)
 
         # Update figures.
-        self.ax_excitation.collections[0].set_offsets(
-            np.array([transitions["expot"], abundances]).T)
+        for group in transitions.group_by("species").groups:
 
-        rew = 1e-3 * transitions["equivalent_width"]/transitions["wavelength"]
-        self.ax_line_strength.collections[0].set_offsets(
-            np.array([np.log10(rew), abundances]).T)
-        
+            species = group["species"][0]
+            try:
+                collections = self._points[species]
+
+            except KeyError:
+                color = self._colors[species]
+                self._points[species] = [
+                    self.ax_excitation.scatter([], [], s=30, facecolor=color, 
+                        edgecolor=color, picker=PICKER_TOLERANCE, alpha=0.5),
+                    self.ax_line_strength.scatter([], [], s=30, facecolor=color,
+                        edgecolor=color, picker=PICKER_TOLERANCE, alpha=0.5),
+                ]
+                collections = self._points[species]
+
+            collections[0].set_offsets(np.array(
+                [group["expot"], group["abundance"]]).T)
+            collections[1].set_offsets(np.array(
+                [group["reduced_equivalent_width"], group["abundance"]]).T)
+
+
         # Update limits on the excitation and line strength figures.
         style_utils.relim_axes(self.ax_excitation)
         style_utils.relim_axes(self.ax_line_strength)
 
-        for model, abundance in zip(models, abundances):
-            model.metadata["fitted_result"][-1]["abundances"] = [abundance]
+
+        for group in transitions.group_by("species").groups:
+
+            species = group["species"][0]
+            color = self._colors[species]
+            
+            try:
+                lines = self._trend_lines[species]
+            except KeyError:
+                color = self._colors[species]
+                self._trend_lines[species] = [
+                    self.ax_excitation.plot([], [], c=color)[0],
+                    self.ax_excitation.plot([], [], c=color, linestyle=":")[0],
+                    self.ax_line_strength.plot([], [], c=color)[0],
+                    self.ax_line_strength.plot([], [], c=color, linestyle=":")[0],
+                ]
+                lines = self._trend_lines[species]
+
+            # Draw lines for this species.
+            x = np.array(self.ax_excitation.get_xlim())
+            m, b, median, sigma, N = state[species]["expot"]
+            lines[0].set_data([x, m*x + b])
+            lines[1].set_data(x, [median, median])
+
+
+            if species == 26:
+                print("expot {} {:.2e}".format(species, m))
+                
+            x = np.array(self.ax_line_strength.get_xlim())
+            m, b, median, sigma, N = state[species]["reduced_equivalent_width"]
+            lines[2].set_data([x, m*x + b])
+            lines[3].set_data(x, [median, median])
+
+            if species == 26:
+                print("rew {} {:.2e}".format(species, m))
+
+
+            print("mean", species, np.median(group["abundance"]))
 
         # Update selected entries.
-        for collection in self._lines["selected_point"]:
-            collection.set_offsets(np.array([np.nan, np.nan]).T)
+        self.selected_model_changed()
 
-        # Update table view model.
-        self.table_view.model().reset()
-
-        self.figure.draw()
+        # Update table view model for all rows.
+        table_model = self.table_view.model()
+        table_model.dataChanged.emit(table_model.createIndex(0, 3),
+            table_model.createIndex(table_model.rowCount(0), 3))
 
         return None
 
@@ -622,7 +707,17 @@ class StellarParametersTab(QtGui.QWidget):
         """
 
         # Show point on excitation/line strength plot.
-        selected_model = self._get_selected_model()
+        try:
+            selected_model = self._get_selected_model()
+
+        except IndexError:
+            for collection in self._lines["selected_point"]:
+                collection.set_offsets(np.array([np.nan, np.nan]).T)
+
+            self.figure.draw()
+
+            return None
+
         try:
             metadata = selected_model.metadata["fitted_result"][-1]
             abundances = metadata["abundances"]
@@ -643,6 +738,10 @@ class StellarParametersTab(QtGui.QWidget):
             excitation_potential = transitions["expot"][0]
             rew = np.log10(equivalent_width/transitions["wavelength"][0])
 
+
+
+        # Show points from many models.
+        # TODO:        
 
         point_excitation, point_strength = self._lines["selected_point"]
         point_excitation.set_offsets(np.array([excitation_potential,
@@ -749,6 +848,9 @@ class StellarParametersTab(QtGui.QWidget):
         # Things to show if there is a fitted result.
         try:
             (named_p_opt, cov, meta) = selected_model.metadata["fitted_result"]
+
+            # Test for some requirements.
+            _ = (meta["model_x"], meta["model_y"], meta["residual"])
 
         except KeyError:
             meta = {}
@@ -877,7 +979,10 @@ class SpectralModelsTableView(QtGui.QTableView):
                 self.parent.update_spectrum_figure()
 
         # Update the data model.
-        self.model().reset()
+        self.model().dataChanged.emit(
+            self.model().createIndex(0, 0),
+            self.model().createIndex(
+                self.model().rowCount(0), self.model().columnCount(0)))
 
         return None
 

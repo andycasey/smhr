@@ -413,6 +413,54 @@ class Session(BaseSession):
         return photosphere
 
 
+    def stellar_parameter_state(self, full_output=False, **kwargs):
+        """
+        Calculate the abundances of all spectral models that are used in the
+        determination of stellar parameters.
+        """
+
+        # Get the transitions & EWs together from spectral models.
+        equivalent_widths = []
+        transition_indices = []
+        spectral_model_indices = []
+        for i, model in enumerate(self.metadata["spectral_models"]):
+            if model.is_acceptable and model.use_for_stellar_parameter_inference:
+
+                # TODO assert it is a profile model.
+                spectral_model_indices.append(i)
+                transition_indices.extend(model._transition_indices)
+                equivalent_widths.append(1e3 * \
+                    model.metadata["fitted_result"][-1]["equivalent_width"][0])
+
+        # Construct a copy of the line list table.
+        transition_indices = np.array(transition_indices)
+        spectral_model_indices = np.array(spectral_model_indices)
+        transitions = self.metadata["line_list"][transition_indices].copy()
+        transitions["equivalent_width"] = equivalent_widths
+
+        # Calculate abundances and put them back into the spectral models stored
+        # in the session metadata.
+        abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions)
+        for index, abundance in zip(spectral_model_indices, abundances):
+            self.metadata["spectral_models"][index]\
+                .metadata["fitted_result"][-1]["abundances"] = [abundance]
+
+        transitions["abundance"] = abundances
+
+        # By default just return a transitions table for convenience.
+        if not full_output:
+            return transitions
+
+        transitions["reduced_equivalent_width"] = np.log10(1e-3 * \
+            transitions["equivalent_width"] / transitions["wavelength"])
+        slopes = utils.equilibrium_state(transitions,
+            ("expot", "reduced_equivalent_width", "wavelength"))
+
+        # Otherwise return full state information.
+        return (transitions, slopes, spectral_model_indices)
+
+
+
     def optimize_stellar_parameters(self, **kwargs):
         """
         Optimize the stellar parameters for this star using the spectral models
