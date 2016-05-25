@@ -42,6 +42,8 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
         Specify verbose flags to MOOG. This is primarily used for debugging.
     """
 
+    # TODO if no transitions, what to do?
+
     # Create a temporary directory.
     path = utils.twd_path(**kwargs)
 

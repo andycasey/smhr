@@ -45,14 +45,18 @@ def summarize_abundances(tab):
     return summary
 
 class AbundTreeView(QtGui.QTreeView):
-    def __init__(self, parent, session, *args):
+    def __init__(self, parent, *args):
         super(AbundTreeView, self).__init__(parent, *args)
-        self.session = session
-        self._parent = parent
+        self.parent = parent
         font = QtGui.QFont("Monospace")
         font.setStyleHint(QtGui.QFont.TypeWriter)
         self.setFont(font)
     def span_cols(self):
+        """
+        Have to call after connecting a model
+        """
+        for i in range(10):
+            self.setColumnWidth(i,40)
         for i in range(len(self.model().summaries)):
             self.setFirstColumnSpanned(i,self.rootIndex(), True)
 class AbundTreeItem(object):
@@ -108,12 +112,13 @@ class AbundTreeMeasurementItem(AbundTreeItem):
         return str(data)
     
 class AbundTreeModel(QtCore.QAbstractItemModel):
-    def __init__(self, session, parent=None):
-        super(AbundTreeModel, self).__init__(parent)
-        self.session = session
-        self.tab = self.obtain_measurements_from_session()
+    def __init__(self, parent, *args):
+        super(AbundTreeModel, self).__init__(parent, *args)
+        self.parent = parent
+        self.tab = None #self.obtain_measurements_from_session()
         # TODO set up a map from spectral models to items in the tree
         # That way you can selectively update the internal table here
+        # TODO alternatively, let's just hook all the data into a spectral model list 
         self.summaries = self._getSummaries()
 
     def session_updated(self,spectral_model=None):
@@ -125,10 +130,9 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
             # TODO update just those items with the new measurements
             raise NotImplementedError
     def obtain_measurements_from_session(self):
-        # TODO actually do this from the session
+        self.beginResetModel()
         print("Summarizing measurements"); start = time.time()
-        session = self.session
-        measurements = session.metadata["spectral_models"]
+        measurements = self.parent.spectral_models
         wl = []
         EP = []
         loggf = []
@@ -169,26 +173,12 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
                           names=['wavelength','expot','loggf','element','species','A(X)','e(X)','is_selected','equivalent_width'])
         tab = tab.group_by('species')
         print("Computed! {:.1f}s".format(time.time()-start))
-        #ll = LineList.read("/Users/alexji/smhr/smh/tests/test_data/linelists/complete.list")
-        #col1 = table.Column(np.ones(len(ll)),name='A(X)')
-        #col2 = table.Column(np.ones(len(ll)),name='e(X)')
-        #col3 = table.Column(np.ones(len(ll), dtype=bool),name='is_selected')
-        #ll.add_columns([col1,col2,col3])
-        #ll['equivalent_width'] = 2.0
-        #ll = table.Table(ll)
-        #cols = ['wavelength','expot','loggf','element','species','A(X)','e(X)','is_selected','equivalent_width']
-        #ll = ll[cols]
-        #tab = ll.group_by('species')
-        #ll['wavelength'].format = "7.2f"
-        #ll['expot'].format = "4.2f"
-        #ll['loggf'].format = "7.3f"
-        #ll['A(X)'].format = "5.2f"
-        #ll['e(X)'].format = "5.2f"
-        #ll['equivalent_width'].format = "5.1f"
-        return tab
+        self.tab = tab
+        self.endResetModel()
 
     def _getSummaries(self):
         summaries = []
+        if self.tab is None: return summaries
         # Initialize summary objects for each element
         for index,ttab in enumerate(self.tab.groups):
             # Initialize the abundance summary 
@@ -210,6 +200,7 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         else:
             return self.createIndex(node.parent.row, 0, node.parent)
     def reset(self):
+        self.session_updated()
         self.summaries = self._getSummaries()
         QtCore.QAbstractItemModel.reset(self)
     def rowCount(self, parent):
@@ -284,8 +275,8 @@ if __name__=="__main__":
     print("Done!",time.time()-start)
 
     app = QtGui.QApplication(sys.argv)
-    abundtree = AbundTreeView(None,None)
-    model = AbundTreeModel(session)
+    abundtree = AbundTreeView(None)
+    model = AbundTreeModel(None)
     abundtree.setModel(model)
     abundtree.span_cols()
     abundtree.setGeometry(900, 400, 900, 400)

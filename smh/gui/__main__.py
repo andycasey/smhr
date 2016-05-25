@@ -11,7 +11,7 @@ from PySide import QtCore, QtGui
 import yaml
 
 # Import functionality related to each tab
-import rv, normalization, summary, stellar_parameters
+import rv, normalization, summary, stellar_parameters, chemical_abundances
 
 # Functions related to warnings and exceptions.
 import exception
@@ -280,13 +280,11 @@ class Ui_MainWindow(QtGui.QMainWindow):
             = stellar_parameters.StellarParametersTab(self)
         self.tabs.addTab(self.stellar_parameters_tab, "Stellar parameters")
 
-        # Add remaining empty tabs.
-        extra_tab_names = ("Chemical abundances", )
+        # Create chemical abundances tab
+        self.chemical_abundances_tab \
+            = chemical_abundances.ChemicalAbundancesTab(self)
+        self.tabs.addTab(self.chemical_abundances_tab, "Chemical abundances")
 
-        for tab_name in extra_tab_names:
-            tab = QtGui.QWidget()
-            self.tabs.addTab(tab, tab_name)
-        
         # Disable all tabs except the first one.
         for i in range(self.tabs.count()):
             self.tabs.setTabEnabled(i, i == 0)
