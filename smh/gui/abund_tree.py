@@ -5,10 +5,10 @@ import numpy as np
 import os
 import sys
 from PySide import QtCore, QtGui
-from six import string_types
+from six import string_types, iteritems
 
 from smh import (Session, specutils)
-import smh.spectral_models
+from smh.spectral_models import ProfileFittingModel, SpectralSynthesisModel
 import smh.radiative_transfer as rt
 from smh.linelists import LineList
 
@@ -72,7 +72,9 @@ class AbundTreeItem(object):
     def childCount(self):
         return len(self.subnodes)
 class AbundTreeElementSummaryItem(AbundTreeItem):
-    def __init__(self, parent, tab, index, model):
+    def __init__(self, parent, sm_indices, ab_indices, index, model):
+        self.sm_indices = sm_indices
+        self.ab_indices = ab_indices
         self.index = index
         self.model = model
         super(AbundTreeElementSummaryItem, self).__init__(parent, index)
@@ -81,8 +83,8 @@ class AbundTreeElementSummaryItem(AbundTreeItem):
         self.fmts = ["{:5}", "N={:3}", "A(X)={:5.2f}", "e(X)={:5.2f}", "[X/H]={:5.2f}", "[X/Fe]={:5.2f}"]
         self.precols = ['','N=','A(X)=','e(X)=','[X/H]=','[X/Fe]=']
     def _getChildren(self):
-        N = len(self.model.tab.groups[self.index])
-        return [AbundTreeMeasurementItem(row,self) for row in range(N)]
+        N = len(self.sm_indices)
+        return [AbundTreeMeasurementItem(row,self.sm_indices[row],self.ab_indices[row],self) for row in range(N)]
     def columnCount(self):
         return 6 #1
     def data(self, column):
@@ -92,13 +94,34 @@ class AbundTreeElementSummaryItem(AbundTreeItem):
     def print_summary(self):
         return "{0:5} N={1:3} A(X)={2:5.2f} e(X)={3:5.2f} [X/H]={4:5.2f} [X/Fe]={5:5.2f}".format(*self.summary)
     def compute_summary(self):
-        ttab = self.model.tab.groups[self.index]
-        self.summary = summarize_abundances_species(ttab)
+        assert len(self.subnodes) >= 1
+        elem = self.subnodes[0].data(4)
+        N = len(self.subnodes)
+        abunds = np.zeros(N)*np.nan
+        errs = np.zeros(N)*np.nan
+        for i,node in enumerate(self.subnodes):
+            if node.data(0):
+                errs[i] = float(node.data(6))
+                abunds[i] = float(node.data(5))
+        weights = 1./errs**2
+        # TODO errors must be > 0 right now
+        ii = np.logical_and(~np.isnan(abunds), ~np.isnan(weights))
+        abunds = abunds[ii]
+        errs = errs[ii]
+        weights = weights[ii]
+        N = len(abunds)
+        total_weights = np.sum(weights)
+        abund = np.sum(abunds*weights)/total_weights
+        stdev = np.sum(errs*weights**2)/(total_weights**2)
+        # TODO [X/H]
+        # TODO [X/Fe]
+        self.summary = [elem,N,abund,stdev,np.nan,np.nan]
         return None
-
 class AbundTreeMeasurementItem(AbundTreeItem):
-    def __init__(self,row,parent):
+    def __init__(self,row,sm_ix,ab_ix,parent):
         self.row = row
+        self.sm_ix = sm_ix # which spectral model
+        self.ab_ix = ab_ix # which element abundance in that spectral model
         assert isinstance(parent, AbundTreeElementSummaryItem)
         self.parent = parent
         super(AbundTreeMeasurementItem, self).__init__(parent, row)
@@ -107,102 +130,98 @@ class AbundTreeMeasurementItem(AbundTreeItem):
     def columnCount(self):
         return 10
     def data(self, column):
-        col = _treecolmap[column]
-        data = self.parent.model.tab.groups[self.parent.index][self.row][col]
-        if col=='is_selected': return data
-        return str(data)
+        m = self.parent.model.parenttab.spectral_models[self.sm_ix]
+        if column==0:
+            return m.is_acceptable
+        if isinstance(m,ProfileFittingModel):
+            if column==1: #wl
+                return "{:6.1f}".format(m.transitions['wavelength'][0])
+            elif column==2: #expot
+                return "{:4.2f}".format(m.transitions['expot'][0])
+            elif column==3: #loggf
+                return "{:7.3f}".format(m.transitions['loggf'][0])
+            elif column==4: #element
+                return m.transitions['element'][0]
+            elif column==5: #A(X)
+                try:
+                    return m.metadata["fitted_result"][2]["abundances"]
+                except:
+                    return str(np.nan)
+            elif column==6: #e(X)
+                #TODO
+                return "{:4.2f}".format(0.1)
+            elif column==7: #equivalent_width
+                try:
+                    return m.metadata["fitted_result"][2]["equivalent_width"][0]*1000.
+                except:
+                    return str(np.nan)
+            else:
+                return None
+        else: #SpectralSynthesisModel
+            raise NotImplementedError
     
 class AbundTreeModel(QtCore.QAbstractItemModel):
     def __init__(self, parenttab, *args):
         super(AbundTreeModel, self).__init__(parenttab, *args)
         #there were some display bugs when this was named "parent"!
         self.parenttab = parenttab 
-        self.tab = None #self.obtain_measurements_from_session()
-        # TODO set up a map from spectral models to items in the tree
-        # That way you can selectively update the internal table here
-        # TODO alternatively, let's just hook all the data into a spectral model list 
-        self.summaries = self._getSummaries()
+        self.all_species = []
+        self.all_sm_indices = {}
+        self.all_ab_indices = {}
+        self.summaries = []
 
     def session_updated(self,spectral_model=None):
         # TODO call this whenever the session updates measurements in any way
         if spectral_model is None:
             self.obtain_measurements_from_parent_tab()
         else:
-            # TODO get the item from the measurement
-            # TODO update just those items with the new measurements
             raise NotImplementedError
     def obtain_measurements_from_parent_tab(self):
-        logger.debug("Summarizing measurements from tab..."); start = time.time()
+        logger.debug("Sorting measurements..."); start = time.time()
         measurements = self.parenttab.spectral_models
-        wl = []
-        EP = []
-        loggf = []
-        element = []
-        species = []
-        abund = []
-        err = []
-        is_selected = []
-        EW = []
-        for m in measurements:
-            if isinstance(m,smh.spectral_models.ProfileFittingModel):
-                try:
-                    ab = m.metadata["fitted_result"][2]["abundances"][0]
-                except KeyError:
-                    abund.append(np.nan)
-                    err.append(np.nan)
-                    EW.append(np.nan)
-                    is_selected.append(False)
-                except rt.RTError:
-                    abund.append(np.nan)
-                    err.append(np.nan)
-                    EW.append(1000.*m.metadata["fitted_result"][2]["equivalent_width"][0])
-                    is_selected.append(False)
-                else:
-                    abund.append(ab)
-                    err.append(0.1) #TODO
-                    EW.append(1000.*m.metadata["fitted_result"][2]["equivalent_width"][0])
-                    is_selected.append(m.metadata['is_acceptable'])
+        all_species = []
+        all_sm_indices = {} #species to index list
+        all_ab_indices = {} #species to index list
+        for i,m in enumerate(measurements):
+            if isinstance(m,ProfileFittingModel):
                 line = m.transitions[0]
-                wl.append(line['wavelength'])
-                EP.append(line['expot'])
-                loggf.append(line['loggf'])
-                element.append(line['element'])
-                species.append(line['species'])
-            if isinstance(m,smh.spectral_models.SpectralSynthesisModel):
+                species = line['species']
+                if species in all_sm_indices: 
+                    all_sm_indices[species].append(i)
+                    all_ab_indices[species].append(0)
+                else: 
+                    all_species.append(species)
+                    all_sm_indices[species] = [i]
+                    all_ab_indices[species] = [0]
+            if isinstance(m,SpectralSynthesisModel):
                 raise NotImplementedError
-        tab = table.Table([wl,EP,loggf,element,species,abund,err,is_selected,EW],
-                          names=['wavelength','expot','loggf','element','species','A(X)','e(X)','is_selected','equivalent_width'])
-        tab = tab.group_by('species')
-        logger.debug("Computed! {:.1f}s".format(time.time()-start))
-        self.tab = tab
+        self.all_species = np.sort(all_species)
+        assert len(self.all_species) == len(np.unique(self.all_species))
+        self.all_sm_indices = all_sm_indices
+        self.all_ab_indices = all_ab_indices
 
     def _getSummaries(self):
         summaries = []
-        if self.tab is None: return summaries
-        # Initialize summary objects for each element
-        for index,ttab in enumerate(self.tab.groups):
+        for index, species in enumerate(self.all_species):
             # Initialize the abundance summary 
-            elem_summary = AbundTreeElementSummaryItem(None, self.tab, index, self)
+            sm_indices = self.all_sm_indices[species]
+            ab_indices = self.all_ab_indices[species]
+            elem_summary = AbundTreeElementSummaryItem(None, sm_indices, ab_indices, index, self)
             summaries.append(elem_summary)
         return summaries
 
     def index(self, row, column, parent):
         if not parent.isValid(): # Root node
-            #print("Index (root node)",row,column,parent)
             return self.createIndex(row, column, self.summaries[row])
         parentNode = parent.internalPointer()
-        #print("Index (sub node)",row,column,parent)
         return self.createIndex(row, column, parentNode.subnodes[row])
     def parent(self, index):
         if not index.isValid():
-            #print("Creating parent (bad index)")
             return QtCore.QModelIndex()
         node = index.internalPointer()
         if node.parent is None:
-            #print("Creating parent (no parent)",index,node)
             return QtCore.QModelIndex()
         else:
-            #print("Creating parent (node has parent)",index,node)
             return self.createIndex(node.parent.row, 0, node.parent)
     def reset(self):
         #self.beginResetModel()
@@ -239,7 +258,9 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
             # Check or uncheck a box
             if role == QtCore.Qt.EditRole: return False
             if role == QtCore.Qt.CheckStateRole:
-                self.tab.groups[item.parent.index][item.row]['is_selected'] = value
+                #assert isinstance(value, bool),value
+                m = self.parenttab.spectral_models[item.sm_ix]
+                m.metadata["is_acceptable"] = value
                 # Also edit the parent summary here!
                 item.parent.compute_summary()
                 topLeft = self.createIndex(0, 0, item.parent)
