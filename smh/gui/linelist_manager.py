@@ -348,13 +348,16 @@ class LineListTableView(QtGui.QTableView):
             line_list = line_list.merge(LineList.read(filename), in_place=False)
 
         # Merge with existing line list.
-        if self.session.metadata.get("line_list", None) is None:
-            self.session.metadata["line_list"] = line_list
+        if self.session.metadata.get("line_list", None) is not None:
+            line_list = self.session.metadata["line_list"].merge(
+                line_list, in_place=False)
 
-        else:
-            self.session.metadata["line_list"] \
-                = self.session.metadata["line_list"].merge(
-                    line_list, in_place=False)
+        try:
+            line_list["equivalent_width"]
+        except KeyError:
+            raise KeyError("no equivalent widths found in imported line lists")
+
+        self.session.metadata["line_list"] = line_list
 
         # Set these lines as profile models.
         spectral_models_to_add = []
@@ -379,7 +382,7 @@ class LineListTableView(QtGui.QTableView):
         # Update the data models.
         self.model().reset()
         self._parent.models_view.model().reset()
-        
+
         return None
 
 
