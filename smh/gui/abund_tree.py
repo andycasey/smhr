@@ -56,7 +56,8 @@ class AbundTreeView(QtGui.QTreeView):
         Have to call after connecting a model
         """
         for i in range(10):
-            self.setColumnWidth(i,40)
+            if i==0: self.setColumnWidth(i,70)
+            else: self.setColumnWidth(i,70)
         for i in range(len(self.model().summaries)):
             self.setFirstColumnSpanned(i,self.rootIndex(), True)
 class AbundTreeItem(object):
@@ -83,11 +84,11 @@ class AbundTreeElementSummaryItem(AbundTreeItem):
         N = len(self.model.tab.groups[self.index])
         return [AbundTreeMeasurementItem(row,self) for row in range(N)]
     def columnCount(self):
-        return 1 #6
+        return 6 #1
     def data(self, column):
         if column >= self.columnCount(): return None
-        #return self.fmts[column].format(self.summary[column])
-        return self.print_summary()
+        return self.fmts[column].format(self.summary[column])
+        #return self.print_summary()
     def print_summary(self):
         return "{0:5} N={1:3} A(X)={2:5.2f} e(X)={3:5.2f} [X/H]={4:5.2f} [X/Fe]={5:5.2f}".format(*self.summary)
     def compute_summary(self):
@@ -114,7 +115,8 @@ class AbundTreeMeasurementItem(AbundTreeItem):
 class AbundTreeModel(QtCore.QAbstractItemModel):
     def __init__(self, parenttab, *args):
         super(AbundTreeModel, self).__init__(parenttab, *args)
-        self.parenttab = parenttab
+        #there were some display bugs when this was named "parent"!
+        self.parenttab = parenttab 
         self.tab = None #self.obtain_measurements_from_session()
         # TODO set up a map from spectral models to items in the tree
         # That way you can selectively update the internal table here
@@ -186,32 +188,28 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
 
     def index(self, row, column, parent):
         if not parent.isValid(): # Root node
-            print("Index (root node)",row,column,parent)
+            #print("Index (root node)",row,column,parent)
             return self.createIndex(row, column, self.summaries[row])
         parentNode = parent.internalPointer()
-        print("Index (sub node)",row,column,parent)
+        #print("Index (sub node)",row,column,parent)
         return self.createIndex(row, column, parentNode.subnodes[row])
     def parent(self, index):
         if not index.isValid():
-            print("Creating parent (bad index)")
+            #print("Creating parent (bad index)")
             return QtCore.QModelIndex()
         node = index.internalPointer()
         if node.parent is None:
-            print("Creating parent (no parent)",node)
+            #print("Creating parent (no parent)",index,node)
             return QtCore.QModelIndex()
         else:
-            print("Creating parent (node has parent)",node.parent.row,node.parent)
+            #print("Creating parent (node has parent)",index,node)
             return self.createIndex(node.parent.row, 0, node.parent)
     def reset(self):
-        self.beginResetModel()
-        print("Updating session!")
+        #self.beginResetModel()
         self.session_updated()
-        print("Getting summaries!")
         self.summaries = self._getSummaries()
-        print("Resetting abstract model!")
-        #QtCore.QAbstractItemModel.reset(self)
-        print("Succeeded!")
-        self.endResetModel()
+        QtCore.QAbstractItemModel.reset(self)
+        #self.endResetModel()
     def rowCount(self, parent):
         if not parent.isValid():
             return len(self.summaries)
