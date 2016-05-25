@@ -112,9 +112,9 @@ class AbundTreeMeasurementItem(AbundTreeItem):
         return str(data)
     
 class AbundTreeModel(QtCore.QAbstractItemModel):
-    def __init__(self, parent, *args):
-        super(AbundTreeModel, self).__init__(parent, *args)
-        self.parent = parent
+    def __init__(self, parenttab, *args):
+        super(AbundTreeModel, self).__init__(parenttab, *args)
+        self.parenttab = parenttab
         self.tab = None #self.obtain_measurements_from_session()
         # TODO set up a map from spectral models to items in the tree
         # That way you can selectively update the internal table here
@@ -124,15 +124,14 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
     def session_updated(self,spectral_model=None):
         # TODO call this whenever the session updates measurements in any way
         if spectral_model is None:
-            self.obtain_measurements_from_session()
+            self.obtain_measurements_from_parent_tab()
         else:
             # TODO get the item from the measurement
             # TODO update just those items with the new measurements
             raise NotImplementedError
-    def obtain_measurements_from_session(self):
-        self.beginResetModel()
+    def obtain_measurements_from_parent_tab(self):
         print("Summarizing measurements"); start = time.time()
-        measurements = self.parent.spectral_models
+        measurements = self.parenttab.spectral_models
         wl = []
         EP = []
         loggf = []
@@ -174,7 +173,6 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         tab = tab.group_by('species')
         print("Computed! {:.1f}s".format(time.time()-start))
         self.tab = tab
-        self.endResetModel()
 
     def _getSummaries(self):
         summaries = []
@@ -188,21 +186,32 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
 
     def index(self, row, column, parent):
         if not parent.isValid(): # Root node
+            print("Index (root node)",row,column,parent)
             return self.createIndex(row, column, self.summaries[row])
         parentNode = parent.internalPointer()
+        print("Index (sub node)",row,column,parent)
         return self.createIndex(row, column, parentNode.subnodes[row])
     def parent(self, index):
         if not index.isValid():
+            print("Creating parent (bad index)")
             return QtCore.QModelIndex()
         node = index.internalPointer()
         if node.parent is None:
+            print("Creating parent (no parent)",node)
             return QtCore.QModelIndex()
         else:
+            print("Creating parent (node has parent)",node.parent.row,node.parent)
             return self.createIndex(node.parent.row, 0, node.parent)
     def reset(self):
+        self.beginResetModel()
+        print("Updating session!")
         self.session_updated()
+        print("Getting summaries!")
         self.summaries = self._getSummaries()
-        QtCore.QAbstractItemModel.reset(self)
+        print("Resetting abstract model!")
+        #QtCore.QAbstractItemModel.reset(self)
+        print("Succeeded!")
+        self.endResetModel()
     def rowCount(self, parent):
         if not parent.isValid():
             return len(self.summaries)
@@ -260,6 +269,14 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         return None
         
 if __name__=="__main__":
+    app = QtGui.QApplication(sys.argv)
+    import main_ui
+    app.window = main_ui.Ui_MainWindow()
+    for i in range(app.window.tabs.count()):
+        app.window.tabs.setTabEnabled(i, True)
+
+    app.window.show()
+
     import yaml
     with open(Session._default_settings_path, "rb") as fp:
         defaults = yaml.load(fp)
@@ -274,19 +291,25 @@ if __name__=="__main__":
         session.metadata['spectral_models'] = pickle.load(fp)
     print("Done!",time.time()-start)
 
-    app = QtGui.QApplication(sys.argv)
-    abundtree = AbundTreeView(None)
-    model = AbundTreeModel(None)
-    abundtree.setModel(model)
-    abundtree.span_cols()
-    abundtree.setGeometry(900, 400, 900, 400)
-    abundtree.move(QtGui.QApplication.desktop().screen().rect().center() \
-                  - abundtree.rect().center())
-    sp = QtGui.QSizePolicy(
-        QtGui.QSizePolicy.MinimumExpanding, 
-        QtGui.QSizePolicy.MinimumExpanding)
-    sp.setHeightForWidth(abundtree.sizePolicy().hasHeightForWidth())
-    abundtree.setSizePolicy(sp)
+    app.window.session = session
+    chemical_abundances_tab = app.window.chemical_abundances_tab
+    abundtree = chemical_abundances_tab.abundtree
+    model = abundtree.model()
+
+    #abundtree = AbundTreeView(None)
+    #model = AbundTreeModel(None)
+    #abundtree.setModel(model)
+    #abundtree.span_cols()
+    #abundtree.setGeometry(900, 400, 900, 400)
+    #abundtree.move(QtGui.QApplication.desktop().screen().rect().center() \
+    #              - abundtree.rect().center())
+    #sp = QtGui.QSizePolicy(
+    #    QtGui.QSizePolicy.MinimumExpanding, 
+    #    QtGui.QSizePolicy.MinimumExpanding)
+    #sp.setHeightForWidth(abundtree.sizePolicy().hasHeightForWidth())
+    #abundtree.setSizePolicy(sp)
+    #abundtree.show()
     
-    abundtree.show()
+    #chemical_abundances_tab.show()
+    
     sys.exit(app.exec_())
