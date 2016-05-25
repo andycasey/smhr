@@ -158,14 +158,23 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Set up a proxymodel.
         self.proxy_spectral_models = SpectralModelsFilterProxyModel(self)
+        self.proxy_spectral_models.add_filter_function(
+            "use_for_stellar_parameter_inference",
+            lambda model: model.use_for_stellar_parameter_inference)
+
         self.proxy_spectral_models.setDynamicSortFilter(False)
-        self.table_spectral_models = SpectralModelsTableModel(self)
-        self.proxy_spectral_models.setSourceModel(self.table_spectral_models)
+        # Link the SpectralModelsTableModel directly to the parent window
+        # because the parent window has the `.session` attribute that we want
+        # to link against.
+        self.proxy_spectral_models.setSourceModel(
+            SpectralModelsTableModel(parent))
 
         self.table_view.setModel(self.proxy_spectral_models)
         self.table_view.setSelectionBehavior(
             QtGui.QAbstractItemView.SelectRows)
-        self.table_view.setSortingEnabled(True)
+
+        # TODO: Re-enable sorting.
+        self.table_view.setSortingEnabled(False)
         self.table_view.resizeColumnsToContents()
         self.table_view.setColumnWidth(0, 30) # MAGIC
         self.table_view.setColumnWidth(1, 70) # MAGIC
@@ -566,39 +575,9 @@ class StellarParametersTab(QtGui.QWidget):
         The spectral models in the underlying session have been updated.
         """
 
-        print("Resetting data models")
-        self.table_spectral_models = SpectralModelsTableModel(self)
-        self.proxy_spectral_models.setSourceModel(self.table_spectral_models)
-
-
-        self.table_spectral_models.reset()
         self.proxy_spectral_models.reset()
-
-        """
-        self.proxy_spectral_models.sort(0)
-        self.table_spectral_models.dataChanged.emit(
-            self.table_spectral_models.createIndex(0, 0),
-            self.table_spectral_models.createIndex(
-                self.table_spectral_models.rowCount(0),
-                self.table_spectral_models.columnCount(0)))
-
-        self.proxy_spectral_models.dataChanged.emit(
-            self.table_spectral_models.createIndex(0, 0),
-            self.table_spectral_models.createIndex(
-                self.table_spectral_models.rowCount(0),
-                self.table_spectral_models.columnCount(0)))
-        """
-
         return None
 
-        self.spectral_models = []
-        for model in self.parent.session.metadata["spectral_models"]:
-            if model.use_for_stellar_parameter_inference:
-                self.spectral_models.append(model)
-
-        # Update the table view.
-        
-        return None
 
 
     def _check_for_spectral_models(self):
@@ -621,7 +600,8 @@ class StellarParametersTab(QtGui.QWidget):
 
             if reply == QtGui.QMessageBox.Ok:
                 # Load line list manager.
-                dialog = TransitionsDialog(self.parent.session)
+                dialog = TransitionsDialog(self.parent.session,
+                    callbacks=[self.proxy_spectral_models.reset])
                 dialog.exec_()
 
                 # Do we even have any spectral models now?
@@ -629,8 +609,6 @@ class StellarParametersTab(QtGui.QWidget):
                     if sm.use_for_stellar_parameter_inference: break
                 else:
                     return False
-
-                self.updated_spectral_models()
 
             else:
                 return False
@@ -1031,50 +1009,104 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
     def __init__(self, parent=None):
         super(SpectralModelsFilterProxyModel, self).__init__(parent)
         self.filter_functions = {}
-        self.add_filter_function("use_for_stellar_parameter_inference",
-            lambda *_: False)
+        self.filter_indices = []
         return None
 
+
     def add_filter_function(self, name, filter_function):
+        """
+        Add a filtering function to the proxy model.
+
+        :param name:
+            The name of the filtering function.
+
+        :param filter_function:
+            A function that accepts a single argument (the spectral model) and
+            returns True or False whether to display this row in the table.
+        """
+
         self.filter_functions[name] = filter_function
-        print("adding filter", name, filter_function)
         self.invalidateFilter()
+        return None
+
+
+    def delete_filter_function(self, name):
+        """
+        Delete a filtering function from the proxy model.
+
+        :param name:
+            The name of the filtering function:
+        """
+
+        try:
+            del filter_functions[name]
+            self.invalidateFilter()
+
+        except KeyError:
+            raise
+
+        else:
+            return None
 
 
     def filterAcceptsRow(self, row, parent):
-        model = self.sourceModel()._parent.parent.session.metadata["spectral_models"][row]
-        value =  model.use_for_stellar_parameter_inference
+        """
+        Return whether all of the filters for this proxy model agree that this
+        row should be shown.
 
-        print("ignoring custom filter functions...", row, value)
-        return value
+        :param row:
+            The row to check.
 
+        :param parent:
+            The parent widget.
+        """
 
-    def mapFromSource(self, index):
-        print("map from source", index.row())
+        # Check if we need to update the filter indices for mapping.
+        if row == 0:
+            # TODO: Not sure why filterAcceptsRow gets run twice, but anyways..
+            #       just eat it.
+            self.filter_indices = np.ones(
+                len(self.sourceModel().spectral_models), dtype=bool)
 
-        return index
+        model = self.sourceModel().spectral_models[row]
 
-    def mapToSource(self, index):
-        print("map to source", index.row())
-        try:
-            print(self.sourceModel()._parent.parent.session.metadata["spectral_models"])
-        except AttributeError:
-            None
-
-        if hasattr(self.sourceModel()._parent.parent, "session") \
-        and self.sourceModel()._parent.parent.session is not None:
-            print(self.sourceModel()._parent.parent.session.metadata.get("spectral_models", "has session, no spectral models"))
-
+        for filter_name, filter_function in self.filter_functions.items():
+            if not filter_function(model): break
         else:
-            print(self.sourceModel()._parent.parent)
+            # No problems.
+            return True
 
-        return index
+        # We broke out of the for loop.
+        logger.info("broke out {} due to {}".format(row, filter_name))
+        self.filter_indices[row] = False
+        return False
+
+
+    def mapToSource(self, proxy_index):
+        """
+        Map a proxy data table index back to the source data table indices.
+
+        :param proxy_index:
+            The index of the item in the table.
+        """
+
+        if not proxy_index.isValid():
+            return proxy_index
+
+        # TODO: This needs to be able to deal with resorting.
+        return self.createIndex(
+            np.where(self.filter_indices)[0][proxy_index.row()],
+            proxy_index.column())
+
 
     def mapSelectionFromSource(self, selection):
+        raise NotImplementedError("is this necessary? SUBMIT AS GITHUB ISSUE")
         print("map selection from source", selection)
         return selection
 
+
     def mapSelectionToSource(self, selection):
+        raise NotImplementedError("is this necessary? SUBMIT AS GITHUB ISSUE")
         print("map selection to source", selection)
         return selection
 
@@ -1094,20 +1126,31 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         An abstract table model for spectral models.
 
         :param parent:
-            The parent widget.
+            The parent. This *must* have an attribute of `parent.session`.
         """
 
         super(SpectralModelsTableModel, self).__init__(parent, *args)
-        self._parent = parent
+
+        # Normally you should never do this, but here I know "better". See:
+        #http://stackoverflow.com/questions/867938/qabstractitemmodel-parent-why
+        self.parent = parent 
         return None
+
+
+    @property
+    def spectral_models(self):
+        try:
+            return self.parent.session.metadata.get("spectral_models", [])
+
+        except AttributeError:
+            print("parent has no session")
+            # session is None
+            return []
 
 
     def rowCount(self, parent):
         """ Return the number of rows in the table. """
-        try:
-            return len(self._parent.parent.session.metadata["spectral_models"])
-        except (AttributeError, KeyError):
-            return 0
+        return len(self.spectral_models)
 
 
     def columnCount(self, parent):
@@ -1130,23 +1173,24 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
             return None
 
         column = index.column()
+        spectral_model = self.spectral_models[index.row()]
+
         if  column == 0 \
         and role in (QtCore.Qt.DisplayRole, QtCore.Qt.CheckStateRole):
-            value = self._parent.parent.session.metadata["spectral_models"][index.row()].is_acceptable
+            value = spectral_model.is_acceptable
             if role == QtCore.Qt.CheckStateRole:
                 return QtCore.Qt.Checked if value else QtCore.Qt.Unchecked
             else:
                 return None
 
         elif column == 1:
-            value = self._parent.parent.session.metadata["spectral_models"][index.row()]._repr_wavelength
+            value = spectral_model._repr_wavelength
 
         elif column == 2:
-            value = self._parent.parent.session.metadata["spectral_models"][index.row()]._repr_element
+            value = spectral_model._repr_element
 
         elif column == 3:
             try:
-                spectral_model = self._parent.parent.session.metadata["spectral_models"][index.row()]
                 result = spectral_model.metadata["fitted_result"][2]
                 equivalent_width = result["equivalent_width"][0]
             except:
@@ -1157,7 +1201,6 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
         elif column == 4:
             try:
-                spectral_model = self._parent.parent.session.metadata["spectral_models"][index.row()]
                 abundances \
                     = spectral_model.metadata["fitted_result"][2]["abundances"]
 
@@ -1183,7 +1226,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         if index.column() != 0 or value:
             return False
 
-        model = self._parent.parent.session.metadata["spectral_models"][index.row()]
+        model = self.spectral_models[index.row()]
         model.metadata["is_acceptable"] = value
 
         # Emit data change for this row.
@@ -1202,9 +1245,11 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
         return value
 
-    
+    """
     def sort(self, column, order):
-    
+        print("NO SORTING")
+        return None
+
         self.emit(QtCore.SIGNAL("layoutAboutToBeChanged()"))
 
         def get_equivalent_width(model):
@@ -1238,6 +1283,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         self.emit(QtCore.SIGNAL("layoutChanged()"))
         return None
 
+    """
 
     def flags(self, index):
         if not index.isValid(): return
