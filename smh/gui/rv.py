@@ -373,10 +373,12 @@ class RVTab(QtGui.QWidget):
         rv_tab_layout.addWidget(blank_widget)
 
 
-        gs = gridspec.GridSpec(3, 1, height_ratios=[2, 1, 1])
-        self.ax_order = self.rv_plot.figure.add_subplot(gs[0])
-        self.ax_order_norm = self.rv_plot.figure.add_subplot(gs[1])
-        self.ax_ccf = self.rv_plot.figure.add_subplot(gs[2])
+        gs_top = gridspec.GridSpec(3, 1, height_ratios=[2, 1, 1, 1])
+        gs_top.update(hspace=0)
+        gs_bottom = gridspec.GridSpec(3, 1)
+        self.ax_order = self.rv_plot.figure.add_subplot(gs_top[0])
+        self.ax_order_norm = self.rv_plot.figure.add_subplot(gs_top[1])
+        self.ax_ccf = self.rv_plot.figure.add_subplot(gs_bottom[2])
 
         # Pseudo-legend.
         self.ax_order.text(0.99, 0.9, "Data", color="k",

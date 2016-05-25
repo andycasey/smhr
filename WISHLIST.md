@@ -34,7 +34,7 @@
 
 *Medium*:
 - [X] An edit list widget for wavelength regions in the RV tab. #gui
-- [ ] ~~Allow click-to-mask + additional point functionality in RV tab. #gui~~
+- [X] ~~Allow click-to-mask + additional point functionality in RV tab. #gui~~
 - [ ] Implement literature comparison stuff based on data description in the defaults.yaml file.
 - [ ] Show 'heliocentric correction for UTDATE' info in RV tab if it could be calculated.
 - [ ] Ensure inverse variance arrays are being properly used in continuum fitting, and that the fits are correct at the edges.
@@ -49,11 +49,11 @@
 *Easy*:
 - [ ] Double-click on a spectral model in the Transitions Dialog will switch to the line list tab and highlight which line list row(s) are associated with that spectral model.
 - [ ] Configurable summary plot.
-- [ ] Fix spacing between top and middle figure in RV tab. #gui
+- [X] Fix spacing between top and middle figure in RV tab. #gui
 - [ ] Consistent color scheme between all tabs, which is read from the session defaults. #gui
 - [ ] Go through all 'TODO', 'HACK', or 'MAGIC' entries in the code and create
       GitHub issues. Assign labels and people.
 - [X] Implement 'Query Simbad..' button.
 - [X] Change font style for name and position data in Summary tab. #gui
 - [ ] Compile line lists together based on current "best" knowledge.
-- [ ] ~~Integrate spectral_models widget (sans any models) into the chemical abundances tab. #gui~~
+- [X] ~~Integrate spectral_models widget (sans any models) into the chemical abundances tab. #gui~~
