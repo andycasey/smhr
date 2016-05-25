@@ -735,7 +735,7 @@ class SpectralModelsTableView(QtGui.QTableView):
 
 class TransitionsDialog(QtGui.QDialog):
 
-    def __init__(self, session, *args):
+    def __init__(self, session, callbacks=None, **kwargs):
         """
         Initialise a dialog to manage the transitions (atomic physics and
         spectral models) for the given session.
@@ -744,9 +744,10 @@ class TransitionsDialog(QtGui.QDialog):
             The session that will be inspected for transitions.
         """
 
-        super(TransitionsDialog, self).__init__(*args)
+        super(TransitionsDialog, self).__init__(**kwargs)
 
         self.session = session
+        self.callbacks = callbacks or []
 
         self.setGeometry(900, 400, 900, 400)
         self.move(QtGui.QApplication.desktop().screen().rect().center() \
@@ -830,6 +831,21 @@ class TransitionsDialog(QtGui.QDialog):
         btn_save_as_default.clicked.connect(self.save_as_default)
         btn_ok.clicked.connect(self.close)
 
+        return None
+
+
+    def closeEvent(self, event):
+        """
+        Perform any requested callbacks before letting the widget close.
+
+        :param event:
+            The close event.
+        """
+
+        for callback in self.callbacks:
+            callback()
+
+        event.accept()
         return None
 
 
