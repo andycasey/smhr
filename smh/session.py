@@ -432,6 +432,9 @@ class Session(BaseSession):
                 equivalent_widths.append(1e3 * \
                     model.metadata["fitted_result"][-1]["equivalent_width"][0])
 
+        if len(transition_indices) == 0:
+            raise ValueError("no measured transitions to calculate abundances")
+
         # Construct a copy of the line list table.
         transition_indices = np.array(transition_indices)
         spectral_model_indices = np.array(spectral_model_indices)
