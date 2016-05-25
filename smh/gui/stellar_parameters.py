@@ -408,7 +408,7 @@ class StellarParametersTab(QtGui.QWidget):
         if event.dblclick:
 
             # Double click.
-            spectral_model, index = self._get_selected_model(True)
+            spectral_model, proxy_index, index = self._get_selected_model(True)
             for i, (s, e) in enumerate(spectral_model.metadata["mask"][::-1]):
                 if e >= event.xdata >= s:
 
@@ -419,15 +419,23 @@ class StellarParametersTab(QtGui.QWidget):
                     # Re-fit the current spectral_model.
                     spectral_model.fit()
 
-                    # Update the table view for this row.
-                    table_model = self.table_view.model()
-                    table_model.dataChanged.emit(
-                        table_model.createIndex(index, 0),
-                        table_model.createIndex(
-                            index, table_model.columnCount(0)))
-
                     # Update the view of the current model.
                     self.update_spectrum_figure()
+    
+                    # Update the data model.
+                    data_model = self.proxy_spectral_models.sourceModel()
+                    data_model.dataChanged.emit(
+                        data_model.createIndex(proxy_index.row(), 0),
+                        data_model.createIndex(proxy_index.row(),
+                            data_model.columnCount(QtCore.QModelIndex())))
+
+                    # It ought to be enough just to emit the dataChanged signal, but
+                    # there is a bug when using proxy models where the data table is
+                    # updated but the view is not, so we do this hack to make it
+                    # work:
+                    self.table_view.rowMoved(
+                        proxy_index.row(), proxy_index.row(), proxy_index.row())
+                    
                     break
 
             else:
@@ -438,15 +446,23 @@ class StellarParametersTab(QtGui.QWidget):
                 # For the moment just refit the model.
                 spectral_model.fit()
 
-                # Update the table view for this row.
-                table_model = self.table_view.model()
-                table_model.dataChanged.emit(
-                    table_model.createIndex(index, 0),
-                    table_model.createIndex(
-                        index, table_model.columnCount(0)))
-
                 # Update the view of the current model.
                 self.update_spectrum_figure()
+
+                # Update the data model.
+                data_model = self.proxy_spectral_models.sourceModel()
+                data_model.dataChanged.emit(
+                    data_model.createIndex(proxy_index.row(), 0),
+                    data_model.createIndex(proxy_index.row(),
+                        data_model.columnCount(QtCore.QModelIndex())))
+
+                # It ought to be enough just to emit the dataChanged signal, but
+                # there is a bug when using proxy models where the data table is
+                # updated but the view is not, so we do this hack to make it
+                # work:
+                self.table_view.rowMoved(
+                    proxy_index.row(), proxy_index.row(), proxy_index.row())
+
                 return None
 
         else:
@@ -529,7 +545,7 @@ class StellarParametersTab(QtGui.QWidget):
         and np.abs(xy[0,0] - xdata) > 0:
             
             # Get current spectral model.
-            spectral_model, index = self._get_selected_model(True)
+            spectral_model, proxy_index, index = self._get_selected_model(True)
 
             # Add mask metadata.
             spectral_model.metadata["mask"].append([xy[0,0], xy[2, 0]])
@@ -537,15 +553,23 @@ class StellarParametersTab(QtGui.QWidget):
             # Re-fit the spectral model.
             spectral_model.fit()
 
-            # Update the table view for this row.
-            table_model = self.table_view.model()
-            table_model.dataChanged.emit(
-                table_model.createIndex(index, 0),
-                table_model.createIndex(
-                    index, table_model.columnCount(0)))
-
             # Update the view of the spectral model.
             self.update_spectrum_figure()
+
+            # Update the data model.
+            data_model = self.proxy_spectral_models.sourceModel()
+            data_model.dataChanged.emit(
+                data_model.createIndex(proxy_index.row(), 0),
+                data_model.createIndex(proxy_index.row(),
+                    data_model.columnCount(QtCore.QModelIndex())))
+
+            # It ought to be enough just to emit the dataChanged signal, but
+            # there is a bug when using proxy models where the data table is
+            # updated but the view is not, so we do this hack to make it
+            # work:
+            self.table_view.rowMoved(
+                proxy_index.row(), proxy_index.row(), proxy_index.row())
+
 
         xy[:, 0] = np.nan
         for patch in self._lines["interactive_mask"]:
@@ -568,15 +592,6 @@ class StellarParametersTab(QtGui.QWidget):
             "microturbulence": float(self.edit_xi.text())
         })
         return True
-
-
-    def updated_spectral_models(self):
-        """
-        The spectral models in the underlying session have been updated.
-        """
-
-        self.proxy_spectral_models.reset()
-        return None
 
 
 
@@ -609,7 +624,6 @@ class StellarParametersTab(QtGui.QWidget):
                     if sm.use_for_stellar_parameter_inference: break
                 else:
                     return False
-
             else:
                 return False
 
@@ -704,17 +718,18 @@ class StellarParametersTab(QtGui.QWidget):
         self.selected_model_changed()
 
         # Update table view model for all rows.
-        table_model = self.table_view.model()
-        table_model.dataChanged.emit(table_model.createIndex(0, 3),
-            table_model.createIndex(table_model.rowCount(0), 3))
+        self.proxy_spectral_models.reset()
 
         return None
 
 
     def _get_selected_model(self, full_output=False):
-        index = self.table_view.selectionModel().selectedRows()[0].row()
-        model = self.parent.session.metadata["spectral_models"][index]#spectral_models[index]
-        return (model, index) if full_output else model
+
+        # Map the first selected row back to the source model index.
+        proxy_index = self.table_view.selectionModel().selectedIndexes()[0]
+        index = self.proxy_spectral_models.mapToSource(proxy_index).row()
+        model = self.parent.session.metadata["spectral_models"][index]
+        return (model, proxy_index, index) if full_output else model
 
 
     def selected_model_changed(self):
@@ -986,19 +1001,29 @@ class SpectralModelsTableView(QtGui.QTableView):
     def fit_selected_models(self):
         """ Fit the selected spectral models. """
 
-        for i, index in enumerate(self.selectionModel().selectedIndexes()):
-            # Fit the model.
-            self.parent.session.metadata["spectral_models"][index.row()].fit()
+        data_model = self.model().sourceModel()
+        for i, proxy_index in enumerate(self.selectionModel().selectedIndexes()):
+            # Fit the models.
+
+            index = self.model().mapToSource(proxy_index).row()
+            self.parent.parent.session.metadata["spectral_models"][index].fit()
 
             # Update the view if this is the first one.
             if i == 0:
                 self.parent.update_spectrum_figure()
 
-        # Update the data model.
-        self.model().dataChanged.emit(
-            self.model().createIndex(0, 0),
-            self.model().createIndex(
-                self.model().rowCount(0), self.model().columnCount(0)))
+            # Update the data model.
+            data_model.dataChanged.emit(
+                data_model.createIndex(proxy_index.row(), 0),
+                data_model.createIndex(proxy_index.row(),
+                    data_model.columnCount(QtCore.QModelIndex())))
+
+            # It ought to be enough just to emit the dataChanged signal, but
+            # there is a bug when using proxy models where the data table is
+            # updated but the view is not, so we do this hack to make it
+            # work:
+            self.parent.table_view.rowMoved(
+                proxy_index.row(), proxy_index.row(), proxy_index.row())
 
         return None
 
@@ -1080,6 +1105,32 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
         logger.info("broke out {} due to {}".format(row, filter_name))
         self.filter_indices[row] = False
         return False
+
+
+    def mapFromSource(self, data_index):
+        """
+        Map a data table index to a proxy table index.
+
+        :param data_index:
+            The index of the item in the data table.
+        """
+
+        if not isinstance(data_index, int) and not data_index.isValid():
+            return data_index
+
+        if isinstance(data_index, int):
+            proxy_index = self.filter_indices[:data_index].sum()
+            print("map from source a", data_index, proxy_index)
+            return proxy_index
+
+
+        else:
+
+            proxy_index = self.filter_indices[:data_index.row()].sum()
+            print("map from source", data_index, proxy_index)
+            return self.createIndex(proxy_index, data_index.column())
+
+
 
 
     def mapToSource(self, proxy_index):
@@ -1229,19 +1280,30 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         model = self.spectral_models[index.row()]
         model.metadata["is_acceptable"] = value
 
-        # Emit data change for this row.
-        self.dataChanged.emit(
-            self.createIndex(index.row(), 0),
-            self.createIndex(index.row(), self.columnCount(0)))
-
-        # Refresh the view.
         try:
             del model.metadata["fitted_result"]
 
         except KeyError:
             None
 
-        self._parent.update_spectrum_figure()
+        # Emit data change for this row.
+        self.dataChanged.emit(self.createIndex(index.row(), 0),
+            self.createIndex(index.row(), 
+                self.columnCount(QtCore.QModelIndex())))
+
+        # It ought to be enough just to emit the dataChanged signal, but
+        # there is a bug when using proxy models where the data table is
+        # updated but the view is not, so we do this hack to make it
+        # work:
+
+        # This is REALLY clunky,...
+        # TODO revisit this
+        # TODO this is REALLY clunky:
+        self.parent.stellar_parameters_tab.update_spectrum_figure()
+        proxy_index = self.parent.stellar_parameters_tab.table_view.model()\
+            .mapFromSource(index.row())
+        self.parent.stellar_parameters_tab.table_view.rowMoved(proxy_index,
+            proxy_index, proxy_index)
 
         return value
 
