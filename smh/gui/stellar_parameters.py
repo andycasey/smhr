@@ -40,6 +40,7 @@ PICKER_TOLERANCE = 10 # MAGIC HACK
 
 class StellarParametersTab(QtGui.QWidget):
 
+
     def __init__(self, parent):
         """
         Create a tab for the determination of stellar parameters by excitation
@@ -53,6 +54,8 @@ class StellarParametersTab(QtGui.QWidget):
         self.parent = parent
 
         self.parent_layout = QtGui.QHBoxLayout(self)
+        self.parent_layout.setContentsMargins(20, 20, 20, 0)
+
         lhs_layout = QtGui.QVBoxLayout()
         grid_layout = QtGui.QGridLayout()
 
@@ -68,6 +71,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_teff.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_teff.setValidator(
             QtGui.QDoubleValidator(3000, 8000, 0, self.edit_teff))
+        self.edit_teff.textChanged.connect(self._check_lineedit_state)
 
         hbox.addWidget(self.edit_teff)
         grid_layout.addLayout(hbox, 0, 1, 1, 1)
@@ -84,6 +88,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_logg.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_logg.setValidator(
             QtGui.QDoubleValidator(-1, 6, 3, self.edit_logg))
+        self.edit_logg.textChanged.connect(self._check_lineedit_state)
         hbox.addWidget(self.edit_logg)
         grid_layout.addLayout(hbox, 1, 1, 1, 1)
 
@@ -99,6 +104,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_metallicity.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_metallicity.setValidator(
             QtGui.QDoubleValidator(-5, 1, 3, self.edit_metallicity))
+        self.edit_metallicity.textChanged.connect(self._check_lineedit_state)
         hbox.addWidget(self.edit_metallicity)
         grid_layout.addLayout(hbox, 2, 1, 1, 1)
 
@@ -114,6 +120,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_xi.setMinimumSize(QtCore.QSize(40, 0))
         self.edit_xi.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_xi.setValidator(QtGui.QDoubleValidator(0, 5, 3, self.edit_xi))
+        self.edit_xi.textChanged.connect(self._check_lineedit_state)
         hbox.addWidget(self.edit_xi)
         grid_layout.addLayout(hbox, 3, 1, 1, 1)
 
@@ -253,6 +260,8 @@ class StellarParametersTab(QtGui.QWidget):
         self.btn_measure.clicked.connect(self.measure_abundances)
         self.btn_options.clicked.connect(self.options)
         self.btn_solve.clicked.connect(self.solve_parameters)
+        self.btn_filter.clicked.connect(self.filter_models)
+        self.btn_quality_control.clicked.connect(self.quality_control)
         self.edit_teff.returnPressed.connect(self.btn_measure.clicked)
         self.edit_logg.returnPressed.connect(self.btn_measure.clicked)
         self.edit_metallicity.returnPressed.connect(self.btn_measure.clicked)
@@ -287,6 +296,45 @@ class StellarParametersTab(QtGui.QWidget):
         return None
 
 
+    def _check_lineedit_state(self, *args, **kwargs):
+        """
+        Update the background color of a QLineEdit object based on whether the
+        input is valid.
+        """
+
+        # TODO: Implement from
+        # http://stackoverflow.com/questions/27159575/pyside-modifying-widget-colour-at-runtime-without-overwriting-stylesheet
+
+        sender = self.sender()
+        validator = sender.validator()
+        state = validator.validate(sender.text(), 0)[0]
+        if state == QtGui.QValidator.Acceptable:
+            color = 'none' # normal background color
+        elif state == QtGui.QValidator.Intermediate:
+            color = '#fff79a' # yellow
+        else:
+            color = '#f6989d' # red
+        sender.setStyleSheet('QLineEdit { background-color: %s }' % color)
+    
+        return None
+
+
+    def filter_models(self):
+        """
+        Filter the view of the models used in the determination of stellar
+        parameters.
+        """
+        raise NotImplementedError
+
+
+    def quality_control(self):
+        """
+        Show a dialog to specify quality control constraints for spectral models
+        used in the determination of stellar parameters.
+        """
+        raise NotImplementedError
+
+
     def figure_mouse_pick(self, event):
         """
         Trigger for when the mouse is used to select an item in the figure.
@@ -295,8 +343,8 @@ class StellarParametersTab(QtGui.QWidget):
             The matplotlib event.
         """
 
-        # Select the row. That will trigger the rest.
-        self.table_view.selectRow(self._spectral_model_indices[event.ind[0]])
+        # Select the row(s). That will trigger the rest.
+        self.table_view.selectRow(self._spectral_model_indices[event.ind])
         return None
 
 
@@ -644,6 +692,9 @@ class StellarParametersTab(QtGui.QWidget):
             rew = np.log10(equivalent_width/transitions["wavelength"][0])
 
 
+        # Show points from many models.
+        # TODO:        
+
         point_excitation, point_strength = self._lines["selected_point"]
         point_excitation.set_offsets(np.array([excitation_potential,
             abundance]).T)
@@ -749,6 +800,9 @@ class StellarParametersTab(QtGui.QWidget):
         # Things to show if there is a fitted result.
         try:
             (named_p_opt, cov, meta) = selected_model.metadata["fitted_result"]
+
+            # Test for some requirements.
+            _ = (meta["model_x"], meta["model_y"], meta["residual"])
 
         except KeyError:
             meta = {}

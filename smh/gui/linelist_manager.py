@@ -131,6 +131,8 @@ class LineListTableView(QtGui.QTableView):
         menu.addSeparator()
         import_profiles = menu.addAction("Import lines for profile models..")
         import_syntheses = menu.addAction("Import files as synthesis models..")
+        import_measured = menu.addAction(
+            "Import transitions with measured EWs..")
         menu.addSeparator()
         add_profiles_action = menu.addAction("Model with profiles")
         add_synth_action = menu.addAction("Model by synthesis")
@@ -158,6 +160,9 @@ class LineListTableView(QtGui.QTableView):
 
         elif action == import_syntheses:
             self.add_imported_lines_as_synthesis_model()
+
+        elif action == import_measured:
+            self.import_transitions_with_measured_equivalent_widths()
 
         elif action == delete_action:
             self.delete_selected_rows()
@@ -328,6 +333,54 @@ class LineListTableView(QtGui.QTableView):
 
         return line_list
 
+
+    def import_transitions_with_measured_equivalent_widths(self):
+        """ Import profile models with pre-measured equivalent widths. """
+
+        filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(self,
+            caption="Select pre-measured transition files", dir="")
+        if not filenames:
+            return None
+
+        # Load lines.
+        line_list = LineList.read(filenames[0])
+        for filename in filenames[1:]:
+            line_list = line_list.merge(LineList.read(filename), in_place=False)
+
+        # Merge with existing line list.
+        if self.session.metadata.get("line_list", None) is None:
+            self.session.metadata["line_list"] = line_list
+
+        else:
+            self.session.metadata["line_list"] \
+                = self.session.metadata["line_list"].merge(
+                    line_list, in_place=False)
+
+        # Set these lines as profile models.
+        spectral_models_to_add = []
+        for idx in range(len(line_list)):
+            model = ProfileFittingModel(self.session, line_list["hash"][[idx]])
+            model.metadata.update({
+                "is_acceptable": True,
+                "fitted_result": [None, None, {
+                    # We assume supplied equivalent widths are in milliAngstroms
+                    "equivalent_width": \
+                    (1e-3 * line_list["equivalent_width"][idx], np.nan, np.nan)
+                }]
+            })
+            spectral_models_to_add.append(model)
+
+        self.session.metadata.setdefault("spectral_models", [])
+        self.session.metadata["spectral_models"].extend(spectral_models_to_add)
+        self.session._spectral_model_conflicts = spectral_model_conflicts(
+            self.session.metadata["spectral_models"],
+            self.session.metadata["line_list"])
+
+        # Update the data models.
+        self.model().reset()
+        self._parent.models_view.model().reset()
+        
+        return None
 
 
 class LineListTableDelegate(QtGui.QItemDelegate):
