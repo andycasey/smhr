@@ -73,12 +73,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         hbox = QtGui.QHBoxLayout()
         self.btn_fit_all = QtGui.QPushButton(self)
         self.btn_fit_all.setText("Fit and Measure all")
+        self.btn_fit_one = QtGui.QPushButton(self)
+        self.btn_fit_one.setText("Fit and Measure One")
         hbox.addWidget(self.btn_fit_all)
+        hbox.addWidget(self.btn_fit_one)
         lhs_layout.addLayout(hbox)
 
         hbox = QtGui.QHBoxLayout()
         self.btn_refresh = QtGui.QPushButton(self)
-        self.btn_refresh.setText("Refresh table")
+        self.btn_refresh.setText("Refresh from session")
         self.btn_replot  = QtGui.QPushButton(self)
         self.btn_replot.setText("Refresh plots")
         hbox.addWidget(self.btn_refresh)
@@ -166,6 +169,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         # Connect buttons
         self.btn_fit_all.clicked.connect(self.fit_all)
+        self.btn_fit_one.clicked.connect(self.fit_one)
         self.btn_refresh.clicked.connect(self.refresh_table)
         self.btn_replot.clicked.connect(self.refresh_plots)
         self.btn_save_to_session.clicked.connect(self.save_to_session)
@@ -360,7 +364,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
 
         # Buttons.
-        opt_layout.addWidget(self.opt_tabs)
+        hbox_btns = QtGui.QHBoxLayout()
+        self.auto_fit_checkbox = QtGui.QCheckBox(group_box)
+        self.auto_fit_checkbox.setText("Autofit")
+        hbox_btns.addWidget(self.auto_fit_checkbox)
         #hbox_btns = QtGui.QHBoxLayout()
         #self.btn_save_as_default = QtGui.QPushButton(group_box)
         #self.btn_save_as_default.setText("Save as default options")
@@ -375,9 +382,77 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         #hbox_btns.addWidget(self.btn_apply_to_all)
 
         # Final layout placement.
-        #opt_layout.addLayout(hbox_btns)
+        opt_layout.addWidget(self.opt_tabs)
+        opt_layout.addLayout(hbox_btns)
         self.opt_tabs.raise_()
         self.fitting_options = group_box
+
+        # Connect Signals
+        # Common options.
+        self.edit_window.textChanged.connect(
+            self.update_edit_window)
+        self.edit_window.textChanged.connect(
+            self.autofit)
+        self.checkbox_continuum.stateChanged.connect(
+            self.clicked_checkbox_continuum)
+        self.checkbox_continuum.stateChanged.connect(
+            self.autofit)
+        self.combo_continuum.currentIndexChanged.connect(
+            self.update_continuum_order)
+        self.combo_continuum.currentIndexChanged.connect(
+            self.autofit)
+        self.checkbox_vrad_tolerance.stateChanged.connect(
+            self.clicked_checkbox_vrad_tolerance)
+        self.checkbox_vrad_tolerance.stateChanged.connect(
+            self.autofit)
+        self.edit_vrad_tolerance.textChanged.connect(
+            self.update_vrad_tolerance)
+        self.edit_vrad_tolerance.textChanged.connect(
+            self.autofit)
+
+        # Profile options.
+        self.combo_profile.currentIndexChanged.connect(
+            self.update_combo_profile)
+        self.combo_profile.currentIndexChanged.connect(
+            self.autofit)
+        self.edit_detection_sigma.textChanged.connect(
+            self.update_detection_sigma)
+        self.edit_detection_sigma.textChanged.connect(
+            self.autofit)
+        self.edit_detection_pixels.textChanged.connect(
+            self.update_detection_pixels)
+        self.edit_detection_pixels.textChanged.connect(
+            self.autofit)
+        self.checkbox_use_central_weighting.stateChanged.connect(
+            self.clicked_checkbox_use_central_weighting)
+        self.checkbox_use_central_weighting.stateChanged.connect(
+            self.autofit)
+        self.checkbox_wavelength_tolerance.stateChanged.connect(
+            self.clicked_checkbox_wavelength_tolerance)
+        self.checkbox_wavelength_tolerance.stateChanged.connect(
+            self.autofit)
+        self.edit_wavelength_tolerance.textChanged.connect(
+            self.update_wavelength_tolerance)
+        self.edit_wavelength_tolerance.textChanged.connect(
+            self.autofit)
+
+        # Synthesis options.
+        self.edit_initial_abundance_bound.textChanged.connect(
+            self.update_initial_abundance_bound)
+        self.edit_initial_abundance_bound.textChanged.connect(
+            self.autofit)
+        self.checkbox_model_smoothing.stateChanged.connect(
+            self.clicked_checkbox_model_smoothing)
+        self.checkbox_model_smoothing.stateChanged.connect(
+            self.autofit)
+        self.edit_smoothing_bound.textChanged.connect(
+            self.update_smoothing_bound)
+        self.edit_smoothing_bound.textChanged.connect(
+            self.autofit)
+        self.btn_specify_abundances.clicked.connect(
+            self.clicked_btn_specify_abundances)
+        self.btn_specify_abundances.clicked.connect(
+            self.autofit)
 
     def populate_widgets(self):
         """
@@ -390,7 +465,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         if self.parent.session is None: return None
         self._check_for_spectral_models()
         self.updated_spectral_models() # TODO duplicated
-        logger.debug("Resetting tree model")
+        logger.debug("Resetting tree model from session")
         self.abundtree.model().reset()
         return None
 
@@ -427,6 +502,29 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 continue
         self.abundtree.model().reset()
         self.selected_model_changed()
+
+    def fit_one(self):
+        spectral_model, index = self._get_selected_model(True)
+        if spectral_model is None: return None
+        try:
+            res = spectral_model.fit()
+            logger.debug(res)
+        except (ValueError, RuntimeError) as e:
+            logger.debug("Fitting error",spectral_model)
+            logger.debug(e)
+            return None
+        try:
+            ab = spectral_model.abundances
+            logger.debug(ab)
+        except rt.RTError as e:
+            logger.debug("Abundance error",spectral_model)
+            logger.debug(e)
+            return None
+        self.update_tree_data(index)
+        self.update_fitting_options()
+        self.update_spectrum_figure(False)
+        self.update_line_strength_figure(True)
+        return None
 
     def save_to_session(self):
         self.parent.session.metadata["spectral_models"] = self.spectral_models
@@ -537,13 +635,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     # Re-fit the current spectral_model.
                     spectral_model.fit()
 
-                    # Update the table view for this row.
-                    tree_model = self.abundtree.model()
-                    # It will be pointing to an item
-                    item = index.internalPointer() 
-                    tree_model.dataChanged.emit(
-                        tree_model.createIndex(0, 0, item),
-                        tree_model.createIndex(0, item.columnCount(), item))
+                    # Update the view for this row.
+                    self.update_tree_data(index)
 
                     # Update the view of the current model.
                     self.update_spectrum_figure(True)
@@ -555,13 +648,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 # For the moment just refit the model.
                 spectral_model.fit()
 
-                # Update the table view for this row.
-                tree_model = self.abundtree.model()
-                # It will be pointing to an item
-                item = index.internalPointer() 
-                tree_model.dataChanged.emit(
-                    tree_model.createIndex(0, 0, item),
-                    tree_model.createIndex(0, item.columnCount(), item))
+                # Update the view for this row.
+                self.update_tree_data(index)
 
                 # Update the view of the current model.
                 self.update_spectrum_figure(True)
@@ -660,12 +748,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             spectral_model.fit()
 
             # Update the table view for this row.
-            tree_model = self.abundtree.model()
-            # It will be pointing to an item
-            item = index.internalPointer() 
-            tree_model.dataChanged.emit(
-                tree_model.createIndex(0, 0, item),
-                tree_model.createIndex(0, item.columnCount(), item))
+            self.update_tree_data(index)
 
             # Update the view of the spectral model.
             self.update_spectrum_figure()
@@ -724,9 +807,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         point_strength = self._lines["selected_point"][0]
         point_strength.set_offsets(np.array([rew, abundance]).T)
         
+        self.update_fitting_options()
         self.update_spectrum_figure(False)
         self.update_line_strength_figure(True)
-        
+
         return None
 
     def update_spectrum_figure(self, refresh=False):
@@ -938,3 +1022,213 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         
         if refresh: self.figure.draw()
         return None
+
+    def update_fitting_options(self):
+        try:
+            selected_model = self._get_selected_model()
+        except IndexError:
+            return None
+        if selected_model is None: return None
+    
+        # Common model.
+        self.edit_window.setText("{}".format(selected_model.metadata["window"]))
+
+        # Continuum order.
+        continuum_order = selected_model.metadata["continuum_order"]
+        if continuum_order < 0:
+            self.checkbox_continuum.setChecked(False)
+            self.combo_continuum.setEnabled(False)
+        else:
+            self.checkbox_continuum.setChecked(True)
+            self.combo_continuum.setEnabled(True)
+            self.combo_continuum.setCurrentIndex(continuum_order)
+
+        # Radial velocity tolerance.
+        vrad_tolerance = selected_model.metadata.get("velocity_tolerance", None)
+        if vrad_tolerance is None:
+            self.checkbox_vrad_tolerance.setChecked(False)
+            self.edit_vrad_tolerance.setEnabled(False)
+        else:
+            self.checkbox_vrad_tolerance.setChecked(True)
+            self.edit_vrad_tolerance.setEnabled(True)
+            self.edit_vrad_tolerance.setText("{}".format(vrad_tolerance))
+
+        # Profile options.
+        if isinstance(selected_model, ProfileFittingModel):
+            self.tab_profile.setEnabled(True)
+
+            self.combo_profile.setCurrentIndex(
+                ["gaussian", "lorentzian", "voight"].index(
+                    selected_model.metadata["profile"]))
+
+            self.edit_detection_sigma.setText("{}".format(
+                selected_model.metadata["detection_sigma"]))
+            self.edit_detection_pixels.setText("{}".format(
+                selected_model.metadata["detection_pixels"]))
+
+            self.checkbox_use_central_weighting.setEnabled(
+                selected_model.metadata["central_weighting"])
+
+            tolerance = selected_model.metadata.get("wavelength_tolerance", None)
+            if tolerance is None:
+                self.checkbox_wavelength_tolerance.setEnabled(False)
+            else:
+                self.checkbox_wavelength_tolerance.setEnabled(True)
+                self.edit_wavelength_tolerance.setText(
+                    "{}".format(tolerance))
+
+        else:
+            self.tab_profile.setEnabled(False)
+
+        # Synthesis options.
+        if isinstance(selected_model, SpectralSynthesisModel):
+            self.tab_synthesis.setEnabled(True)
+
+            # Update widgets.
+            self.edit_initial_abundance_bound.setText(
+                "{}".format(selected_model.metadata["initial_abundance_bounds"]))
+            
+            self.checkbox_model_smoothing.setEnabled(
+                selected_model.metadata["smoothing_kernel"])
+
+            # TODO sigma smooth tolerance needs implementing.
+        else:
+            self.tab_synthesis.setEnabled(False)
+
+        return None
+
+    def update_tree_data(self, index):
+        item = index.internalPointer()
+        if not isinstance(item, AbundTreeMeasurementItem):
+            raise RuntimeError(item)
+        tree_model = self.abundtree.model()
+        tree_model.dataChanged.emit(
+            tree_model.createIndex(0, 0, item),
+            tree_model.createIndex(0, item.columnCount(), item))
+        return None
+
+    ###############################
+    # FITTING OPTION UPDATE METHODS
+    ###############################
+
+    def update_edit_window(self):
+        """ The wavelength window was updated """
+        model = self._get_selected_model()
+        try:
+            window = float(self.edit_window.text())
+        except:
+            return None
+        else:
+            model.metadata["window"] = window
+            # Just update the axis limits.
+            transitions = model.transitions
+            # TODO synth wavelength
+            xlim = (transitions["wavelength"][0] - window,
+                    transitions["wavelength"][-1] + window)
+            self.ax_spectrum.set_xlim(xlim)
+            self.ax_line_strength.set_xlim(xlim)
+            self.figure.draw()
+        return None
+
+    def clicked_checkbox_continuum(self):
+        """ The checkbox for modeling the continuum was clicked. """
+        if self.checkbox_continuum.isChecked():
+            self.combo_continuum.setEnabled(True)
+            self.update_continuum_order()
+        else:
+            self._get_selected_model().metadata["continuum_order"] = -1
+            self.combo_continuum.setEnabled(False)
+        return None
+
+    def update_continuum_order(self):
+        """ The continuum order to use in model fitting was changed. """
+        self._get_selected_model().metadata["continuum_order"] \
+            = int(self.combo_continuum.currentText())
+        return None
+
+    def clicked_checkbox_vrad_tolerance(self):
+        """ The checkbox for velocity tolerance was clicked. """
+        if self.checkbox_vrad_tolerance.isChecked():
+            self.edit_vrad_tolerance.setEnabled(True)
+            self.update_vrad_tolerance()
+        else:
+            self.edit_vrad_tolerance.setEnabled(False)
+            self._get_selected_model().metadata["velocity_tolerance"] = None
+        return None
+
+    def update_vrad_tolerance(self):
+        """ The tolerance on radial velocity was updated. """
+        try:
+            value = float(self.edit_vrad_tolerance.text())
+        except:
+            value = None
+        self._get_selected_model().metadata["velocity_tolerance"] = value
+        return None
+
+    def update_combo_profile(self):
+        """ Update the profile that is used for fitting atomic transitions. """
+        self._get_selected_model().metadata["profile"] \
+            = self.combo_profile.currentText().lower()
+        return None
+
+    def update_detection_sigma(self):
+        """ The detection sigma for nearby lines has been updated. """
+        self._get_selected_model().metadata["detection_sigma"] \
+            = float(self.edit_detection_sigma.text())
+        return None
+
+    def update_detection_pixels(self):
+        """ The number of pixels to qualify a detection has been updated. """
+        self._get_selected_model().metadata["detection_pixels"] \
+            = int(self.edit_detection_pixels.text())
+        return None
+    def clicked_checkbox_use_central_weighting(self):
+        """ The checkbox to use central weighting has been clicked. """
+        self._get_selected_model().metadata["central_weighting"] \
+            = self.checkbox_use_central_weighting.isChecked()
+        return None
+    def clicked_checkbox_wavelength_tolerance(self):
+        """ The checkbox to set a wavelength tolerance has been clicked. """
+        if self.checkbox_wavelength_tolerance.isChecked():
+            self.edit_wavelength_tolerance.setEnabled(True)
+            self.update_wavelength_tolerance()
+        else:
+            self.edit_wavelength_tolerance.setEnabled(False)
+            self._get_selected_model().metadata["wavelength_tolerance"] = None
+        return None
+    def update_wavelength_tolerance(self):
+        """ The wavelength tolerance for a profile centroid has been updated. """
+        self._get_selected_model().metadata["wavelength_tolerance"] \
+            = float(self.edit_wavelength_tolerance.text())
+        return None
+    def update_initial_abundance_bound(self):
+        """ The initial abundance bound has been updated. """
+        self._get_selected_model().metadata["initial_abundance_bounds"] \
+            = float(self.edit_initial_abundance_bound.text())
+        return None
+    def clicked_checkbox_model_smoothing(self):
+        """ The checkbox to smooth the model spectrum has been clicked. """
+        if self.checkbox_model_smoothing.isChecked():
+            self._get_selected_model().metadata["smoothing_kernel"] = True
+            self.edit_smoothing_bound.setEnabled(True)
+            self.update_smoothing_bound()
+        else:
+            self._get_selected_model().metadata["smoothing_kernel"] = False
+            self.edit_smoothing_bound.setEnabled(False)
+        return None
+    def update_smoothing_bound(self):
+        """ The limits on the smoothing kernel have been updated. """
+        value = float(self.edit_smoothing_bound.text())
+        self._get_selected_model().metadata["sigma_smooth"] = (-value, value)
+        if self.auto_fit_checkbox.isChecked(): self._get_selected_model().fit()
+        return None
+    def clicked_btn_specify_abundances(self):
+        raise NotImplementedError
+
+    def autofit(self):
+        if self.auto_fit_checkbox.isChecked():
+            m, ix = self._get_selected_model(True)
+            m.fit()
+            self.update_tree_data(ix)
+            self.update_spectrum_figure(True)
+            #self.update_line_strength_figure(True)

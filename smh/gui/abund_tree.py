@@ -96,14 +96,14 @@ class AbundTreeElementSummaryItem(AbundTreeItem):
         return "{0:5} N={1:3} A(X)={2:5.2f} e(X)={3:5.2f} [X/H]={4:5.2f} [X/Fe]={5:5.2f}".format(*self.summary)
     def compute_summary(self):
         assert len(self.subnodes) >= 1
-        elem = self.subnodes[0].data(4)
+        elem = self.subnodes[0].data(8)
         N = len(self.subnodes)
         abunds = np.zeros(N)*np.nan
         errs = np.zeros(N)*np.nan
         for i,node in enumerate(self.subnodes):
             if node.data(0):
-                errs[i] = float(node.data(6))
-                abunds[i] = float(node.data(5))
+                errs[i] = float(node.data(5))
+                abunds[i] = float(node.data(2))
         weights = 1./errs**2
         # TODO errors must be > 0 right now
         ii = np.logical_and(~np.isnan(abunds), ~np.isnan(weights))
@@ -137,25 +137,30 @@ class AbundTreeMeasurementItem(AbundTreeItem):
         if isinstance(m,ProfileFittingModel):
             if column==1: #wl
                 return "{:6.1f}".format(m.transitions["wavelength"][0])
-            elif column==2: #expot
-                return "{:4.2f}".format(m.transitions["expot"][0])
-            elif column==3: #loggf
-                return "{:7.3f}".format(m.transitions["loggf"][0])
-            elif column==4: #element
-                return m.transitions["element"][0]
-            elif column==5: #A(X)
+            elif column==2: #A(X)
                 try:
                     return "{:5.2f}".format(m.metadata["fitted_result"][2]["abundances"][0])
                 except:
                     return str(np.nan)
-            elif column==6: #e(X)
-                #TODO
-                return "{:4.2f}".format(0.1)
-            elif column==7: #equivalent_width
+            elif column==3: #equivalent_width
                 try:
                     return "{:6.2f}".format(m.metadata["fitted_result"][2]["equivalent_width"][0]*1000.)
                 except:
                     return str(np.nan)
+            elif column==4: #REW
+                try:
+                    return "{:6.2f}".format(m.metadata["fitted_result"][2]["equivalent_width"][0]/m.transitions["wavelength"][0])
+                except:
+                    return str(np.nan)
+            elif column==5: #e(X)
+                #TODO
+                return "{:4.2f}".format(0.1)
+            elif column==6: #EP
+                return "{:4.2f}".format(m.transitions["expot"][0])
+            elif column==7: #loggf
+                return "{:7.3f}".format(m.transitions["loggf"][0])
+            elif column==8: #element
+                return m.transitions["element"][0]
             else:
                 return None
         else: #SpectralSynthesisModel
@@ -287,7 +292,7 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
 
     def headerData(self, section, orientation, role):
         if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
-            cols = ["","wl","EP","loggf","elem","A(X)","e(X)","EW","A(X)","A(X)"]
+            cols = ["","wl","A(X)","EW","REW","e(X)","EP","loggf","element",""]
             if section < len(cols):
                 return cols[section]
         return None
