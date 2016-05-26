@@ -25,7 +25,7 @@ vre = re_compile("__version__ = \"(.*?)\"")
 version = vre.findall(read(path.join(here, "smh", "__init__.py")))[0]
 
 # External data.
-if "--with-models" in map(str.lower, sys.argv):
+if "--without-models" not in sys.argv:
     data_paths = [
         # Model photospheres:
         # Castelli & Kurucz (2004)
@@ -52,9 +52,10 @@ if "--with-models" in map(str.lower, sys.argv):
         try:
             urlretrieve(url, filename)
         except IOError:
-            raise("Error downloading file {} -- consider trying without the "
-                "--with-models flag".format(url))
-    sys.argv.remove("--with-models")
+            raise("Error downloading file {} -- consider installing with flag "
+                "--without-models".format(url))
+else:
+    sys.argv.remove("--without-models")
 
 
 setup(
@@ -92,6 +93,7 @@ setup(
     },
     package_data={
         "": ["LICENSE"],
+        "smh": ["default_session.yaml"],
         "smh.gui": ["matplotlibrc"],
         "smh.photospheres": [
             "marcs-2011-standard.pkl",

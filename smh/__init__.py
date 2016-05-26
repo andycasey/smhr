@@ -47,6 +47,6 @@ if not os.path.exists(Session._default_settings_path):
     copyfile(
         os.path.join(
             os.path.dirname(os.path.join(__file__)),
-            "../default_session.yaml"
+            "default_session.yaml"
         ),
         Session._default_settings_path)
