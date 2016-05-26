@@ -29,6 +29,63 @@ __all__ = ["element_to_species", "species_to_element", "get_common_letters", \
 logger = logging.getLogger(__name__)
 
 
+def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species"):
+    """
+    Perform linear fits to the abundances provided in the transitions table
+    with respect to x-columns.
+
+    :param transitions:
+        A table of atomic transitions with measured equivalent widths and
+        abundances.
+
+    :param x: [optional]
+        The names of the columns to make fits against.
+
+    :param group_by: [optional]
+        The name of the column in `transitions` to calculate states.
+    """
+
+    lines = {}
+    transitions = transitions.group_by(group_by)
+    for i, start_index in enumerate(transitions.groups.indices[:-1]):
+        end_index = transitions.groups.indices[i + 1]
+
+        # Do excitation potential first.
+        group_lines = {}
+        for x_column in columns:
+            x = transitions[x_column][start_index:end_index]
+            y = transitions["abundance"][start_index:end_index]
+            try:
+                yerr = transitions["e_abundance"][start_index:end_index]
+            except:
+                yerr = np.ones(len(y))
+
+            # Only use finite values.
+            finite = np.isfinite(x * y * yerr)
+            if not np.any(finite):
+                group_lines[x_column] = (np.nan, np.nan, np.nan, np.nan, 0)
+                continue
+
+            x, y, yerr = x[finite], y[finite], yerr[finite]
+
+            A = np.vstack((np.ones_like(x), x)).T
+            C = np.diag(yerr**2)
+            try:
+                cov = np.linalg.inv(np.dot(A.T, np.linalg.solve(C, A)))
+                b, m = np.dot(cov, np.dot(A.T, np.linalg.solve(C, y)))
+
+            except np.linalg.LinAlgError:
+                group_lines[x_column] \
+                    = (np.nan, np.nan, np.median(y), np.std(y), len(x))
+
+            else:
+                group_lines[x_column] = (m, b, np.median(y), np.std(y), len(x))
+
+        identifier = transitions[group_by][start_index]
+        lines[identifier] = group_lines
+
+    return lines
+
 
 def spectral_model_conflicts(spectral_models, line_list):
     """

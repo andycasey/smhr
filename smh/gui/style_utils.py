@@ -5,7 +5,7 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
-__all__ = ["wavelength_to_hex"]
+__all__ = ["wavelength_to_hex", "relim_axes", "fill_between_steps"]
 
 import numpy as np
 
@@ -99,7 +99,7 @@ def fill_between_steps(ax, x, y1, y2=0, h_align='mid', **kwargs):
 
 
 
-def relim_axes(ax, percent=0.05):
+def relim_axes(axes, percent=20):
     """
     Generate new axes for a matplotlib axes based on the collections present.
 
@@ -115,19 +115,44 @@ def relim_axes(ax, percent=0.05):
         y-axis, respectively.
     """
 
-
-    data = np.array([collection.get_offsets() for collection in ax.collections])
+    data = np.vstack([item.get_offsets() for item in axes.collections])
+    if data.size == 0:
+        return (None, None)
+    
     data = data.reshape(-1, 2)
     x, y = data[:,0], data[:, 1]
 
-    xlim = [
-        np.min(x) - np.ptp(x) * percent,
-        np.max(x) + np.ptp(x) * percent,
-    ]
-    ylim = [
-        np.min(y) - np.ptp(y) * percent,
-        np.max(y) + np.ptp(y) * percent
-    ]
-    
+    # Only use finite values.
+    x = x[np.isfinite(x)]
+    y = y[np.isfinite(y)]
+
+    if x.size > 1:
+        xlim = [
+            np.min(x) - np.ptp(x) * percent/100.,
+            np.max(x) + np.ptp(x) * percent/100.,
+        ]
+
+    elif x.size == 0:
+        xlim = None
+
+    else:
+        xlim = (x[0] - 1, x[0] + 1)
+
+
+    if y.size > 1:
+        ylim = [
+            np.min(y) - np.ptp(y) * percent/100.,
+            np.max(y) + np.ptp(y) * percent/100.
+        ]
+
+    elif y.size == 0: 
+        ylim = None
+
+    else:
+        ylim = (y[0] - 1, y[0] + 1)
+
+    axes.set_xlim(xlim)
+    axes.set_ylim(ylim)
+
     return (xlim, ylim)
 

@@ -131,6 +131,8 @@ class LineListTableView(QtGui.QTableView):
         menu.addSeparator()
         import_profiles = menu.addAction("Import lines for profile models..")
         import_syntheses = menu.addAction("Import files as synthesis models..")
+        import_measured = menu.addAction(
+            "Import transitions with measured EWs..")
         menu.addSeparator()
         add_profiles_action = menu.addAction("Model with profiles")
         add_synth_action = menu.addAction("Model by synthesis")
@@ -159,6 +161,9 @@ class LineListTableView(QtGui.QTableView):
         elif action == import_syntheses:
             self.add_imported_lines_as_synthesis_model()
 
+        elif action == import_measured:
+            self.import_transitions_with_measured_equivalent_widths()
+
         elif action == delete_action:
             self.delete_selected_rows()
 
@@ -183,15 +188,9 @@ class LineListTableView(QtGui.QTableView):
             self.session.metadata["spectral_models"],
             self.session.metadata["line_list"])
 
-
-        
         # Update the spectral models abstract table model.
-        self._parent.models_view.model().rowsInserted.emit(
-            QtCore.QModelIndex(), 0, N-1)
-        self._parent.models_view.model().dataChanged.emit(
-            QtCore.QModelIndex(), QtCore.QModelIndex())
-        self._parent.models_view.resizeColumnsToContents()
-
+        self._parent.models_view.model().reset()
+        return None
 
     def add_imported_lines_as_synthesis_model(self):
         """
@@ -210,13 +209,9 @@ class LineListTableView(QtGui.QTableView):
             self.session.metadata["spectral_models"],
             self.session.metadata["line_list"])
 
-        
         # Update the spectral models abstract table model.
-        self._parent.models_view.model().rowsInserted.emit(
-            QtCore.QModelIndex(), 0, 0)
-        self._parent.models_view.model().dataChanged.emit(
-            QtCore.QModelIndex(), QtCore.QModelIndex())
-        self._parent.models_view.resizeColumnsToContents()
+        self._parent.models_view.model().reset()
+        return None
 
 
     def add_selected_rows_as_profile_models(self):
@@ -235,14 +230,8 @@ class LineListTableView(QtGui.QTableView):
             self.session.metadata["spectral_models"],
             self.session.metadata["line_list"])
 
-
         # Update the spectral models abstract table model.
-        self._parent.models_view.model().rowsInserted.emit(
-            QtCore.QModelIndex(), 0, len(spectral_models_to_add)-1)
-        self._parent.models_view.model().dataChanged.emit(
-            QtCore.QModelIndex(), QtCore.QModelIndex())
-        self._parent.models_view.resizeColumnsToContents()
-
+        self._parent.models_view.model().reset()
         return None
 
 
@@ -272,12 +261,7 @@ class LineListTableView(QtGui.QTableView):
             self.session.metadata["line_list"])
 
         # Update the spectral models abstract table model.
-        self._parent.models_view.model().rowsInserted.emit(
-            QtCore.QModelIndex(), 0, 0)
-        self._parent.models_view.model().dataChanged.emit(
-            QtCore.QModelIndex(), QtCore.QModelIndex())
-        self._parent.models_view.resizeColumnsToContents()
-
+        self._parent.models_view.model().reset()
         return None
 
 
@@ -315,10 +299,7 @@ class LineListTableView(QtGui.QTableView):
         self.session.metadata["line_list"] \
             = self.session.metadata["line_list"][mask]
 
-        # TODO: There *must* be a better way to do this..
-        for i, index in enumerate(np.sort(np.where(~mask)[0])):
-            self.model().rowsRemoved.emit(
-                QtCore.QModelIndex(), index - i, index - i)
+        self._parent.models_view.model().reset()
 
         self.clearSelection()
 
@@ -347,12 +328,62 @@ class LineListTableView(QtGui.QTableView):
             self.session.metadata["line_list"] \
                 = self.session.metadata["line_list"].merge(
                     line_list, in_place=False)
-        self.model().rowsInserted.emit(QtCore.QModelIndex(), 0, N - 1)
-        self.model().dataChanged.emit(
-            QtCore.QModelIndex(), QtCore.QModelIndex())
+
+        self.model().reset()
 
         return line_list
 
+
+    def import_transitions_with_measured_equivalent_widths(self):
+        """ Import profile models with pre-measured equivalent widths. """
+
+        filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(self,
+            caption="Select pre-measured transition files", dir="")
+        if not filenames:
+            return None
+
+        # Load lines.
+        line_list = LineList.read(filenames[0])
+        for filename in filenames[1:]:
+            line_list = line_list.merge(LineList.read(filename), in_place=False)
+
+        # Merge with existing line list.
+        if self.session.metadata.get("line_list", None) is not None:
+            line_list = self.session.metadata["line_list"].merge(
+                line_list, in_place=False)
+
+        try:
+            line_list["equivalent_width"]
+        except KeyError:
+            raise KeyError("no equivalent widths found in imported line lists")
+
+        self.session.metadata["line_list"] = line_list
+
+        # Set these lines as profile models.
+        spectral_models_to_add = []
+        for idx in range(len(line_list)):
+            model = ProfileFittingModel(self.session, line_list["hash"][[idx]])
+            model.metadata.update({
+                "is_acceptable": True,
+                "fitted_result": [None, None, {
+                    # We assume supplied equivalent widths are in milliAngstroms
+                    "equivalent_width": \
+                    (1e-3 * line_list["equivalent_width"][idx], np.nan, np.nan)
+                }]
+            })
+            spectral_models_to_add.append(model)
+
+        self.session.metadata.setdefault("spectral_models", [])
+        self.session.metadata["spectral_models"].extend(spectral_models_to_add)
+        self.session._spectral_model_conflicts = spectral_model_conflicts(
+            self.session.metadata["spectral_models"],
+            self.session.metadata["line_list"])
+
+        # Update the data models.
+        self.model().reset()
+        self._parent.models_view.model().reset()
+
+        return None
 
 
 class LineListTableDelegate(QtGui.QItemDelegate):
@@ -695,10 +726,7 @@ class SpectralModelsTableView(QtGui.QTableView):
             self.session.metadata["spectral_models"],
             self.session.metadata["line_list"])
 
-        # TODO: There *must* be a better way to do this..
-        for i, index in enumerate(delete_indices):
-            self.model().rowsRemoved.emit(
-                QtCore.QModelIndex(), index - i, index - i)
+        self.model().reset()
 
         self.clearSelection()
         return None
@@ -707,7 +735,7 @@ class SpectralModelsTableView(QtGui.QTableView):
 
 class TransitionsDialog(QtGui.QDialog):
 
-    def __init__(self, session, *args):
+    def __init__(self, session, callbacks=None, **kwargs):
         """
         Initialise a dialog to manage the transitions (atomic physics and
         spectral models) for the given session.
@@ -716,9 +744,10 @@ class TransitionsDialog(QtGui.QDialog):
             The session that will be inspected for transitions.
         """
 
-        super(TransitionsDialog, self).__init__(*args)
+        super(TransitionsDialog, self).__init__(**kwargs)
 
         self.session = session
+        self.callbacks = callbacks or []
 
         self.setGeometry(900, 400, 900, 400)
         self.move(QtGui.QApplication.desktop().screen().rect().center() \
@@ -742,6 +771,8 @@ class TransitionsDialog(QtGui.QDialog):
         self.linelist_view.setSelectionBehavior(
             QtGui.QAbstractItemView.SelectRows)
         self.linelist_view.setSortingEnabled(True)
+        self.linelist_view.horizontalHeader().setStretchLastSection(True)
+
         #self.linelist_view.setItemDelegate(LineListTableDelegate(self, session))
         self.linelist_view.resizeColumnsToContents()
 
@@ -800,6 +831,21 @@ class TransitionsDialog(QtGui.QDialog):
         btn_save_as_default.clicked.connect(self.save_as_default)
         btn_ok.clicked.connect(self.close)
 
+        return None
+
+
+    def closeEvent(self, event):
+        """
+        Perform any requested callbacks before letting the widget close.
+
+        :param event:
+            The close event.
+        """
+
+        for callback in self.callbacks:
+            callback()
+
+        event.accept()
         return None
 
 

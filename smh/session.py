@@ -346,7 +346,7 @@ class Session(BaseSession):
             The radial velocity correction (in km/s) to apply.
         """
 
-        self.metadata["rv"]["rv_applied"] = float(rv)
+        self.metadata["rv"]["rv_applied"] = -float(rv)
         return None
 
 
@@ -361,6 +361,10 @@ class Session(BaseSession):
                 continuum * spectrum.ivar * continuum))
 
         self.normalized_spectrum = specutils.spectrum.stitch(normalized_orders)
+
+        # Ensure the radial velocity is accounted for.
+        self.normalized_spectrum.redshift(v=self.metadata["rv"]["rv_applied"])
+
         return self.normalized_spectrum
 
 
@@ -407,6 +411,71 @@ class Session(BaseSession):
         photosphere.meta["stellar_parameters"].update(meta)
 
         return photosphere
+
+
+    def stellar_parameter_state(self, full_output=False, **kwargs):
+        """
+        Calculate the abundances of all spectral models that are used in the
+        determination of stellar parameters.
+        """
+
+        # Get the transitions & EWs together from spectral models.
+        equivalent_widths = []
+        transition_indices = []
+        spectral_model_indices = []
+        for i, model in enumerate(self.metadata["spectral_models"]):
+            if model.use_for_stellar_parameter_inference:
+
+                # TODO assert it is a profile model.
+                spectral_model_indices.append(i)
+                transition_indices.extend(model._transition_indices)
+                if model.is_acceptable:
+                    equivalent_widths.append(1e3 * \
+                        model.metadata["fitted_result"][-1]["equivalent_width"][0])
+                else:
+                    equivalent_widths.append(np.nan)
+
+
+        if len(equivalent_widths) == 0 \
+        or np.isfinite(equivalent_widths).sum() == 0:
+            raise ValueError("no measured transitions to calculate abundances")
+
+
+        # Construct a copy of the line list table.
+        transition_indices = np.array(transition_indices)
+        spectral_model_indices = np.array(spectral_model_indices)
+        transitions = self.metadata["line_list"][transition_indices].copy()
+        transitions["equivalent_width"] = equivalent_widths
+
+        finite = np.isfinite(transitions["equivalent_width"])
+
+        # Calculate abundances and put them back into the spectral models stored
+        # in the session metadata.
+        abundances = self.rt.abundance_cog(
+            self.stellar_photosphere, transitions[finite])
+
+
+        for index, abundance in zip(spectral_model_indices[finite], abundances):
+            self.metadata["spectral_models"][index]\
+                .metadata["fitted_result"][-1]["abundances"] = [abundance]
+
+        transitions["abundance"] = np.nan * np.ones(len(transitions))
+        transitions["abundance"][finite] = abundances
+
+        # By default just return a transitions table for convenience.
+        if not full_output:
+            return transitions
+
+        transitions["reduced_equivalent_width"] = np.log10(1e-3 * \
+            transitions["equivalent_width"] / transitions["wavelength"])
+
+        slopes = None
+        #slopes = utils.equilibrium_state(transitions,
+        #    ("expot", "reduced_equivalent_width", "wavelength"))
+
+        # Otherwise return full state information.
+        return (transitions, slopes, spectral_model_indices)
+
 
 
     def optimize_stellar_parameters(self, **kwargs):
