@@ -1247,7 +1247,7 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
             return data_index
 
         # TODO is this necessary every time?
-        self.reindex()
+        #self.reindex()
 
         return self.createIndex(
             np.where(self.lookup_indices == data_index.row())[0],
@@ -1266,7 +1266,7 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
             return proxy_index
 
         # TODO is this necessary every time?
-        self.reindex()
+        #self.reindex()
 
         return self.createIndex(self.lookup_indices[proxy_index.row()],
             proxy_index.column())
