@@ -162,7 +162,7 @@ class StellarParametersTab(QtGui.QWidget):
             "use_for_stellar_parameter_inference",
             lambda model: model.use_for_stellar_parameter_inference)
 
-        self.proxy_spectral_models.setDynamicSortFilter(False)
+        self.proxy_spectral_models.setDynamicSortFilter(True)
         self.proxy_spectral_models.setSourceModel(SpectralModelsTableModel(self))
 
         self.table_view.setModel(self.proxy_spectral_models)
@@ -215,7 +215,6 @@ class StellarParametersTab(QtGui.QWidget):
             26.1: "r"
         }
 
-        self._points = {}
         self._trend_lines = {}
 
         self.ax_excitation = self.figure.figure.add_subplot(gs_top[0])
@@ -246,6 +245,12 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Some empty figure objects that we will use later.
         self._lines = {
+            "scatter_points": [
+                self.ax_excitation.scatter(
+                    [], [], s=30, alpha=0.5, picker=PICKER_TOLERANCE),
+                self.ax_line_strength.scatter(
+                    [], [], s=30, alpha=0.5, picker=PICKER_TOLERANCE),
+            ],
             "selected_point": [
                 self.ax_excitation.scatter([], [],
                     edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=2),
@@ -635,29 +640,19 @@ class StellarParametersTab(QtGui.QWidget):
 
     def update_scatter_plots(self, redraw=False):
 
-
         # Update figures.
-        for group in self._state_transitions.group_by("species").groups:
+        colors = [self._colors[s] for s in self._state_transitions["species"]]
+        ex_collection, line_strength_collection = self._lines["scatter_points"]
 
-            species = group["species"][0]
-            try:
-                collections = self._points[species]
+        ex_collection.set_offsets(np.array([
+            self._state_transitions["expot"],
+            self._state_transitions["abundance"]]).T)
+        ex_collection.set_facecolor(colors)
 
-            except KeyError:
-                color = self._colors[species]
-                self._points[species] = [
-                    self.ax_excitation.scatter([], [], s=30, facecolor=color, 
-                        edgecolor=color, picker=PICKER_TOLERANCE, alpha=0.5),
-                    self.ax_line_strength.scatter([], [], s=30, facecolor=color,
-                        edgecolor=color, picker=PICKER_TOLERANCE, alpha=0.5),
-                ]
-                collections = self._points[species]
-
-            collections[0].set_offsets(np.array(
-                [group["expot"], group["abundance"]]).T)
-            collections[1].set_offsets(np.array(
-                [group["reduced_equivalent_width"], group["abundance"]]).T)
-
+        line_strength_collection.set_offsets(np.array([
+            self._state_transitions["reduced_equivalent_width"],
+            self._state_transitions["abundance"]]).T)
+        line_strength_collection.set_facecolor(colors)
 
         # Update limits on the excitation and line strength figures.
         style_utils.relim_axes(self.ax_excitation)
@@ -686,10 +681,26 @@ class StellarParametersTab(QtGui.QWidget):
             logger.warn("No measured transitions to calculate abundances for.")
             return None
 
+        # The order of transitions may differ from the order in the table view.
+        # We need to re-order the transitions by hashes.
+        """
+        print("STATE")
+        print(self._state_transitions)
+
+        print("MODELS")
+        print([each.transition["wavelength"][0] for each in self.parent.session.metadata["spectral_models"]])
+
         # The number of transitions should match what is shown in the view.
         assert len(self._state_transitions) == self.table_view.model().rowCount(
             QtCore.QModelIndex())
+        """
 
+        # Otherwise we're fucked:
+        expected_hashes = np.array([each.transitions["hash"][0] for each in \
+            self.parent.session.metadata["spectral_models"] \
+            if each.use_for_stellar_parameter_inference]) 
+
+        assert np.all(expected_hashes == self._state_transitions["hash"])
 
         self.update_scatter_plots()
 
@@ -1042,6 +1053,7 @@ class SpectralModelsTableView(QtGui.QTableView):
             # Fit the models.
 
             index = self.model().mapToSource(proxy_index).row()
+            print("FROM i", i, proxy_index.row(), index)
             self.parent.parent.session.metadata["spectral_models"][index].fit()
 
             # Update the view if this is the first one.
@@ -1134,6 +1146,7 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
         for filter_name, filter_function in self.filter_functions.items():
             if not filter_function(model): break
         else:
+            print("no problem for model in row ", row)
             # No problems.
             return True
 
@@ -1156,11 +1169,13 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
                 return data_index
 
             proxy_index = self.filter_indices[:data_index.row()].sum()
+            #print("map from source", data_index.row(), proxy_index, self.filter_indices[:data_index.row() + 1])
             return self.createIndex(proxy_index, data_index.column())
 
         else:
-            return self.filter_indices[:data_index].sum()
-
+            done = self.filter_indices[:data_index].sum()
+            #print("map from source", data_index, done, self.filter_indices[:data_index])
+            return done
 
     def mapToSource(self, proxy_index):
         """
@@ -1174,9 +1189,14 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
             return proxy_index
 
         # TODO: This needs to be able to deal with resorting.
-        return self.createIndex(
+        if proxy_index.column() == 0:
+            print("filter indices", self.filter_indices)
+        data_index = self.createIndex(
             np.where(self.filter_indices)[0][proxy_index.row()],
             proxy_index.column())
+
+        #print("Map to source", proxy_index.row(), data_index.row())
+        return data_index
 
 
     def mapSelectionFromSource(self, selection):
@@ -1339,7 +1359,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
                 self.parent._state_transitions[col][proxy_index] = np.nan
             self.parent.update_scatter_plots(redraw=False)
             self.parent.update_selected_points(redraw=False)
-            
+
         # Hide the 
         self.parent.update_spectrum_figure()
         
