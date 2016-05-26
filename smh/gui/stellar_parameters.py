@@ -19,6 +19,7 @@ from time import time
 import mpl, style_utils
 from smh.photospheres import available as available_photospheres
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
+from smh import utils
 from linelist_manager import TransitionsDialog
 
 logger = logging.getLogger(__name__)
@@ -186,7 +187,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         hbox = QtGui.QHBoxLayout()
         self.btn_filter = QtGui.QPushButton(self)
-        self.btn_filter.setText("Filter..")
+        self.btn_filter.setText("Hide unacceptable models")
         self.btn_quality_control = QtGui.QPushButton(self)
         self.btn_quality_control.setText("Quality control..")
         hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
@@ -215,7 +216,6 @@ class StellarParametersTab(QtGui.QWidget):
             26.1: "r"
         }
 
-        self._trend_lines = {}
 
         self.ax_excitation = self.figure.figure.add_subplot(gs_top[0])
         self.ax_excitation.xaxis.get_major_formatter().set_useOffset(False)
@@ -245,6 +245,14 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Some empty figure objects that we will use later.
         self._lines = {
+            "excitation_slope_text": {},
+            "line_strength_slope_text": {},
+            "abundance_text": {},
+
+            "excitation_trends": {},
+            "line_strength_trends": {},
+            "excitation_medians": {},
+            "line_strength_medians": {},
             "scatter_points": [
                 self.ax_excitation.scatter(
                     [], [], s=30, alpha=0.5, picker=PICKER_TOLERANCE),
@@ -345,9 +353,21 @@ class StellarParametersTab(QtGui.QWidget):
     def filter_models(self):
         """
         Filter the view of the models used in the determination of stellar
-        parameters.
+        parameters. 
         """
-        raise NotImplementedError
+
+        hide = self.btn_filter.text().startswith("Hide")
+
+        if hide:
+            self.proxy_spectral_models.add_filter_function("is_acceptable",
+                lambda model: model.is_acceptable)
+
+        else:
+            self.proxy_spectral_models.delete_filter_function("is_acceptable")
+
+        text = "{} unacceptable models".format(("Hide", "Show")[hide])
+        self.btn_filter.setText(text)
+        return None
 
 
     def quality_control(self):
@@ -366,16 +386,7 @@ class StellarParametersTab(QtGui.QWidget):
             The matplotlib event.
         """
 
-        print("picking ", event.ind, event.__dict__)
-
-        #self.table_view.setSelectionMode(QtGui.QAbstractItemView.SingleSelection)
         self.table_view.selectRow(event.ind[0])
-        #self.table_view.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
-        #for index in event.ind[1:]:
-        #    self.table_view.selectRow(index)
-        #self.table_view.setSelectionMode(QtGui.QAbstractItemView.SingleSelection)
-
-        
         return None
 
 
@@ -658,6 +669,9 @@ class StellarParametersTab(QtGui.QWidget):
         style_utils.relim_axes(self.ax_excitation)
         style_utils.relim_axes(self.ax_line_strength)
 
+        # Update trend lines.
+        self.update_trend_lines()
+
         if redraw:
             self.figure.draw()
         return None
@@ -705,46 +719,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.update_scatter_plots()
 
         # Draw trend lines based on the data already there.
-        """
-
-        for group in transitions.group_by("species").groups:
-
-            species = group["species"][0]
-            color = self._colors[species]
-            
-            try:
-                lines = self._trend_lines[species]
-            except KeyError:
-                color = self._colors[species]
-                self._trend_lines[species] = [
-                    self.ax_excitation.plot([], [], c=color)[0],
-                    self.ax_excitation.plot([], [], c=color, linestyle=":")[0],
-                    self.ax_line_strength.plot([], [], c=color)[0],
-                    self.ax_line_strength.plot([], [], c=color, linestyle=":")[0],
-                ]
-                lines = self._trend_lines[species]
-
-            # Draw lines for this species.
-            x = np.array(self.ax_excitation.get_xlim())
-            m, b, median, sigma, N = state[species]["expot"]
-            lines[0].set_data([x, m*x + b])
-            lines[1].set_data(x, [median, median])
-
-
-            if species == 26:
-                print("expot {} {:.2e}".format(species, m))
-                
-            x = np.array(self.ax_line_strength.get_xlim())
-            m, b, median, sigma, N = state[species]["reduced_equivalent_width"]
-            lines[2].set_data([x, m*x + b])
-            lines[3].set_data(x, [median, median])
-
-            if species == 26:
-                print("rew {} {:.2e}".format(species, m))
-
-
-            print("mean", species, np.median(group["abundance"]))
-        """
+        self.update_trend_lines()
 
         # Update selected entries.
         self.selected_model_changed()
@@ -764,6 +739,105 @@ class StellarParametersTab(QtGui.QWidget):
         self.table_view.columnMoved(3, 3, 3)
 
         return None
+
+
+    def update_trend_lines(self, redraw=False):
+        """
+        Update the trend lines in the figures.
+        """
+
+        states = utils.equilibrium_state(self._state_transitions,
+            columns=("expot", "reduced_equivalent_width"))
+
+        # Offsets from the edge of axes.
+        x_offset = 0.0125
+        y_offset = 0.10
+        y_space = 0.15
+
+        for i, (species, state) in enumerate(states.items()):
+
+            color = self._colors[species]
+
+            # Create defaults.
+            if species not in self._lines["excitation_medians"]:
+                self._lines["excitation_medians"][species] \
+                    = self.ax_excitation.plot([], [], c=color, linestyle=":")[0]
+            if species not in self._lines["line_strength_medians"]:
+                self._lines["line_strength_medians"][species] \
+                    = self.ax_line_strength.plot([], [], c=color, linestyle=":")[0]
+
+            if species not in self._lines["excitation_trends"]:
+                self._lines["excitation_trends"][species] \
+                    = self.ax_excitation.plot([], [], c=color)[0]
+            if species not in self._lines["line_strength_trends"]:
+                self._lines["line_strength_trends"][species] \
+                    = self.ax_line_strength.plot([], [], c=color)[0]
+
+            # Do actual updates.
+            #(m, b, np.median(y), np.std(y), len(x))
+            m, b, median, sigma, N = state["expot"]
+
+            x = np.array(self.ax_excitation.get_xlim())
+            self._lines["excitation_medians"][species].set_data(x, median)
+            self._lines["excitation_trends"][species].set_data(x, m * x + b)
+
+            m, b, median, sigma, N = state["reduced_equivalent_width"]
+            x = np.array(self.ax_line_strength.get_xlim())
+            self._lines["line_strength_medians"][species].set_data(x, median)
+            self._lines["line_strength_trends"][species].set_data(x, m * x + b)
+
+            # Show text.
+            # TECH DEBT:
+            # If a new species is added during stellar parameter determination
+            # and some text is already shown, new text could appear on top of
+            # that due to the way dictionaries (the state dictionary) is hashed.
+            if species not in self._lines["abundance_text"]:
+                self._lines["abundance_text"][species] \
+                    = self.ax_excitation.text(
+                        x_offset, 1 - y_offset - i * y_space, "",
+                        color=color, transform=self.ax_excitation.transAxes,
+                        horizontalalignment="left", verticalalignment="center")
+            
+            # Only show useful text.
+            text = ""   if N == 0 \
+                        else r"$\log_\epsilon{{\rm ({0})}} = {1:.2f} \pm {2:.2f}$"\
+                             r" $(N = {3:.0f})$".format(
+                                utils.species_to_element(species).replace(" ", "\,"),
+                                median, sigma, N)
+            self._lines["abundance_text"][species].set_text(text)
+
+
+            m, b, median, sigma, N = state["expot"]                
+            if species not in self._lines["excitation_slope_text"]:
+                self._lines["excitation_slope_text"][species] \
+                    = self.ax_excitation.text(
+                        1 - x_offset, 1 - y_offset - i * y_space, "",
+                        color=color, transform=self.ax_excitation.transAxes,
+                        horizontalalignment="right", verticalalignment="center")
+
+            # Only show useful text.
+            text = ""   if not np.isfinite(m) \
+                        else r"${0:+.3f}$ ${{\rm dex\,eV}}^{{-1}}$".format(m)
+            self._lines["excitation_slope_text"][species].set_text(text)
+
+
+            m, b, median, sigma, N = state["reduced_equivalent_width"]                
+            if species not in self._lines["line_strength_slope_text"]:
+                self._lines["line_strength_slope_text"][species] \
+                    = self.ax_line_strength.text(
+                        1 - x_offset, 1 - y_offset - i * y_space, "",
+                        color=color, transform=self.ax_line_strength.transAxes,
+                        horizontalalignment="right", verticalalignment="center")
+
+            # Only show useful text.
+            text = ""   if not np.isfinite(m) else r"${0:+.3f}$".format(m)
+            self._lines["line_strength_slope_text"][species].set_text(text)
+
+        if redraw:
+            self.figure.draw()
+
+        return None
+
 
 
     def _get_selected_model(self, full_output=False):
@@ -832,7 +906,7 @@ class StellarParametersTab(QtGui.QWidget):
         return None
 
 
-    def update_spectrum_figure(self):
+    def update_spectrum_figure(self, redraw=True):
         """ Update the spectrum figure. """
 
         if self._lines["spectrum"] is None \
@@ -861,8 +935,15 @@ class StellarParametersTab(QtGui.QWidget):
 
             self.figure.draw()
 
+        try:
+            selected_model = self._get_selected_model()
 
-        selected_model = self._get_selected_model()
+        except IndexError:
+            # No line selected.
+            if redraw:
+                self.figure.draw()
+            return None
+
         transitions = selected_model.transitions
         window = selected_model.metadata["window"]
         limits = [
@@ -1053,7 +1134,6 @@ class SpectralModelsTableView(QtGui.QTableView):
             # Fit the models.
 
             index = self.model().mapToSource(proxy_index).row()
-            print("FROM i", i, proxy_index.row(), index)
             self.parent.parent.session.metadata["spectral_models"][index].fit()
 
             # Update the view if this is the first one.
@@ -1113,7 +1193,7 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
         """
 
         try:
-            del filter_functions[name]
+            del self.filter_functions[name]
             self.invalidateFilter()
             self.reindex()
 
@@ -1143,9 +1223,9 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
             for name, filter_function in self.filter_functions.items():
                 if not filter_function(model):
                     break
-                else:
-                    # No problems.
-                    lookup_indices.append(i)
+            else:
+                # No problems with any filter functions.
+                lookup_indices.append(i)
 
         self.lookup_indices = np.array(lookup_indices)
         return None
@@ -1163,19 +1243,15 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
             The parent widget.
         """
 
-        print("row", row, parent)
-
         # Check if we need to update the filter indices for mapping.
         model = self.sourceModel().spectral_models[row]
         for filter_name, filter_function in self.filter_functions.items():
             if not filter_function(model): break
         else:
-            print("no problem for model in row ", row)
             # No problems.
             return True
 
         # We broke out of the for loop.
-        logger.info("broke out {} due to {}".format(row, filter_name))
         return False
 
 
@@ -1186,23 +1262,16 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
         :param data_index:
             The index of the item in the data table.
         """
+        if not data_index.isValid():
+            return data_index
 
-        return data_index
+        # TODO is this necessary every time?
+        #self.reindex()
 
-        """
-        if not isinstance(data_index, int):
-            if not data_index.isValid():
-                return data_index
+        return self.createIndex(
+            np.where(self.lookup_indices == data_index.row())[0],
+            data_index.column())
 
-            proxy_index = self.filter_indices[:data_index.row()].sum()
-            #print("map from source", data_index.row(), proxy_index, self.filter_indices[:data_index.row() + 1])
-            return self.createIndex(proxy_index, data_index.column())
-
-        else:
-            done = self.filter_indices[:data_index].sum()
-            #print("map from source", data_index, done, self.filter_indices[:data_index])
-            return done
-        """
 
     def mapToSource(self, proxy_index):
         """
@@ -1215,35 +1284,11 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
         if not proxy_index.isValid():
             return proxy_index
 
-        if not hasattr(self, "lookup_indices"):
-            self.reindex()
+        # TODO is this necessary every time?
+        #self.reindex()
 
         return self.createIndex(self.lookup_indices[proxy_index.row()],
             proxy_index.column())
-
-
-        """
-        # TODO: This needs to be able to deal with resorting.
-        data_index = self.createIndex(
-            np.where(self.filter_indices)[0][proxy_index.row()],
-            proxy_index.column())
-
-        print("Map to source", proxy_index.row(), data_index.row())
-        return data_index
-        """
-
-    def mapSelectionFromSource(self, selection):
-        raise NotImplementedError("is this necessary? SUBMIT AS GITHUB ISSUE")
-        print("map selection from source", selection)
-        return selection
-
-
-    def mapSelectionToSource(self, selection):
-        raise NotImplementedError("is this necessary? SUBMIT AS GITHUB ISSUE")
-        print("map selection to source", selection)
-        return selection
-
-
 
 
 
@@ -1381,8 +1426,10 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         #       (or whatever the parent is)
         #       should have a .table_view widget and an .update_spectrum_figure
         #       method.
-        proxy_index = self.parent.table_view.model().mapFromSource(index.row())
+
+        proxy_index = self.parent.table_view.model().mapFromSource(index).row()
         self.parent.table_view.rowMoved(proxy_index, proxy_index, proxy_index)
+        
 
         # TODO THIS IS CLUMSY:
         # If we have a cache of the state transitions, update the entries.
@@ -1394,7 +1441,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
             self.parent.update_selected_points(redraw=False)
 
         # Hide the 
-        self.parent.update_spectrum_figure()
+        self.parent.update_spectrum_figure(redraw=True)
         
         return value
 

@@ -62,14 +62,24 @@ def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species")
 
             # Only use finite values.
             finite = np.isfinite(x * y * yerr)
+            if not np.any(finite):
+                group_lines[x_column] = (np.nan, np.nan, np.nan, np.nan, 0)
+                continue
+
             x, y, yerr = x[finite], y[finite], yerr[finite]
 
             A = np.vstack((np.ones_like(x), x)).T
             C = np.diag(yerr**2)
-            cov = np.linalg.inv(np.dot(A.T, np.linalg.solve(C, A)))
-            b, m = np.dot(cov, np.dot(A.T, np.linalg.solve(C, y)))
+            try:
+                cov = np.linalg.inv(np.dot(A.T, np.linalg.solve(C, A)))
+                b, m = np.dot(cov, np.dot(A.T, np.linalg.solve(C, y)))
 
-            group_lines[x_column] = (m, b, np.median(y), np.std(y), len(x))
+            except np.linalg.LinAlgError:
+                group_lines[x_column] \
+                    = (np.nan, np.nan, np.median(y), np.std(y), len(x))
+
+            else:
+                group_lines[x_column] = (m, b, np.median(y), np.std(y), len(x))
 
         identifier = transitions[group_by][start_index]
         lines[identifier] = group_lines
