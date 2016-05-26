@@ -489,9 +489,12 @@ class RVTab(QtGui.QWidget):
             = self._cache["input"]["wavelength_regions"][0]
         del self._cache["input"]["wavelength_regions"]
 
+        if not os.path.exists(defaults.get("template_spectrum", "")):
+            defaults["template_spectrum"] = ""
+
         # Template filename.
         self.template_path.setReadOnly(False)
-        if isinstance(defaults["template_spectrum"], string_types):
+        if isinstance(defaults.get("template_spectrum", ""), string_types):
             self.template_path.setText(defaults["template_spectrum"])
         else:
             self.template_path.setText(defaults["template_spectrum_name"])
@@ -656,7 +659,8 @@ class RVTab(QtGui.QWidget):
 
         path, _ = QtGui.QFileDialog.getOpenFileName(self.parent,
             caption="Select template spectrum", dir="", filter="*.fits")
-        if not path: return
+        if not path:
+            return False
 
         # Set the text.
         self.template_path.setReadOnly(False)
@@ -669,7 +673,7 @@ class RVTab(QtGui.QWidget):
         # Update the figure containing the template.
         self.draw_template(refresh=True)
         
-        return None
+        return True
 
 
     def cross_correlate(self):
@@ -679,6 +683,19 @@ class RVTab(QtGui.QWidget):
         
         kwds = self._cache["input"].copy()
         kwds["normalization_kwargs"] = kwds.pop("normalization")
+        
+        # Do we have a template spectrum?
+        if not os.path.exists(kwds.get("template_spectrum", "")):
+            selected_valid_template = self.select_template()
+            if not selected_valid_template:
+                return None
+
+            # Keep this as the default value.
+            self.parent.session.update_default_setting(
+                ("rv", "template_spectrum"),
+                self._cache["input"]["template_spectrum"])
+
+            kwds["template_spectrum"] = self._cache["input"]["template_spectrum"]
 
         # Perform the cross-correlation.
         rv, rv_uncertainty = self.parent.session.rv_measure(**kwds)

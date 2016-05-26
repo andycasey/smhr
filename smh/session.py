@@ -138,6 +138,31 @@ class Session(BaseSession):
             return value
 
 
+    def update_default_setting(self, key_tree, value):
+        """
+        Update a default value in the local settings file.
+
+        :param key_tree:
+            A tuple containing a tree of dictionary keys.
+
+        :param value:
+            The value for the setting.
+        """
+
+        # Open the defaults.
+        with open(self._default_settings_path, "rb") as fp:
+            defaults = yaml.load(fp)
+
+        branch = defaults
+        for key in key_tree[:-1]:
+            branch = branch[key]
+        branch[key_tree[-1]] = value
+
+        with open(self._default_settings_path, "w") as fp:
+            fp.write(yaml.dump(defaults))
+
+        return True
+
     """
     def _default(self, input_value, default_key_tree):
         ""
