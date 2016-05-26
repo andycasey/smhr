@@ -82,7 +82,7 @@ setup(
         "numpy",
         "scipy>=0.14.0",
         "six",
-        "pyside>=1.1.2",
+        #"pyside>=1.1.2",
         "astropy",
         "pyyaml",
         "requests"
@@ -101,7 +101,7 @@ setup(
             "stagger-2013-rosseland.pkl",
             "stagger-2013-height.pkl"
         ],
-        "smh.rt.moog": [
+        "smh.radiative_transfer.moog": [
             "defaults.yaml",
             "abfind.in"
         ]
