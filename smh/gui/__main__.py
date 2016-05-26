@@ -26,11 +26,14 @@ class Ui_MainWindow(QtGui.QMainWindow):
     The main GUI window for Spectroscopy Made Hard.
     """
 
-    def __init__(self, session_path=None):
+    def __init__(self, session_path=None, spectrum_filenames=None):
         super(Ui_MainWindow, self).__init__()
 
         self.unsaved_session_changes = False
         self.session = None
+
+        if session_path is not None and spectrum_filenames is not None:
+            raise WTFError
 
         # Load a session already?
         if session_path is not None:
@@ -47,6 +50,11 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Set up the UI.
         self.__init_ui__()
 
+        if spectrum_filenames is not None:
+            print("DEBUGGING ONLY")
+            self.new_session(spectrum_filenames)
+            self.rv_tab.cross_correlate_and_correct()
+            self.normalization_tab.normalize_and_stitch()
 
 
     def __init_menus__(self):
@@ -98,15 +106,15 @@ class Ui_MainWindow(QtGui.QMainWindow):
         export_menu.addAction(self._menu_export_normalized_spectrum)
 
         self.statusbar = QtGui.QStatusBar(self)
-        self.statusbar.setObjectName("statusbar")
-        self.statusbar.showMessage("Spectroscopy Made Harder v{0} ({1})".format(
-            smh.__version__, smh.__git_status__))
+        self._default_statusbar_message = "Spectroscopy Made Harder v{} ({})"\
+            .format(smh.__version__, smh.__git_status__)
+        self.statusbar.showMessage(self._default_statusbar_message)
         self.setStatusBar(self.statusbar)
 
         return True
 
 
-    def new_session(self):
+    def new_session(self, filenames=None):
         """ Initialise new session. """
 
         # Do we already have a session open with unsaved changes?
@@ -121,9 +129,11 @@ class Ui_MainWindow(QtGui.QMainWindow):
                 return
 
         # Get filenames of input spectra.
-        filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(self,
-            caption="Select input spectra", dir="")
-        if not filenames: return
+        if filenames is None:
+            filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(
+                self, caption="Select input spectra", dir="")
+            if not filenames:
+                return None
 
         # Create a session.
         self.session = smh.Session(filenames)
@@ -221,7 +231,11 @@ class Ui_MainWindow(QtGui.QMainWindow):
         models.
         """
 
-        window = TransitionsDialog(self.session)
+        # Ensure to update the proxy data models when the transitions dialog has
+        # been closed.
+        window = TransitionsDialog(self.session, callbacks=[
+            self.stellar_parameters_tab.proxy_spectral_models.reset,
+            ])
         window.exec_()
 
         return None
@@ -235,21 +249,12 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Create the central widget with a vertical layout.
         cw = QtGui.QWidget(self)
         cw_vbox = QtGui.QVBoxLayout(cw)
+        cw_vbox.setContentsMargins(10, 20, 10, 10)
 
-        # Create an empty frame for padding at the top of the application.
-        top_frame_pad = QtGui.QFrame(cw)
-        top_frame_pad.setMinimumSize(QtCore.QSize(0, 10))
-        top_frame_pad.setFrameShape(QtGui.QFrame.NoFrame)
-        top_frame_pad.setFrameShadow(QtGui.QFrame.Plain)
-        top_frame_pad.setLineWidth(0)
-
-        cw_vbox.addWidget(top_frame_pad)
 
 
         # Create the primary widget for all the main tabs.
         self.tabs = QtGui.QTabWidget(cw)
-        # TODO: review whether this is necessary.
-        #self.tabs.setMinimumSize(QtCore.QSize(300, 0))
         self.tabs.setTabPosition(QtGui.QTabWidget.North)
         self.tabs.setUsesScrollButtons(False)
 
@@ -285,8 +290,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
             self.tabs.addTab(tab, tab_name)
         
         # Disable all tabs except the first one.
-        #for i in range(self.tabs.count()):
-        #    self.tabs.setTabEnabled(i, i == 0)
+        for i in range(self.tabs.count()):
+            self.tabs.setTabEnabled(i, i == 0)
 
         cw_vbox.addWidget(self.tabs)
         self.setCentralWidget(cw)
@@ -359,6 +364,10 @@ if __name__ == '__main__':
     sys.excepthook = exception_hook
 
     # Run the main application window.
+    #app.window = Ui_MainWindow(spectrum_filenames=[
+    #    "/Users/arc/Downloads/hd122563_1blue_multi_090205_oldbutgood.fits",
+    #    "/Users/arc/Downloads/hd122563_1red_multi_090205_oldbutgood.fits"
+    #])
     app.window = Ui_MainWindow()
     app.window.show()
     sys.exit(app.exec_())

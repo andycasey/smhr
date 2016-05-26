@@ -65,7 +65,7 @@ class NormalizationTab(QtGui.QWidget):
         # Create a top-level horizontal layout to contain a MPL figure and
         # a vertical layout of settings..
         tab_layout = QtGui.QHBoxLayout(self)
-        tab_layout.setContentsMargins(10, 10, 10, 10)
+        tab_layout.setContentsMargins(20, 20, 20, 0)
         
         settings_widget = QtGui.QWidget()
         settings_layout = QtGui.QVBoxLayout(settings_widget)
@@ -235,11 +235,6 @@ class NormalizationTab(QtGui.QWidget):
 
         settings_layout.addLayout(hbox)
 
-
-        # Add a spacer.
-        settings_layout.addItem(QtGui.QSpacerItem(
-            40, 20, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
-
         # Add a 'normalize and stitch button'
         self.stitch_btn = QtGui.QPushButton(self)
         sp = QtGui.QSizePolicy(
@@ -248,8 +243,7 @@ class NormalizationTab(QtGui.QWidget):
         sp.setVerticalStretch(0)
         sp.setHeightForWidth(self.stitch_btn.sizePolicy().hasHeightForWidth())
         self.stitch_btn.setSizePolicy(sp)
-        self.stitch_btn.setMinimumSize(QtCore.QSize(300, 0))
-        self.stitch_btn.setMaximumSize(QtCore.QSize(300, 16777215))
+        self.stitch_btn.setMinimumSize(QtCore.QSize(250, 0))
         font = QtGui.QFont()
         font.setBold(True)
         font.setWeight(75)
@@ -262,6 +256,10 @@ class NormalizationTab(QtGui.QWidget):
             self.stitch_btn.setStyleSheet('QPushButton {color: white}')
 
         settings_layout.addWidget(self.stitch_btn)
+
+        # Add a spacer.
+        settings_layout.addItem(QtGui.QSpacerItem(
+            40, 20, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
 
 
         tab_layout.addWidget(settings_widget)
@@ -1022,7 +1020,7 @@ class NormalizationTab(QtGui.QWidget):
             item.setStyleSheet('{0} {{ font-weight: normal }}'\
                 .format(item.__class__.__name__))
             item.setStatusTip("")
-        self.parent.statusbar.showMessage("")
+        self.parent.statusbar.showMessage(self.parent._default_statusbar_message)
         return None
 
 

@@ -319,6 +319,24 @@ class Spectrum1D(object):
         np.savetxt(filename, a)
 
 
+    def redshift(self, v=None, z=None):
+        """
+        Redshift the spectrum.
+
+        :param v:
+            The velocity in km/s.
+
+        :param z:
+            A redshift.
+        """
+
+        if (v is None and z is None) or (v is not None and z is not None):
+            raise ValueError("either v or z must be given, but not both")
+
+        z = z or v/299792458e-3
+        self._dispersion *= 1 + z
+        return True
+
 
     # State functionality for serialization.
     def __getstate__(self):
