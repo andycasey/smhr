@@ -91,9 +91,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         hbox.addWidget(self.btn_save_to_session)
         lhs_layout.addLayout(hbox)
         
-        # TODO Model options
-        self.model_options = QtGui.QWidget(self)
-        lhs_layout.addWidget(self.model_options)
+        # Model fitting options
+        self._create_fitting_options_widget()
+        lhs_layout.addWidget(self.fitting_options)
 
         lhs_widget.setLayout(lhs_layout)
         self.parent_splitter.addWidget(lhs_widget)
@@ -178,6 +178,206 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         
         self.currently_plotted_species = None
         self.populate_widgets()
+
+    def _create_fitting_options_widget(self):
+        group_box = QtGui.QGroupBox(self)
+        group_box.setTitle("Fitting options")
+        opt_layout = QtGui.QVBoxLayout(group_box)
+        opt_layout.setContentsMargins(6, 12, 6, 6)
+        self.opt_tabs = QtGui.QTabWidget(group_box)
+        self.opt_tab_common = QtGui.QWidget()
+        
+        # Common options
+        self.tab_common = QtGui.QWidget()
+        vbox_common = QtGui.QVBoxLayout(self.tab_common)
+        grid_common = QtGui.QGridLayout()
+        grid_common.addItem(
+            QtGui.QSpacerItem(40, 20, 
+                QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum),
+            1, 2, 1, 1)
+
+        label = QtGui.QLabel(self.tab_common)
+        label.setText("Data fitting window")
+        grid_common.addWidget(label, 0, 1, 1, 1)
+        self.edit_window = QtGui.QLineEdit(self.tab_common)
+        self.edit_window.setMinimumSize(QtCore.QSize(60, 0))
+        self.edit_window.setMaximumSize(QtCore.QSize(60, 16777215))
+        self.edit_window.setValidator(
+            QtGui.QDoubleValidator(0, 1000, 1, self.edit_window))
+        grid_common.addWidget(self.edit_window, 0, 3, 1, 1)
+
+        self.checkbox_continuum = QtGui.QCheckBox(self.tab_common)
+        self.checkbox_continuum.setText("")
+        grid_common.addWidget(self.checkbox_continuum, 1, 0, 1, 1)
+        label = QtGui.QLabel(self.tab_common)
+        label.setText("Model continuum with polynomial order")
+        grid_common.addWidget(label, 1, 1, 1, 1)
+        self.combo_continuum = QtGui.QComboBox(self.tab_common)
+        self.combo_continuum.setMinimumSize(QtCore.QSize(60, 0))
+        self.combo_continuum.setMaximumSize(QtCore.QSize(60, 16777215))
+        grid_common.addWidget(self.combo_continuum, 1, 3, 1, 1)
+
+        for i in range(10):
+            self.combo_continuum.addItem("{:.0f}".format(i))
+
+        self.checkbox_vrad_tolerance = QtGui.QCheckBox(self.tab_common)
+        self.checkbox_vrad_tolerance.setText("")
+        grid_common.addWidget(self.checkbox_vrad_tolerance, 2, 0, 1, 1)
+        label = QtGui.QLabel(self.tab_common)
+        label.setText("Set tolerance on residual radial velocity")
+        grid_common.addWidget(label, 2, 1, 1, 1)
+        self.edit_vrad_tolerance = QtGui.QLineEdit(self.tab_common)
+        self.edit_vrad_tolerance.setMinimumSize(QtCore.QSize(60, 0))
+        self.edit_vrad_tolerance.setMaximumSize(QtCore.QSize(60, 16777215))
+        self.edit_vrad_tolerance.setValidator(
+            QtGui.QDoubleValidator(0, 100, 2, self.edit_vrad_tolerance))
+        grid_common.addWidget(self.edit_vrad_tolerance, 2, 3, 1, 1)
+
+        grid_common.addItem(QtGui.QSpacerItem(40, 20, 
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum), 2, 2, 1, 1)
+        vbox_common.addLayout(grid_common)
+        vbox_common.addItem(QtGui.QSpacerItem(20, 40, 
+            QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
+        self.opt_tabs.addTab(self.tab_common, "Common")
+        
+        # Profile model options.
+        self.tab_profile = QtGui.QWidget()
+        grid_profile = QtGui.QGridLayout(self.tab_profile)
+
+
+        label = QtGui.QLabel(self.tab_profile)
+        label.setText("Profile type")
+        grid_profile.addWidget(label, 0, 1, 1, 1)
+        grid_profile.addItem(
+            QtGui.QSpacerItem(40, 20, 
+                QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum),
+            0, 2, 1, 1)
+        self.combo_profile = QtGui.QComboBox(self.tab_profile)
+        grid_profile.addWidget(self.combo_profile, 0, 3, 1, 1)
+
+        for each in ("Gaussian", "Lorentzian", "Voigt"):
+            self.combo_profile.addItem(each)
+
+        label = QtGui.QLabel(self.tab_profile)
+        label.setText("Detection sigma for nearby absorption lines")
+        grid_profile.addWidget(label, 1, 1, 1, 1)
+        hbox = QtGui.QHBoxLayout()
+        hbox.addItem(QtGui.QSpacerItem(40, 20, 
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+        self.edit_detection_sigma = QtGui.QLineEdit(self.tab_profile)
+        self.edit_detection_sigma.setMinimumSize(QtCore.QSize(60, 0))
+        self.edit_detection_sigma.setMaximumSize(QtCore.QSize(60, 16777215))
+        self.edit_detection_sigma.setValidator(
+            QtGui.QDoubleValidator(0, 100, 1, self.edit_detection_sigma))
+        hbox.addWidget(self.edit_detection_sigma)
+        grid_profile.addLayout(hbox, 1, 3, 1, 1)
+
+
+        label = QtGui.QLabel(self.tab_profile)
+        label.setText("Neighbouring pixels required to detect nearby lines")
+        grid_profile.addWidget(label, 2, 1, 1, 1)
+        hbox = QtGui.QHBoxLayout()
+        hbox.addItem(QtGui.QSpacerItem(40, 20, 
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+        self.edit_detection_pixels = QtGui.QLineEdit(self.tab_profile)
+        self.edit_detection_pixels.setMinimumSize(QtCore.QSize(60, 0))
+        self.edit_detection_pixels.setMaximumSize(QtCore.QSize(60, 16777215))
+        self.edit_detection_pixels.setValidator(
+            QtGui.QIntValidator(0, 100, self.edit_detection_pixels))
+        hbox.addWidget(self.edit_detection_pixels)
+        grid_profile.addLayout(hbox, 2, 3, 1, 1)
+
+
+        label = QtGui.QLabel(self.tab_profile)
+        label.setText("Use central pixel weighting")
+        grid_profile.addWidget(label, 4, 1, 1, 1)
+        self.checkbox_use_central_weighting = QtGui.QCheckBox(self.tab_profile)
+        self.checkbox_use_central_weighting.setText("")
+        grid_profile.addWidget(self.checkbox_use_central_weighting, 4, 0, 1, 1)
+
+    
+        label = QtGui.QLabel(self.tab_profile)
+        label.setText("Tolerance in wavelength position")
+        grid_profile.addWidget(label, 3, 1, 1, 1)
+        self.checkbox_wavelength_tolerance = QtGui.QCheckBox(self.tab_profile)
+        self.checkbox_wavelength_tolerance.setText("")
+        grid_profile.addWidget(self.checkbox_wavelength_tolerance, 3, 0, 1, 1)
+        hbox = QtGui.QHBoxLayout()
+        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+            QtGui.QSizePolicy.Minimum))
+        self.edit_wavelength_tolerance = QtGui.QLineEdit(self.tab_profile)
+        self.edit_wavelength_tolerance.setMinimumSize(QtCore.QSize(50, 0))
+        self.edit_wavelength_tolerance.setMaximumSize(QtCore.QSize(60, 16777215))
+        self.edit_wavelength_tolerance.setValidator(
+            QtGui.QDoubleValidator(0, 10, 2, self.edit_wavelength_tolerance))
+        hbox.addWidget(self.edit_wavelength_tolerance)
+        grid_profile.addLayout(hbox, 3, 3, 1, 1)
+
+        self.opt_tabs.addTab(self.tab_profile, "Profile options")
+        
+        # Synthesis model options.
+        self.tab_synthesis = QtGui.QWidget()
+        vbox_synthesis = QtGui.QVBoxLayout(self.tab_synthesis)
+        grid_synthesis = QtGui.QGridLayout()
+
+        label = QtGui.QLabel(self.tab_synthesis)
+        label.setText("Initial abundance boundary")
+        grid_synthesis.addWidget(label, 0, 1, 1, 1)
+        self.edit_initial_abundance_bound = QtGui.QLineEdit(self.tab_synthesis)
+        self.edit_initial_abundance_bound.setMinimumSize(QtCore.QSize(60, 0))
+        self.edit_initial_abundance_bound.setMaximumSize(QtCore.QSize(60, 16777215))
+        self.edit_initial_abundance_bound.setValidator(
+            QtGui.QDoubleValidator(0, 2, 1, self.edit_initial_abundance_bound))
+        grid_synthesis.addWidget(self.edit_initial_abundance_bound, 0, 3, 1, 1)
+
+        self.checkbox_model_smoothing = QtGui.QCheckBox(self.tab_synthesis)
+        self.checkbox_model_smoothing.setText("")
+        grid_synthesis.addWidget(self.checkbox_model_smoothing, 1, 0, 1, 1)
+        label = QtGui.QLabel(self.tab_synthesis)
+        label.setText("Model observed resolution by smoothing")
+        grid_synthesis.addWidget(label, 1, 1, 1, 1)
+
+        label = QtGui.QLabel(self.tab_synthesis)
+        label.setText("Constrain smoothing to less than:")
+        grid_synthesis.addWidget(label, 2, 1, 1, 1)
+        self.edit_smoothing_bound = QtGui.QLineEdit(self.tab_synthesis)
+        self.edit_smoothing_bound.setMinimumSize(QtCore.QSize(60, 0))
+        self.edit_smoothing_bound.setMaximumSize(QtCore.QSize(60, 16777215))
+        self.edit_smoothing_bound.setValidator(
+            QtGui.QDoubleValidator(0, 10, 1, self.edit_smoothing_bound))
+        grid_synthesis.addWidget(self.edit_smoothing_bound, 2, 3, 1, 1)
+
+        self.btn_specify_abundances = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_specify_abundances.setText("Specify explicit abundance table TODO")
+        grid_synthesis.addWidget(self.btn_specify_abundances, 3, 1, 1, 1)
+
+        grid_synthesis.addItem(QtGui.QSpacerItem(40, 20, 
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum), 0, 2, 1, 1)
+        vbox_synthesis.addLayout(grid_synthesis)
+        vbox_synthesis.addItem(QtGui.QSpacerItem(20, 40, 
+            QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
+        self.opt_tabs.addTab(self.tab_synthesis, "Synthesis options")
+
+
+        # Buttons.
+        opt_layout.addWidget(self.opt_tabs)
+        #hbox_btns = QtGui.QHBoxLayout()
+        #self.btn_save_as_default = QtGui.QPushButton(group_box)
+        #self.btn_save_as_default.setText("Save as default options")
+
+        #hbox_btns.addItem(QtGui.QSpacerItem(40, 20, 
+        #    QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+
+        #hbox_btns.addWidget(self.btn_save_as_default)
+
+        #self.btn_apply_to_all = QtGui.QPushButton(group_box)
+        #self.btn_apply_to_all.setText("Apply options to all models")
+        #hbox_btns.addWidget(self.btn_apply_to_all)
+
+        # Final layout placement.
+        #opt_layout.addLayout(hbox_btns)
+        self.opt_tabs.raise_()
+        self.fitting_options = group_box
 
     def populate_widgets(self):
         """
