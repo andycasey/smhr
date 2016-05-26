@@ -16,7 +16,7 @@ Installation
   
 3.  Finally, you will need `MOOGSILENT` installed. If you don't have it already installed, first make sure you have a FORTRAN compiler installed (e.g., [gfortran](https://gcc.gnu.org/wiki/GFortran)). In OSX you can install `gfortran` and other command line tools with the terminal command `xcode-select --install`. Then to install `MOOGSILENT`:
 
-    ``pip install moogsilent``
+    ``pip install moogsilent --user``
   
 4.  Install `PySide` using the following terminal command:
 
