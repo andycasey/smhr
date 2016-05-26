@@ -89,6 +89,7 @@ class SpectralModelsTableView(QtGui.QTableView):
 
             # Update the view if this is the first one.
             if i == 0:
+                # TODO parent has update_spectrum_figure()
                 self.parent.update_spectrum_figure()
 
             # Update the data model.
@@ -101,6 +102,7 @@ class SpectralModelsTableView(QtGui.QTableView):
             # there is a bug when using proxy models where the data table is
             # updated but the view is not, so we do this hack to make it
             # work:
+            # TODO parent has table_view
             self.parent.table_view.rowMoved(
                 proxy_index.row(), proxy_index.row(), proxy_index.row())
 
@@ -245,12 +247,7 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
 
 class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
-    header = ["", u"λ\n(Å)", "Element\n", u"E. W.\n(mÅ)",
-        "log ε\n(dex)"]
-    attrs = ("is_acceptable", "_repr_wavelength", "_repr_element", 
-        "equivalent_width", "abundance")
-
-    def __init__(self, parent, *args):
+    def __init__(self, parent, header, attrs, *args):
         """
         An abstract table model for spectral models.
 
@@ -263,6 +260,8 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         # Normally you should never do this, but here I know "better". See:
         #http://stackoverflow.com/questions/867938/qabstractitemmodel-parent-why
         self.parent = parent 
+        self.header = header
+        self.attrs = attrs
         return None
 
 

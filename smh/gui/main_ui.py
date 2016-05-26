@@ -238,8 +238,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
             ])
         window.exec_()
 
-        self.stellar_parameters_tab.updated_spectral_models()
-
         return None
 
 

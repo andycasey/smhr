@@ -157,6 +157,10 @@ class StellarParametersTab(QtGui.QWidget):
         line.setFrameShadow(QtGui.QFrame.Sunken)
         lhs_layout.addWidget(line)
 
+        header = ["", u"λ\n(Å)", "Element\n", u"E. W.\n(mÅ)",
+                  "log ε\n(dex)"]
+        attrs = ("is_acceptable", "_repr_wavelength", "_repr_element", 
+                 "equivalent_width", "abundance")
         self.table_view = SpectralModelsTableView(self)
 
         # Set up a proxymodel.
@@ -166,7 +170,7 @@ class StellarParametersTab(QtGui.QWidget):
             lambda model: model.use_for_stellar_parameter_inference)
 
         self.proxy_spectral_models.setDynamicSortFilter(True)
-        self.proxy_spectral_models.setSourceModel(SpectralModelsTableModel(self))
+        self.proxy_spectral_models.setSourceModel(SpectralModelsTableModel(self, header, attrs))
 
         self.table_view.setModel(self.proxy_spectral_models)
         self.table_view.setSelectionBehavior(
