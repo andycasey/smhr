@@ -52,15 +52,16 @@ class AbundTreeView(QtGui.QTreeView):
         font.setStyleHint(QtGui.QFont.TypeWriter)
         self.setFont(font)
         self.setUniformRowHeights(True)
+        self.setItemDelegate(AbundTreeViewDelegate(self))
     def span_cols(self):
         """
         Have to call after connecting a model
         """
         for i in range(10):
             if i==0: self.setColumnWidth(i,70)
-            else: self.setColumnWidth(i,70)
+            else: self.setColumnWidth(i,80)
         for i in range(len(self.model().summaries)):
-            self.setFirstColumnSpanned(i,self.rootIndex(), True)
+            self.setFirstColumnSpanned(i,None, True)
 class AbundTreeItem(object):
     def __init__(self, parent, row):
         self.parent = parent
@@ -177,12 +178,9 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         self.all_sm_indices = {}
         self.all_ab_indices = {}
 
-    def session_updated(self,spectral_model=None):
+    def session_updated(self):
         # TODO call this whenever the session updates measurements in any way
-        if spectral_model is None:
-            self.obtain_measurements_from_parent_tab()
-        else:
-            raise NotImplementedError
+        self.obtain_measurements_from_parent_tab()
     def obtain_measurements_from_parent_tab(self):
         logger.debug("Sorting measurements..."); start = time.time()
         measurements = self.parenttab.spectral_models
@@ -342,3 +340,10 @@ if __name__=="__main__":
     #chemical_abundances_tab.show()
     
     sys.exit(app.exec_())
+
+class AbundTreeViewDelegate(QtGui.QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        if isinstance(index.internalPointer(), AbundTreeElementSummaryItem):
+            option.font.setWeight(QtGui.QFont.Bold)
+        super(AbundTreeViewDelegate, self).paint(painter, option, index)
+
