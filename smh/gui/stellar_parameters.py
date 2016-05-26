@@ -187,7 +187,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         hbox = QtGui.QHBoxLayout()
         self.btn_filter = QtGui.QPushButton(self)
-        self.btn_filter.setText("Filter..")
+        self.btn_filter.setText("Hide unacceptable models")
         self.btn_quality_control = QtGui.QPushButton(self)
         self.btn_quality_control.setText("Quality control..")
         hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
@@ -353,9 +353,21 @@ class StellarParametersTab(QtGui.QWidget):
     def filter_models(self):
         """
         Filter the view of the models used in the determination of stellar
-        parameters.
+        parameters. 
         """
-        raise NotImplementedError
+
+        hide = self.btn_filter.text().startswith("Hide")
+
+        if hide:
+            self.proxy_spectral_models.add_filter_function("is_acceptable",
+                lambda model: model.is_acceptable)
+
+        else:
+            self.proxy_spectral_models.delete_filter_function("is_acceptable")
+
+        text = "{} unacceptable models".format(("Hide", "Show")[hide])
+        self.btn_filter.setText(text)
+        return None
 
 
     def quality_control(self):
@@ -923,8 +935,15 @@ class StellarParametersTab(QtGui.QWidget):
 
             self.figure.draw()
 
+        try:
+            selected_model = self._get_selected_model()
 
-        selected_model = self._get_selected_model()
+        except IndexError:
+            # No line selected.
+            if redraw:
+                self.figure.draw()
+            return None
+
         transitions = selected_model.transitions
         window = selected_model.metadata["window"]
         limits = [
@@ -1174,7 +1193,7 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
         """
 
         try:
-            del filter_functions[name]
+            del self.filter_functions[name]
             self.invalidateFilter()
             self.reindex()
 
@@ -1204,9 +1223,9 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
             for name, filter_function in self.filter_functions.items():
                 if not filter_function(model):
                     break
-                else:
-                    # No problems.
-                    lookup_indices.append(i)
+            else:
+                # No problems with any filter functions.
+                lookup_indices.append(i)
 
         self.lookup_indices = np.array(lookup_indices)
         return None
@@ -1410,7 +1429,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
         proxy_index = self.parent.table_view.model().mapFromSource(index).row()
         self.parent.table_view.rowMoved(proxy_index, proxy_index, proxy_index)
-
+        
 
         # TODO THIS IS CLUMSY:
         # If we have a cache of the state transitions, update the entries.
