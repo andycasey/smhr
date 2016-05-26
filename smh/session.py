@@ -424,16 +424,22 @@ class Session(BaseSession):
         transition_indices = []
         spectral_model_indices = []
         for i, model in enumerate(self.metadata["spectral_models"]):
-            if model.is_acceptable and model.use_for_stellar_parameter_inference:
+            if model.use_for_stellar_parameter_inference:
 
                 # TODO assert it is a profile model.
                 spectral_model_indices.append(i)
                 transition_indices.extend(model._transition_indices)
-                equivalent_widths.append(1e3 * \
-                    model.metadata["fitted_result"][-1]["equivalent_width"][0])
+                if model.is_acceptable:
+                    equivalent_widths.append(1e3 * \
+                        model.metadata["fitted_result"][-1]["equivalent_width"][0])
+                else:
+                    equivalent_widths.append(np.nan)
 
-        if len(transition_indices) == 0:
+
+        if len(equivalent_widths) == 0 \
+        or np.isfinite(equivalent_widths).sum() == 0:
             raise ValueError("no measured transitions to calculate abundances")
+
 
         # Construct a copy of the line list table.
         transition_indices = np.array(transition_indices)
@@ -441,14 +447,20 @@ class Session(BaseSession):
         transitions = self.metadata["line_list"][transition_indices].copy()
         transitions["equivalent_width"] = equivalent_widths
 
+        finite = np.isfinite(transitions["equivalent_width"])
+
         # Calculate abundances and put them back into the spectral models stored
         # in the session metadata.
-        abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions)
-        for index, abundance in zip(spectral_model_indices, abundances):
+        abundances = self.rt.abundance_cog(
+            self.stellar_photosphere, transitions[finite])
+
+
+        for index, abundance in zip(spectral_model_indices[finite], abundances):
             self.metadata["spectral_models"][index]\
                 .metadata["fitted_result"][-1]["abundances"] = [abundance]
 
-        transitions["abundance"] = abundances
+        transitions["abundance"] = np.nan * np.ones(len(transitions))
+        transitions["abundance"][finite] = abundances
 
         # By default just return a transitions table for convenience.
         if not full_output:
@@ -456,8 +468,10 @@ class Session(BaseSession):
 
         transitions["reduced_equivalent_width"] = np.log10(1e-3 * \
             transitions["equivalent_width"] / transitions["wavelength"])
-        slopes = utils.equilibrium_state(transitions,
-            ("expot", "reduced_equivalent_width", "wavelength"))
+
+        slopes = None
+        #slopes = utils.equilibrium_state(transitions,
+        #    ("expot", "reduced_equivalent_width", "wavelength"))
 
         # Otherwise return full state information.
         return (transitions, slopes, spectral_model_indices)
