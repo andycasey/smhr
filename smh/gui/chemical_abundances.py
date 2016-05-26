@@ -8,6 +8,7 @@ from __future__ import (division, print_function, absolute_import,
 
 __all__ = ["ChemicalAbundancesTab"]
 
+import logging
 import matplotlib.gridspec
 import numpy as np
 import sys
@@ -22,7 +23,6 @@ from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 from abund_tree import AbundTreeView, AbundTreeModel, AbundTreeMeasurementItem, AbundTreeElementSummaryItem
 from linelist_manager import TransitionsDialog
 
-import logging
 logger = logging.getLogger(__name__)
 
 if sys.platform == "darwin":
@@ -478,28 +478,58 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._check_for_spectral_models()
         self.updated_spectral_models()
         # TODO order by complexity
+        # TODO figure out is_acceptable
         logger.debug("Looping through spectral models...")
-        for m in self.spectral_models:
+        # FIT ALL
+        profile_measurements = []
+        synthesis_measurements = []
+        for i,m in enumerate(self.spectral_models):
             if isinstance(m, SpectralSynthesisModel):
-                # TODO 
-                logger.debug("Skipping syntheses",m)
-                continue
-            try:
-                res = m.fit()
-            except (ValueError, RuntimeError) as e:
-                logger.debug("Fitting error",m)
-                logger.debug(e)
-                continue
-            # TODO
-            #if not m.is_acceptable:
-            #    logger.debug("Skipping",m)
-            #    continue
-            try:
-                ab = m.abundances
-            except rt.RTError as e:
-                logger.debug("Abundance error",m)
-                logger.debug(e)
-                continue
+                synthesis_measurements.append((i,m))
+                try:
+                    res = m.fit()
+                    logger.debug(res)
+                except (ValueError, RuntimeError) as e:
+                    logger.debug("Fitting error",m)
+                    logger.debug(e)
+            if isinstance(m, ProfileFittingModel):
+                profile_measurements.append((i,m))
+                try:
+                    res = m.fit()
+                    logger.debug(res)
+                except (ValueError, RuntimeError) as e:
+                    logger.debug("Fitting error",m)
+                    logger.debug(e)
+        # CALL CURVE OF GROWTH FOR EW
+        # TODO hook this into the session rather than the tab
+        equivalent_widths = []
+        transition_indices = []
+        spectral_model_indices = []
+        for i,m in profile_measurements:
+            spectral_model_indices.append(i)
+            transition_indices.extend(m._transition_indices)
+            if m.is_acceptable:
+                equivalent_widths.append(1000.* \
+                    m.metadata["fitted_result"][-1]["equivalent_width"][0])
+            else:
+                equivalent_widths.append(np.nan)
+        if len(equivalent_widths) == 0 \
+        or np.isfinite(equivalent_widths).sum() == 0:
+            raise ValueError("no measured transitions to calculate abundances")
+        
+        transition_indices = np.array(transition_indices)
+        spectral_model_indices = np.array(spectral_model_indices)
+        transitions = self.parent.session.metadata["line_list"][transition_indices].copy()
+        transitions["equivalent_width"] = equivalent_widths
+        finite = np.isfinite(transitions["equivalent_width"])
+            
+        # TODO right now it is not hooking into the session, be careful!
+        abundances = self.parent.session.rt.abundance_cog(
+            self.parent.session.stellar_photosphere, transitions[finite])
+        for index, abundance in zip(spectral_model_indices[finite], abundances):
+            self.spectral_models[index]\
+                .metadata["fitted_result"][-1]["abundances"] = [abundance]
+
         self.abundtree.model().reset()
         self.selected_model_changed()
 

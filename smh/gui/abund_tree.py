@@ -149,7 +149,7 @@ class AbundTreeMeasurementItem(AbundTreeItem):
                     return str(np.nan)
             elif column==4: #REW
                 try:
-                    return "{:6.2f}".format(m.metadata["fitted_result"][2]["equivalent_width"][0]/m.transitions["wavelength"][0])
+                    return "{:6.2f}".format(np.log10(m.metadata["fitted_result"][2]["equivalent_width"][0]/m.transitions["wavelength"][0]))
                 except:
                     return str(np.nan)
             elif column==5: #e(X)
