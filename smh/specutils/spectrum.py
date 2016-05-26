@@ -847,7 +847,12 @@ def common_dispersion_map(spectra, full_output=True):
     if len(spectra) > 1:
         common.extend(red_spectrum.dispersion[discard_bluest_pixels:])
 
+    # Ensure that we are contiguous from blue to red.
     common = np.array(common)
+    common = common[np.argsort(common)]
+
+    assert np.all(np.diff(common) > 0), \
+        "Spectra must be contiguous from blue to red"
 
     if full_output:
         indices = [common.searchsorted(s.dispersion) for s in spectra]
