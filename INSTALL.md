@@ -2,7 +2,7 @@
 Installation
 ============
 
-1.  Install [Anaconda Python](https://www.continuum.io/downloads). Either Python version (2.7 or 3.5) is acceptable.
+1.  Install [Anaconda Python](https://www.continuum.io/downloads). For now, select Python 2.7 until some [PySide issues](https://github.com/andycasey/smhr/issues/14) are resolved.
 
 2.  Clone SMH from the [GitHub repository](https://github.com/andycasey/smhr) using this terminal command:
 
