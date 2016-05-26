@@ -256,7 +256,7 @@ class ProfileFittingModel(BaseSpectralModel):
 
     def fit(self, spectrum=None, **kwargs):
         """
-        Fit an asborption profile to the transition in the spectrum.
+        Fit an absorption profile to the transition in the spectrum.
 
         :param spectrum: [optional]
             The observed spectrum to fit the profile transition model. If None
@@ -305,7 +305,7 @@ class ProfileFittingModel(BaseSpectralModel):
                 except KeyError:
                     None
 
-                self.transitions["equivalent_width"] = np.nan
+                #self.transitions["equivalent_width"] = np.nan
 
                 return failure
 
@@ -327,7 +327,7 @@ class ProfileFittingModel(BaseSpectralModel):
                         del self.metadata["fitted_result"]
                     except KeyError:
                         None
-                    self.transitions["equivalent_width"] = np.nan
+                    #self.transitions["equivalent_width"] = np.nan
 
                     return failure
 
@@ -498,7 +498,8 @@ class ProfileFittingModel(BaseSpectralModel):
         }
 
         # Update the equivalent width in the transition.
-        self.transitions["equivalent_width"] = ew
+        # REMOVED: see Issue #38
+        #self.transitions["equivalent_width"] = ew
 
         # Convert p_opt to ordered dictionary
         named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
@@ -530,7 +531,7 @@ class ProfileFittingModel(BaseSpectralModel):
         
         return y
 
-
+    @property
     def abundances(self):
         """
         Calculate the abundance from the curve-of-growth given the fitted
@@ -544,12 +545,23 @@ class ProfileFittingModel(BaseSpectralModel):
         # Does the hash match the last calculation?
         # If so, return that value. If not, calculate the new value.
 
-        foo = self.session.rt.abundance_cog(
+        try:
+            return self.metadata["fitted_result"][2]["abundances"]
+        except KeyError:
+            pass
+
+        logger.info("Fitting COG for "+str(self))
+        # Fixed Issue #38
+        transitions = self.transitions.copy()
+        assert len(transitions)==1,len(transitions)
+        # A to mA
+        transitions['equivalent_width'] = 1000.*self.metadata["fitted_result"][2]["equivalent_width"][0]
+        abundances = self.session.rt.abundance_cog(
             self.session.stellar_photosphere,
-            self.transition)
-
-        raise NotImplementedError
-
+            transitions)
+        assert len(abundances)==1,abundances
+        self.metadata["fitted_result"][2]["abundances"] = abundances
+        return abundances
 
 if __name__ == "__main__":
 

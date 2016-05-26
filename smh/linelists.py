@@ -462,11 +462,11 @@ class LineList(Table):
                     numelems,elem1,isotope1,elem2,isotope2,ion,
                     E_hi,nans,nans,nans,nans,refs,elements]
         # add EW if needed
-        if not np.all(np.isnan(ew)):
-            print("Read {} EWs out of {} lines".format(np.sum(~np.isnan(ew)),len(ew)))
-            colnames = colnames + ['equivalent_width']
-            dtypes = dtypes + [np.float]
-            data = data + [ew]
+        #if not np.all(np.isnan(ew)):
+        #    print("Read {} EWs out of {} lines".format(np.sum(~np.isnan(ew)),len(ew)))
+        colnames = colnames + ['equivalent_width']
+        dtypes = dtypes + [np.float]
+        data = data + [ew]
         
         return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns)
 

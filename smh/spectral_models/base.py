@@ -105,7 +105,6 @@ class BaseSpectralModel(object):
 
         return self._session.metadata["line_list"][indices]
 
-
     def _index_transitions(self):
         """
         Index the transitions to the parent session.

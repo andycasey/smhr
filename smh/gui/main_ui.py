@@ -18,11 +18,8 @@ import exception
 
 import smh
 from linelist_manager import TransitionsDialog
-from isotope_manager import IsotopeDialog
 
 logger = logging.getLogger(__name__)
-
-#from main_ui import *
 
 class Ui_MainWindow(QtGui.QMainWindow):
     """
@@ -94,14 +91,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.action_transitions_manager = QtGui.QAction("&Transitions..", self,
             statusTip="Manage line lists and spectral models",
             triggered=self.transitions_manager)
-        self.action_isotopes_manager = QtGui.QAction("&Isotopes..", self,
-            statusTip="Manage isotopes for elements and molecules",
-            triggered=self.isotopes_manager)
         self.action_transitions_manager.setEnabled(False)
-        self.action_isotopes_manager.setEnabled(False)
         edit_menu = self.menuBar().addMenu("&Edit")
         edit_menu.addAction(self.action_transitions_manager)
-        edit_menu.addAction(self.action_isotopes_manager)
 
         # Export menu.
         self._menu_export_normalized_spectrum \
@@ -157,7 +149,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         # Enable relevant menu actions.
         self.action_transitions_manager.setEnabled(True)
-        self.action_isotopes_manager.setEnabled(True)
 
         # Re-populate widgets in all tabs.
         self.summary_tab._populate_widgets()
@@ -209,7 +200,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         # Enable relevant menu actions.
         self.action_transitions_manager.setEnabled(True)
-        self.action_isotopes_manager.setEnabled(True)
 
         return None
 
@@ -248,15 +238,10 @@ class Ui_MainWindow(QtGui.QMainWindow):
             ])
         window.exec_()
 
+        self.stellar_parameters_tab.updated_spectral_models()
+
         return None
 
-    def isotopes_manager(self):
-        """
-        Open the isotopes manager dialog.
-        """
-        window = IsotopeDialog(self.session)
-        window.exec_()
-        return None
 
     def __init_ui__(self):
         """
@@ -314,74 +299,4 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.setCurrentIndex(0)
         self._update_window_title()
 
-if __name__ == '__main__':
 
-    import sys
-
-    # Create the app and clean up any style bugs.
-    try:
-        app = QtGui.QApplication(sys.argv)
-
-    except RuntimeError:
-        # For development.
-        None
-
-    if sys.platform == "darwin":
-            
-        # See http://successfulsoftware.net/2013/10/23/fixing-qt-4-for-mac-os-x-10-9-mavericks/
-        substitutes = [
-            (".Lucida Grande UI", "Lucida Grande"),
-            (".Helvetica Neue DeskInterface", "Helvetica Neue")
-        ]
-        for substitute in substitutes:
-            QtGui.QFont.insertSubstitution(*substitute)
-
-    # Create a global exception hook.
-    sys._excepthook = sys.excepthook
-
-    # Allow certain exceptions to be ignored, and these can be added to through
-    # the GUI.
-    ignore_exception_messages = []
-    def exception_hook(exception_type, message, traceback):
-        """
-        An exception hook that will display a GUI and optionally allow the user
-        to submit a GitHub issue.
-
-        :param exception_type:
-            The type of exception that was raised.
-
-        :param message:
-            The exception message.
-
-        :param traceback:
-            The traceback of the exception.
-        """
-
-        # Show the exception in the terminal.
-        sys._excepthook(exception_type, message, traceback)
-
-        # Should this exception be ignored?
-        if message.__repr__() in ignore_exception_messages:
-            return None
-
-        # Load a GUI that shows the exception.
-        exception_gui = exception.ExceptionWidget(
-            exception_type, message, traceback)
-        exception_gui.exec_()
-
-        # Ignore future exceptions of this kind?
-        if exception_gui.ignore_in_future:
-            ignore_exception_messages.append(message.__repr__())
-
-        return None
-
-    sys.excepthook = exception_hook
-
-    # Run the main application window.
-    #app.window = Ui_MainWindow(spectrum_filenames=[
-    #    "/Users/arc/Downloads/hd122563_1blue_multi_090205_oldbutgood.fits",
-    #    "/Users/arc/Downloads/hd122563_1red_multi_090205_oldbutgood.fits"
-    #])
-    app.window = Ui_MainWindow()
-    app.window.show()
-    sys.exit(app.exec_())

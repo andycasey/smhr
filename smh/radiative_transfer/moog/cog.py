@@ -16,6 +16,7 @@ import yaml
 from pkg_resources import resource_stream
 
 from . import utils
+from .utils import RTError
 from smh.utils import element_to_species
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,8 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
         Specify verbose flags to MOOG. This is primarily used for debugging.
     """
 
+    # TODO if no transitions, what to do?
+
     # Create a temporary directory.
     path = utils.twd_path(**kwargs)
 
@@ -50,6 +53,8 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
     photosphere.write(model_in, format="moog")
 
     # Write out the transitions.
+    # Note that this must write out the EW too
+    # TODO remove and replace bad EW
     transitions.write(lines_in, format="moog")
     
     # Load the abfind driver template.
@@ -85,22 +90,63 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
     code, out, err = utils.moogsilent(moog_in, **kwargs)
 
     # Returned normally?
-    assert code == 0 # HACK # TODO
+    if code != 0:
+        logger.error("MOOG returned the following standard output:")
+        logger.error(out)
+        logger.error("MOOG returned the following errors (code: {0:d}):".format(code))
+        logger.error(err)
+        logger.exception(RTError(err))
+    else:
+        logger.info("MOOG executed {0} successfully".format(moog_in))
+        #logger.debug("Standard output:")
+        #logger.debug(strip_control_characters(out))
+        #logger.debug("Standard error:")
+        #logger.debug(err.rstrip())
 
     # Parse the output.
     transitions_array, linear_fits = _parse_abfind_summary(kwds["summary_out"])
-    print(linear_fits)
 
+    if len(transitions_array)==0:
+        logger.debug("Standard output:")
+        logger.debug(strip_control_characters(out))
+        logger.debug("Standard error:")
+        logger.debug(err.rstrip())
+        raise RTError("No measurements returned!")
+    if len(transitions_array)!=len(transitions):
+        logger.debug("Standard output:")
+        logger.debug(strip_control_characters(out))
+        logger.debug("Standard error:")
+        logger.debug(err.rstrip())
+        raise RTError("Num lines returned {} != {} Num lines input".format(len(transitions_array),len(transitions)))
+    
     # Match transitions. Check for anything missing.
-    assert len(transitions_array) == len(transitions)
-
+    col_wl, col_species, col_ep, col_loggf, col_ew, col_logrw, col_abund, col_del_avg = range(8)
+    moog_wl      = transitions_array[:,col_wl]
+    moog_species = transitions_array[:,col_species]
+    moog_abund   = transitions_array[:,col_abund]
+    
+    ii_orig = np.lexsort((transitions['species'],transitions['wavelength']))
+    ii_moog = np.lexsort((moog_species,moog_wl))
+    tol = .01
+    matched_abund = np.zeros(len(transitions))*np.nan
+    for ii1,ii2 in zip(ii_orig,ii_moog):
+        assert transitions['species'][ii1]==moog_species[ii2]
+        assert np.abs(transitions['wavelength'][ii1]-moog_wl[ii2]) < tol
+        matched_abund[ii1] = moog_abund[ii2]
+    
+    # Return abundances w.r.t. the inputs.
     if full_output:
         raise NotImplementedError
-        return (transitions_array, linear_fits)
+        return (matched_abund, linear_fits)
     
-    return transitions_array[:, -2]
-    
+    return matched_abund
 
+    #raise NotImplementedError
+
+def strip_control_characters(out):
+    for x in np.unique(re.findall(r"\x1b\[K|\x1b\[\d+;1H",out)):
+        out = out.replace(x,'')
+    return out
 
 def _parse_abfind_summary(summary_out_path):
     """

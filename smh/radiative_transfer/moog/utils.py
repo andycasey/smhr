@@ -35,6 +35,8 @@ except NameError:
     logger.exception("Failed to find moogsilent executable")
     raise IOError("cannot find MOOGSILENT")
 
+class RTError(BaseException):
+    pass
 
 def twd_path(**kwargs):
     """
