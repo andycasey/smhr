@@ -231,7 +231,7 @@ class AbundTreeModel(QtCore.QAbstractItemModel):
         else:
             return self.createIndex(node.parent.row, 0, node.parent)
     def reset(self):
-        # TODO figure out current open/closed/selected
+        # TODO figure out current open/closed/selected items in tree
         # repopulate after resetting the model
         
         #self.beginResetModel()

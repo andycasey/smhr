@@ -119,7 +119,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.ax_residual = self.figure.figure.add_subplot(gs_top[0])
         self.ax_residual.axhline(0, c="#666666")
         self.ax_residual.xaxis.set_major_locator(MaxNLocator(5))
-        self.ax_residual.yaxis.set_major_locator(MaxNLocator(2))
+        #self.ax_residual.yaxis.set_major_locator(MaxNLocator(2))
         self.ax_residual.set_xticklabels([])
         self.ax_residual.set_ylabel("Residual")
         
@@ -551,9 +551,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             logger.debug(e)
             return None
         self.update_tree_data(index)
-        self.update_fitting_options()
-        self.update_spectrum_figure(False)
-        self.update_line_strength_figure(True)
+        self.selected_model_changed()
         return None
 
     def save_to_session(self):
@@ -869,7 +867,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.ax_residual.set_xlim(self.ax_spectrum.get_xlim())
             self.ax_spectrum.set_ylim(0, 1.2)
             self.ax_spectrum.set_yticks([0, 0.5, 1])
-            self.ax_residual.set_ylim(-0.05, 0.05)
+            three_sigma = 3*np.median(sigma[np.isfinite(sigma)])
+            self.ax_residual.set_ylim(-three_sigma, three_sigma)
 
             if refresh: self.figure.draw()
         
