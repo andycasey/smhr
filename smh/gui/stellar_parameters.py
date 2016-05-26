@@ -1100,6 +1100,7 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
 
         self.filter_functions[name] = filter_function
         self.invalidateFilter()
+        self.reindex()
         return None
 
 
@@ -1114,12 +1115,40 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
         try:
             del filter_functions[name]
             self.invalidateFilter()
+            self.reindex()
 
         except KeyError:
             raise
 
         else:
             return None
+
+
+    def reset(self, *args):
+        super(SpectralModelsFilterProxyModel, self).reset(*args)
+        self.reindex()
+        return None
+
+
+    def reindex(self):
+
+        try: 
+            self.sourceModel().spectral_models
+
+        except AttributeError:
+            return None
+
+        lookup_indices = []
+        for i, model in enumerate(self.sourceModel().spectral_models):
+            for name, filter_function in self.filter_functions.items():
+                if not filter_function(model):
+                    break
+                else:
+                    # No problems.
+                    lookup_indices.append(i)
+
+        self.lookup_indices = np.array(lookup_indices)
+        return None
 
 
     def filterAcceptsRow(self, row, parent):
@@ -1134,15 +1163,10 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
             The parent widget.
         """
 
+        print("row", row, parent)
+
         # Check if we need to update the filter indices for mapping.
-        if row == 0:
-            # TODO: Not sure why filterAcceptsRow gets run twice, but anyways..
-            #       just eat it.
-            self.filter_indices = np.ones(
-                len(self.sourceModel().spectral_models), dtype=bool)
-
         model = self.sourceModel().spectral_models[row]
-
         for filter_name, filter_function in self.filter_functions.items():
             if not filter_function(model): break
         else:
@@ -1152,7 +1176,6 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
 
         # We broke out of the for loop.
         logger.info("broke out {} due to {}".format(row, filter_name))
-        self.filter_indices[row] = False
         return False
 
 
@@ -1164,6 +1187,9 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
             The index of the item in the data table.
         """
 
+        return data_index
+
+        """
         if not isinstance(data_index, int):
             if not data_index.isValid():
                 return data_index
@@ -1176,6 +1202,7 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
             done = self.filter_indices[:data_index].sum()
             #print("map from source", data_index, done, self.filter_indices[:data_index])
             return done
+        """
 
     def mapToSource(self, proxy_index):
         """
@@ -1188,16 +1215,22 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
         if not proxy_index.isValid():
             return proxy_index
 
+        if not hasattr(self, "lookup_indices"):
+            self.reindex()
+
+        return self.createIndex(self.lookup_indices[proxy_index.row()],
+            proxy_index.column())
+
+
+        """
         # TODO: This needs to be able to deal with resorting.
-        if proxy_index.column() == 0:
-            print("filter indices", self.filter_indices)
         data_index = self.createIndex(
             np.where(self.filter_indices)[0][proxy_index.row()],
             proxy_index.column())
 
-        #print("Map to source", proxy_index.row(), data_index.row())
+        print("Map to source", proxy_index.row(), data_index.row())
         return data_index
-
+        """
 
     def mapSelectionFromSource(self, selection):
         raise NotImplementedError("is this necessary? SUBMIT AS GITHUB ISSUE")
