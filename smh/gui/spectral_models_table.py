@@ -292,17 +292,13 @@ class SpectralModelsTableModelBase(QtCore.QAbstractTableModel):
         return None
 
     def setData(self, index, value, role=QtCore.Qt.DisplayRole):
-        if index.column() != 0 or value:
+        if index.column() != 0:
             return False
 
+        # value appears to be 0 or 2. Set it to True or False
+        value = (value != 0)
         model = self.spectral_models[index.row()]
-        print("test test",index.row(),value,model.metadata["is_acceptable"])
         model.metadata["is_acceptable"] = value
-
-        try:
-            del model.metadata["fitted_result"]
-        except KeyError:
-            None
 
         # Emit data change for this row.
         self.dataChanged.emit(self.createIndex(index.row(), 0),
