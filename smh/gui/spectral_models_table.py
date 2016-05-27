@@ -358,7 +358,6 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
 
         try:
             del model.metadata["fitted_result"]
-
         except KeyError:
             None
 
@@ -390,7 +389,6 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
             self.parent.update_scatter_plots(redraw=False)
             self.parent.update_selected_points(redraw=False)
 
-        # Hide the 
         self.parent.update_spectrum_figure(redraw=True)
         
         return value

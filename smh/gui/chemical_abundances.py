@@ -51,15 +51,18 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.parent_splitter.setContentsMargins(20, 20, 20, 0)
         self.parent_layout.addWidget(self.parent_splitter)
         
-        self.spectral_models = []
-        
         ################
         # LEFT HAND SIDE
         ################
         lhs_widget = QtGui.QWidget(self)
         lhs_layout = QtGui.QVBoxLayout()
         
-        # TODO
+        self.elem_combo_box = QtGui.QComboBox(self)
+        lhs_layout.addWidget(self.elem_combo_box)
+        # TODO add all species needed here whenever transitions are edited
+        # TODO create different filters for each species
+        # TODO summarize
+
         header = ["", u"λ\n(Å)", "Element\n", u"E. W.\n(mÅ)",
                   "log ε\n(dex)"]
         attrs = ("is_acceptable", "_repr_wavelength", "_repr_element", 
@@ -88,6 +91,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.table_view.setColumnWidth(3, 70) # MAGIC
         self.table_view.setMinimumSize(QtCore.QSize(240, 0))
         self.table_view.horizontalHeader().setStretchLastSection(True)
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.MinimumExpanding, 
+            QtGui.QSizePolicy.MinimumExpanding)
+        sp.setHeightForWidth(self.table_view.sizePolicy().hasHeightForWidth())
+        self.table_view.setSizePolicy(sp)
         lhs_layout.addWidget(self.table_view)
         # Abund tree
         #self.abundtree = AbundTreeView(self)
