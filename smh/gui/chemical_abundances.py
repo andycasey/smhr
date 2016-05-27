@@ -555,13 +555,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def refresh_plots(self):
-        print("Refreshing plots")
-        print(self._rew_cache, self._abund_cache)
+        print("Refreshing plots"); start = time.time()
         model, proxy_index, index = self._get_selected_model(True)
         print(model, proxy_index, index)
         self.update_spectrum_figure(redraw=False)
         self.update_selected_points_plot(redraw=False)
         self.update_line_strength_figure(redraw=True)
+        print ("Time: {:.1f}s".format(time.time()-start))
         return None
 
     def fit_all(self):
@@ -1074,6 +1074,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         proxy_row = proxy_index.row()
         table_model = self.proxy_spectral_models
         try:
+            if not table_model.data(table_model.createIndex(proxy_row, 0, None)):
+                raise ValueError #to put in nan
             rew = float(table_model.data(table_model.createIndex(proxy_row, 4, None)))
             abund = float(table_model.data(table_model.createIndex(proxy_row, 2, None)))
         except ValueError:
@@ -1421,7 +1423,10 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
         return value if role == QtCore.Qt.DisplayRole else None
 
     def setData(self, index, value, role=QtCore.Qt.DisplayRole):
+        start = time.time()
         value = super(SpectralModelsTableModel, self).setData(index, value, role)
+        print("setData: superclass: {:.1f}s".format(time.time()-start))
+        if index.column() != 0: return False
         
         # It ought to be enough just to emit the dataChanged signal, but
         # there is a bug when using proxy models where the data table is
@@ -1433,11 +1438,13 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
         #       should have a .table_view widget and an .update_spectrum_figure
         #       method.
 
-        proxy_index = self.parent.table_view.model().mapFromSource(index).row()
-        self.parent.table_view.rowMoved(proxy_index, proxy_index, proxy_index)
+        proxy_index = self.parent.table_view.model().mapFromSource(index)
+        proxy_row = proxy_index.row()
+        self.parent.table_view.rowMoved(proxy_row, proxy_row, proxy_row)
 
-        # TODO take care of relevant updates needed
+        print(proxy_index,proxy_row)
         self.parent.update_cache(proxy_index)
+        print("Time to setData: {:.1f}s".format(time.time()-start))
         self.parent.refresh_plots()
-        
+
         return value

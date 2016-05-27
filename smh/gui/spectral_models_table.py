@@ -10,7 +10,7 @@ import logging
 import numpy as np
 import sys
 from PySide import QtCore, QtGui
-from time import time
+import time
 
 from smh.photospheres import available as available_photospheres
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
@@ -300,18 +300,22 @@ class SpectralModelsTableModelBase(QtCore.QAbstractTableModel):
     def setData(self, index, value, role=QtCore.Qt.DisplayRole):
         if index.column() != 0:
             return False
-
-        # value appears to be 0 or 2. Set it to True or False
-        value = (value != 0)
-        model = self.spectral_models[index.row()]
-        model.metadata["is_acceptable"] = value
-
-        # Emit data change for this row.
-        self.dataChanged.emit(self.createIndex(index.row(), 0),
-            self.createIndex(index.row(), 
-                self.columnCount(QtCore.QModelIndex())))
-
-        return value
+        else:
+            # value appears to be 0 or 2. Set it to True or False
+            _start = time.time()
+            row = index.row()
+            value = (value != 0)
+            model = self.spectral_models[row]
+            print("Time to get model: {:.1f}s".format(time.time()-_start))
+            model.metadata["is_acceptable"] = value
+            print("Time to set value: {:.1f}s".format(time.time()-_start))
+            
+            # Emit data change for this row.
+            self.dataChanged.emit(self.createIndex(row, 0),
+                                  self.createIndex(row, 
+                                  self.columnCount(None)))
+            print("Time to setData: {:.1f}s".format(time.time()-_start))
+            return value
     """
     def sort(self, column, order):
         print("NO SORTING")
