@@ -103,7 +103,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
             "velocity_tolerance": 5,
             "smoothing_kernel": True,
             "initial_abundance_bounds": 1,
-            "elements": self._verify_elements(elements)
+            "elements": self._verify_elements(elements),
+            "species": self._verify_species(elements)
         })
 
         # Set the model parameter names based on the current metadata.
@@ -159,6 +160,26 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
         return elements
 
+    def _verify_species(self, elements):
+        # Format the elements and then check that all are real.
+        if isinstance(elements, string_types):
+            elements = [elements]
+
+        elements = [str(element).title() for element in elements]
+        species = []
+        transitions = self.transitions
+        for element in elements:
+            # Get the species associated with this element
+            ii = np.logical_or(transitions["elem1"]==element, transitions["elem2"]==element)
+            species = np.unique(transitions[ii]["species"])
+            if len(species) > 1:
+                # TODO how to deal with this correctly?
+                raise ValueError(
+                    "element '{}' has ambiguous species: {}".format(element,species))
+            species.append(species)
+
+        return species
+        
 
     def _initial_guess(self, spectrum, **kwargs):
         """

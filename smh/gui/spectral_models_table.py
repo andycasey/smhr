@@ -4,7 +4,7 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
-__all__ = ["SpectralModelsTableView", "SpectralModelsFilterProxyModel", "SpectralModelsTableModel"]
+__all__ = ["SpectralModelsTableView", "SpectralModelsFilterProxyModel", "SpectralModelsTableModelBase"]
 
 import logging
 import numpy as np
@@ -145,6 +145,7 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
             The name of the filtering function:
         """
 
+
         try:
             del self.filter_functions[name]
             self.invalidateFilter()
@@ -245,17 +246,18 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
 
 
 
-class SpectralModelsTableModel(QtCore.QAbstractTableModel):
+class SpectralModelsTableModelBase(QtCore.QAbstractTableModel):
 
     def __init__(self, parent, header, attrs, *args):
         """
         An abstract table model for spectral models.
+        Need to subclass and specify .data() method function!
 
         :param parent:
             The parent. This *must* have an attribute of `parent.parent.session`.
         """
 
-        super(SpectralModelsTableModel, self).__init__(parent, *args)
+        super(SpectralModelsTableModelBase, self).__init__(parent, *args)
 
         # Normally you should never do this, but here I know "better". See:
         #http://stackoverflow.com/questions/867938/qabstractitemmodel-parent-why
@@ -264,83 +266,24 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
         self.attrs = attrs
         return None
 
-
     @property
     def spectral_models(self):
         try:
             return self.parent.parent.session.metadata.get("spectral_models", [])
-
         except AttributeError:
             # session is None
             return []
-
 
     def rowCount(self, parent):
         """ Return the number of rows in the table. """
         return len(self.spectral_models)
 
-
     def columnCount(self, parent):
         """ Return the number of columns in the table. """
         return len(self.header)
 
-
     def data(self, index, role):
-        """
-        Display the data.
-
-        :param index:
-            The table index.
-
-        :param role:
-            The display role.
-        """
-
-        if not index.isValid():
-            return None
-
-        column = index.column()
-        spectral_model = self.spectral_models[index.row()]
-
-        if  column == 0 \
-        and role in (QtCore.Qt.DisplayRole, QtCore.Qt.CheckStateRole):
-            value = spectral_model.is_acceptable
-            if role == QtCore.Qt.CheckStateRole:
-                return QtCore.Qt.Checked if value else QtCore.Qt.Unchecked
-            else:
-                return None
-
-        elif column == 1:
-            value = spectral_model._repr_wavelength
-
-        elif column == 2:
-            value = spectral_model._repr_element
-
-        elif column == 3:
-            try:
-                result = spectral_model.metadata["fitted_result"][2]
-                equivalent_width = result["equivalent_width"][0]
-            except:
-                equivalent_width = np.nan
-
-            value = "{0:.1f}".format(1000 * equivalent_width) \
-                if np.isfinite(equivalent_width) else ""
-
-        elif column == 4:
-            try:
-                abundances \
-                    = spectral_model.metadata["fitted_result"][2]["abundances"]
-
-            except (IndexError, KeyError):
-                value = ""
-
-            else:
-                # How many elements were measured?
-                value = "; ".join(["{0:.2f}".format(abundance) \
-                    for abundance in abundances])
-
-        return value if role == QtCore.Qt.DisplayRole else None
-
+        raise NotImplementedError("Must subclass this model")
 
     def headerData(self, col, orientation, role):
         if orientation == QtCore.Qt.Horizontal \
@@ -348,12 +291,12 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
             return self.header[col]
         return None
 
-
     def setData(self, index, value, role=QtCore.Qt.DisplayRole):
         if index.column() != 0 or value:
             return False
 
         model = self.spectral_models[index.row()]
+        print("test test",index.row(),value,model.metadata["is_acceptable"])
         model.metadata["is_acceptable"] = value
 
         try:
@@ -366,33 +309,7 @@ class SpectralModelsTableModel(QtCore.QAbstractTableModel):
             self.createIndex(index.row(), 
                 self.columnCount(QtCore.QModelIndex())))
 
-        # It ought to be enough just to emit the dataChanged signal, but
-        # there is a bug when using proxy models where the data table is
-        # updated but the view is not, so we do this hack to make it
-        # work:
-
-        # TODO: This means when this model is used in a tab, that tab
-        #       (or whatever the parent is)
-        #       should have a .table_view widget and an .update_spectrum_figure
-        #       method.
-
-        proxy_index = self.parent.table_view.model().mapFromSource(index).row()
-        self.parent.table_view.rowMoved(proxy_index, proxy_index, proxy_index)
-        
-
-        # TODO THIS IS CLUMSY:
-        # If we have a cache of the state transitions, update the entries.
-        if hasattr(self.parent, "_state_transitions"):
-            cols = ("equivalent_width", "reduced_equivalent_width", "abundance")
-            for col in cols:
-                self.parent._state_transitions[col][proxy_index] = np.nan
-            self.parent.update_scatter_plots(redraw=False)
-            self.parent.update_selected_points(redraw=False)
-
-        self.parent.update_spectrum_figure(redraw=True)
-        
         return value
-
     """
     def sort(self, column, order):
         print("NO SORTING")

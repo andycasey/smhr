@@ -21,7 +21,7 @@ from matplotlib.ticker import MaxNLocator
 import smh.radiative_transfer as rt
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 from abund_tree import AbundTreeView, AbundTreeModel, AbundTreeMeasurementItem, AbundTreeElementSummaryItem
-from spectral_models_table import SpectralModelsTableView, SpectralModelsFilterProxyModel, SpectralModelsTableModel
+from spectral_models_table import SpectralModelsTableView, SpectralModelsFilterProxyModel, SpectralModelsTableModelBase
 from linelist_manager import TransitionsDialog
 
 logger = logging.getLogger(__name__)
@@ -59,14 +59,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         
         self.elem_combo_box = QtGui.QComboBox(self)
         lhs_layout.addWidget(self.elem_combo_box)
-        # TODO add all species needed here whenever transitions are edited
-        # TODO create different filters for each species
-        # TODO summarize
 
-        header = ["", u"λ\n(Å)", "Element\n", u"E. W.\n(mÅ)",
-                  "log ε\n(dex)"]
-        attrs = ("is_acceptable", "_repr_wavelength", "_repr_element", 
-                 "equivalent_width", "abundance")
         self.table_view = SpectralModelsTableView(self)
         lhs_layout.addWidget(self.table_view)
         # Set up a proxymodel.
@@ -75,8 +68,22 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             "use_for_stellar_composition_inference",
             lambda model: model.use_for_stellar_composition_inference)
 
+        # TODO
+        #self.populate_combo_box()
+        #self.combo_box_changed()
+        # when changed, delete all filter functions and add a new one
+        #self.reset_proxy_filters()
+        #all_species = set([])
+        #for spectral_model in self.parent.session.metadata["spectral_models"]:
+        #    all_species.union(set(spectral_model.species))
+
         self.proxy_spectral_models.setDynamicSortFilter(True)
-        self.proxy_spectral_models.setSourceModel(SpectralModelsTableModel(self, header, attrs))
+        header = ["", u"λ\n(Å)", "log ε\n(dex)", u"E. W.\n(mÅ)",
+                  "REW", "Element\n"]
+        attrs = ("is_acceptable", "_repr_wavelength", "abundance", "equivalent_width", 
+                 "reduced_equivalent_width", "_repr_element")
+        self.all_spectral_models = SpectralModelsTableModel(self, header, attrs)
+        self.proxy_spectral_models.setSourceModel(self.all_spectral_models)
 
         self.table_view.setModel(self.proxy_spectral_models)
         self.table_view.setSelectionBehavior(
@@ -97,16 +104,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         sp.setHeightForWidth(self.table_view.sizePolicy().hasHeightForWidth())
         self.table_view.setSizePolicy(sp)
         lhs_layout.addWidget(self.table_view)
-        # Abund tree
-        #self.abundtree = AbundTreeView(self)
-        #self.abundtree.setModel(AbundTreeModel(self))
-        #self.abundtree.span_cols()
-        #sp = QtGui.QSizePolicy(
-        #    QtGui.QSizePolicy.MinimumExpanding, 
-        #    QtGui.QSizePolicy.MinimumExpanding)
-        #sp.setHeightForWidth(self.abundtree.sizePolicy().hasHeightForWidth())
-        #self.abundtree.setSizePolicy(sp)
-        #lhs_layout.addWidget(self.abundtree)
 
         # Buttons
         hbox = QtGui.QHBoxLayout()
@@ -127,10 +124,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         hbox.addWidget(self.btn_replot)
         lhs_layout.addLayout(hbox)
 
-        hbox = QtGui.QHBoxLayout()
-        self.btn_save_to_session = QtGui.QPushButton(self)
-        self.btn_save_to_session.setText("Save to session")
-        hbox.addWidget(self.btn_save_to_session)
         lhs_layout.addLayout(hbox)
         
         # Model fitting options
@@ -211,7 +204,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.btn_fit_one.clicked.connect(self.fit_one)
         self.btn_refresh.clicked.connect(self.refresh_table)
         self.btn_replot.clicked.connect(self.refresh_plots)
-        self.btn_save_to_session.clicked.connect(self.save_to_session)
 
         # Connect matplotlib.
         self.figure.mpl_connect("button_press_event", self.figure_mouse_press)
@@ -503,9 +495,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def refresh_table(self):
         if self.parent.session is None: return None
         self._check_for_spectral_models()
-        self.updated_spectral_models() # TODO duplicated
-        logger.debug("Resetting tree model from session")
-        #self.abundtree.model().reset()
         self.proxy_spectral_models.reset()
         return None
 
@@ -516,14 +505,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def fit_all(self):
         self._check_for_spectral_models()
-        self.updated_spectral_models()
-        # TODO order by complexity
-        # TODO figure out is_acceptable
-        logger.debug("Looping through spectral models...")
-        # FIT ALL
+
+        # Fit all acceptable
         profile_measurements = []
         synthesis_measurements = []
-        for i,m in enumerate(self.spectral_models):
+        num_unacceptable = 0
+        for i,m in enumerate(self.all_spectral_models.spectral_models):
+            if not m.is_acceptable:
+                num_unacceptable += 1
+                continue
             if isinstance(m, SpectralSynthesisModel):
                 synthesis_measurements.append((i,m))
                 try:
@@ -540,6 +530,26 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 except (ValueError, RuntimeError) as e:
                     logger.debug("Fitting error",m)
                     logger.debug(e)
+        # If none are acceptable, then fit all
+        if num_unacceptable == self.all_spectral_models.rowCount(None):
+            for i,m in enumerate(self.all_spectral_models.spectral_models):
+                if isinstance(m, SpectralSynthesisModel):
+                    synthesis_measurements.append((i,m))
+                    try:
+                        res = m.fit()
+                        logger.debug(res)
+                    except (ValueError, RuntimeError) as e:
+                        logger.debug("Fitting error",m)
+                        logger.debug(e)
+                if isinstance(m, ProfileFittingModel):
+                    profile_measurements.append((i,m))
+                    try:
+                        res = m.fit()
+                        logger.debug(res)
+                    except (ValueError, RuntimeError) as e:
+                        logger.debug("Fitting error",m)
+                        logger.debug(e)
+
         # CALL CURVE OF GROWTH FOR EW
         # TODO hook this into the session rather than the tab
         equivalent_widths = []
@@ -563,11 +573,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         transitions["equivalent_width"] = equivalent_widths
         finite = np.isfinite(transitions["equivalent_width"])
             
-        # TODO right now it is not hooking into the session, be careful!
+        # Store COG abundances straight into session
         abundances = self.parent.session.rt.abundance_cog(
             self.parent.session.stellar_photosphere, transitions[finite])
         for index, abundance in zip(spectral_model_indices[finite], abundances):
-            self.spectral_models[index]\
+            self.parent.session.metadata["spectral_models"][index]\
                 .metadata["fitted_result"][-1]["abundances"] = [abundance]
 
         #self.abundtree.model().reset()
@@ -595,17 +605,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.selected_model_changed()
         return None
 
-    def save_to_session(self):
-        self.parent.session.metadata["spectral_models"] = self.spectral_models
-        logger.debug("ChemicalAbundanceTab: Overwrote session spectral_models!")
-        # TODO trigger relevant stuff in other tabs
-
-    def updated_spectral_models(self):
-        self.spectral_models = []
-        for model in self.parent.session.metadata["spectral_models"]:
-            if model.use_for_stellar_composition_inference:
-                self.spectral_models.append(model)
-        return None
     def _check_for_spectral_models(self):
         for sm in self.parent.session.metadata.get("spectral_models", []):
             if sm.use_for_stellar_composition_inference: break
@@ -625,7 +624,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     if sm.use_for_stellar_composition_inference: break
                 else:
                     return False
-                self.updated_spectral_models()
             else:
                 return False
         return True
@@ -835,15 +833,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def _get_selected_model(self, full_output=False):
-        """
-        index = self.abundtree.selectionModel().currentIndex()
-        item = index.internalPointer()
-        if isinstance(item,AbundTreeMeasurementItem):
-            model = self.spectral_models[item.sm_ix]
-            return (model, index) if full_output else model
-        else:
-            return (None, None) if full_output else None
-        """
         proxy_index = self.table_view.selectionModel().selectedIndexes()[0]
         index = self.proxy_spectral_models.mapToSource(proxy_index).row()
         model = self.parent.session.metadata["spectral_models"][index]
@@ -893,7 +882,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def update_spectrum_figure(self, redraw=False):
         """
-        TODO refactor
+        TODO refactor all this plotting?
         Currently copied straight from stellar_parameters.py with minor changes
         """
         if self._lines["spectrum"] is None \
@@ -1051,41 +1040,19 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         if selected_model is None:
             # TODO clear plot?
             return None
-        """
-        item = index.internalPointer() # AbundTreeMeasurementItem
-        summary = item.parent
-
-        # If the species is already plotted, don't replot
-        assert isinstance(selected_model, ProfileFittingModel)
-        ## TODO this doesn't update the plot when selecting/deselecting
-        #if selected_model.transitions["species"][0] == self.currently_plotted_species:
-        #    if redraw: self.figure.draw()
-        #    return None
-        
+        # TODO make this more efficient
+        # Go through current proxy model and plot A(X) vs REW;
+        table_model = self.proxy_spectral_models        
         rew_list = []
         abund_list = []
-        for node in summary.subnodes:
-            m = self.spectral_models[node.sm_ix]
-            if not m.is_acceptable: 
-                # Append these to keep indices straight between [de]selected points and the plot
-                rew_list.append(np.nan)
-                abund_list.append(np.nan)
-                continue
-            # TODO SpectralSynthesisModel
-            assert isinstance(m, ProfileFittingModel), m
+        for row in range(table_model.rowCount()):
             try:
-                metadata = m.metadata["fitted_result"][-1]
-                abundances = metadata["abundances"]
-                equivalent_width = metadata["equivalent_width"][0]
-            except (IndexError, KeyError):
-                abundances = [np.nan]
-            abundance = abundances[0]
-            if not np.isfinite(abundance):
-                rew = np.nan
+                abund = float(table_model.data(table_model.createIndex(row, 2, None)))
+                rew = float(table_model.data(table_model.createIndex(row, 4, None)))
+            except ValueError:
+                rew_list.append(np.nan); abund_list.append(np.nan)
             else:
-                rew = np.log10(equivalent_width/m.transitions["wavelength"][0])
-            rew_list.append(rew)
-            abund_list.append(abundance)
+                rew_list.append(rew); abund_list.append(abund)
         if self._points is None:
             self._points = [self.ax_line_strength.scatter([], [], s=30, \
                                  facecolor="k", edgecolor="k", picker=PICKER_TOLERANCE, \
@@ -1095,12 +1062,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         style_utils.relim_axes(self.ax_line_strength)
         
         # TODO this will work for now but is a hack
-        self.currently_plotted_species = m.transitions["species"][0]
-        
+        self.currently_plotted_species = selected_model.transitions["species"][0]
         # TODO trend lines
-        
         if redraw: self.figure.draw()
-        """
+        
         return None
 
     def update_fitting_options(self):
@@ -1315,3 +1280,90 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             #self.update_tree_data(ix)
             self.update_spectrum_figure(True)
             #self.update_line_strength_figure(True)
+
+
+
+class SpectralModelsTableModel(SpectralModelsTableModelBase):
+    def data(self, index, role):
+        """
+        Display the data.
+
+        :param index:
+            The table index.
+
+        :param role:
+            The display role.
+        """
+
+        if not index.isValid():
+            return None
+
+        column = index.column()
+        spectral_model = self.spectral_models[index.row()]
+
+        if  column == 0 \
+        and role in (QtCore.Qt.DisplayRole, QtCore.Qt.CheckStateRole):
+            value = spectral_model.is_acceptable
+            if role == QtCore.Qt.CheckStateRole:
+                return QtCore.Qt.Checked if value else QtCore.Qt.Unchecked
+            else:
+                return None
+        elif column == 1:
+            value = spectral_model._repr_wavelength
+
+        elif column == 2:
+            try:
+                abundances \
+                    = spectral_model.metadata["fitted_result"][2]["abundances"]
+
+            except (IndexError, KeyError):
+                value = ""
+
+            else:
+                # TODO need to get current element from session to pick which one
+                # How many elements were measured?
+                value = "; ".join(["{0:.2f}".format(abundance) \
+                    for abundance in abundances])
+
+        elif column == 3 or column == 4:
+            try:
+                result = spectral_model.metadata["fitted_result"][2]
+                equivalent_width = result["equivalent_width"][0]
+            except:
+                equivalent_width = np.nan
+
+            if column == 3:
+                value = "{0:.1f}".format(1000 * equivalent_width) \
+                    if np.isfinite(equivalent_width) else ""
+            if column == 4:
+                value = "{:.2f}".format(np.log10(equivalent_width/float(spectral_model._repr_wavelength))) \
+                    if np.isfinite(equivalent_width) else ""
+                
+        elif column == 5:
+            # TODO need to get current element from session to pick which one
+            value = "; ".join(["{}".format(element) \
+                      for element in spectral_model.elements])
+
+        return value if role == QtCore.Qt.DisplayRole else None
+
+    def setData(self, index, value, role=QtCore.Qt.DisplayRole):
+        value = super(SpectralModelsTableModel, self).setData(index, value, role)
+        
+        # It ought to be enough just to emit the dataChanged signal, but
+        # there is a bug when using proxy models where the data table is
+        # updated but the view is not, so we do this hack to make it
+        # work:
+
+        # TODO: This means when this model is used in a tab, that tab
+        #       (or whatever the parent is)
+        #       should have a .table_view widget and an .update_spectrum_figure
+        #       method.
+
+        proxy_index = self.parent.table_view.model().mapFromSource(index).row()
+        self.parent.table_view.rowMoved(proxy_index, proxy_index, proxy_index)
+
+        # TODO take care of relevant updates needed
+        self.parent.update_spectrum_figure(False)
+        self.parent.update_line_strength_figure(True)
+        
+        return value

@@ -120,12 +120,15 @@ class BaseSpectralModel(object):
         self._transition_indices = indices
         return indices
 
-
-
     @property
     def elements(self):
         """ Return the elements to be measured from this class. """
         return self.metadata["elements"]
+
+    @property
+    def species(self):
+        """ Return the species to be measured from this class. """
+        return self.metadata["species"]
 
     @property
     def session(self):

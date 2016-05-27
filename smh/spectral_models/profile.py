@@ -113,7 +113,8 @@ class ProfileFittingModel(BaseSpectralModel):
             "wavelength_tolerance": 0.5,
             "velocity_tolerance": None,
             "mask": [],
-            "elements": [self._verify_elements()]
+            "elements": [self._verify_elements()],
+            "species": [self._verify_species()]
         })
 
         # Set the model parameter names based on the current metadata.
@@ -150,13 +151,18 @@ class ProfileFittingModel(BaseSpectralModel):
                              "a ProfileFittingModel")
         return True
 
-
     def _verify_elements(self):
         """
         Return the element that will be measured by this model.
         """
         return self.transitions["element"][0].split()[0]
         
+    def _verify_species(self):
+        """
+        Return the species that will be measured by this model.
+        Ignore isotopes.
+        """
+        return np.floor(self.transitions["species"][0]*10)/10
 
     def _verify_metadata(self):
         """
@@ -305,8 +311,6 @@ class ProfileFittingModel(BaseSpectralModel):
                 except KeyError:
                     None
 
-                #self.transitions["equivalent_width"] = np.nan
-
                 return failure
 
             try:
@@ -327,7 +331,6 @@ class ProfileFittingModel(BaseSpectralModel):
                         del self.metadata["fitted_result"]
                     except KeyError:
                         None
-                    #self.transitions["equivalent_width"] = np.nan
 
                     return failure
 
