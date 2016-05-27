@@ -22,7 +22,7 @@ from smh.linelists import LineList
 
 logger = logging.getLogger(__name__)
 
-from main_ui import *
+from ui_mainwindow import *
 
 datadir = os.path.dirname(os.path.abspath(__file__))+'/../tests/test_data'
 if __name__ == '__main__':
