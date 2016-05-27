@@ -744,6 +744,8 @@ class StellarParametersTab(QtGui.QWidget):
         # work:
         self.table_view.columnMoved(3, 3, 3)
 
+        self.proxy_spectral_models.reset()
+
         return None
 
 
