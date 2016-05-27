@@ -157,6 +157,12 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
         else:
             return None
 
+    def delete_all_filter_functions(self):
+        self.filter_functions = {}
+        self.filter_indices = []
+        self.invalidateFilter()
+        self.reindex()
+        return None
 
     def reset(self, *args):
         super(SpectralModelsFilterProxyModel, self).reset(*args)

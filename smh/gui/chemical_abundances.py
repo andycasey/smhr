@@ -15,6 +15,7 @@ import sys
 from PySide import QtCore, QtGui
 import time
 
+from smh import utils
 import mpl, style_utils
 from matplotlib.ticker import MaxNLocator
 #from smh.photospheres import available as available_photospheres
@@ -57,8 +58,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         lhs_widget = QtGui.QWidget(self)
         lhs_layout = QtGui.QVBoxLayout()
         
-        self.elem_combo_box = QtGui.QComboBox(self)
-        lhs_layout.addWidget(self.elem_combo_box)
+        self.filter_combo_box = QtGui.QComboBox(self)
+        self.filter_combo_box.setSizeAdjustPolicy(QtGui.QComboBox.AdjustToContents)
+        lhs_layout.addWidget(self.filter_combo_box)
 
         self.table_view = SpectralModelsTableView(self)
         # Set up a proxymodel.
@@ -66,15 +68,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.proxy_spectral_models.add_filter_function(
             "use_for_stellar_composition_inference",
             lambda model: model.use_for_stellar_composition_inference)
-
-        # TODO
-        #self.populate_combo_box()
-        #self.combo_box_changed()
-        # when changed, delete all filter functions and add a new one
-        #self.reset_proxy_filters()
-        #all_species = set([])
-        #for spectral_model in self.parent.session.metadata["spectral_models"]:
-        #    all_species.union(set(spectral_model.species))
 
         self.proxy_spectral_models.setDynamicSortFilter(True)
         header = ["", u"λ\n(Å)", "log ε\n(dex)", u"E. W.\n(mÅ)",
@@ -203,6 +196,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         
         self.parent_splitter.addWidget(self.figure)
 
+        # Connect filter combo box
+        self.filter_combo_box.currentIndexChanged.connect(self.filter_combo_box_changed)
+        
         # Connect selection model
         _ = self.table_view.selectionModel()
         _.selectionChanged.connect(self.selected_model_changed)
@@ -497,15 +493,51 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def populate_widgets(self):
         """
-        Refresh widgets from session
+        Refresh widgets from session.
+        Call whenever a session is loaded or spectral models changed
+        TODO
         """
         self.refresh_table()
+        self.populate_filter_combo_box()
+        return None
+
+    def populate_filter_combo_box(self):
+        if self.parent.session is None: return None
+        box = self.filter_combo_box
+        box.clear()
+        box.addItem("All")
+
+        all_species = set([])
+        for spectral_model in self.all_spectral_models.spectral_models:
+            all_species.update(set(spectral_model.species))
+        if len(all_species)==0: return None
+        all_species = np.sort(list(all_species))
+        for species in all_species:
+            elem = utils.species_to_element(species)
+            assert species == utils.element_to_species(elem)
+            box.addItem(elem)
+
+    def filter_combo_box_changed(self):
+        elem = self.filter_combo_box.currentText()
+        table_model = self.proxy_spectral_models
+        table_model.delete_all_filter_functions()
+        table_model.reset()
+        if elem is None or elem == "":
+            return None
+        if elem == "All":
+            return None
+        species = utils.element_to_species(elem)
+        filter_function = lambda model: species in model.species
+        table_model.beginResetModel()
+        table_model.add_filter_function(elem, filter_function)
+        table_model.endResetModel()
         return None
 
     def refresh_table(self):
         if self.parent.session is None: return None
         self._check_for_spectral_models()
         self.proxy_spectral_models.reset()
+        self.populate_filter_combo_box()
         return None
 
     def refresh_plots(self):
@@ -612,6 +644,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             logger.debug("Abundance error",spectral_model)
             logger.debug(e)
             return None
+        except KeyError as e:
+            print("Fit a model first!")
+            return None
         self.update_table_data(proxy_index, index)
         self.selected_model_changed()
         return None
@@ -627,7 +662,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 "Click 'OK' to load the transitions manager.")
             if reply == QtGui.QMessageBox.Ok:
                 # Load line list manager.
-                dialog = TransitionsDialog(self.parent.session)
+                dialog = TransitionsDialog(self.parent.session,
+                    callbacks=[self.proxy_spectral_models.reset, 
+                               self.populate_widgets])
                 dialog.exec_()
 
                 # Do we even have any spectral models now?

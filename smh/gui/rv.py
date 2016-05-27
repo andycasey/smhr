@@ -502,8 +502,9 @@ class RVTab(QtGui.QWidget):
 
         # Wavelength regions.
         # Clear combo box (triggers self.update_wl_region(), be careful)
-        for i in range(self.wl_region.count()):
-            self.wl_region.removeItem(0)
+        self.wl_region.clear()
+        #for i in range(self.wl_region.count()):
+        #    self.wl_region.removeItem(0)
         for each in defaults["wavelength_regions"]:
             self.wl_region.addItem(u"{0:.0f}-{1:.0f} Å".format(*each))
 
