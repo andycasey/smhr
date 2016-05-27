@@ -13,6 +13,9 @@ import logging
 import numpy as np
 import sys
 from PySide import QtCore, QtGui
+from six import string_types
+
+from astropy.table import Column
 
 from smh.linelists import LineList
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
@@ -72,6 +75,18 @@ class LineListTableModel(QtCore.QAbstractTableModel):
     def setData(self, index, value, role):
 
         column = self.columns[index.column()]
+        if column=="comments":
+            # HACK to allow long comments
+            col = self.session.metadata["line_list"][column]
+            ncol = int(col.dtype.str[2:])
+            nchar = len(value)
+            if ncol < nchar:
+                new_col = Column(col, dtype=np.dtype("|S{}".format(nchar)),
+                                 name="comments")
+                self.session.metadata["line_list"].remove_column("comments")
+                self.session.metadata["line_list"].add_column(new_col)
+                # I get a RuntimeWarning that this should return a bool, 
+                # but shouldn't be an issue
         try:
             self.session.metadata["line_list"][column][index.row()] = value
         except:
