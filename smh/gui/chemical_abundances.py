@@ -61,6 +61,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         hbox = QtGui.QHBoxLayout()
         self.filter_combo_box = QtGui.QComboBox(self)
         self.filter_combo_box.setSizeAdjustPolicy(QtGui.QComboBox.AdjustToContents)
+        self.filter_combo_box.addItem("All")
         self.element_summary_text = QtGui.QLabel(self)
         self.element_summary_text.setText("Please load spectral models")
         sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
@@ -96,6 +97,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.table_view.setColumnWidth(1, 70) # MAGIC
         self.table_view.setColumnWidth(2, 70) # MAGIC
         self.table_view.setColumnWidth(3, 70) # MAGIC
+        self.table_view.setColumnWidth(4, 70) # MAGIC
         self.table_view.setMinimumSize(QtCore.QSize(240, 0))
         self.table_view.horizontalHeader().setStretchLastSection(True)
         sp = QtGui.QSizePolicy(
@@ -498,7 +500,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         TODO
         """
         self.refresh_table()
-        self.populate_filter_combo_box()
         return None
 
     def populate_filter_combo_box(self):
@@ -524,13 +525,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         table_model.reset()
         if elem is None or elem == "" or elem == "All":
             self.element_summary_text.setText("")
-            return None
-        species = utils.element_to_species(elem)
-        filter_function = lambda model: species in model.species
-        table_model.beginResetModel()
-        table_model.add_filter_function(elem, filter_function)
-        table_model.endResetModel()
+        else:
+            species = utils.element_to_species(elem)
+            filter_function = lambda model: species in model.species
+            table_model.beginResetModel()
+            table_model.add_filter_function(elem, filter_function)
+            table_model.endResetModel()
         self.summarize_current_table()
+        self.refresh_cache()
+        self.refresh_plots()
         return None
 
     def summarize_current_table(self):
@@ -552,7 +555,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def refresh_plots(self):
+        print("Refreshing plots")
+        print(self._rew_cache, self._abund_cache)
+        model, proxy_index, index = self._get_selected_model(True)
+        print(model, proxy_index, index)
         self.update_spectrum_figure(redraw=False)
+        self.update_selected_points_plot(redraw=False)
         self.update_line_strength_figure(redraw=True)
         return None
 
@@ -593,6 +601,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     except (ValueError, RuntimeError) as e:
                         logger.debug("Fitting error",m)
                         logger.debug(e)
+        self.proxy_spectral_models.reset()
+        self.refresh_cache()
+        self.refresh_plots()
+        return None
 
     def measure_all(self):
         i_profile = 0
@@ -631,9 +643,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.parent.session.metadata["spectral_models"][index]\
                 .metadata["fitted_result"][-1]["abundances"] = [abundance]
 
-        #self.abundtree.model().reset()
+
         self.proxy_spectral_models.reset()
-        self.selected_model_changed()
+        self.refresh_cache()
+        self.refresh_plots()
+        return None
 
     def fit_one(self):
         spectral_model, proxy_index, index = self._get_selected_model(True)
@@ -645,7 +659,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             logger.debug(e)
             return None
         self.update_table_data(proxy_index, index)
+        self.update_cache(proxy_index)
         self.selected_model_changed()
+        return None
+
     def measure_one(self):
         spectral_model, proxy_index, index = self._get_selected_model(True)
         if spectral_model is None: return None
@@ -659,6 +676,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             print("Fit a model first!")
             return None
         self.update_table_data(proxy_index, index)
+        self.update_cache(proxy_index)
         self.selected_model_changed()
         return None
 
@@ -695,22 +713,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         :param event:
             The matplotlib event.
         """
-        if self.currently_plotted_species is None: return None
-        logger.debug("Mouse picked {} from {}".format(event.ind,self.currently_plotted_species))
-        #model = self.abundtree.model()
-        model = self.proxy_spectral_models
-        """
-        ii = model.all_species == self.currently_plotted_species
-        assert np.sum(ii) == 1, "{} {}".format(self.currently_plotted_species, model.all_species)
-        summary_index = np.where(ii)[0]
-        summary = model.summaries[summary_index]
-        item = summary.subnodes[event.ind[0]]
-        index = model.createIndex(event.ind[0],0,item)
-        self.abundtree.setCurrentIndex(index)
-        self.selected_model_changed()
-        """
+        self.table_view.selectRow(event.ind[0])
         return None
-
 
     def figure_mouse_press(self, event):
         """
@@ -891,17 +895,18 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def _get_selected_model(self, full_output=False):
-        proxy_index = self.table_view.selectionModel().selectedIndexes()[0]
+        try:
+            proxy_index = self.table_view.selectionModel().selectedIndexes()[0]
+        except IndexError:
+            return (None, None, None) if full_output else None
         index = self.proxy_spectral_models.mapToSource(proxy_index).row()
         model = self.parent.session.metadata["spectral_models"][index]
         return (model, proxy_index, index) if full_output else model
 
     def selected_model_changed(self):
+        #model, proxy_index, index = self._get_selected_model(True)
         self.update_fitting_options()
-        self.update_spectrum_figure(redraw=False)
-        self.update_selected_points_plot(redraw=False)
-        self.update_line_strength_figure(redraw=True)
-
+        self.refresh_plots()
         return None
 
     def update_spectrum_figure(self, redraw=False):
@@ -936,6 +941,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             if redraw: self.figure.draw()
         
         selected_model = self._get_selected_model()
+        if selected_model is None:
+            print("No model selected")
+            return None
         transitions = selected_model.transitions
         window = selected_model.metadata["window"]
         limits = [
@@ -1059,14 +1067,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         return None
 
-    def update_cache(self, proxy_row):
+    def update_cache(self, proxy_index):
         """
         Update the point plotting cache
         """
+        proxy_row = proxy_index.row()
         table_model = self.proxy_spectral_models
         try:
-            rew = float(table_model.data(table_model.createIndex(row, 4, None)))
-            abund = float(table_model.data(table_model.createIndex(row, 2, None)))
+            rew = float(table_model.data(table_model.createIndex(proxy_row, 4, None)))
+            abund = float(table_model.data(table_model.createIndex(proxy_row, 2, None)))
         except ValueError:
             self._rew_cache[proxy_row] = np.nan
             self._abund_cache[proxy_row] = np.nan
@@ -1074,33 +1083,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self._rew_cache[proxy_row] = rew
             self._abund_cache[proxy_row] = abund
         
-    def update_selected_points_plot(self, redraw=False):
-        """
-        Plot selected points
-        """
-        # These are the proxy model indices
-        indices = np.unique(np.array([index.row() for index in \
-            self.table_view.selectionModel().selectedIndexes()]))
-        points = self._lines["selected_point"][0]
-        if len(indices) == 0:
-            points.set_offsets(np.array([np.nan,np.nan]).T)
-        
-        points.set_offsets(np.array([self._rew_cache[indices],self._abund_cache[indices]]).T)
-        if redraw: self.figure.draw()
-        return None
-
-    def update_line_strength_figure(self, redraw=False, use_cache=True):
-        current_element =  self.filter_combo_box.currentText()
-        if current_element == "All":
-            return None
-        if current_element == self._currently_plotted_element and use_cache:
-            self._points[0].set_offsets(np.array([self._rew_cache, self._abund_cache]).T)
-            style_utils.relim_axes(self.ax_line_strength)
-            return None
+    def refresh_cache(self):
         # Compute cache of REW and abundance from spectral model table model
         # Wow this is the worst naming ever
         # Note that we should use np.nan for REW for synthesis models to keep indices ok
         # I believe that is correctly done in the table model
+        current_element =  self.filter_combo_box.currentText()
         self._currently_plotted_element = current_element
         table_model = self.proxy_spectral_models
         rew_list = []
@@ -1116,8 +1104,42 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._rew_cache = np.array(rew_list)
         self._abund_cache = np.array(abund_list)
         
+    def update_selected_points_plot(self, redraw=False):
+        """
+        Plot selected points
+        """
+        if self.filter_combo_box.currentText() == "All":
+            if redraw: self.figure.draw()
+            return None
+        # These are the proxy model indices
+        indices = np.unique(np.array([index.row() for index in \
+            self.table_view.selectionModel().selectedIndexes()]))
+        if len(indices) == 0:
+            self._lines["selected_point"][0].set_offsets(np.array([np.nan,np.nan]).T)
+            if redraw: self.figure.draw()
+            return None
+        print("Selecting points: {} {} {}".format(indices, \
+              self._rew_cache[indices],self._abund_cache[indices]))
+        
+        self._lines["selected_point"][0].set_offsets(\
+            np.array([self._rew_cache[indices],self._abund_cache[indices]]).T)
+        if redraw: self.figure.draw()
+        return None
+
+    def update_line_strength_figure(self, redraw=False, use_cache=True):
+        current_element =  self.filter_combo_box.currentText()
+        if current_element == "All":
+            if redraw: self.figure.draw()
+            return None
+        if current_element == self._currently_plotted_element and use_cache:
+            self._points[0].set_offsets(np.array([self._rew_cache, self._abund_cache]).T)
+            style_utils.relim_axes(self.ax_line_strength)
+            if redraw: self.figure.draw()
+            return None
+        self.refresh_cache()
+        
         collections = self._points
-        collections[0].set_offsets(np.array([rew_list,abund_list]).T)
+        collections[0].set_offsets(np.array([self._rew_cache,self._abund_cache]).T)
         style_utils.relim_axes(self.ax_line_strength)
         
         # TODO trend lines
@@ -1415,7 +1437,7 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
         self.parent.table_view.rowMoved(proxy_index, proxy_index, proxy_index)
 
         # TODO take care of relevant updates needed
-        self.parent.update_spectrum_figure(redraw=False)
-        self.parent.update_line_strength_figure(redraw=True)
+        self.parent.update_cache(proxy_index)
+        self.parent.refresh_plots()
         
         return value
