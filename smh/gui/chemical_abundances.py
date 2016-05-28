@@ -531,20 +531,27 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             table_model.beginResetModel()
             table_model.add_filter_function(elem, filter_function)
             table_model.endResetModel()
-        self.summarize_current_table()
         self.refresh_cache()
+        self.summarize_current_table()
         self.refresh_plots()
         return None
 
     def summarize_current_table(self):
         elem = self.filter_combo_box.currentText()
         if elem is None or elem == "" or elem == "All":
-            self.element_summary_text.setText("")
+            N = self.proxy_spectral_models.rowCount()
+            self.element_summary_text.setText("N={} lines".format(N))
             return None
-        table_model = self.proxy_spectral_models
-        # TODO loop through proxy table to compute N, mean A(X), error?
-        # That seems very slow...
-        self.element_summary_text.setText(elem)
+        # Use cache to get abundance and avoid looping through proxy table
+        # TODO cache abundance error too!
+        # TODO [X/H], [X/Fe]
+        ii = ~np.isnan(self._abund_cache)
+        N = np.sum(ii)
+        abund = np.mean(self._abund_cache[ii])        
+        errs = np.ones(N)*0.1
+        text = "N={1} A({0})={2:5.2f} e({0})={5:4.2f} [X/H]={3:5.2f} [X/Fe]={4:5.2f}"
+        text = text.format(elem,N,abund,abund,abund,0.1)
+        self.element_summary_text.setText(text)
         return None
 
     def refresh_table(self):
@@ -603,6 +610,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                         logger.debug(e)
         self.proxy_spectral_models.reset()
         self.refresh_cache()
+        self.summarize_current_table()
         self.refresh_plots()
         return None
 
@@ -646,6 +654,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         self.proxy_spectral_models.reset()
         self.refresh_cache()
+        self.summarize_current_table()
         self.refresh_plots()
         return None
 
@@ -660,6 +669,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             return None
         self.update_table_data(proxy_index, index)
         self.update_cache(proxy_index)
+        self.summarize_current_table()
         self.selected_model_changed()
         return None
 
@@ -677,6 +687,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             return None
         self.update_table_data(proxy_index, index)
         self.update_cache(proxy_index)
+        self.summarize_current_table()
         self.selected_model_changed()
         return None
 
@@ -1074,7 +1085,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         proxy_row = proxy_index.row()
         table_model = self.proxy_spectral_models
         try:
-            if not table_model.data(table_model.createIndex(proxy_row, 0, None)):
+            if not table_model.data(table_model.createIndex(proxy_row, 0, None), QtCore.Qt.CheckStateRole):
                 raise ValueError #to put in nan
             rew = float(table_model.data(table_model.createIndex(proxy_row, 4, None)))
             abund = float(table_model.data(table_model.createIndex(proxy_row, 2, None)))
@@ -1096,7 +1107,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         rew_list = []
         abund_list = []
         for row in range(table_model.rowCount()):
+            print("refresh_cache:",table_model.data(table_model.createIndex(row, 0, None), QtCore.Qt.CheckStateRole))
+            print("              ",table_model.data(table_model.createIndex(row, 0, None), QtCore.Qt.CheckStateRole))
             try:
+                if not table_model.data(table_model.createIndex(row, 0, None), QtCore.Qt.CheckStateRole):
+                    raise ValueError #to put in nan
                 rew = float(table_model.data(table_model.createIndex(row, 4, None)))
                 abund = float(table_model.data(table_model.createIndex(row, 2, None)))
             except ValueError:
@@ -1120,7 +1135,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self._lines["selected_point"][0].set_offsets(np.array([np.nan,np.nan]).T)
             if redraw: self.figure.draw()
             return None
-        print("Selecting points: {} {} {}".format(indices, \
+        print("Update selected points plot: {} {} {}".format(indices, \
               self._rew_cache[indices],self._abund_cache[indices]))
         
         self._lines["selected_point"][0].set_offsets(\
@@ -1138,7 +1153,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             style_utils.relim_axes(self.ax_line_strength)
             if redraw: self.figure.draw()
             return None
-        self.refresh_cache()
+        if not use_cache:
+            self.refresh_cache()
+            self.summarize_current_table()
         
         collections = self._points
         collections[0].set_offsets(np.array([self._rew_cache,self._abund_cache]).T)
@@ -1444,6 +1461,7 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
 
         print(proxy_index,proxy_row)
         self.parent.update_cache(proxy_index)
+        self.parent.summarize_current_table()
         print("Time to setData: {:.1f}s".format(time.time()-start))
         self.parent.refresh_plots()
 
