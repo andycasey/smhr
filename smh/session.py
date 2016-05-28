@@ -11,8 +11,12 @@ __all__ = ["Session"]
 import logging
 import numpy as np
 import os
+import tarfile
 import yaml
 from six import string_types
+from six.moves import cPickle as pickle
+from shutil import copyfile, rmtree
+from tempfile import mkdtemp
 
 from .linelists import LineList
 from . import (photospheres, radiative_transfer, specutils, isoutils, utils)
@@ -74,7 +78,10 @@ class Session(BaseSession):
                     break
 
         self.input_spectra = input_spectra
-        self.input_spectra_paths = spectrum_paths
+
+        # We only store this so that we can retain the original file format for
+        # when we save the session.
+        self._input_spectra_paths = spectrum_paths
         
         # Initialize metadata dictionary.
         N = len(self.input_spectra)
@@ -94,6 +101,126 @@ class Session(BaseSession):
         })
 
         return None
+
+
+    def save(self, session_path, overwrite=False, **kwargs):
+        """
+        Save the Session to disk.
+
+        :param session_path:
+            The disk location where to save the session.
+
+        :param overwrite: [optional]
+            Overwrite the file if it already exists.
+        """
+
+        if os.path.exists(session_path) and not overwrite:
+            raise IOError("path '{}' already exists".format(session_path))
+
+        # What files do we need:
+        #   --> input spectra from class.
+        #   --> template spectrum from metadata ("rv", "template_spectrum_path")
+        #   --> line list from metadata ("line_list")
+
+        # What internals do we need:
+        # - the metadata
+        #   --> spectral_models
+
+        # Create a temporary directory and copy the required files there.
+        twd_paths = []
+        metadata = self.metadata.copy()
+        protocol = kwargs.pop("protocol", 2)
+
+        # Store the input spectrum paths before we copy them.
+        metadata["reconstruct_paths"] = {
+            "input_spectra": [os.path.basename(path) \
+                for path in self._input_spectra_paths],
+        }
+
+        # Create a temporary working directory and copy files over.
+        twd = mkdtemp(**kwargs)
+        for path in self._input_spectra_paths:
+            copyfile(path, os.path.join(twd, os.path.basename(path)))
+            twd_paths.append(path)
+
+        # Save the template spectrum.
+        if "template_spectrum_path" in metadata.get("rv", {}):
+            path = metadata["rv"].pop("template_spectrum_path")
+            new_path = os.path.join(twd, ".{}".format(os.path.basename(path)))
+            copyfile(path, new_path)
+            twd_paths.append(new_path)
+            metadata["reconstruct_paths"]["template_spectrum_path"] \
+                = ".{}".format(os.path.basename(path))
+
+        # The line list and session file will always have the same name, since
+        # the line list could be constructed from many paths.
+
+        # Save the line list.
+        if "line_list" in metadata:
+            metadata.pop("line_list").write(os.path.join(twd, "line_list.fits"),
+                format="fits")
+            twd_paths.append(os.path.join(twd, "line_list.fits"))
+
+        # Pickle the metadata.
+        twd_paths.append(os.path.join(twd, "session.pkl"))
+        with open(twd_paths[-1], "wb") as fp:
+            # I dreamt Python 2 was dead. It was great.
+            pickle.dump(metadata, fp, protocol)
+
+        # Tar it up.
+        if not session_path.lower().endswith(".smh"):
+            session_path = "{}.smh".format(session_path)
+        tarball = tarfile.open(name=session_path, mode="w:gz")
+        for path in twd_paths:
+            tarball.add(path, arcname=os.path.basename(path))
+        tarball.close()
+
+        # Remove the temporary working directory.
+        rmtree(twd)
+
+        return True
+
+
+    @classmethod
+    def load(cls, session_path, **kwargs):
+        """
+        Create a Session from a path saved to disk.
+
+        :param session_path:
+            The disk location where to load the session from.
+        """
+
+        # Extract all.
+        tarball = tarfile.open(name=session_path, mode="r:gz")
+        twd = mkdtemp(**kwargs)
+        tarball.extractall(path=twd)
+
+        # Reconstruct the session, starting with the initial paths.
+        with open(os.path.join(twd, "session.pkl"), "rb") as fp:
+            metadata = pickle.load(fp)
+
+        # Load in the line list.
+        if os.path.exists(os.path.join(twd, "line_list.fits")):
+            metadata["line_list"] \
+                = LineList.read(os.path.join(twd, "line_list.fits"))
+
+        # Load in the template spectrum.
+        # TODO: This means we actually need to keep the template spectrum on
+        #       disk until it's loaded. Let's store it now but don't load it in.
+        #if "template_spectrum_path" in metadata["reconstruct_paths"]:
+        #    metadata["rv"]["template_spectrum_path"] = 
+
+        # Create the object.
+        session = cls(metadata["reconstruct_paths"])
+
+        # Remove any reconstruction paths.
+        metadata.pop("reconstruct_paths")
+
+        # Update the new session with the metadata.
+        #session.metadata = metadata
+
+
+        raise NotImplementedError
 
 
     @property
@@ -163,43 +290,8 @@ class Session(BaseSession):
 
         return True
 
-    """
-    def _default(self, input_value, default_key_tree):
-        ""
-        Return the input value if it is valid (i.e., not `None`), or return the
-        default session value.
-
-        :param input_value:
-            The value provided by the user.
-
-        :param default_key_tree:
-            A tuple containing a tree of dictionary keys.
-        ""
-
-        if input_value is not None:
-            return input_value
-
-        with open(self._default_settings_path, "rb") as fp:
-            default = yaml.load(fp)
-
-        for key in default_key_tree:
-            try:
-                default = default[key]
-            except KeyError:
-                raise KeyError("no default session value found for {0}".format(
-                    default_key_tree))
-                
-        return default
-    """
 
 
-    @classmethod
-    def from_filename(cls, session_path, **kwargs):
-        """
-        Create a Session from a path saved to disk.
-        """
-
-        raise NotImplementedError
 
 
     def _get_overlap_order(self, wavelength_regions, template_spectrum=None):
@@ -306,7 +398,7 @@ class Session(BaseSession):
 
         # Is the template spectrum actually a filename?
         if isinstance(template_spectrum, string_types):
-            self.metadata["rv"]["template_spectrum_name"] = template_spectrum
+            self.metadata["rv"]["template_spectrum_path"] = template_spectrum
             template_spectrum = specutils.Spectrum1D.read(template_spectrum,
                 debug=True)
 
