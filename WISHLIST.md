@@ -38,7 +38,7 @@
 - [ ] Implement literature comparison stuff based on data description in the defaults.yaml file.
 - [ ] Show 'heliocentric correction for UTDATE' info in RV tab if it could be calculated.
 - [ ] Ensure inverse variance arrays are being properly used in continuum fitting, and that the fits are correct at the edges.
-- [ ] 'Open recent' list in the File menu.
+- [X] 'Open recent' list in the File menu.
 - [ ] Fix white-text/blue-button GUI bug in OSX. #gui
 - [ ] Quality control metrics filter (and GUI) for spectral models. #gui
 - [ ] Refactor method names in tabs to make them more consistent (e.g., _populate_widgets, redraw_*, __init_ui__)

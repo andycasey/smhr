@@ -242,7 +242,7 @@ class Session(BaseSession):
             A tuple containing a tree of dictionary keys.
         """
 
-        value = self.metadata.copy()
+        value = self.metadata
         try:
             for key in key_tree:
                 value = value[key]

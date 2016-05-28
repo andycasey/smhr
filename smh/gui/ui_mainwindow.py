@@ -8,6 +8,7 @@ from __future__ import (division, print_function, absolute_import,
 
 import sys
 import logging
+import os
 from PySide import QtCore, QtGui
 import yaml
 
@@ -86,7 +87,20 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         file_menu = self.menuBar().addMenu("&File")
         file_menu.addAction(new_session)
+        file_menu.addSeparator()
+
         file_menu.addAction(open_session)
+        self.open_recent_menu = QtGui.QMenu("Open &recent", self)
+
+
+        # Read recently opened from the default settings path.
+        with open(smh.Session._default_settings_path, "rb") as fp:
+            recently_opened = yaml.load(fp).get("_gui_recently_opened", [])
+
+        self.update_recently_opened(recently_opened)
+        file_menu.addMenu(self.open_recent_menu)
+        
+        file_menu.addSeparator()
         file_menu.addAction(save_session)
         file_menu.addAction(save_session_as)
 
@@ -119,6 +133,79 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.setStatusBar(self.statusbar)
 
         return True
+
+
+    def add_to_recently_opened(self, path):
+        """
+        Add the specified path to the recently opened list.
+        """
+
+        with open(smh.Session._default_settings_path, "rb") as fp:
+            default_settings = yaml.load(fp)
+
+        default_settings.setdefault("_gui_recently_opened", [])
+
+        # Only show unique entries.
+        try:
+            default_settings["_gui_recently_opened"].remove(path)
+
+        except ValueError:
+            None
+
+        default_settings["_gui_recently_opened"].insert(0, path)
+        default_settings["_gui_recently_opened"] \
+            = default_settings["_gui_recently_opened"][-5:]
+
+        with open(smh.Session._default_settings_path, "wb") as fp:
+            fp.write(yaml.dump(default_settings))
+
+        self.update_recently_opened(default_settings["_gui_recently_opened"])
+        return None
+
+
+    def clear_recently_opened(self):
+        """
+        Clear the recently opened list.
+        """
+        with open(smh.Session._default_settings_path, "rb") as fp:
+            default_settings = yaml.load(fp)
+
+        default_settings["_gui_recently_opened"] = []
+        with open(smh.Session._default_settings_path, "wb") as fp:
+            fp.write(yaml.dump(default_settings))
+
+        self.update_recently_opened([])
+        return None
+
+
+    def update_recently_opened(self, paths):
+        """
+        Update the recently opened menu with new entries.
+
+        :param paths:
+            The disk paths of the recently opened sessions.
+        """
+
+        self.open_recent_menu.clear()
+
+        for i, path in enumerate(paths):
+            action = QtGui.QAction(os.path.basename(path), self)
+            self.connect(action, QtCore.SIGNAL("triggered()"),
+                lambda *_: self.open_session(path))
+            self.open_recent_menu.addAction(action)
+
+        if len(paths) == 0:
+            self._no_recent_sessions = QtGui.QAction(
+                "(No recent sessions)", self, triggered=lambda *_: None)
+            self._no_recent_sessions.setEnabled(False)
+            self.open_recent_menu.addAction(self._no_recent_sessions)
+
+        self.open_recent_menu.addSeparator()
+        self.open_recent_menu.addAction(QtGui.QAction("Clear recently opened",
+            self, statusTip="Clear the recently opened sessions",
+            triggered=self.clear_recently_opened))
+
+        return None
 
 
     def new_session(self, filenames=None):
@@ -202,6 +289,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
                 caption="Select session", dir="", filter="*.smh")
             if not path: return
 
+
+        self.add_to_recently_opened(path)
+
         raise NotImplementedError
 
         print("Open session")
@@ -225,6 +315,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         """ Save session as new filename. """
         print("Save session as")
         return None
+
 
 
     def export_normalized_spectrum(self):
