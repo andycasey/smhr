@@ -57,8 +57,8 @@ class NormalizationTab(QtGui.QWidget):
         self.parent = parent
 
         # Establish the GUI for this tab.
-        sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.MinimumExpanding)
+        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
+            QtGui.QSizePolicy.MinimumExpanding)
         sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
         self.setSizePolicy(sp)
 
@@ -188,29 +188,10 @@ class NormalizationTab(QtGui.QWidget):
         self.knot_spacing.setMaximumSize(QtCore.QSize(40, 16777215))
         self.knot_spacing.setAlignment(QtCore.Qt.AlignCenter)
         self.knot_spacing.setValidator(
-            QtGui.QIntValidator(0, 10000, self.knot_spacing))
+            QtGui.QDoubleValidator(0, 10000, 0, self.knot_spacing))
         self.knot_spacing.setObjectName("norm_knot_spacing")
         hbox.addWidget(self.knot_spacing)
         settings_grid_layout.addLayout(hbox, 5, 1, 1, 1)
-
-        """
-        # Relative weights for additional points
-        relative_weight_label = QtGui.QLabel(self)
-        settings_grid_layout.addWidget(relative_weight_label, 6, 0, 1, 1)
-        relative_weight_label.setText("Weighting added points")
-
-        hbox = QtGui.QHBoxLayout()
-        hbox.setContentsMargins(-1, -1, 5, -1)
-        hbox.addItem(QtGui.QSpacerItem(
-            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
-        self.relative_weight = QtGui.QLineEdit(self)
-        self.relative_weight.setMaximumSize(QtCore.QSize(40, 16777215))
-        self.relative_weight.setAlignment(QtCore.Qt.AlignCenter)
-        self.relative_weight.setValidator(
-            QtGui.QDoubleValidator(0, 1e8, 0, self.relative_weight))
-        hbox.addWidget(self.relative_weight)
-        settings_grid_layout.addLayout(hbox, 6, 1, 1, 1)
-        """
 
         # End of the grid in the normalization tab.
         settings_layout.addLayout(settings_grid_layout)
@@ -261,31 +242,37 @@ class NormalizationTab(QtGui.QWidget):
         settings_layout.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
 
-
         tab_layout.addWidget(settings_widget)
 
         # Create a matplotlib widget.
-        blank_widget = QtGui.QWidget(self)
-        blank_widget.setStatusTip(
-            "Use left/right arrows to move between orders; "
-            "up/down arrows to scale continuum; "
-            "'c' to clear points and interactive exclusion regions; "
-            "'d' to specify no continuum normalization.")
+        self.norm_plot = mpl.MPLWidget(None, tight_layout=True, matchbg=self)
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         sp.setHorizontalStretch(0)
         sp.setVerticalStretch(0)
-        sp.setHeightForWidth(blank_widget.sizePolicy().hasHeightForWidth())
-        blank_widget.setSizePolicy(sp)
-        blank_widget.setObjectName("norm_plot")
+        sp.setHeightForWidth(self.norm_plot.sizePolicy().hasHeightForWidth())
+        self.norm_plot.setSizePolicy(sp)
+        self.norm_plot.setFocusPolicy(QtCore.Qt.StrongFocus)
 
+        self.order_slide = QtGui.QSlider(self)
+        self.order_slide.setGeometry(QtCore.QRect(230, 200, 160, 22))
+        self.order_slide.setOrientation(QtCore.Qt.Horizontal)
+        self.order_slide.setFocusPolicy(QtCore.Qt.ClickFocus)
+        self.order_slide.setMaximum(15)
+        self.order_slide.setOrientation(QtCore.Qt.Horizontal)
+        self.order_slide.setTickInterval(1)
+        self.current_order_label = QtGui.QLabel(self)
+        self.current_order_label.setText("")
+        self.order_slide.valueChanged.connect(self.update_order_figure)
 
-        self.norm_plot = mpl.MPLWidget(blank_widget, tight_layout=True,
-            autofocus=True)
+        vbox = QtGui.QVBoxLayout()
+        vbox.addWidget(self.norm_plot)
+        hbox = QtGui.QHBoxLayout()
+        hbox.addWidget(self.order_slide)
+        hbox.addWidget(self.current_order_label)
+        vbox.addLayout(hbox)
 
-        layout = QtGui.QVBoxLayout(blank_widget)
-        layout.addWidget(self.norm_plot, 1)
-        tab_layout.addWidget(blank_widget)
+        tab_layout.addLayout(vbox)
 
         # Set up the plot.
         gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
@@ -303,8 +290,6 @@ class NormalizationTab(QtGui.QWidget):
         # Additional point markers.
         self.ax_order.scatter([], [], facecolor="k", zorder=5, picker=5)
 
-        # Regions
-
         self.ax_order.set_xticklabels([])
         self.ax_order.set_yticklabels([])
         self.ax_order.set_ylabel("Flux")
@@ -318,16 +303,12 @@ class NormalizationTab(QtGui.QWidget):
         self.ax_order_norm.set_yticks([0, 0.5, 1.0])
         self.ax_order_norm.set_xlabel(u"Wavelength (Å)")
 
-        #self.norm_plot.figure.tight_layout(w_pad=0, h_pad=0, pad=0.4)
         self.norm_plot.draw()
 
         # Create signals.
         self.stitch_btn.clicked.connect(self.normalize_and_stitch)
 
-        # Note that key_press_event is linked to norm_plot.canvas, while the
-        # mouse events are linked to norm_plot.
-        # I don't know why, but that's how it works.
-        self.norm_plot.canvas.mpl_connect(
+        self.norm_plot.mpl_connect(
             "key_press_event", self.figure_key_press)
         self.norm_plot.mpl_connect(
             "button_press_event", self.figure_mouse_press)
@@ -349,6 +330,7 @@ class NormalizationTab(QtGui.QWidget):
         self.low_sigma_clip.textChanged.connect(self.check_state)
         self.high_sigma_clip.textChanged.connect(self.check_state)
         self.knot_spacing.textChanged.connect(self.check_state)
+        return None
 
 
     def normalize_and_stitch(self):
@@ -359,20 +341,17 @@ class NormalizationTab(QtGui.QWidget):
         # Normalize any remaining orders.
         index = self.current_order_index 
         for i in range(len(self.parent.session.input_spectra)):
-            self.update_order_index(i)
+            self.update_order_index(i) # TODO: This is clumsy.
             self.fit_continuum(clobber=False)
 
         # Go back to original order.
         self.update_order_index(index)
 
         # Stitch and stack all orders.
-        print("Stitching")
         self.parent.session.stitch_and_stack()
 
-        # Enable the menu-bar.
+        # Enable the menu-bar and the next two tabs.
         self.parent._menu_export_normalized_spectrum.setEnabled(True)
-
-        # Enable the next two tabs (line measurements and stellar parameters).
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 1, True)
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 2, True)
 
@@ -400,7 +379,6 @@ class NormalizationTab(QtGui.QWidget):
         sender.setStyleSheet('QLineEdit { background-color: %s }' % color)
 
 
-
     def figure_key_press(self, event):
         """
         Key press event in the normalization figure.
@@ -418,21 +396,10 @@ class NormalizationTab(QtGui.QWidget):
         # Show a new order.
         if event.key in ("left", "right"):
             offset = 1 if event.key == "right" else -1
-
-            self.update_order_index(np.clip(self.current_order_index + offset,
-                0, len(self.parent.session.input_spectra) - 1))
-            self.draw_order(refresh=False)
-            self.update_continuum_mask(refresh=False)
-            self.fit_continuum(clobber=False)
-            self.draw_continuum(refresh=True)
-
-            # Do all of the orders have continuum? If so, update the button.
-            if not any([(_ is None) for _ in \
-            self.parent.session.metadata["normalization"]["continuum"]]):
-                self.stitch_btn.setText("Stitch orders")
+            self.order_slide.setValue(self.order_slide.value() + offset)
+            self.update_order_figure()
 
             return None
-
 
         # Scale the continuum up/down.
         if event.key in ("up", "down"):
@@ -710,15 +677,23 @@ class NormalizationTab(QtGui.QWidget):
             self._cache["masks"].keys().index(
                 self._cache["default_mask"]))
 
-
+        self.order_slide.setMaximum(len(self.parent.session.input_spectra) - 1)
+        self.current_order_label.setText("Order 1 of {}".format(
+            len(self.parent.session.input_spectra)))
 
         # Draw the widgets.
         try:
+            self.order_slide.setValue(0)
+            """
+
             self.update_order_index(0)
             self.update_continuum_mask(refresh=False)
             self.fit_continuum(clobber=False)
             self.draw_order(refresh=False)
             self.draw_continuum(refresh=True)
+
+            """
+
         except (AttributeError, KeyError):
             # HACK
             # when loading a fresh session, it will skip all those blocks
@@ -925,7 +900,7 @@ class NormalizationTab(QtGui.QWidget):
         Update the currently selected order.
         """
         if index is None:
-            index = self.current_order_index
+            index = getattr(self, "current_order_index", 0)
 
         session = self.parent.session
         self.current_order_index = index
@@ -945,6 +920,38 @@ class NormalizationTab(QtGui.QWidget):
         self.check_for_different_input_settings()
 
         return None
+
+
+
+    def update_order_figure(self, index=None):
+
+        #offset = 1 if event.key == "right" else -1
+
+        self.update_order_index(index or self.order_slide.value())
+
+        self.draw_order(refresh=False)
+        self.update_continuum_mask(refresh=False)
+        self.fit_continuum(clobber=False)
+        self.draw_continuum(refresh=True)
+
+        self.current_order_label.setText("Order {} of {}".format(
+            1 + self.order_slide.value(), len(self.parent.session.input_spectra)))
+        
+        # Do all of the orders have continuum? If so, update the button.
+        if not any([(_ is None) for _ in \
+        self.parent.session.metadata["normalization"]["continuum"]]):
+            self.stitch_btn.setText("Stitch orders")
+
+        return None 
+
+
+
+
+
+
+
+
+
 
 
     def check_for_different_input_settings(self):
@@ -1037,9 +1044,9 @@ class NormalizationTab(QtGui.QWidget):
         self.ax_order.set_xlim(x[0], x[-1])
         self.ax_order.set_ylim(np.nanmin(y), np.nanmax(y))
 
-        self.ax_order.set_title("Order {0} of {1}".format(
-            1 + self.current_order_index, 
-            len(self.parent.session.input_spectra)))
+        #self.ax_order.set_title("Order {0} of {1}".format(
+        #    1 + self.current_order_index, 
+        #    len(self.parent.session.input_spectra)))
 
         if refresh:
             self.norm_plot.draw()

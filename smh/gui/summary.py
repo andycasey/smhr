@@ -30,7 +30,6 @@ class SummaryTab(QtGui.QWidget):
 
         super(SummaryTab, self).__init__(parent)
         self.parent = parent
-        self.setObjectName("summary_tab")
 
         # Right pane: A MPL figure with two axes, vertically aligned.
         # Left pane:
@@ -68,7 +67,6 @@ class SummaryTab(QtGui.QWidget):
 
         # Notes.
         self.summary_notes = QtGui.QPlainTextEdit(self)
-        self.summary_notes.setObjectName("summary_notes")
         summary_layout.addWidget(self.summary_notes)
 
         # External sources of information.
@@ -76,7 +74,6 @@ class SummaryTab(QtGui.QWidget):
 
         # - Simbad
         self.btn_query_simbad = QtGui.QPushButton(self)
-        self.btn_query_simbad.setObjectName("btn_query_simbad")
         self.btn_query_simbad.setText("Query Simbad..")
         self.btn_query_simbad.clicked.connect(self.query_simbad)
 
@@ -88,29 +85,20 @@ class SummaryTab(QtGui.QWidget):
 
 
         # Create a matplotlib widget in the right hand pane.
-        blank_widget = QtGui.QWidget(self)
-        blank_widget.setVisible(False)
-        blank_widget.setFixedWidth(400)
 
+
+        self.figure = mpl.MPLWidget(None, tight_layout=True)
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         sp.setHorizontalStretch(0)
         sp.setVerticalStretch(0)
-        sp.setHeightForWidth(blank_widget.sizePolicy().hasHeightForWidth())
-        blank_widget.setSizePolicy(sp)
-
-
-        self.figure = mpl.MPLWidget(blank_widget, tight_layout=True)
+        sp.setHeightForWidth(self.figure.sizePolicy().hasHeightForWidth())
+        self.figure.setSizePolicy(sp)
         self.figure.setFixedWidth(400)
-
-        layout = QtGui.QVBoxLayout(blank_widget)
-        layout.addWidget(self.figure)
-        tab_layout.addWidget(blank_widget)
-
+        tab_layout.addWidget(self.figure)
 
         self.ax_top_comparison = self.figure.figure.add_subplot(211)
         self.ax_bottom_comparison = self.figure.figure.add_subplot(212)
-        blank_widget.setVisible(True)
 
         # Initialize the widgets.
         self._populate_widgets()

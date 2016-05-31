@@ -356,21 +356,13 @@ class RVTab(QtGui.QWidget):
         rv_tab_layout.addLayout(rv_settings_vbox)
 
         # Create a matplotlib widget.
-        blank_widget = QtGui.QWidget(self)
+        self.rv_plot = mpl.MPLWidget(None, tight_layout=True)
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         sp.setHorizontalStretch(0)
         sp.setVerticalStretch(0)
-        sp.setHeightForWidth(blank_widget.sizePolicy().hasHeightForWidth())
-        blank_widget.setSizePolicy(sp)
-        blank_widget.setObjectName("blank_widget")
-
-        self.rv_plot = mpl.MPLWidget(blank_widget, tight_layout=True)
-
-        layout = QtGui.QVBoxLayout(blank_widget)        
-        layout.addWidget(self.rv_plot, 1)
-
-        rv_tab_layout.addWidget(blank_widget)
+        sp.setHeightForWidth(self.rv_plot.sizePolicy().hasHeightForWidth())
+        rv_tab_layout.addWidget(self.rv_plot)
 
 
         gs_top = gridspec.GridSpec(3, 1, height_ratios=[2, 1, 1, 1])

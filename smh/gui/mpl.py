@@ -31,7 +31,7 @@ class MPLWidget(FigureCanvas):
     """
 
     def __init__(self, parent=None, toolbar=False, tight_layout=True,
-        autofocus=False):
+        autofocus=False, **kwargs):
         """
         A widget to contain a matplotlib figure.
 
@@ -57,10 +57,10 @@ class MPLWidget(FigureCanvas):
         # right. It seems impossible to get the *actual* color of the parent
         # background when the widget is in a tab, but it seems it is just 10
         # points darker.
-        if parent is not None:
-            bg_color = [(_ - 10)/255. for _ in \
-                parent.palette().color(QtGui.QPalette.Window).getRgb()[:3]]
-            self.figure.patch.set_facecolor(bg_color)
+        #if patchbg is not None:
+        #    bg_color = [(_ - 10)/255. for _ in \
+        #        parent.palette().color(QtGui.QPalette.Window).getRgb()[:3]]
+        #    patchbg.figure.patch.set_facecolor(bg_color)
 
         if autofocus:
             self._autofocus_cid = self.canvas.mpl_connect(

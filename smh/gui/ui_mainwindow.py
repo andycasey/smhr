@@ -138,6 +138,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
     def add_to_recently_opened(self, path):
         """
         Add the specified path to the recently opened list.
+
+        :param path:
+            The path of the recently opened file to add to the list.
         """
 
         with open(smh.Session._default_settings_path, "rb") as fp:
@@ -167,6 +170,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         """
         Clear the recently opened list.
         """
+
         with open(smh.Session._default_settings_path, "rb") as fp:
             default_settings = yaml.load(fp)
 
@@ -284,6 +288,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
     def open_session(self, path=None):
         """ Open existing session. """
 
+        print("opening {}".format(path))
+
+
         if path is None:
             path, _ = QtGui.QFileDialog.getOpenFileName(self,
                 caption="Select session", dir="", filter="*.smh")
@@ -314,6 +321,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
     def save_session_as(self):
         """ Save session as new filename. """
         print("Save session as")
+        self.save_session_as()
         return None
 
 
@@ -392,9 +400,10 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.addTab(self.stellar_parameters_tab, "Stellar parameters")
 
         # Create chemical abundances tab
-        self.chemical_abundances_tab \
-            = chemical_abundances.ChemicalAbundancesTab(self)
-        self.tabs.addTab(self.chemical_abundances_tab, "Chemical abundances")
+        # BUT IT'S XBOX HUGE
+        #self.chemical_abundances_tab \
+        #    = chemical_abundances.ChemicalAbundancesTab(self)
+        #self.tabs.addTab(self.chemical_abundances_tab, "Chemical abundances")
 
         # Disable all tabs except the first one.
         for i in range(self.tabs.count()):

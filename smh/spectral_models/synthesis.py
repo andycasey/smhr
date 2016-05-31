@@ -160,6 +160,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
         return elements
 
+
     def _verify_species(self, elements):
         # Format the elements and then check that all are real.
         if isinstance(elements, string_types):
@@ -171,7 +172,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         for element in elements:
             # Get the species associated with this element
             ii = np.logical_or(transitions["elem1"]==element, transitions["elem2"]==element)
-            species = np.unique(transitions[ii]["species"])
+            species = list(np.unique(transitions[ii]["species"]))
             if len(species) > 1:
                 # TODO how to deal with this correctly?
                 raise ValueError(
