@@ -53,19 +53,15 @@ class SpectralModelsTableView(QtGui.QTableView):
         N = len(self.selectionModel().selectedRows())
         
         menu = QtGui.QMenu(self)
-        fit_models = menu.addAction("Fit model{}..".format(["", "s"][N != 1]))
+        fit_models = menu.addAction("Fit selected model{}..".format(["", "s"][N != 1]))
         menu.addSeparator()
-        option = menu.addAction("Mark as acceptable")
-        option.setEnabled(False)
-        option = menu.addAction("Mark as unacceptable")
-        option.setEnabled(False)
-        option = menu.addAction("Measure Abundances")
-        option.setEnabled(False)
-        option = menu.addAction("Option D")
-        option.setEnabled(False)
+        measure_models = menu.addAction("Measure selected model{}..".format(["", "s"][N != 1]))
+        measure_models.setEnabled(False)
         menu.addSeparator()
-        option = menu.addAction("Option E")
-        option.setEnabled(False)
+        mark_as_acceptable = menu.addAction("Mark as acceptable")
+        mark_as_acceptable.setEnabled(False)
+        mark_as_unacceptable = menu.addAction("Mark as unacceptable")
+        mark_as_unacceptable.setEnabled(False)
 
         if N == 0:
             fit_models.setEnabled(False)
@@ -92,19 +88,20 @@ class SpectralModelsTableView(QtGui.QTableView):
                 # TODO parent has update_spectrum_figure()
                 self.parent.update_spectrum_figure()
 
+            row = proxy_index.row()
+
             # Update the data model.
             data_model.dataChanged.emit(
-                data_model.createIndex(proxy_index.row(), 0),
-                data_model.createIndex(proxy_index.row(),
-                    data_model.columnCount(QtCore.QModelIndex())))
+                data_model.createIndex(row, 0),
+                data_model.createIndex(row,data_model.columnCount(None)))
 
             # It ought to be enough just to emit the dataChanged signal, but
             # there is a bug when using proxy models where the data table is
             # updated but the view is not, so we do this hack to make it
             # work:
             # TODO parent has table_view
-            self.parent.table_view.rowMoved(
-                proxy_index.row(), proxy_index.row(), proxy_index.row())
+            #self.parent.table_view.rowMoved
+            self.rowMoved(row, row, row)
 
         return None
 
