@@ -168,6 +168,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=2)
             ],
             "spectrum": None,
+            "spectrum_fill": None,
+            "residual_fill": None,
             "transitions_center_main": self.ax_spectrum.axvline(
                 np.nan, c="#666666", linestyle=":"),
             "transitions_center_residual": self.ax_residual.axvline(
@@ -1059,38 +1061,39 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             transitions["wavelength"][0] - window,
             transitions["wavelength"][-1] + window,
         ]
-        print(limits)
 
-        #if self._lines["spectrum"] is None \
-        #and hasattr(self.parent, "session") \
-        #and hasattr(self.parent.session, "normalized_spectrum"):
         if hasattr(self.parent, "session") \
         and hasattr(self.parent.session, "normalized_spectrum"):
-            # TODO this may give terrible memory leaks
+            try:
+                # Fix the memory leak!
+                self.ax_spectrum.lines.remove(self._lines["spectrum"])
+                self.ax_spectrum.collections.remove(self._lines["spectrum_fill"])
+                self.ax_residual.collections.remove(self._lines["residual_fill"])
+            except Exception as e:
+                # TODO fail in a better way
+                print(e)
+
             # Draw the spectrum.
             spectrum = self.parent.session.normalized_spectrum
             plot_ii = np.logical_and(spectrum.dispersion > limits[0]-10,
                                      spectrum.dispersion < limits[1]+10)
             self._lines["spectrum"] = self.ax_spectrum.plot(spectrum.dispersion[plot_ii],
-                spectrum.flux[plot_ii], c="k", drawstyle="steps-mid")
+                spectrum.flux[plot_ii], c="k", drawstyle="steps-mid")[0]
 
             sigma = 1.0/np.sqrt(spectrum.ivar[plot_ii])
+            self._lines["spectrum_fill"] = \
             style_utils.fill_between_steps(self.ax_spectrum, spectrum.dispersion[plot_ii],
                 spectrum.flux[plot_ii] - sigma, spectrum.flux[plot_ii] + sigma, 
                 facecolor="#cccccc", edgecolor="#cccccc", alpha=1)
 
+            self._lines["residual_fill"] = \
             style_utils.fill_between_steps(self.ax_residual, spectrum.dispersion[plot_ii],
                 -sigma, +sigma, facecolor="#CCCCCC", edgecolor="none", alpha=1)
 
-            #self.ax_spectrum.set_xlim(
-            #    spectrum.dispersion[0], spectrum.dispersion[-1])
-            #self.ax_residual.set_xlim(self.ax_spectrum.get_xlim())
             self.ax_spectrum.set_ylim(0, 1.2)
             self.ax_spectrum.set_yticks([0, 0.5, 1])
             three_sigma = 3*np.median(sigma[np.isfinite(sigma)])
             self.ax_residual.set_ylim(-three_sigma, three_sigma)
-
-            #if redraw: self.figure.draw()
         
         # Zoom to region.
         self.ax_spectrum.set_xlim(limits)
@@ -1476,7 +1479,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
     def clicked_btn_clear_masks(self):
         spectral_model = self._get_selected_model()
-        spectral_model.metadata["masks"] = []
+        spectral_model.metadata["mask"] = []
         spectral_model.metadata.pop("fitted_result", None)
         self.fit_one()
         return None
