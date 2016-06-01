@@ -12,9 +12,14 @@ from subprocess import check_output
 
 # Software version.
 __version__ = "0.1"
+
+# Python 2/3 compatibility:
+safe_check_output = lambda x, shell=True: check_output(x, shell=shell).decode(
+    "ascii", "ignore")
+
 try:
-    git_hash = check_output('git log -1 --date=short --format="%h"', shell=True)
-    unstaged_changes = check_output('git status -s -uno', shell=True)
+    git_hash = safe_check_output('git log -1 --date=short --format="%h"')
+    unstaged_changes = safe_check_output('git status -s -uno')
 
 except:
     __git_status__ = None

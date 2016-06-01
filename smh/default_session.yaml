@@ -8,11 +8,11 @@ rv:
   resample: template
   apodize: 0
   normalization:
-    knot_spacing: 100
+    knot_spacing: 10
     low_sigma_clip: 1.0
     high_sigma_clip: 0.2
     max_iterations: 5
-    order: 6
+    order: 5
     exclude: null
     include: null
     function: spline 
