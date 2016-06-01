@@ -11,6 +11,7 @@ __all__ = ["Session"]
 import logging
 import numpy as np
 import os
+import sys
 import tarfile
 import yaml
 from six import string_types
@@ -178,9 +179,31 @@ class Session(BaseSession):
 
         # Pickle the metadata.
         twd_paths.append(os.path.join(twd, "session.pkl"))
-        with open(twd_paths[-1], "wb") as fp:
-            # I dreamt Python 2 was dead. It was great.
-            pickle.dump(metadata, fp, protocol)
+        try:
+            with open(twd_paths[-1], "wb") as fp:
+                # I dreamt Python 2 was dead. It was great.
+                pickle.dump(metadata, fp, protocol)
+
+        except Exception, e:
+            logger.exception("Exception in serializing session:")
+
+            exc_info = sys.exc_info()
+
+            # Go through the key/value pairs and see what can/cannot be
+            # saved.
+            failed_on = []
+            for key, value in metadata.iteritems():
+                try:
+                    with open(os.path.join("twd", ".damaged", "wb")) as dfp:
+                        pickle.dump([key, value], dfp, protocol)
+                except:
+                    failed_on.append(key)
+
+            logger.warning("Could not pickle the following keys (and their "
+                "value pairs): {}".format(", ".join(failed_on)))
+
+            # Now re-raise the original exception.
+            raise (exc_info[1], None, exc_info[2])
 
         # Tar it up.
         if not session_path.lower().endswith(".smh"):
