@@ -870,6 +870,29 @@ class NormalizationTab(QtGui.QWidget):
     def update_normalization_function(self):
         """ Update the normalization function. """
         self._cache["input"]["function"] = self.function.currentText()
+
+        indices = range(5, 10)
+
+        # If the function is a spline, then it is limited to order 5.
+        if self._cache["input"]["function"] == "Spline":
+            if int(self.order.currentText()) > 5:
+                # Limit it to 5.
+                self.order.setCurrentIndex(4) # Index 4 = Order '5'
+
+            # Disable the other entries.
+            for i in indices:
+                item = self.order.model().item(i)
+                if item is not None:
+                    item.setEnabled(False)
+
+        else:
+            # Enable order entries greater than 5.
+            for i in indices:
+                item = self.order.model().item(i)
+                if item is not None:
+                    item.setEnabled(True)
+
+
         self.reset_input_style_defaults()
         self.fit_continuum(True)
         self.draw_continuum(True)
@@ -1117,7 +1140,7 @@ class NormalizationTab(QtGui.QWidget):
             logger.exception("No continuum could be fit.")
             self.parent.statusbar.showMessage(
                 "Exception occurred while trying to fit the continuum.")
-
+            raise
             continuum = np.nan
 
             # Did a user input something bad? Let them know..

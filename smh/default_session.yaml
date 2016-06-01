@@ -19,7 +19,7 @@ rv:
     scale: 1.0
 normalization:
   function: spline
-  order: 6
+  order: 5
   max_iterations: 5
   low_sigma_clip: 1.0
   high_sigma_clip: 0.2

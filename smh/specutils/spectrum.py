@@ -438,7 +438,8 @@ class Spectrum1D(object):
         high_sigma_clip=0.2, max_iterations=3, order=3, exclude=None, \
         include=None, additional_points=None, function='spline', scale=1.0,
         **kwargs):
-        """Fits the continuum for a given `Spectrum1D` spectrum.
+        """
+        Fits the continuum for a given `Spectrum1D` spectrum.
         
         Parameters
         ----
@@ -504,9 +505,11 @@ class Spectrum1D(object):
             else:
                 # Multiple regions provided
                 for exclude_region in exclude:
-                    exclude_indices.extend(range(*np.searchsorted(dispersion, exclude_region)))
+                    exclude_indices.extend(
+                        range(*np.searchsorted(dispersion, exclude_region)))
         
-            continuum_indices = np.sort(list(set(continuum_indices).difference(np.sort(exclude_indices))))
+            continuum_indices = np.sort(list(set(continuum_indices).difference(
+                np.sort(exclude_indices))))
             
         # See if there are any regions we should always include
         if include is not None and len(include) > 0:
@@ -519,16 +522,18 @@ class Spectrum1D(object):
             else:
                 # Multiple regions provided
                 for include_region in include:
-                    include_indices.extend(range(*np.searchsorted(dispersion, include_region)))
+                    include_indices.extend(range(*np.searchsorted(
+                        dispersion, include_region)))
         
-
-        # We should exclude non-finite numbers from the fit
-        non_finite_indices = np.where(~np.isfinite(self.flux))[0]
-        continuum_indices = np.sort(list(set(continuum_indices).difference(non_finite_indices)))
+        # We should exclude non-finite values from the fit.
+        non_finite_indices = np.where(~np.isfinite(self.flux * self.ivar))[0]
+        continuum_indices = np.sort(list(set(continuum_indices).difference(
+            non_finite_indices)))
 
         # We should also exclude zero or negative flux points from the fit
         zero_flux_indices = np.where(0 >= self.flux)[0]
-        continuum_indices = np.sort(list(set(continuum_indices).difference(zero_flux_indices)))
+        continuum_indices = np.sort(list(set(continuum_indices).difference(
+            zero_flux_indices)))
 
         original_continuum_indices = continuum_indices.copy()
 
@@ -539,10 +544,12 @@ class Spectrum1D(object):
             knot_spacing = abs(knot_spacing)
             
             end_spacing = ((dispersion[-1] - dispersion[0]) % knot_spacing) /2.
-        
             if knot_spacing/2. > end_spacing: end_spacing += knot_spacing/2.
                 
-            knots = np.arange(dispersion[0] + end_spacing, dispersion[-1] - end_spacing + knot_spacing, knot_spacing)
+            knots = np.arange(dispersion[0] + end_spacing, 
+                dispersion[-1] - end_spacing + knot_spacing, 
+                knot_spacing)
+
             if len(knots) > 0 and knots[-1] > dispersion[continuum_indices][-1]:
                 knots = knots[:knots.searchsorted(dispersion[continuum_indices][-1])]
                 
@@ -569,10 +576,14 @@ class Spectrum1D(object):
                     # Insert the values
                     splrep_disp = np.insert(splrep_disp, insert_index, point)
                     splrep_flux = np.insert(splrep_flux, insert_index, flux)
-                    splrep_weights = np.insert(splrep_weights, insert_index, median_weight * weight)
+                    splrep_weights = np.insert(splrep_weights, insert_index, 
+                        median_weight * weight)
 
             if function == 'spline':
-                order = 5 if order > 5 else order
+                if order > 5:
+                    logger.warn("Splines can only have a maximum order of 5. "
+                        "Limiting order value to 5.")
+                    order = 5
                 tck = interpolate.splrep(splrep_disp, splrep_flux,
                     k=order, task=-1, t=knots, w=splrep_weights)
 
@@ -585,14 +596,15 @@ class Spectrum1D(object):
                 popt, pcov = op.curve_fit(lambda x, *c: np.polyval(c, x), 
                     splrep_disp, splrep_flux, coeffs, 
                     sigma=self.ivar[continuum_indices], absolute_sigma=False)
-                print(splrep_disp.shape, splrep_flux.shape, coeffs.shape, self.ivar[continuum_indices].shape)
                 continuum = np.polyval(popt, dispersion)
 
             else:
-                raise ValueError("Unknown function type: only spline or poly available (%s given)" % (function, ))
+                raise ValueError("Unknown function type: only spline or poly "\
+                    "available ({} given)".format(function))
             
             difference = continuum - self.flux
-            sigma_difference = difference / np.std(difference[np.isfinite(self.flux)])
+            sigma_difference = difference \
+                / np.std(difference[np.isfinite(self.flux)])
 
             # Clipping
             upper_exclude = np.where(sigma_difference > high_sigma_clip)[0]
@@ -609,10 +621,12 @@ class Spectrum1D(object):
             # Before excluding anything, we must check to see if there are regions
             # which we should never exclude
             if include is not None:
-                exclude_indices = set(exclude_indices).difference(include_indices)
+                exclude_indices \
+                    = set(exclude_indices).difference(include_indices)
             
             # Remove regions that have been excluded
-            continuum_indices = np.sort(list(set(continuum_indices).difference(exclude_indices)))
+            continuum_indices = np.sort(list(set(continuum_indices).difference(
+                exclude_indices)))
         
         # Snip the edges based on exclude regions
         if exclude is not None and len(exclude) > 0:
@@ -625,6 +639,9 @@ class Spectrum1D(object):
             
         # Apply flux scaling
         continuum *= scale
+
+        if not np.any(np.isfinite(continuum)):
+            raise WTFError
 
         normalized_spectrum = self.__class__(
             dispersion=dispersion[left:right],
