@@ -89,23 +89,15 @@ class BaseSpectralModel(object):
         """
         return self.metadata["use_for_stellar_composition_inference"]
 
-    '''
+
     @property
     def transitions(self):
         """ Return the transitions associateed with this class. """
 
-        try:
-            indices = self._transition_indices
-        except AttributeError:
-            indices = self.index_transitions()
-        else:
-            # Check hashes.
-            actual_hashes = self._session.metadata["line_list"][indices]["hash"]
-            if not np.all(actual_hashes == self._transition_hashes):
-                indices = self.index_transitions()
+        # This is left as a property to prevent users from arbitrarily setting
+        # the .transitions attribute.
+        return self._transitions
 
-        return self._session.metadata["line_list"][indices]
-    '''
 
     def index_transitions(self):
         """
@@ -120,19 +112,22 @@ class BaseSpectralModel(object):
             indices[i] = index
 
         self._transition_indices = indices
-        self.transitions = self._session.metadata["line_list"][indices]
+        self._transitions = self._session.metadata["line_list"][indices]
 
         return indices
+
 
     @property
     def elements(self):
         """ Return the elements to be measured from this class. """
         return self.metadata["elements"]
 
+
     @property
     def species(self):
         """ Return the species to be measured from this class. """
         return self.metadata["species"]
+
 
     @property
     def session(self):
@@ -171,13 +166,6 @@ class BaseSpectralModel(object):
     def __getstate__(self):
         """ Return a serializable state of this spectral model. """
 
-        # What do we need:
-        # - the metadata
-        # - the transition hashes
-
-        # That's it. Upon instantiating the class, a new `Session` object will
-        # be linked.
-
         state = {
             "type": self.__class__.__name__,
             "transition_hashes": self._transition_hashes,
@@ -188,7 +176,6 @@ class BaseSpectralModel(object):
 
     def __setstate__(self, state):
         """ Disallow the state to be instantiated from a serialised object. """
-
         return None
 
 

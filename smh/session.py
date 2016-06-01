@@ -257,15 +257,9 @@ class Session(BaseSession):
         metadata.pop("reconstruct_paths")
 
         # Update the new session with the metadata.
-        # TODO: Do we need to do this recursively down the dictionary keys?
         session.metadata = metadata
 
         # Reconstruct any spectral models.
-        spectral_model_classes = {
-            "ProfileFittingModel": ProfileFittingModel,
-            "SpectralSynthesisModel": SpectralSynthesisModel,
-        }
-
         reconstructed_spectral_models = []
         for state in session.metadata.get("spectral_models", []):
 
@@ -295,6 +289,18 @@ class Session(BaseSession):
         #       'save as' temporary working directory.
 
         return session
+
+
+    def index_spectral_models(self):
+        """
+        (Re-)Index the spectral models so that they are linked correctly
+        against the session.
+        """
+
+        for spectral_model in self.metadata.get("spectral_models", []):
+            spectral_model.index_transitions()
+        return None
+
 
 
     @property
