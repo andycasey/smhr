@@ -515,6 +515,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def fit_all(self):
         self._check_for_spectral_models()
+        current_element_index = self.filter_combo_box.currentIndex()
 
         # Fit all acceptable
         num_unacceptable = 0
@@ -556,9 +557,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.refresh_cache()
         self.summarize_current_table()
         self.refresh_plots()
+        # TODO I think this can break when adding/deleting lots of transitions
+        self.filter_combo_box.setCurrentIndex(current_element_index)
         return None
 
     def measure_all(self):
+        current_element_index = self.filter_combo_box.currentIndex()
+
         i_profile = 0
         i_synth = 0
         equivalent_widths = []
@@ -600,6 +605,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.refresh_cache()
         self.summarize_current_table()
         self.refresh_plots()
+        # TODO I think this can break when adding/deleting lots of transitions
+        self.filter_combo_box.setCurrentIndex(current_element_index)
         return None
 
     def fit_one(self):
@@ -1094,6 +1101,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def update_line_strength_figure(self, redraw=False, use_cache=True):
         current_element =  self.filter_combo_box.currentText()
         if current_element == "All":
+            # This should remove all points
+            self._points[0].set_offsets(np.array([self._rew_cache, self._abund_cache]).T)
             if redraw: self.figure.draw()
             return None
         # If new element or not using cache, refresh the cache
