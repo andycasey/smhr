@@ -207,7 +207,7 @@ class LineListTableView(QtGui.QTableView):
 
         # Update the spectral models abstract table model.
         self._parent.models_view.model().reset()
-        logger.info("Time taken: {:.1f}".format(time() - ta))
+        print("Time taken: {:.1f}".format(time() - ta))
 
         return None
 
@@ -231,7 +231,7 @@ class LineListTableView(QtGui.QTableView):
 
         # Update the spectral models abstract table model.
         self._parent.models_view.model().reset()
-        logger.info("Time taken: {:.1f}".format(time() - ta))
+        print("Time taken: {:.1f}".format(time() - ta))
 
         return None
 
@@ -255,7 +255,7 @@ class LineListTableView(QtGui.QTableView):
 
         # Update the spectral models abstract table model.
         self._parent.models_view.model().reset()
-        logger.info("Time taken: {:.1f}".format(time() - ta))
+        print("Time taken: {:.1f}".format(time() - ta))
 
         return None
 
@@ -288,7 +288,7 @@ class LineListTableView(QtGui.QTableView):
 
         # Update the spectral models abstract table model.
         self._parent.models_view.model().reset()
-        logger.info("Time taken: {:.1f}".format(time() - ta))
+        print("Time taken: {:.1f}".format(time() - ta))
 
         return None
 
@@ -359,7 +359,7 @@ class LineListTableView(QtGui.QTableView):
                     line_list, in_place=False)
 
         self.model().reset()
-        logger.info("Time taken: {:.1f}".format(time() - ta))
+        print("Time taken: {:.1f}".format(time() - ta))
 
         return line_list
 
