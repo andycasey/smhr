@@ -120,7 +120,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # Model fitting options
         self._create_fitting_options_widget()
         lhs_layout.addWidget(self.fitting_options)
-
+        
         lhs_widget.setLayout(lhs_layout)
         self.parent_splitter.addWidget(lhs_widget)
 
@@ -129,7 +129,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         #############################
         rhs_layout = QtGui.QVBoxLayout()
         self.figure = mpl.MPLWidget(None, tight_layout=True, autofocus=True)
-        self.figure.setMinimumSize(QtCore.QSize(800, 300))
+        self.figure.setMinimumSize(QtCore.QSize(300, 300))
         
         gs_top = matplotlib.gridspec.GridSpec(3,1,height_ratios=[1,2,1])
         gs_top.update(top=.95,bottom=.05,hspace=0)
@@ -211,12 +211,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.populate_widgets()
 
     def _create_fitting_options_widget(self):
-        group_box = QtGui.QGroupBox(self)
-        group_box.setTitle("Fitting options")
-        opt_layout = QtGui.QVBoxLayout(group_box)
-        opt_layout.setContentsMargins(6, 12, 6, 6)
-        self.opt_tabs = QtGui.QTabWidget(group_box)
-        self.opt_tab_common = QtGui.QWidget()
+        #group_box = QtGui.QGroupBox(self)
+        #group_box.setTitle("Fitting options")
+        #opt_layout = QtGui.QVBoxLayout(self)
+        #opt_layout.setContentsMargins(6, 12, 6, 6)
+        self.opt_tabs = QtGui.QTabWidget(self)
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Expanding, 
+            QtGui.QSizePolicy.Expanding)
+        #sp.setHeightForWidth(self.table_view.sizePolicy().hasHeightForWidth())
+        self.opt_tabs.setSizePolicy(sp)
         
         # Common options
         self.tab_common = QtGui.QWidget()
@@ -224,7 +228,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         grid_common = QtGui.QGridLayout()
         grid_common.addItem(
             QtGui.QSpacerItem(40, 20, 
-                QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum),
+                QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding),
             1, 2, 1, 1)
 
         label = QtGui.QLabel(self.tab_common)
@@ -265,10 +269,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         grid_common.addWidget(self.edit_vrad_tolerance, 2, 3, 1, 1)
 
         grid_common.addItem(QtGui.QSpacerItem(40, 20, 
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum), 2, 2, 1, 1)
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding), 2, 2, 1, 1)
         vbox_common.addLayout(grid_common)
         vbox_common.addItem(QtGui.QSpacerItem(20, 40, 
-            QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding))
         self.opt_tabs.addTab(self.tab_common, "Common")
         
         # Profile model options.
@@ -281,7 +285,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         grid_profile.addWidget(label, 0, 1, 1, 1)
         grid_profile.addItem(
             QtGui.QSpacerItem(40, 20, 
-                QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum),
+                QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding),
             0, 2, 1, 1)
         self.combo_profile = QtGui.QComboBox(self.tab_profile)
         grid_profile.addWidget(self.combo_profile, 0, 3, 1, 1)
@@ -294,7 +298,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         grid_profile.addWidget(label, 1, 1, 1, 1)
         hbox = QtGui.QHBoxLayout()
         hbox.addItem(QtGui.QSpacerItem(40, 20, 
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding))
         self.edit_detection_sigma = QtGui.QLineEdit(self.tab_profile)
         self.edit_detection_sigma.setMinimumSize(QtCore.QSize(60, 0))
         self.edit_detection_sigma.setMaximumSize(QtCore.QSize(60, 16777215))
@@ -309,7 +313,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         grid_profile.addWidget(label, 2, 1, 1, 1)
         hbox = QtGui.QHBoxLayout()
         hbox.addItem(QtGui.QSpacerItem(40, 20, 
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding))
         self.edit_detection_pixels = QtGui.QLineEdit(self.tab_profile)
         self.edit_detection_pixels.setMinimumSize(QtCore.QSize(60, 0))
         self.edit_detection_pixels.setMaximumSize(QtCore.QSize(60, 16777215))
@@ -335,7 +339,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         grid_profile.addWidget(self.checkbox_wavelength_tolerance, 3, 0, 1, 1)
         hbox = QtGui.QHBoxLayout()
         hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
-            QtGui.QSizePolicy.Minimum))
+            QtGui.QSizePolicy.Expanding))
         self.edit_wavelength_tolerance = QtGui.QLineEdit(self.tab_profile)
         self.edit_wavelength_tolerance.setMinimumSize(QtCore.QSize(50, 0))
         self.edit_wavelength_tolerance.setMaximumSize(QtCore.QSize(60, 16777215))
@@ -383,16 +387,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         grid_synthesis.addWidget(self.btn_specify_abundances, 3, 1, 1, 1)
 
         grid_synthesis.addItem(QtGui.QSpacerItem(40, 20, 
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum), 0, 2, 1, 1)
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding), 0, 2, 1, 1)
         vbox_synthesis.addLayout(grid_synthesis)
         vbox_synthesis.addItem(QtGui.QSpacerItem(20, 40, 
-            QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding))
         self.opt_tabs.addTab(self.tab_synthesis, "Synthesis options")
 
         # Final layout placement.
-        opt_layout.addWidget(self.opt_tabs)
-        self.opt_tabs.raise_()
-        self.fitting_options = group_box
+        #opt_layout.addWidget(self.opt_tabs)
+        #self.opt_tabs.raise_()
+        self.fitting_options = self.opt_tabs
 
         # Connect Signals
         # Common options.
