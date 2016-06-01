@@ -171,13 +171,17 @@ class SpectralSynthesisModel(BaseSpectralModel):
         transitions = self.transitions
         for element in elements:
             # Get the species associated with this element
-            ii = np.logical_or(transitions["elem1"]==element, transitions["elem2"]==element)
-            species = list(np.unique(transitions[ii]["species"]))
-            if len(species) > 1:
+            ii = np.logical_or(
+                transitions["elem1"] == element,
+                transitions["elem2"] == element)
+
+            # Note plurality/singularity of specie/species.
+            specie = list(np.unique(transitions[ii]["species"]))
+            if len(specie) > 1:
                 # TODO how to deal with this correctly?
                 raise ValueError(
-                    "element '{}' has ambiguous species: {}".format(element,species))
-            species.append(species)
+                    "element '{}' has ambiguous species: {}".format(element,specie))
+            species.append(specie)
 
         return species
         

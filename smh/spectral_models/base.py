@@ -9,7 +9,6 @@ from __future__ import (division, print_function, absolute_import,
 __all__ = ["BaseSpectralModel"]
 
 import numpy as np
-from smh.session import BaseSession
 
 
 class BaseSpectralModel(object):
@@ -26,8 +25,11 @@ class BaseSpectralModel(object):
             associated with this model.
         """
 
-        if not isinstance(session, BaseSession):
-            raise TypeError("session must be a sub-class from BaseSession")
+        # Here we will have to just assume that the user knows what they are
+        # doing, otherwise to import BaseSession implies that we will (probably)
+        # have a recursive import loop.
+        #if not isinstance(session, BaseSession):
+        #    raise TypeError("session must be a sub-class from BaseSession")
 
         if "line_list" not in session.metadata \
         or len(session.metadata["line_list"]) == 0:
@@ -162,6 +164,30 @@ class BaseSpectralModel(object):
         """ The data-generating function. """
         raise NotImplementedError(
             "the data-generating function must be implemented by sub-classes")
+
+
+    def __getstate__(self):
+        """ Return a serializable state of this spectral model. """
+
+        # What do we need:
+        # - the metadata
+        # - the transition hashes
+
+        # That's it. Upon instantiating the class, a new `Session` object will
+        # be linked.
+
+        state = {
+            "type": self.__class__.__name__,
+            "transition_hashes": self._transition_hashes,
+            "metadata": self.metadata
+        }
+        return state
+
+
+    def __setstate__(self, state):
+        """ Disallow the state to be instantiated from a serialised object. """
+
+        return None
 
 
     def _verify_transitions(self):
