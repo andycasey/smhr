@@ -49,7 +49,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.parent = parent
         self.parent_splitter = QtGui.QSplitter(self)
         self.parent_layout = QtGui.QHBoxLayout(self)
-        self.parent_splitter.setContentsMargins(20, 20, 20, 0)
+        self.parent_splitter.setContentsMargins(3, 3, 3, 0)
         self.parent_layout.addWidget(self.parent_splitter)
         
         ################
@@ -65,7 +65,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.element_summary_text = QtGui.QLabel(self)
         self.element_summary_text.setText("Please load spectral models (or fit all)")
         sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
-                               QtGui.QSizePolicy.MinimumExpanding)
+                               QtGui.QSizePolicy.Minimum)
         self.element_summary_text.setSizePolicy(sp)
         hbox.addWidget(self.filter_combo_box)
         hbox.addWidget(self.element_summary_text)
@@ -102,7 +102,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.table_view.horizontalHeader().setStretchLastSection(True)
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.MinimumExpanding, 
-            QtGui.QSizePolicy.MinimumExpanding)
+            QtGui.QSizePolicy.Minimum)
         sp.setHeightForWidth(self.table_view.sizePolicy().hasHeightForWidth())
         self.table_view.setSizePolicy(sp)
         lhs_layout.addWidget(self.table_view)
@@ -118,7 +118,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         lhs_layout.addLayout(hbox)
 
         # Model fitting options
-        self._create_fitting_options_widget()
+        self._create_fitting_options_widget2()
         lhs_layout.addWidget(self.opt_tabs)
         
         lhs_widget.setLayout(lhs_layout)
@@ -168,6 +168,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=2)
             ],
             "spectrum": None,
+            "spectrum_fill": None,
+            "residual_fill": None,
             "transitions_center_main": self.ax_spectrum.axvline(
                 np.nan, c="#666666", linestyle=":"),
             "transitions_center_residual": self.ax_residual.axvline(
@@ -214,7 +216,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.opt_tabs = QtGui.QTabWidget(self)
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.Expanding, 
-            QtGui.QSizePolicy.Expanding)
+            QtGui.QSizePolicy.MinimumExpanding)
         self.opt_tabs.setSizePolicy(sp)
         
         # Common options
@@ -425,6 +427,185 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.btn_specify_abundances.clicked.connect(
             self.clicked_btn_specify_abundances)
 
+    def _create_fitting_options_widget2(self):
+        self.opt_tabs = QtGui.QTabWidget(self)
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Expanding, 
+            QtGui.QSizePolicy.MinimumExpanding)
+        self.opt_tabs.setSizePolicy(sp)
+
+        def _create_line_in_hbox(parent, text, bot, top, dec, validate_int=False):
+            hbox = QtGui.QHBoxLayout()
+            label = QtGui.QLabel(parent)
+            label.setText(text)
+            line = QtGui.QLineEdit(parent)
+            line.setMinimumSize(QtCore.QSize(60, 0))
+            line.setMaximumSize(QtCore.QSize(60, 16777215))
+            if validate_int:
+                line.setValidator(QtGui.QIntValidator(bot, top, line))
+            else:
+                line.setValidator(QtGui.QDoubleValidator(bot, top, dec, line))
+            hbox.addWidget(label)
+            hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+                                           QtGui.QSizePolicy.Minimum))
+            hbox.addWidget(line)
+            return hbox, label, line
+
+        def _create_checkline_in_hbox(parent, text, bot, top, dec):
+            hbox = QtGui.QHBoxLayout()
+            checkbox = QtGui.QCheckBox(parent)
+            checkbox.setText("")
+            label = QtGui.QLabel(parent)
+            label.setText(text)
+            line = QtGui.QLineEdit(parent)
+            line.setMinimumSize(QtCore.QSize(60, 0))
+            line.setMaximumSize(QtCore.QSize(60, 16777215))
+            line.setValidator(QtGui.QDoubleValidator(bot, top, dec, line))
+            hbox.addWidget(checkbox)
+            hbox.addWidget(label)
+            hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+                                           QtGui.QSizePolicy.Minimum))
+            hbox.addWidget(line)
+            return hbox, checkbox, label, line
+
+        def _create_combo_in_hbox(parent, text):
+            hbox = QtGui.QHBoxLayout()
+            label = QtGui.QLabel(parent)
+            label.setText(text)
+            combo = QtGui.QComboBox(parent)
+            #combo.setMinimumSize(QtCore.QSize(60, 0))
+            #combo.setMaximumSize(QtCore.QSize(60, 16777215))
+            combo.setSizeAdjustPolicy(QtGui.QComboBox.AdjustToContents)
+            hbox.addWidget(label)
+            hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+                                           QtGui.QSizePolicy.Minimum))
+            hbox.addWidget(combo)
+            return hbox, label, combo
+
+        def _create_checkcombo_in_hbox(parent, text):
+            hbox = QtGui.QHBoxLayout()
+            checkbox = QtGui.QCheckBox(parent)
+            checkbox.setText("")
+            label = QtGui.QLabel(parent)
+            label.setText(text)
+            combo = QtGui.QComboBox(parent)
+            combo.setMinimumSize(QtCore.QSize(60, 0))
+            combo.setMaximumSize(QtCore.QSize(60, 16777215))
+            hbox.addWidget(checkbox)
+            hbox.addWidget(label)
+            hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+                                           QtGui.QSizePolicy.Minimum))
+            hbox.addWidget(combo)
+            return hbox, checkbox, label, combo
+
+        ###################
+        ### Profile options
+        self.tab_profile = QtGui.QWidget()
+        tab_hbox = QtGui.QHBoxLayout(self.tab_profile)
+
+        ### LHS
+        vbox_lhs = QtGui.QVBoxLayout()
+        hbox, label, line = _create_line_in_hbox(self.tab_profile, "View window",
+                                                 0, 1000, 1)
+        self.edit_view_window = line
+        vbox_lhs.addLayout(hbox)
+
+        hbox, label, line = _create_line_in_hbox(self.tab_profile, "Fit window",
+                                                 0, 1000, 1)
+        self.edit_fit_window = line
+        vbox_lhs.addLayout(hbox)
+
+        hbox, checkbox, label, combo = _create_checkcombo_in_hbox(self.tab_profile, 
+                                                                  "Use poly for cont.")
+        self.checkbox_continuum = checkbox
+        self.combo_continuum = combo
+        for i in range(10):
+            self.combo_continuum.addItem("{:.0f}".format(i))
+        vbox_lhs.addLayout(hbox)
+
+        hbox, checkbox, label, line = _create_checkline_in_hbox(self.tab_profile, "RV tol",
+                                                                0, 100, 2)
+        self.checkbox_vrad_tolerance = checkbox
+        self.edit_vrad_tolerance = line
+        vbox_lhs.addLayout(hbox)
+
+        hbox, checkbox, label, line = _create_checkline_in_hbox(self.tab_profile, "WL tol",
+                                                                0, 10, 2)
+        self.checkbox_wavelength_tolerance = checkbox
+        self.edit_wavelength_tolerance = line
+        vbox_lhs.addLayout(hbox)
+
+        self.checkbox_use_central_weighting = QtGui.QCheckBox(self.tab_profile)
+        self.checkbox_use_central_weighting.setText("Central pixel weighting")
+        vbox_lhs.addWidget(self.checkbox_use_central_weighting)
+
+        ### RHS
+        vbox_rhs = QtGui.QVBoxLayout()
+        hbox, label, combo = _create_combo_in_hbox(self.tab_profile, "Type")
+        self.combo_profile = combo
+        for each in ("Gaussian", "Lorentzian", "Voigt"):
+            self.combo_profile.addItem(each)
+        vbox_rhs.addLayout(hbox)
+        
+        hbox, label, line = _create_line_in_hbox(self.tab_profile, "Automask sigma",
+                                                 0, 100, 1)
+        self.edit_detection_sigma = line
+        vbox_rhs.addLayout(hbox)
+        
+        hbox, label, line = _create_line_in_hbox(self.tab_profile, "Automask pixels",
+                                                 0, 100, np.nan, validate_int=True)
+        self.edit_detection_pixels = line
+        vbox_rhs.addLayout(hbox)
+        
+        vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
+                                           QtGui.QSizePolicy.Expanding))
+        
+        self.btn_fit_one = QtGui.QPushButton(self.tab_profile)
+        self.btn_fit_one.setText("Fit One")
+        vbox_rhs.addWidget(self.btn_fit_one)
+        
+        self.btn_clear_masks = QtGui.QPushButton(self.tab_profile)
+        self.btn_clear_masks.setText("Clear Masks")
+        vbox_rhs.addWidget(self.btn_clear_masks)
+        
+        ### Finish Profile Tab
+        tab_hbox.addLayout(vbox_lhs)
+        tab_hbox.addLayout(vbox_rhs)
+        self.opt_tabs.addTab(self.tab_profile, "Profile")
+        
+        self.tab_synthesis = QtGui.QWidget()
+        self.opt_tabs.addTab(self.tab_synthesis, "Synthesis")
+
+        # Connect Signals for Profile
+        self.edit_view_window.textChanged.connect(
+            self.update_edit_view_window)
+        self.edit_fit_window.textChanged.connect(
+            self.update_edit_fit_window)
+        self.checkbox_continuum.stateChanged.connect(
+            self.clicked_checkbox_continuum)
+        self.combo_continuum.currentIndexChanged.connect(
+            self.update_continuum_order)
+        self.checkbox_vrad_tolerance.stateChanged.connect(
+            self.clicked_checkbox_vrad_tolerance)
+        self.edit_vrad_tolerance.textChanged.connect(
+            self.update_vrad_tolerance)
+        self.combo_profile.currentIndexChanged.connect(
+            self.update_combo_profile)
+        self.edit_detection_sigma.textChanged.connect(
+            self.update_detection_sigma)
+        self.edit_detection_pixels.textChanged.connect(
+            self.update_detection_pixels)
+        self.checkbox_use_central_weighting.stateChanged.connect(
+            self.clicked_checkbox_use_central_weighting)
+        self.checkbox_wavelength_tolerance.stateChanged.connect(
+            self.clicked_checkbox_wavelength_tolerance)
+        self.edit_wavelength_tolerance.textChanged.connect(
+            self.update_wavelength_tolerance)
+        self.btn_fit_one.clicked.connect(
+            self.fit_one)
+        self.btn_clear_masks.clicked.connect(
+            self.clicked_btn_clear_masks)
+
     def populate_widgets(self):
         """
         Refresh widgets from session.
@@ -498,13 +679,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         #print(model, proxy_index, index)
         start = time.time()
         self.update_spectrum_figure(redraw=False)
-        print("Time to refresh spectrum: {:.1f}s".format(time.time()-start))
-        start = time.time()
         self.update_selected_points_plot(redraw=False)
-        print("Time to refresh selected pts: {:.1f}s".format(time.time()-start))
-        start = time.time()
         self.update_line_strength_figure(redraw=True)
-        print("Time to refresh gray pts: {:.1f}s".format(time.time()-start))
+        print("Time to refresh plots: {:.1f}s".format(time.time()-start))
         return None
 
     def fit_all(self):
@@ -615,7 +792,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.table_view.update_row(proxy_index.row())
         self.update_cache(proxy_index)
         self.summarize_current_table()
-        self.selected_model_changed()
+        self.update_fitting_options()
+        self.refresh_plots()
         return None
 
     def measure_one(self):
@@ -633,7 +811,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.table_view.update_row(proxy_index.row())
         self.update_cache(proxy_index)
         self.summarize_current_table()
-        self.selected_model_changed()
+        self.update_fitting_options()
+        self.refresh_plots()
         return None
 
     def _check_for_spectral_models(self):
@@ -869,43 +1048,53 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         TODO refactor all this plotting?
         Currently copied straight from stellar_parameters.py with minor changes
         """
-        if self._lines["spectrum"] is None \
-        and hasattr(self.parent, "session") \
-        and hasattr(self.parent.session, "normalized_spectrum"):
-            # Draw the spectrum.
-            spectrum = self.parent.session.normalized_spectrum
-            self._lines["spectrum"] = self.ax_spectrum.plot(spectrum.dispersion,
-                spectrum.flux, c="k", drawstyle="steps-mid")
-
-            sigma = 1.0/np.sqrt(spectrum.ivar)
-            style_utils.fill_between_steps(self.ax_spectrum, spectrum.dispersion,
-                spectrum.flux - sigma, spectrum.flux + sigma, 
-                facecolor="#cccccc", edgecolor="#cccccc", alpha=1)
-
-            style_utils.fill_between_steps(self.ax_residual, spectrum.dispersion,
-                -sigma, +sigma, facecolor="#CCCCCC", edgecolor="none", alpha=1)
-
-            self.ax_spectrum.set_xlim(
-                spectrum.dispersion[0], spectrum.dispersion[-1])
-            self.ax_residual.set_xlim(self.ax_spectrum.get_xlim())
-            self.ax_spectrum.set_ylim(0, 1.2)
-            self.ax_spectrum.set_yticks([0, 0.5, 1])
-            three_sigma = 3*np.median(sigma[np.isfinite(sigma)])
-            self.ax_residual.set_ylim(-three_sigma, three_sigma)
-
-            if redraw: self.figure.draw()
-        
         selected_model = self._get_selected_model()
         if selected_model is None:
             print("No model selected")
             return None
         transitions = selected_model.transitions
-        window = selected_model.metadata["window"]
+        try:
+            window = float(self.edit_view_window.text())
+        except:
+            window = selected_model.metadata["window"]
         limits = [
             transitions["wavelength"][0] - window,
             transitions["wavelength"][-1] + window,
         ]
 
+        if hasattr(self.parent, "session") \
+        and hasattr(self.parent.session, "normalized_spectrum"):
+            try:
+                # Fix the memory leak!
+                self.ax_spectrum.lines.remove(self._lines["spectrum"])
+                self.ax_spectrum.collections.remove(self._lines["spectrum_fill"])
+                self.ax_residual.collections.remove(self._lines["residual_fill"])
+            except Exception as e:
+                # TODO fail in a better way
+                print(e)
+
+            # Draw the spectrum.
+            spectrum = self.parent.session.normalized_spectrum
+            plot_ii = np.logical_and(spectrum.dispersion > limits[0]-10,
+                                     spectrum.dispersion < limits[1]+10)
+            self._lines["spectrum"] = self.ax_spectrum.plot(spectrum.dispersion[plot_ii],
+                spectrum.flux[plot_ii], c="k", drawstyle="steps-mid")[0]
+
+            sigma = 1.0/np.sqrt(spectrum.ivar[plot_ii])
+            self._lines["spectrum_fill"] = \
+            style_utils.fill_between_steps(self.ax_spectrum, spectrum.dispersion[plot_ii],
+                spectrum.flux[plot_ii] - sigma, spectrum.flux[plot_ii] + sigma, 
+                facecolor="#cccccc", edgecolor="#cccccc", alpha=1)
+
+            self._lines["residual_fill"] = \
+            style_utils.fill_between_steps(self.ax_residual, spectrum.dispersion[plot_ii],
+                -sigma, +sigma, facecolor="#CCCCCC", edgecolor="none", alpha=1)
+
+            self.ax_spectrum.set_ylim(0, 1.2)
+            self.ax_spectrum.set_yticks([0, 0.5, 1])
+            three_sigma = 3*np.median(sigma[np.isfinite(sigma)])
+            self.ax_residual.set_ylim(-three_sigma, three_sigma)
+        
         # Zoom to region.
         self.ax_spectrum.set_xlim(limits)
         self.ax_residual.set_xlim(limits)
@@ -1121,32 +1310,44 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             return None
         if selected_model is None: return None
     
-        # Common model.
-        self.edit_window.setText("{}".format(selected_model.metadata["window"]))
-
-        # Continuum order.
-        continuum_order = selected_model.metadata["continuum_order"]
-        if continuum_order < 0:
-            self.checkbox_continuum.setChecked(False)
-            self.combo_continuum.setEnabled(False)
-        else:
-            self.checkbox_continuum.setChecked(True)
-            self.combo_continuum.setEnabled(True)
-            self.combo_continuum.setCurrentIndex(continuum_order)
-
-        # Radial velocity tolerance.
-        vrad_tolerance = selected_model.metadata.get("velocity_tolerance", None)
-        if vrad_tolerance is None:
-            self.checkbox_vrad_tolerance.setChecked(False)
-            self.edit_vrad_tolerance.setEnabled(False)
-        else:
-            self.checkbox_vrad_tolerance.setChecked(True)
-            self.edit_vrad_tolerance.setEnabled(True)
-            self.edit_vrad_tolerance.setText("{}".format(vrad_tolerance))
-
-        # Profile options.
         if isinstance(selected_model, ProfileFittingModel):
-            self.tab_profile.setEnabled(True)
+            self.opt_tabs.setTabEnabled(0, True)
+            self.opt_tabs.setCurrentIndex(0)
+
+            self.edit_view_window.setText("{}".format(selected_model.metadata["window"]))
+            self.edit_fit_window.setText("{}".format(selected_model.metadata["window"]))
+
+            # Continuum order.
+            continuum_order = selected_model.metadata["continuum_order"]
+            if continuum_order < 0:
+                self.checkbox_continuum.setChecked(False)
+                self.combo_continuum.setEnabled(False)
+            else:
+                self.checkbox_continuum.setChecked(True)
+                self.combo_continuum.setEnabled(True)
+                self.combo_continuum.setCurrentIndex(continuum_order)
+
+            # Radial velocity tolerance.
+            vrad_tolerance = selected_model.metadata.get("velocity_tolerance", None)
+            if vrad_tolerance is None:
+                self.checkbox_vrad_tolerance.setChecked(False)
+                self.edit_vrad_tolerance.setEnabled(False)
+            else:
+                self.checkbox_vrad_tolerance.setChecked(True)
+                self.edit_vrad_tolerance.setEnabled(True)
+                self.edit_vrad_tolerance.setText("{}".format(vrad_tolerance))
+
+            # Wavelength tolerance
+            tolerance = selected_model.metadata.get("wavelength_tolerance", None)
+            if tolerance is None:
+                self.checkbox_wavelength_tolerance.setEnabled(False)
+            else:
+                self.checkbox_wavelength_tolerance.setEnabled(True)
+                self.edit_wavelength_tolerance.setText(
+                    "{}".format(tolerance))
+
+            self.checkbox_use_central_weighting.setEnabled(
+                selected_model.metadata["central_weighting"])
 
             self.combo_profile.setCurrentIndex(
                 ["gaussian", "lorentzian", "voight"].index(
@@ -1157,34 +1358,27 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.edit_detection_pixels.setText("{}".format(
                 selected_model.metadata["detection_pixels"]))
 
-            self.checkbox_use_central_weighting.setEnabled(
-                selected_model.metadata["central_weighting"])
-
-            tolerance = selected_model.metadata.get("wavelength_tolerance", None)
-            if tolerance is None:
-                self.checkbox_wavelength_tolerance.setEnabled(False)
-            else:
-                self.checkbox_wavelength_tolerance.setEnabled(True)
-                self.edit_wavelength_tolerance.setText(
-                    "{}".format(tolerance))
-
+            # Enables pushing enter to fit one?
+            #self.btn_fit_one.setAutoDefault(True)
+            #self.btn_fit_one.setDefault(True)
         else:
-            self.tab_profile.setEnabled(False)
+            self.opt_tabs.setTabEnabled(0, False)
 
         # Synthesis options.
         if isinstance(selected_model, SpectralSynthesisModel):
-            self.tab_synthesis.setEnabled(True)
+            self.opt_tabs.setTabEnabled(1, True)
+            self.opt_tabs.setCurrentIndex(1)
 
             # Update widgets.
-            self.edit_initial_abundance_bound.setText(
-                "{}".format(selected_model.metadata["initial_abundance_bounds"]))
+            #self.edit_initial_abundance_bound.setText(
+            #    "{}".format(selected_model.metadata["initial_abundance_bounds"]))
             
-            self.checkbox_model_smoothing.setEnabled(
-                selected_model.metadata["smoothing_kernel"])
+            #self.checkbox_model_smoothing.setEnabled(
+            #    selected_model.metadata["smoothing_kernel"])
 
-            # TODO sigma smooth tolerance needs implementing.
+            # sigma smooth tolerance needs implementing.
         else:
-            self.tab_synthesis.setEnabled(False)
+            self.opt_tabs.setTabEnabled(1, False)
 
         return None
 
@@ -1192,23 +1386,30 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     # FITTING OPTION UPDATE METHODS
     ###############################
 
-    def update_edit_window(self):
+    def update_edit_view_window(self):
+        """ The wavelength window was updated """
+        try:
+            window = float(self.edit_view_window.text())
+        except:
+            return None
+        else:
+            transitions = self._get_selected_model().transitions
+            xlim = (transitions["wavelength"][0] - window,
+                    transitions["wavelength"][-1] + window)
+            self.ax_spectrum.set_xlim(xlim)
+            self.ax_residual.set_xlim(xlim)
+            self.figure.draw()
+        return None
+
+    def update_edit_fit_window(self):
         """ The wavelength window was updated """
         model = self._get_selected_model()
         try:
-            window = float(self.edit_window.text())
+            window = float(self.edit_fit_window.text())
         except:
             return None
         else:
             model.metadata["window"] = window
-            # Just update the axis limits.
-            transitions = model.transitions
-            # TODO synth wavelength
-            xlim = (transitions["wavelength"][0] - window,
-                    transitions["wavelength"][-1] + window)
-            self.ax_spectrum.set_xlim(xlim)
-            self.ax_line_strength.set_xlim(xlim)
-            self.figure.draw()
         return None
 
     def clicked_checkbox_continuum(self):
@@ -1282,6 +1483,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._get_selected_model().metadata["wavelength_tolerance"] \
             = float(self.edit_wavelength_tolerance.text())
         return None
+    def clicked_btn_clear_masks(self):
+        spectral_model = self._get_selected_model()
+        spectral_model.metadata["mask"] = []
+        spectral_model.metadata.pop("fitted_result", None)
+        self.fit_one()
+        return None
+
     def update_initial_abundance_bound(self):
         """ The initial abundance bound has been updated. """
         self._get_selected_model().metadata["initial_abundance_bounds"] \
