@@ -14,6 +14,7 @@ import numpy as np
 import sys
 from PySide import QtCore, QtGui
 from six import string_types
+from time import time # DEBUG TODO
 
 from astropy.table import Column
 
@@ -192,6 +193,7 @@ class LineListTableView(QtGui.QTableView):
         transitions = self.import_from_filename()
         if transitions is None: return None
 
+        ta = time()
         N = len(transitions)
         for index in range(N):
             spectral_models_to_add.append(
@@ -205,6 +207,8 @@ class LineListTableView(QtGui.QTableView):
 
         # Update the spectral models abstract table model.
         self._parent.models_view.model().reset()
+        print("Time taken: {:.1f}".format(time() - ta))
+
         return None
 
     def add_imported_lines_as_synthesis_model(self):
@@ -215,6 +219,7 @@ class LineListTableView(QtGui.QTableView):
         transitions = self.import_from_filename()
         if transitions is None: return None
 
+        ta = time()
         spectral_model = SpectralSynthesisModel(self.session, 
             transitions["hash"], transitions.unique_elements)
 
@@ -226,12 +231,15 @@ class LineListTableView(QtGui.QTableView):
 
         # Update the spectral models abstract table model.
         self._parent.models_view.model().reset()
+        print("Time taken: {:.1f}".format(time() - ta))
+
         return None
 
 
     def add_selected_rows_as_profile_models(self):
         """ Add the selected rows as profile spectral models. """
 
+        ta = time()
         spectral_models_to_add = []
         for row in self.selectionModel().selectedRows():
             spectral_models_to_add.append(
@@ -247,12 +255,15 @@ class LineListTableView(QtGui.QTableView):
 
         # Update the spectral models abstract table model.
         self._parent.models_view.model().reset()
+        print("Time taken: {:.1f}".format(time() - ta))
+
         return None
 
 
     def add_selected_rows_as_synthesis_model(self):
         """ Add the selected rows as a single spectral synthesis model. """
 
+        ta = time()
         row_indices = []
         for row in self.selectionModel().selectedRows():
             row_indices.append(row.row())
@@ -277,6 +288,8 @@ class LineListTableView(QtGui.QTableView):
 
         # Update the spectral models abstract table model.
         self._parent.models_view.model().reset()
+        print("Time taken: {:.1f}".format(time() - ta))
+
         return None
 
 
@@ -330,6 +343,7 @@ class LineListTableView(QtGui.QTableView):
             return None
 
         # Load from files.
+        ta = time()
         line_list = LineList.read(filenames[0])
         for filename in filenames[1:]:
             line_list = line_list.merge(LineList.read(filename), in_place=False)
@@ -345,6 +359,7 @@ class LineListTableView(QtGui.QTableView):
                     line_list, in_place=False)
 
         self.model().reset()
+        print("Time taken: {:.1f}".format(time() - ta))
 
         return line_list
 

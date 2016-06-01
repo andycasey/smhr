@@ -184,7 +184,7 @@ class Session(BaseSession):
                 # I dreamt Python 2 was dead. It was great.
                 pickle.dump(metadata, fp, protocol)
 
-        except Exception, e:
+        except Exception:
             logger.exception("Exception in serializing session:")
 
             exc_info = sys.exc_info()
@@ -239,8 +239,8 @@ class Session(BaseSession):
 
         # Load in the line list.
         if os.path.exists(os.path.join(twd, "line_list.fits")):
-            metadata["line_list"] \
-                = LineList.read(os.path.join(twd, "line_list.fits"))
+            metadata["line_list"] = LineList.read(
+                os.path.join(twd, "line_list.fits"), format="fits")
 
 
         # Load in the template spectrum.
@@ -257,20 +257,25 @@ class Session(BaseSession):
         metadata.pop("reconstruct_paths")
 
         # Update the new session with the metadata.
-        # TODO: Do we need to do this recursively down the dictionary keys?
         session.metadata = metadata
 
         # Reconstruct any spectral models.
-        spectral_model_classes = {
-            "ProfileFittingModel": ProfileFittingModel,
-            "SpectralSynthesisModel": SpectralSynthesisModel,
-        }
-
         reconstructed_spectral_models = []
         for state in session.metadata.get("spectral_models", []):
-            klass = spectral_model_classes[state["type"]]
 
-            model = klass(session, state["transition_hashes"])
+            args = [session, state["transition_hashes"]]
+            if state["type"] == "SpectralSynthesisModel":
+                klass = SpectralSynthesisModel
+                args.append(state["metadata"]["elements"])
+
+            elif state["type"] == "ProfileFittingModel":
+                klass = ProfileFittingModel
+
+            else:
+                raise ValueError("unrecognized spectral model class '{}'"\
+                    .format(state["type"]))
+
+            model = klass(*args)
             model.metadata = state["metadata"]
             reconstructed_spectral_models.append(model)
 
@@ -284,6 +289,18 @@ class Session(BaseSession):
         #       'save as' temporary working directory.
 
         return session
+
+
+    def index_spectral_models(self):
+        """
+        (Re-)Index the spectral models so that they are linked correctly
+        against the session.
+        """
+
+        for spectral_model in self.metadata.get("spectral_models", []):
+            spectral_model.index_transitions()
+        return None
+
 
 
     @property

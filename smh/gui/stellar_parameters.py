@@ -641,7 +641,10 @@ class StellarParametersTab(QtGui.QWidget):
             if reply == QtGui.QMessageBox.Ok:
                 # Load line list manager.
                 dialog = TransitionsDialog(self.parent.session,
-                    callbacks=[self.proxy_spectral_models.reset])
+                    callbacks=[
+                        self.session.index_spectral_models,
+                        self.proxy_spectral_models.reset
+                    ])
                 dialog.exec_()
 
                 # Do we even have any spectral models now?
