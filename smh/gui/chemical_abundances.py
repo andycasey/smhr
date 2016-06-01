@@ -120,7 +120,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # Model fitting options
         self._create_fitting_options_widget()
         lhs_layout.addWidget(self.fitting_options)
-
+        
         lhs_widget.setLayout(lhs_layout)
         self.parent_splitter.addWidget(lhs_widget)
 
@@ -211,12 +211,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.populate_widgets()
 
     def _create_fitting_options_widget(self):
-        group_box = QtGui.QGroupBox(self)
-        group_box.setTitle("Fitting options")
-        opt_layout = QtGui.QVBoxLayout(group_box)
+        #group_box = QtGui.QGroupBox(self)
+        #group_box.setTitle("Fitting options")
+        #opt_layout = QtGui.QVBoxLayout(self)
         #opt_layout.setContentsMargins(6, 12, 6, 6)
-        self.opt_tabs = QtGui.QTabWidget(group_box)
-        self.opt_tab_common = QtGui.QWidget()
+        self.opt_tabs = QtGui.QTabWidget(self)
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Expanding, 
+            QtGui.QSizePolicy.Expanding)
+        #sp.setHeightForWidth(self.table_view.sizePolicy().hasHeightForWidth())
+        self.opt_tabs.setSizePolicy(sp)
         
         # Common options
         self.tab_common = QtGui.QWidget()
@@ -390,9 +394,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.opt_tabs.addTab(self.tab_synthesis, "Synthesis options")
 
         # Final layout placement.
-        opt_layout.addWidget(self.opt_tabs)
-        self.opt_tabs.raise_()
-        self.fitting_options = group_box
+        #opt_layout.addWidget(self.opt_tabs)
+        #self.opt_tabs.raise_()
+        self.fitting_options = self.opt_tabs
 
         # Connect Signals
         # Common options.
