@@ -62,7 +62,7 @@ def test_duplicates():
     duplicate_indices,duplicate_lines = ll.find_duplicates(thresh=.01)
     assert_equals(2*N,len(duplicate_indices))
 
-def test_readwrite(fname=datadir+'/linelists/masseron_linch.txt'):
+def test_readwrite_moog(fname=datadir+'/linelists/masseron_linch.txt'):
     ll = LineList.read(fname)
     ll = LineList.read(fname,format='moog')
     ll.write('_test.moog',format='moog')
@@ -73,6 +73,17 @@ def test_readwrite(fname=datadir+'/linelists/masseron_linch.txt'):
             diff = np.sum(np.abs(ll[i][col] - ll2[i][col]))
             assert np.isnan(diff) or diff < .001, "{} {}".format(ll[i][col],ll2[i][col])
     os.remove('_test.moog')
+def test_writeread(fname=datadir+'/linelists/masseron_linch.txt'):
+    ll = LineList.read(fname)
+    ll.write('line_list.fits',format='fits')
+    ll2 = LineList.read('line_list.fits',format='fits')
+    for i in range(len(ll)):
+        for col in ll[i].colnames:
+            if isinstance(ll[i][col], str): continue
+            diff = np.sum(np.abs(ll[i][col] - ll2[i][col]))
+            assert np.isnan(diff) or diff < .001, "{} {}".format(ll[i][col],ll2[i][col])
+    os.remove('line_list.fits')
+
 def test_exception():
     ll = LineList.read(datadir+'/linelists/complete.list')
     N = len(ll)
@@ -97,7 +108,8 @@ if __name__=="__main__":
     test_merge()
     test_duplicates()
     for fname in ll_filenames:
-        test_readwrite(datadir+'/linelists/'+fname)
+        test_readwrite_moog(datadir+'/linelists/'+fname)
+        test_writeread(datadir+'/linelists/'+fname)
     test_exception()
     
     ll = LineList.read(datadir+'/linelists/complete.list')

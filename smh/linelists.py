@@ -357,11 +357,11 @@ class LineList(Table):
         for reader in [cls.read_moog, cls.read_GES]:
             try:
                 return reader(filename)
-            except IOError as e:
+            except (IOError, KeyError, UnicodeDecodeError) as e:
+                # KeyError: Issue #87
+                # UnicodeDecodeError: read_moog fails this way for fits
                 pass
-            except UnicodeDecodeError as e: #read_moog fails this way for fits
-                pass
-        raise IOError("Cannot identify linelist format")
+        raise IOError("Cannot identify linelist format (specify format if possible)")
 
     @classmethod
     def read_moog(cls,filename,moog_columns=False):
