@@ -49,7 +49,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.parent = parent
         self.parent_splitter = QtGui.QSplitter(self)
         self.parent_layout = QtGui.QHBoxLayout(self)
-        self.parent_splitter.setContentsMargins(20, 20, 20, 0)
+        self.parent_splitter.setContentsMargins(3, 3, 3, 0)
         self.parent_layout.addWidget(self.parent_splitter)
         
         ################
@@ -65,7 +65,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.element_summary_text = QtGui.QLabel(self)
         self.element_summary_text.setText("Please load spectral models (or fit all)")
         sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
-                               QtGui.QSizePolicy.MinimumExpanding)
+                               QtGui.QSizePolicy.Minimum)
         self.element_summary_text.setSizePolicy(sp)
         hbox.addWidget(self.filter_combo_box)
         hbox.addWidget(self.element_summary_text)
@@ -102,7 +102,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.table_view.horizontalHeader().setStretchLastSection(True)
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.MinimumExpanding, 
-            QtGui.QSizePolicy.MinimumExpanding)
+            QtGui.QSizePolicy.Minimum)
         sp.setHeightForWidth(self.table_view.sizePolicy().hasHeightForWidth())
         self.table_view.setSizePolicy(sp)
         lhs_layout.addWidget(self.table_view)
@@ -214,7 +214,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.opt_tabs = QtGui.QTabWidget(self)
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.Expanding, 
-            QtGui.QSizePolicy.Expanding)
+            QtGui.QSizePolicy.MinimumExpanding)
         self.opt_tabs.setSizePolicy(sp)
         
         # Common options

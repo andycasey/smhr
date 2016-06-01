@@ -20,8 +20,7 @@ class LineListConflict(Exception):
         self.conflicts1 = conflicts1
         self.conflicts2 = conflicts2
     def __str__(self):
-        return "LineListConflict ({} conflicts)".format(len(self.conflicts1)) 
-        #repr(self.conflicts1)+'\n'+repr(self.conflicts2)
+        return "LineListConflict ({} conflicts)\nConflicts from current list\n{}\nConflicts from new list\n{}".format(len(self.conflicts1), repr(self.conflicts1), repr(self.conflicts2)) 
 
 class LineList(Table):
     full_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments',
