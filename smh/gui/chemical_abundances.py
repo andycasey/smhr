@@ -22,7 +22,7 @@ from matplotlib.ticker import MaxNLocator
 import smh.radiative_transfer as rt
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 from abund_tree import AbundTreeView, AbundTreeModel, AbundTreeMeasurementItem, AbundTreeElementSummaryItem
-from spectral_models_table import SpectralModelsTableView, SpectralModelsFilterProxyModel, SpectralModelsTableModelBase
+from spectral_models_table import SpectralModelsTableViewBase, SpectralModelsFilterProxyModel, SpectralModelsTableModelBase
 from linelist_manager import TransitionsDialog
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.filter_combo_box.setSizeAdjustPolicy(QtGui.QComboBox.AdjustToContents)
         self.filter_combo_box.addItem("All")
         self.element_summary_text = QtGui.QLabel(self)
-        self.element_summary_text.setText("Please load spectral models")
+        self.element_summary_text.setText("Please load spectral models (or fit all)")
         sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
                                QtGui.QSizePolicy.MinimumExpanding)
         self.element_summary_text.setSizePolicy(sp)
@@ -111,32 +111,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         hbox = QtGui.QHBoxLayout()
         self.btn_fit_all = QtGui.QPushButton(self)
         self.btn_fit_all.setText("Fit all acceptable")
-        self.btn_fit_one = QtGui.QPushButton(self)
-        self.btn_fit_one.setText("Fit one")
-        hbox.addWidget(self.btn_fit_all)
-        hbox.addWidget(self.btn_fit_one)
-        lhs_layout.addLayout(hbox)
-
-        hbox = QtGui.QHBoxLayout()
         self.btn_measure_all = QtGui.QPushButton(self)
         self.btn_measure_all.setText("Measure all acceptable")
-        self.btn_measure_one = QtGui.QPushButton(self)
-        self.btn_measure_one.setText("Measure one")
+        hbox.addWidget(self.btn_fit_all)
         hbox.addWidget(self.btn_measure_all)
-        hbox.addWidget(self.btn_measure_one)
         lhs_layout.addLayout(hbox)
 
-        hbox = QtGui.QHBoxLayout()
-        self.btn_refresh = QtGui.QPushButton(self)
-        self.btn_refresh.setText("Refresh from session")
-        self.btn_replot  = QtGui.QPushButton(self)
-        self.btn_replot.setText("Refresh plots")
-        hbox.addWidget(self.btn_refresh)
-        hbox.addWidget(self.btn_replot)
-        lhs_layout.addLayout(hbox)
-
-        lhs_layout.addLayout(hbox)
-        
         # Model fitting options
         self._create_fitting_options_widget()
         lhs_layout.addWidget(self.fitting_options)
@@ -217,11 +197,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         # Connect buttons
         self.btn_fit_all.clicked.connect(self.fit_all)
-        self.btn_fit_one.clicked.connect(self.fit_one)
         self.btn_measure_all.clicked.connect(self.measure_all)
-        self.btn_measure_one.clicked.connect(self.measure_one)
-        self.btn_refresh.clicked.connect(self.refresh_table)
-        self.btn_replot.clicked.connect(self.refresh_plots)
 
         # Connect matplotlib.
         self.figure.mpl_connect("button_press_event", self.figure_mouse_press)
@@ -413,16 +389,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding))
         self.opt_tabs.addTab(self.tab_synthesis, "Synthesis options")
 
-
-        # Buttons.
-        hbox_btns = QtGui.QHBoxLayout()
-        self.auto_fit_checkbox = QtGui.QCheckBox(group_box)
-        self.auto_fit_checkbox.setText("Autofit")
-        hbox_btns.addWidget(self.auto_fit_checkbox)
-
         # Final layout placement.
         opt_layout.addWidget(self.opt_tabs)
-        opt_layout.addLayout(hbox_btns)
         self.opt_tabs.raise_()
         self.fitting_options = group_box
 
@@ -430,68 +398,38 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # Common options.
         self.edit_window.textChanged.connect(
             self.update_edit_window)
-        self.edit_window.textChanged.connect(
-            self.autofit)
         self.checkbox_continuum.stateChanged.connect(
             self.clicked_checkbox_continuum)
-        self.checkbox_continuum.stateChanged.connect(
-            self.autofit)
         self.combo_continuum.currentIndexChanged.connect(
             self.update_continuum_order)
-        self.combo_continuum.currentIndexChanged.connect(
-            self.autofit)
         self.checkbox_vrad_tolerance.stateChanged.connect(
             self.clicked_checkbox_vrad_tolerance)
-        self.checkbox_vrad_tolerance.stateChanged.connect(
-            self.autofit)
         self.edit_vrad_tolerance.textChanged.connect(
             self.update_vrad_tolerance)
-        self.edit_vrad_tolerance.textChanged.connect(
-            self.autofit)
 
         # Profile options.
         self.combo_profile.currentIndexChanged.connect(
             self.update_combo_profile)
-        self.combo_profile.currentIndexChanged.connect(
-            self.autofit)
         self.edit_detection_sigma.textChanged.connect(
             self.update_detection_sigma)
-        self.edit_detection_sigma.textChanged.connect(
-            self.autofit)
         self.edit_detection_pixels.textChanged.connect(
             self.update_detection_pixels)
-        self.edit_detection_pixels.textChanged.connect(
-            self.autofit)
         self.checkbox_use_central_weighting.stateChanged.connect(
             self.clicked_checkbox_use_central_weighting)
-        self.checkbox_use_central_weighting.stateChanged.connect(
-            self.autofit)
         self.checkbox_wavelength_tolerance.stateChanged.connect(
             self.clicked_checkbox_wavelength_tolerance)
-        self.checkbox_wavelength_tolerance.stateChanged.connect(
-            self.autofit)
         self.edit_wavelength_tolerance.textChanged.connect(
             self.update_wavelength_tolerance)
-        self.edit_wavelength_tolerance.textChanged.connect(
-            self.autofit)
 
         # Synthesis options.
         self.edit_initial_abundance_bound.textChanged.connect(
             self.update_initial_abundance_bound)
-        self.edit_initial_abundance_bound.textChanged.connect(
-            self.autofit)
         self.checkbox_model_smoothing.stateChanged.connect(
             self.clicked_checkbox_model_smoothing)
-        self.checkbox_model_smoothing.stateChanged.connect(
-            self.autofit)
         self.edit_smoothing_bound.textChanged.connect(
             self.update_smoothing_bound)
-        self.edit_smoothing_bound.textChanged.connect(
-            self.autofit)
         self.btn_specify_abundances.clicked.connect(
             self.clicked_btn_specify_abundances)
-        self.btn_specify_abundances.clicked.connect(
-            self.autofit)
 
     def populate_widgets(self):
         """
@@ -562,13 +500,17 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def refresh_plots(self):
-        print("Refreshing plots"); start = time.time()
         model, proxy_index, index = self._get_selected_model(True)
-        print(model, proxy_index, index)
+        #print(model, proxy_index, index)
+        start = time.time()
         self.update_spectrum_figure(redraw=False)
+        print("Time to refresh spectrum: {:.1f}s".format(time.time()-start))
+        start = time.time()
         self.update_selected_points_plot(redraw=False)
+        print("Time to refresh selected pts: {:.1f}s".format(time.time()-start))
+        start = time.time()
         self.update_line_strength_figure(redraw=True)
-        print ("Time: {:.1f}s".format(time.time()-start))
+        print("Time to refresh gray pts: {:.1f}s".format(time.time()-start))
         return None
 
     def fit_all(self):
@@ -608,7 +550,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     except (ValueError, RuntimeError) as e:
                         logger.debug("Fitting error",m)
                         logger.debug(e)
+
         self.proxy_spectral_models.reset()
+        self.populate_filter_combo_box()
         self.refresh_cache()
         self.summarize_current_table()
         self.refresh_plots()
@@ -651,8 +595,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.parent.session.metadata["spectral_models"][index]\
                 .metadata["fitted_result"][-1]["abundances"] = [abundance]
 
-
         self.proxy_spectral_models.reset()
+        self.populate_filter_combo_box()
         self.refresh_cache()
         self.summarize_current_table()
         self.refresh_plots()
@@ -1080,7 +1024,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def update_cache(self, proxy_index):
         """
-        Update the point plotting cache
+        Update the point plotting cache.
+        This is also used to compute the combo box summary.
         """
         proxy_row = proxy_index.row()
         table_model = self.proxy_spectral_models
@@ -1103,12 +1048,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # I believe that is correctly done in the table model
         current_element =  self.filter_combo_box.currentText()
         self._currently_plotted_element = current_element
+        if current_element == "All":
+            print("Resetting cache for All")
+            self._rew_cache = np.array([])
+            self._abund_cache = np.array([])
+            return None
         table_model = self.proxy_spectral_models
         rew_list = []
         abund_list = []
         for row in range(table_model.rowCount()):
-            print("refresh_cache:",table_model.data(table_model.createIndex(row, 0, None), QtCore.Qt.CheckStateRole))
-            print("              ",table_model.data(table_model.createIndex(row, 0, None), QtCore.Qt.CheckStateRole))
             try:
                 if not table_model.data(table_model.createIndex(row, 0, None), QtCore.Qt.CheckStateRole):
                     raise ValueError #to put in nan
@@ -1148,21 +1096,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         if current_element == "All":
             if redraw: self.figure.draw()
             return None
-        if current_element == self._currently_plotted_element and use_cache:
-            self._points[0].set_offsets(np.array([self._rew_cache, self._abund_cache]).T)
-            style_utils.relim_axes(self.ax_line_strength)
-            if redraw: self.figure.draw()
-            return None
-        if not use_cache:
+        # If new element or not using cache, refresh the cache
+        if current_element != self._currently_plotted_element or not use_cache:
             self.refresh_cache()
             self.summarize_current_table()
-        
-        collections = self._points
-        collections[0].set_offsets(np.array([self._rew_cache,self._abund_cache]).T)
-        style_utils.relim_axes(self.ax_line_strength)
-        
-        # TODO trend lines
 
+        # Plot
+        self._points[0].set_offsets(np.array([self._rew_cache, self._abund_cache]).T)
+        style_utils.relim_axes(self.ax_line_strength)
+        # TODO trend lines
         if redraw: self.figure.draw()
         return None
 
@@ -1368,13 +1310,75 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def clicked_btn_specify_abundances(self):
         raise NotImplementedError
 
-    def autofit(self):
-        if self.auto_fit_checkbox.isChecked():
-            m, pix, ix = self._get_selected_model(True)
-            m.fit()
-            self.update_table_data(ix)
-            self.update_spectrum_figure(True)
+class SpectralModelsTableView(SpectralModelsTableViewBase):
+    def fit_selected_models(self):
+        """ Fit the selected spectral models. """
 
+        # Fit the models one by one
+        for i, proxy_index in enumerate(self.selectionModel().selectedIndexes()):
+            index = self.model().mapToSource(proxy_index).row()
+            self.parent.parent.session.metadata["spectral_models"][index].fit()
+
+            # Update the data model, view, and cache
+            self.update_row(proxy_index.row())
+            self.parent.update_cache(proxy_index)
+
+        # Refresh GUI
+        self.parent.summarize_current_table()
+        self.parent.refresh_plots()
+        return None
+    
+    def measure_selected_models(self):
+        """ Fit the selected spectral models. """
+
+        # Measure all EW at the end
+        # Measure synth on the fly
+        equivalent_widths = []
+        transition_indices_for_EW = []
+        spectral_model_indices_for_EW = []
+        updated_proxy_indices_for_EW = []
+        for i, proxy_index in enumerate(self.selectionModel().selectedIndexes()):
+            index = self.model().mapToSource(proxy_index).row()
+            spectral_model = self.parent.parent.session.metadata["spectral_models"][index]
+            if isinstance(spectral_model, ProfileFittingModel):
+                transition_indices_for_EW.extend(spectral_model._transition_indices)
+                spectral_model_indices_for_EW.append(index)
+                updated_proxy_indices_for_EW.append(proxy_index)
+                if spectral_model.is_acceptable:
+                    equivalent_widths.append(1000.* \
+                        spectral_model.metadata["fitted_result"][-1]["equivalent_width"][0])
+                else:
+                    equivalent_widths.append(np.nan)
+            elif isinstance(spectral_model, SpectralSynthesisModel):
+                print("Ignoring measuring synthesis",spectral_model)
+                # Update the data model, view, and cache
+                #self.update_row(proxy_index.row())
+                #self.parent.update_cache(proxy_index)
+
+        if len(equivalent_widths) != 0 \
+        and np.isfinite(equivalent_widths).sum() != 0:
+            transition_indices = np.array(transition_indices_for_EW)
+            spectral_model_indices = np.array(spectral_model_indices_for_EW)
+            transitions = self.parent.parent.session.metadata["line_list"][transition_indices].copy()
+            transitions["equivalent_width"] = equivalent_widths
+            finite = np.isfinite(transitions["equivalent_width"])
+            
+            # Store COG abundances straight into session
+            abundances = self.parent.parent.session.rt.abundance_cog(
+                self.parent.parent.session.stellar_photosphere, transitions[finite])
+            for index, abundance in zip(spectral_model_indices[finite], abundances):
+                self.parent.parent.session.metadata["spectral_models"][index]\
+                    .metadata["fitted_result"][-1]["abundances"] = [abundance]
+            
+            # Update the data model and cache
+            for proxy_index in updated_proxy_indices_for_EW:
+                self.update_row(proxy_index.row())
+                self.parent.update_cache(proxy_index)
+
+        # Refresh GUI
+        self.parent.summarize_current_table()
+        self.parent.refresh_plots()
+        return None
 
 class SpectralModelsTableModel(SpectralModelsTableModelBase):
     def data(self, index, role):

@@ -22,7 +22,7 @@ from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 from smh import utils
 from linelist_manager import TransitionsDialog
 
-from spectral_models_table import SpectralModelsTableView, SpectralModelsFilterProxyModel, SpectralModelsTableModelBase
+from spectral_models_table import SpectralModelsTableViewBase, SpectralModelsFilterProxyModel, SpectralModelsTableModelBase
 
 logger = logging.getLogger(__name__)
 
@@ -1090,7 +1090,8 @@ class StellarParametersTab(QtGui.QWidget):
 
 
 
-
+class SpectralModelsTableView(SpectralModelsTableViewBase):
+    pass
 
 class SpectralModelsTableModel(SpectralModelsTableModelBase):
     def data(self, index, role):
