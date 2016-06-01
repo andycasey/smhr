@@ -401,9 +401,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         # Create chemical abundances tab
         # BUT IT'S XBOX HUGE
-        #self.chemical_abundances_tab \
-        #    = chemical_abundances.ChemicalAbundancesTab(self)
-        #self.tabs.addTab(self.chemical_abundances_tab, "Chemical abundances")
+        self.chemical_abundances_tab \
+            = chemical_abundances.ChemicalAbundancesTab(self)
+        self.tabs.addTab(self.chemical_abundances_tab, "Chemical abundances")
 
         # Disable all tabs except the first one.
         for i in range(self.tabs.count()):
