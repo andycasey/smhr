@@ -1311,7 +1311,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         if selected_model is None: return None
     
         if isinstance(selected_model, ProfileFittingModel):
-            self.tab_profile.setEnabled(True)
+            self.opt_tabs.setTabEnabled(0, True)
+            self.opt_tabs.setCurrentIndex(0)
+
             self.edit_view_window.setText("{}".format(selected_model.metadata["window"]))
             self.edit_fit_window.setText("{}".format(selected_model.metadata["window"]))
 
@@ -1356,12 +1358,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.edit_detection_pixels.setText("{}".format(
                 selected_model.metadata["detection_pixels"]))
 
+            # Enables pushing enter to fit one?
+            #self.btn_fit_one.setAutoDefault(True)
+            #self.btn_fit_one.setDefault(True)
         else:
-            self.tab_profile.setEnabled(False)
+            self.opt_tabs.setTabEnabled(0, False)
 
         # Synthesis options.
         if isinstance(selected_model, SpectralSynthesisModel):
-            self.tab_synthesis.setEnabled(True)
+            self.opt_tabs.setTabEnabled(1, True)
+            self.opt_tabs.setCurrentIndex(1)
 
             # Update widgets.
             #self.edit_initial_abundance_bound.setText(
@@ -1372,7 +1378,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
             # sigma smooth tolerance needs implementing.
         else:
-            self.tab_synthesis.setEnabled(False)
+            self.opt_tabs.setTabEnabled(1, False)
 
         return None
 
