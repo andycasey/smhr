@@ -20,6 +20,7 @@ from tempfile import mkdtemp
 
 from .linelists import LineList
 from . import (photospheres, radiative_transfer, specutils, isoutils, utils)
+from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +113,13 @@ class Session(BaseSession):
 
         :param overwrite: [optional]
             Overwrite the file if it already exists.
+
+        :returns:
+            True if the file was saved successfully.
+
+        :raise IOError:
+            If the `session_path` already exists and `overwrite` was set to
+            `False`.
         """
 
         if os.path.exists(session_path) and not overwrite:
@@ -145,6 +153,8 @@ class Session(BaseSession):
 
         # Save the template spectrum.
         if "template_spectrum_path" in metadata.get("rv", {}):
+
+            # TODO: Give a random (unused) path name to the template spectrum?
             path = metadata["rv"].pop("template_spectrum_path")
             new_path = os.path.join(twd, ".{}".format(os.path.basename(path)))
             copyfile(path, new_path)
@@ -157,9 +167,14 @@ class Session(BaseSession):
 
         # Save the line list.
         if "line_list" in metadata:
+            # TODO: Give a random (unused) path name to the line list?
             metadata.pop("line_list").write(os.path.join(twd, "line_list.fits"),
                 format="fits")
             twd_paths.append(os.path.join(twd, "line_list.fits"))
+
+        # The spectral models must be treated with care.
+        metadata["spectral_models"] \
+            = [_.__getstate__() for _ in metadata.get("spectral_models", [])]
 
         # Pickle the metadata.
         twd_paths.append(os.path.join(twd, "session.pkl"))
@@ -204,23 +219,48 @@ class Session(BaseSession):
             metadata["line_list"] \
                 = LineList.read(os.path.join(twd, "line_list.fits"))
 
+
         # Load in the template spectrum.
         # TODO: This means we actually need to keep the template spectrum on
         #       disk until it's loaded. Let's store it now but don't load it in.
         #if "template_spectrum_path" in metadata["reconstruct_paths"]:
         #    metadata["rv"]["template_spectrum_path"] = 
 
-        # Create the object.
-        session = cls(metadata["reconstruct_paths"])
+        # Create the object using the temporary working directory input spectra.
+        session = cls([os.path.join(twd, basename) \
+            for basename in metadata["reconstruct_paths"]["input_spectra"]])
 
         # Remove any reconstruction paths.
         metadata.pop("reconstruct_paths")
 
         # Update the new session with the metadata.
-        #session.metadata = metadata
+        # TODO: Do we need to do this recursively down the dictionary keys?
+        session.metadata = metadata
 
+        # Reconstruct any spectral models.
+        spectral_model_classes = {
+            "ProfileFittingModel": ProfileFittingModel,
+            "SpectralSynthesisModel": SpectralSynthesisModel,
+        }
 
-        raise NotImplementedError
+        reconstructed_spectral_models = []
+        for state in session.metadata.get("spectral_models", []):
+            klass = spectral_model_classes[state["type"]]
+
+            model = klass(session, state["transition_hashes"])
+            model.metadata = state["metadata"]
+            reconstructed_spectral_models.append(model)
+
+        # Update the session with the spectral models.
+        session.metadata["spectral_models"] = reconstructed_spectral_models
+
+        # TODO: We need to clean up!
+        #       The line list and input spectra are stored in a TWD, and we at
+        #       least need to keep the input spectra until the model is saved
+        #       later on so that the input_spectra can be copied into the new
+        #       'save as' temporary working directory.
+
+        return session
 
 
     @property

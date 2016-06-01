@@ -1,16 +1,29 @@
 from smh.session import Session
+from smh.linelists import LineList
+from smh import spectral_models
+from smh import specutils
 
-"""
-1. Create a new session from multi-spec files.
-2. Measure the radial velocity from an un-normalsied order.
-3. Apply that radial velocity measurement to the session.
-"""
+star = Session([
+    "j1808-5104blue_multi.fits",
+    "j1808-5104red_multi.fits",
+])
 
-"""
-a = Session([
-    "/Users/arc/codes/smh/hd44007red_multi.fits",
-    "/Users/arc/codes/smh/hd44007blue_multi.fits",
-    ])
+# Measure and correct the radial velocity.
+rv, rv_uncertainty = star.rv_measure("hd140283.fits")
+#star.rv_correct(rv)
 
-rv, rv_uncertainty = a.rv_measure("hd140283.fits")
-"""
+# Fake a normalized spectrum.
+star.normalized_spectrum = specutils.Spectrum1D.read("hd140283.fits")
+
+# Create a few spectral models.
+transitions = LineList.read("/Users/arc/research/ges/linelist/vilnius.ew")
+star.metadata["line_list"] = transitions
+
+star.metadata["spectral_models"] = [
+    spectral_models.ProfileFittingModel(star, transitions["hash"][[5]]),
+    spectral_models.ProfileFittingModel(star, transitions["hash"][[6]]),
+    spectral_models.ProfileFittingModel(star, transitions["hash"][[7]]),
+    spectral_models.SpectralSynthesisModel(star, transitions["hash"][[15]], ("Si", ))
+]
+
+
