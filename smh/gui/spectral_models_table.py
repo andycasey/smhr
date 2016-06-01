@@ -4,7 +4,7 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
-__all__ = ["SpectralModelsTableView", "SpectralModelsFilterProxyModel", "SpectralModelsTableModelBase"]
+__all__ = ["SpectralModelsTableViewBase", "SpectralModelsFilterProxyModel", "SpectralModelsTableModelBase"]
 
 import logging
 import numpy as np
@@ -35,12 +35,26 @@ PICKER_TOLERANCE = 10 # MAGIC HACK
 
 
 
-class SpectralModelsTableView(QtGui.QTableView):
+class SpectralModelsTableViewBase(QtGui.QTableView):
 
     def __init__(self, parent, *args):
-        super(SpectralModelsTableView, self).__init__(parent, *args)
+        super(SpectralModelsTableViewBase, self).__init__(parent, *args)
         self.parent = parent
 
+    def update_row(self,row):
+        """
+        Row is proxy_index.row()
+        """
+        data_model = self.model().sourceModel()
+        data_model.dataChanged.emit(
+            data_model.createIndex(row, 0),
+            data_model.createIndex(row,data_model.columnCount(None)))
+        # It ought to be enough just to emit the dataChanged signal, but
+        # there is a bug when using proxy models where the data table is
+        # updated but the view is not, so we do this hack to make it
+        # work:
+        self.rowMoved(row, row, row)
+        return None
 
     def contextMenuEvent(self, event):
         """
@@ -53,62 +67,39 @@ class SpectralModelsTableView(QtGui.QTableView):
         N = len(self.selectionModel().selectedRows())
         
         menu = QtGui.QMenu(self)
-        fit_models = menu.addAction("Fit model{}..".format(["", "s"][N != 1]))
+        fit_models = menu.addAction("Fit selected model{}..".format(["", "s"][N != 1]))
         menu.addSeparator()
-        option = menu.addAction("Mark as acceptable")
-        option.setEnabled(False)
-        option = menu.addAction("Mark as unacceptable")
-        option.setEnabled(False)
-        option = menu.addAction("Measure Abundances")
-        option.setEnabled(False)
-        option = menu.addAction("Option D")
-        option.setEnabled(False)
+        measure_models = menu.addAction("Measure selected model{}..".format(["", "s"][N != 1]))
         menu.addSeparator()
-        option = menu.addAction("Option E")
-        option.setEnabled(False)
+        mark_as_acceptable = menu.addAction("Mark as acceptable")
+        mark_as_unacceptable = menu.addAction("Mark as unacceptable")
 
         if N == 0:
             fit_models.setEnabled(False)
+            measure_models.setEnabled(False)
+            mark_as_acceptable.setEnabled(False)
+            mark_as_unacceptable.setEnabled(False)
 
         action = menu.exec_(self.mapToGlobal(event.pos()))
         if action == fit_models:
             self.fit_selected_models()
+        elif action == measure_models:
+            self.measure_selected_models()
+        elif action == mark_as_acceptable:
+            self.mark_selected_models_as_acceptable()
+        elif action == mark_as_unacceptable:
+            self.mark_selected_models_as_unacceptable()
 
         return None
-
 
     def fit_selected_models(self):
-        """ Fit the selected spectral models. """
-
-        data_model = self.model().sourceModel()
-        for i, proxy_index in enumerate(self.selectionModel().selectedIndexes()):
-            # Fit the models.
-
-            index = self.model().mapToSource(proxy_index).row()
-            self.parent.parent.session.metadata["spectral_models"][index].fit()
-
-            # Update the view if this is the first one.
-            if i == 0:
-                # TODO parent has update_spectrum_figure()
-                self.parent.update_spectrum_figure()
-
-            # Update the data model.
-            data_model.dataChanged.emit(
-                data_model.createIndex(proxy_index.row(), 0),
-                data_model.createIndex(proxy_index.row(),
-                    data_model.columnCount(QtCore.QModelIndex())))
-
-            # It ought to be enough just to emit the dataChanged signal, but
-            # there is a bug when using proxy models where the data table is
-            # updated but the view is not, so we do this hack to make it
-            # work:
-            # TODO parent has table_view
-            self.parent.table_view.rowMoved(
-                proxy_index.row(), proxy_index.row(), proxy_index.row())
-
-        return None
-
-
+        raise NotImplementedError("Base must be subclassed")
+    def measure_selected_models(self):
+        raise NotImplementedError("Base must be subclassed")
+    def mark_selected_models_as_acceptable(self):
+        raise NotImplementedError("Base must be subclassed")
+    def mark_selected_models_as_unacceptable(self):
+        raise NotImplementedError("Base must be subclassed")
 
 class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
 
@@ -314,7 +305,7 @@ class SpectralModelsTableModelBase(QtCore.QAbstractTableModel):
             self.dataChanged.emit(self.createIndex(row, 0),
                                   self.createIndex(row, 
                                   self.columnCount(None)))
-            print("Time to setData: {:.1f}s".format(time.time()-_start))
+            print("Time to emit: {:.1f}s".format(time.time()-_start))
             return value
     """
     def sort(self, column, order):
