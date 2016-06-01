@@ -46,7 +46,7 @@ class BaseSpectralModel(object):
         self._session = session
         self._transition_hashes = transition_hashes
 
-        indices = self._index_transitions()
+        indices = self.index_transitions()
         transitions = self._session.metadata["line_list"][indices]
 
         self.metadata = {
@@ -63,7 +63,7 @@ class BaseSpectralModel(object):
         else:
             self._repr_wavelength \
                 = "~{0:.0f}".format(np.mean(transitions["wavelength"]))
-
+        
         return None
 
 
@@ -90,7 +90,7 @@ class BaseSpectralModel(object):
         """
         return self.metadata["use_for_stellar_composition_inference"]
 
-
+    '''
     @property
     def transitions(self):
         """ Return the transitions associateed with this class. """
@@ -98,16 +98,17 @@ class BaseSpectralModel(object):
         try:
             indices = self._transition_indices
         except AttributeError:
-            indices = self._index_transitions()
+            indices = self.index_transitions()
         else:
             # Check hashes.
             actual_hashes = self._session.metadata["line_list"][indices]["hash"]
             if not np.all(actual_hashes == self._transition_hashes):
-                indices = self._index_transitions()
+                indices = self.index_transitions()
 
         return self._session.metadata["line_list"][indices]
+    '''
 
-    def _index_transitions(self):
+    def index_transitions(self):
         """
         Index the transitions to the parent session.
         """
@@ -120,6 +121,8 @@ class BaseSpectralModel(object):
             indices[i] = index
 
         self._transition_indices = indices
+        self.transitions = self._session.metadata["line_list"][indices]
+
         return indices
 
     @property
