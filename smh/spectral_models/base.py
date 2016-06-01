@@ -31,8 +31,7 @@ class BaseSpectralModel(object):
         #if not isinstance(session, BaseSession):
         #    raise TypeError("session must be a sub-class from BaseSession")
 
-        if "line_list" not in session.metadata \
-        or len(session.metadata["line_list"]) == 0:
+        if len(session.metadata.get("line_list", [])) == 0:
             raise ValueError("session does not have a line list")
 
         # Validate the transition_hashes
@@ -40,29 +39,29 @@ class BaseSpectralModel(object):
         for transition_hash in transition_hashes:
             if transition_hash not in session.metadata["line_list"]["hash"]:
                 raise ValueError(
-                    "transition hash '{}' not found in parent session".format(
-                        transition_hash))
+                    "transition hash '{}' not found in parent session"\
+                    .format(transition_hash))
 
         self._session = session
         self._transition_hashes = transition_hashes
 
-        indices = self.index_transitions()
-        transitions = self._session.metadata["line_list"][indices]
-
+        # Link the .transitions attribute to the parent session.
+        self.index_transitions()
+        
         self.metadata = {
             "use_for_stellar_composition_inference": True,
             "use_for_stellar_parameter_inference": (
-                "Fe I" in transitions["element"] or
-                "Fe II" in transitions["element"])
+                "Fe I" in self.transitions["element"] or
+                "Fe II" in self.transitions["element"])
         }
 
         # Create a _repr_wavelength property.
-        if len(transitions) == 1:
+        if len(self.transitions) == 1:
             self._repr_wavelength \
-                = "{0:.1f}".format(transitions["wavelength"][0])
+                = "{0:.1f}".format(self.transitions["wavelength"][0])
         else:
             self._repr_wavelength \
-                = "~{0:.0f}".format(np.mean(transitions["wavelength"]))
+                = "~{0:.0f}".format(np.mean(self.transitions["wavelength"]))
         
         return None
 
