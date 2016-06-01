@@ -207,7 +207,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Matplotlib figure.
         self.figure = mpl.MPLWidget(None, tight_layout=True, autofocus=True)
-        self.figure.setMinimumSize(QtCore.QSize(800, 300))
+        self.figure.setMinimumSize(QtCore.QSize(300, 300))
         self.figure.figure.patch.set_facecolor([(_ - 10)/255. for _ in \
             self.palette().color(QtGui.QPalette.Window).getRgb()[:3]])
 

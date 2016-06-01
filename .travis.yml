@@ -40,7 +40,6 @@ install:
   - python setup.py install --with-models
 script:
   - nosetests --with-coverage --cover-package=smh
-  #- pyuic4 sps.ui
 after_success:
   coveralls
 #branches:
