@@ -119,7 +119,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         # Model fitting options
         self._create_fitting_options_widget()
-        lhs_layout.addWidget(self.fitting_options)
+        lhs_layout.addWidget(self.opt_tabs)
         
         lhs_widget.setLayout(lhs_layout)
         self.parent_splitter.addWidget(lhs_widget)
@@ -211,15 +211,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.populate_widgets()
 
     def _create_fitting_options_widget(self):
-        #group_box = QtGui.QGroupBox(self)
-        #group_box.setTitle("Fitting options")
-        #opt_layout = QtGui.QVBoxLayout(self)
-        #opt_layout.setContentsMargins(6, 12, 6, 6)
         self.opt_tabs = QtGui.QTabWidget(self)
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.Expanding, 
             QtGui.QSizePolicy.Expanding)
-        #sp.setHeightForWidth(self.table_view.sizePolicy().hasHeightForWidth())
         self.opt_tabs.setSizePolicy(sp)
         
         # Common options
@@ -392,11 +387,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         vbox_synthesis.addItem(QtGui.QSpacerItem(20, 40, 
             QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding))
         self.opt_tabs.addTab(self.tab_synthesis, "Synthesis options")
-
-        # Final layout placement.
-        #opt_layout.addWidget(self.opt_tabs)
-        #self.opt_tabs.raise_()
-        self.fitting_options = self.opt_tabs
 
         # Connect Signals
         # Common options.
@@ -622,7 +612,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             logger.debug("Fitting error",spectral_model)
             logger.debug(e)
             return None
-        self.update_table_data(proxy_index, index)
+        self.table_view.update_row(proxy_index.row())
         self.update_cache(proxy_index)
         self.summarize_current_table()
         self.selected_model_changed()
@@ -640,7 +630,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         except KeyError as e:
             print("Fit a model first!")
             return None
-        self.update_table_data(proxy_index, index)
+        self.table_view.update_row(proxy_index.row())
         self.update_cache(proxy_index)
         self.summarize_current_table()
         self.selected_model_changed()
@@ -735,7 +725,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     spectral_model.fit()
 
                     # Update the view for this row.
-                    self.update_table_data(proxy_index, index)
+                    self.table_view.update_row(proxy_index.row())
 
                     # Update the view of the current model.
                     self.update_spectrum_figure(True)
@@ -748,7 +738,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 spectral_model.fit()
 
                 # Update the view for this row.
-                self.update_table_data(proxy_index, index)
+                self.table_view.update_row(proxy_index.row())
 
                 # Update the view of the current model.
                 self.update_spectrum_figure(True)
@@ -846,7 +836,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             spectral_model.fit()
 
             # Update the table view for this row.
-            self.update_table_data(proxy_index, index)
+            self.table_view.update_row(proxy_index.row())
 
             # Update the view of the spectral model.
             self.update_spectrum_figure()
@@ -870,7 +860,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return (model, proxy_index, index) if full_output else model
 
     def selected_model_changed(self):
-        #model, proxy_index, index = self._get_selected_model(True)
         self.update_fitting_options()
         self.refresh_plots()
         return None
@@ -1035,9 +1024,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def update_cache(self, proxy_index):
         """
-        Update the point plotting cache.
+        Update the point plotting cache at a single proxy table index.
         This is also used to compute the combo box summary.
         """
+        if self.filter_combo_box.currentText() == "All":
+            return None
         proxy_row = proxy_index.row()
         table_model = self.proxy_spectral_models
         try:
@@ -1053,10 +1044,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self._abund_cache[proxy_row] = abund
         
     def refresh_cache(self):
-        # Compute cache of REW and abundance from spectral model table model
-        # Wow this is the worst naming ever
-        # Note that we should use np.nan for REW for synthesis models to keep indices ok
-        # I believe that is correctly done in the table model
+        """
+        Compute cache of REW and abundance from spectral model table model
+        Wow this is the worst naming ever
+        Note that we should use np.nan for REW for synthesis models to keep indices ok
+        I believe that is correctly done in the table model
+        """
         current_element =  self.filter_combo_box.currentText()
         self._currently_plotted_element = current_element
         if current_element == "All":
@@ -1193,16 +1186,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         else:
             self.tab_synthesis.setEnabled(False)
 
-        return None
-
-    def update_table_data(self, proxy_index, index):
-        data_model = self.proxy_spectral_models.sourceModel()
-        data_model.dataChanged.emit(
-            data_model.createIndex(proxy_index.row(), 0),
-            data_model.createIndex(proxy_index.row(),
-                 data_model.columnCount(QtCore.QModelIndex())))
-        self.table_view.rowMoved(
-            proxy_index.row(), proxy_index.row(), proxy_index.row())
         return None
 
     ###############################
@@ -1393,6 +1376,23 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
         self.parent.refresh_plots()
         return None
 
+    def mark_selected_models_as_acceptable(self):
+        proxy_model = self.parent.proxy_spectral_models
+        full_model = proxy_model.sourceModel()
+        for i, proxy_index in enumerate(self.selectionModel().selectedIndexes()):
+            full_index = proxy_model.mapToSource(proxy_index)
+            full_model.setData(full_index, 2, refresh_view=False)
+        self.parent.summarize_current_table()
+        self.parent.refresh_plots()
+    def mark_selected_models_as_unacceptable(self):
+        proxy_model = self.parent.proxy_spectral_models
+        full_model = proxy_model.sourceModel()
+        for i, proxy_index in enumerate(self.selectionModel().selectedIndexes()):
+            full_index = proxy_model.mapToSource(proxy_index)
+            full_model.setData(full_index, 0, refresh_view=False)
+        self.parent.summarize_current_table()
+        self.parent.refresh_plots()
+
 class SpectralModelsTableModel(SpectralModelsTableModelBase):
     def data(self, index, role):
         """
@@ -1456,7 +1456,7 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
 
         return value if role == QtCore.Qt.DisplayRole else None
 
-    def setData(self, index, value, role=QtCore.Qt.DisplayRole):
+    def setData(self, index, value, role=QtCore.Qt.DisplayRole, refresh_view=True):
         start = time.time()
         value = super(SpectralModelsTableModel, self).setData(index, value, role)
         print("setData: superclass: {:.1f}s".format(time.time()-start))
@@ -1478,8 +1478,9 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
 
         print(proxy_index,proxy_row)
         self.parent.update_cache(proxy_index)
-        self.parent.summarize_current_table()
         print("Time to setData: {:.1f}s".format(time.time()-start))
-        self.parent.refresh_plots()
+        if refresh_view:
+            self.parent.summarize_current_table()
+            self.parent.refresh_plots()
 
         return value
