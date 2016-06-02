@@ -94,10 +94,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.table_view.setSortingEnabled(False)
         self.table_view.resizeColumnsToContents()
         self.table_view.setColumnWidth(0, 30) # MAGIC
-        self.table_view.setColumnWidth(1, 70) # MAGIC
-        self.table_view.setColumnWidth(2, 70) # MAGIC
-        self.table_view.setColumnWidth(3, 70) # MAGIC
-        self.table_view.setColumnWidth(4, 70) # MAGIC
+        self.table_view.setColumnWidth(1, 60) # MAGIC
+        self.table_view.setColumnWidth(2, 50) # MAGIC
+        self.table_view.setColumnWidth(3, 50) # MAGIC
+        self.table_view.setColumnWidth(4, 50) # MAGIC
+        self.table_view.setColumnWidth(5, 50) # MAGIC
+        self.table_view.setColumnWidth(6, 50) # MAGIC
         self.table_view.setMinimumSize(QtCore.QSize(240, 0))
         self.table_view.horizontalHeader().setStretchLastSection(True)
         sp = QtGui.QSizePolicy(
@@ -210,6 +212,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._currently_plotted_element = None
         self._rew_cache = []
         self._abund_cache = []
+        self._err_cache = []
         self.populate_widgets()
 
     def _create_fitting_options_widget(self):
@@ -647,6 +650,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.refresh_cache()
         self.summarize_current_table()
         self.refresh_plots()
+        self.table_view.selectRow(0)
         return None
 
     def summarize_current_table(self):
@@ -656,14 +660,17 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.element_summary_text.setText("N={} lines".format(N))
             return None
         # Use cache to get abundance and avoid looping through proxy table
-        # TODO cache abundance error too!
         # TODO [X/H], [X/Fe]
         ii = ~np.isnan(self._abund_cache)
         N = np.sum(ii)
-        abund = np.mean(self._abund_cache[ii])        
-        errs = np.ones(N)*0.1
+        _abund = self._abund_cache[ii]
+        _errs = self._err_cache[ii]
+        weights = 1/_errs**2
+        total_weights = np.sum(weights)
+        abund = np.sum(_abund*weights)/total_weights
+        stdev = np.sum(_errs*weights**2)/(total_weights**2)
         text = "N={1} A({0})={2:5.2f} e({0})={5:4.2f} [X/H]={3:5.2f} [X/Fe]={4:5.2f}"
-        text = text.format(elem,N,abund,abund,abund,0.1)
+        text = text.format(elem,N,abund,abund,abund,stdev)
         self.element_summary_text.setText(text)
         return None
 
@@ -1038,6 +1045,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             spectrum = self.parent.session.normalized_spectrum
             plot_ii = np.logical_and(spectrum.dispersion > limits[0]-10,
                                      spectrum.dispersion < limits[1]+10)
+            if np.sum(plot_ii)==0: 
+                # Can't plot, no points!
+                return None
             self._lines["spectrum"] = self.ax_spectrum.plot(spectrum.dispersion[plot_ii],
                 spectrum.flux[plot_ii], c="k", drawstyle="steps-mid")[0]
 
@@ -1186,12 +1196,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 raise ValueError #to put in nan
             rew = float(table_model.data(table_model.createIndex(proxy_row, 4, None)))
             abund = float(table_model.data(table_model.createIndex(proxy_row, 2, None)))
+            err = float(table_model.data(table_model.createIndex(proxy_row, 5, None)))
         except ValueError:
             self._rew_cache[proxy_row] = np.nan
             self._abund_cache[proxy_row] = np.nan
+            self._err_cache[proxy_row] = np.nan
         else:
             self._rew_cache[proxy_row] = rew
             self._abund_cache[proxy_row] = abund
+            self._err_cache[proxy_row] = err
         
     def refresh_cache(self):
         """
@@ -1206,22 +1219,26 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             print("Resetting cache for All")
             self._rew_cache = np.array([])
             self._abund_cache = np.array([])
+            self._err_cache = np.array([])
             return None
         table_model = self.proxy_spectral_models
         rew_list = []
         abund_list = []
+        err_list = []
         for row in range(table_model.rowCount()):
             try:
                 if not table_model.data(table_model.createIndex(row, 0, None), QtCore.Qt.CheckStateRole):
                     raise ValueError #to put in nan
                 rew = float(table_model.data(table_model.createIndex(row, 4, None)))
                 abund = float(table_model.data(table_model.createIndex(row, 2, None)))
+                err = float(table_model.data(table_model.createIndex(row, 5, None)))
             except ValueError:
-                rew_list.append(np.nan); abund_list.append(np.nan)
+                rew_list.append(np.nan); abund_list.append(np.nan); err_list.append(np.nan)
             else:
-                rew_list.append(rew); abund_list.append(abund)
+                rew_list.append(rew); abund_list.append(abund); err_list.append(err)
         self._rew_cache = np.array(rew_list)
         self._abund_cache = np.array(abund_list)
+        self._err_cache = np.array(err_list)
         
     def update_selected_points_plot(self, redraw=False):
         """
