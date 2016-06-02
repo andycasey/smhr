@@ -308,9 +308,11 @@ class RVTab(QtGui.QWidget):
         self.rv_applied.setSizePolicy(sp)
         self.rv_applied.setMinimumSize(QtCore.QSize(50, 16777215))
         self.rv_applied.setAlignment(QtCore.Qt.AlignCenter)
-        self.rv_applied.setObjectName("rv_applied")
         self.rv_applied.setValidator(
             QtGui.QDoubleValidator(-1e6, 1e6, 2, self.rv_applied))
+        self.rv_applied.textChanged.connect(self.check_state)
+        self.rv_applied.returnPressed.connect(self.correct_radial_velocity)
+
         hbox.addWidget(self.rv_applied)
 
         # Units/uncertainty label.
@@ -533,8 +535,29 @@ class RVTab(QtGui.QWidget):
 
     def update_normalization_function(self):
         """ Update the normalization function. """
-        self._cache["input"]["normalization"]["function"] \
-            = self.norm_function.currentText()
+
+        function = self.norm_function.currentText()
+
+        indices = range(5, 10)
+        if function == "Spline":
+            if int(self.norm_order.currentText()) > 5:
+                # Limit it to 5.
+                self.norm_order.setCurrentIndex(4) # Index 4 = Order '5'
+
+            # Disable the other entries.
+            for i in indices:
+                item = self.norm_order.model().item(i)
+                if item is not None:
+                    item.setEnabled(False)
+
+        else:
+            # Enable order entries greater than 5.
+            for i in indices:
+                item = self.norm_order.model().item(i)
+                if item is not None:
+                    item.setEnabled(True)
+
+        self._cache["input"]["normalization"]["function"] = function
         self.fit_and_redraw_normalized_order()
 
 
