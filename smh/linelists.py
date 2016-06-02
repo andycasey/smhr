@@ -551,7 +551,7 @@ class LineList(Table):
                 D0 = space if np.ma.is_masked(line['dissoc_E']) or np.isnan(line['dissoc_E']) else "{:10.3}".format(line['dissoc_E'])
                 comments = '' if np.ma.is_masked(line['comments']) else line['comments']
                 if 'equivalent_width' in line.colnames:
-                    EW = space if np.ma.is_masked(line['equivalent_width']) or np.isnan(line['equivalent_width']) else "{:10.3}".format(line['equivalent_width'])
+                    EW = space if np.ma.is_masked(line['equivalent_width']) or np.isnan(line['equivalent_width']) else "{:10.3f}".format(line['equivalent_width'])
                 else:
                     EW = space
                 f.write(fmt.format(line['wavelength'],line['species'],line['expot'],line['loggf'],C6,D0,EW,line['comments'])+"\n")

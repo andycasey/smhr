@@ -42,8 +42,6 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
         Specify verbose flags to MOOG. This is primarily used for debugging.
     """
 
-    # TODO if no transitions, what to do?
-
     # Create a temporary directory.
     path = utils.twd_path(**kwargs)
 
@@ -54,7 +52,10 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
 
     # Write out the transitions.
     # Note that this must write out the EW too
-    # TODO remove and replace bad EW
+    # TODO remove and replace bad EW? Currently done elsewhere
+    if np.all(transitions['loggf'] >= 0):
+        transitions = transitions.copy()
+        transitions['loggf'] = 10**transitions['loggf']
     transitions.write(lines_in, format="moog")
     
     # Load the abfind driver template.

@@ -80,7 +80,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         self.proxy_spectral_models.setDynamicSortFilter(True)
         header = ["", u"λ\n(Å)", "log ε\n(dex)", u"E. W.\n(mÅ)",
-                  "REW", "σ(X)\n(dex)", "σ(E.W.)\n(mÅ)", "Element\n"]
+                  "REW", "σ(X)\n(dex)", "σ(E.W.)\n(mÅ)", "loggf","Element\n"]
         #attrs = ("is_acceptable", "_repr_wavelength", "abundance", "equivalent_width", 
         #         "reduced_equivalent_width", "_repr_element")
         self.all_spectral_models = SpectralModelsTableModel(self, header, None)
@@ -100,6 +100,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.table_view.setColumnWidth(4, 50) # MAGIC
         self.table_view.setColumnWidth(5, 50) # MAGIC
         self.table_view.setColumnWidth(6, 50) # MAGIC
+        self.table_view.setColumnWidth(7, 50) # MAGIC
         self.table_view.setMinimumSize(QtCore.QSize(240, 0))
         self.table_view.horizontalHeader().setStretchLastSection(True)
         sp = QtGui.QSizePolicy(
@@ -1621,6 +1622,12 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
             except:
                 value = ""
         elif column == 7:
+            try:
+                loggf = spectral_model.transitions[0]['loggf']
+                value = "{:6.3f}".format(loggf)
+            except:
+                value = ""
+        elif column == 8:
             # TODO need to get current element from session to pick which one
             value = "; ".join(["{}".format(element) \
                       for element in spectral_model.elements])

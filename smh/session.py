@@ -781,7 +781,9 @@ class Session(BaseSession):
         spectral_model_indices = np.array(spectral_model_indices)
         transitions = self.metadata["line_list"][transition_indices].copy()
         transitions["equivalent_width"] = equivalent_widths
-        finite = np.isfinite(transitions["equivalent_width"])
+        min_eqw = .01
+        finite = np.logical_and(np.isfinite(transitions["equivalent_width"]),
+                                transitions["equivalent_width"] > min_eqw)
         
         abundances = self.rt.abundance_cog(
             self.stellar_photosphere, transitions[finite])
@@ -790,7 +792,8 @@ class Session(BaseSession):
             # Increase EW by uncertainty and measure again
             equivalent_width_errs = np.array(equivalent_width_errs)
             transitions["equivalent_width"] += equivalent_width_errs
-            finite_uncertainty = np.isfinite(transitions["equivalent_width"])
+            finite_uncertainty = np.logical_and(np.isfinite(transitions["equivalent_width"]),
+                                                transitions["equivalent_width"] > min_eqw)
             # Some EW uncertainties are HUGE. 
             # Set a maximum EW of 9999, and later max abund uncertainty of 9
             transitions["equivalent_width"][transitions["equivalent_width"] > 9999] = 9999.

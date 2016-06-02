@@ -106,7 +106,8 @@ if __name__ == '__main__':
 
     # Load in line_list
     ll = LineList.read(os.path.dirname(os.path.abspath(__file__))+'/../tests/test_data/linelists/complete.list')
-    session.metadata['line_list'] = ll#[90:100]
+    session.metadata['line_list'] = ll[190:200] #strong lines
+    #session.metadata['line_list'] = ll[90:100]
 
     # Load in spectral_models from linelist
     #from linelist_manager import TransitionsDialog
@@ -135,9 +136,9 @@ if __name__ == '__main__':
             _current_EW.append(np.nan)
     print("Done! {:.1f}s".format(time.time()-start))
     
-    print("Measuring uncertainty from session..."); start = time.time()
-    abundances, uncertainties = session.measure_abundances()
-    print("Done! {:.1f}s".format(time.time()-start))
+    #print("Measuring uncertainty from session..."); start = time.time()
+    #abundances, uncertainties = session.measure_abundances()
+    #print("Done! {:.1f}s".format(time.time()-start))
     
     #total_diff = np.nansum(np.abs(abundances-np.array(_current_abundances)))
     #assert total_diff == 0, total_diff
