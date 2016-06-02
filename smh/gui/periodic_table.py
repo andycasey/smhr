@@ -25,14 +25,14 @@ class PeriodicTableDialog(QtGui.QDialog):
         Cs Ba Lu Hf Ta W  Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn
         Fr Ra Lr Rf
 
-           La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb
-           Ac Th Pa U  Np Pu Am Cm Bk Cf Es Fm Md No"""
+              La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb
+              Ac Th Pa U  Np Pu Am Cm Bk Cf Es Fm Md No"""
 
     element_length = 3 # Includes spaces between elements.
 
 
     def __init__(self, selectable_elements=None, explanation=None, 
-        multiple_select=False, **kwargs):
+        multiple_select=True, **kwargs):
         """
         Show a widget that will let the user select element(s) from the
         specified list.
@@ -49,6 +49,10 @@ class PeriodicTableDialog(QtGui.QDialog):
         """
 
         super(PeriodicTableDialog, self).__init__(**kwargs)
+
+        self._offset = 1
+        self._selected_elements = []
+        self.multiple_select = multiple_select
 
         if selectable_elements is None:
             selectable_elements = self.elements.split()
@@ -73,59 +77,118 @@ class PeriodicTableDialog(QtGui.QDialog):
         vbox = QtGui.QVBoxLayout(self)
 
         if explanation is not None:
+            self._offset += 1
             explanatory_label = QtGui.QLabel(self)
             explanatory_label.setWordWrap(True)
             explanatory_label.setText(explanation)
             vbox.addWidget(explanatory_label)
 
-        # Add matplotlib widget.
-        self.figure = mpl.MPLWidget(None)
-        vbox.addWidget(self.figure)
+        # Add grid layout.
+        grid = QtGui.QGridLayout()
 
         # How many columns and rows of axes?
         N_rows = len(self.elements.split("\n")) - 1
         N_cols = max([int(np.ceil(float(len(row))/self.element_length)) \
             for row in dedent(self.elements).split("\n")])
 
-        axes = []
+        size = 30
+
+        # We go from 1: so that the periodic_table variable can be formatted in
+        # a human-readable way.
         for i, row in enumerate(dedent(self.elements).split("\n")[1:]):
 
             for j in range(N_cols):
                 element = row[j*self.element_length:(j + 1)*self.element_length]
-                if element.strip():
-                    k = (j + 1) + (i * N_cols)
-                    axes.append([
-                        element.strip(),
-                        self.figure.figure.add_subplot(N_rows, N_cols, k)
-                    ])
+                element = element.strip()
+
+                if element:    
+                    label = QtGui.QPushButton(self)
+                    label.setMinimumSize(QtCore.QSize(size, size))
+                    label.setMaximumSize(QtCore.QSize(size, size))
+                    label.setObjectName("element_{}".format(element))
+                    label.setFlat(True)
+                    label.setText(element)
+
+                    if element in selectable_elements:
+                        label.clicked.connect(self.toggle_element)
+                    else:
+                        label.setEnabled(False)
+
+                    grid.addWidget(label, i, j, 1, 1)
 
 
-        for element, ax in axes:
-            ax.set_xticks([])
-            ax.set_yticks([])
-
-            ax.text(0.5, 0.5, element, verticalalignment="center",
-                horizontalalignment="center", transform=ax.transAxes,
-                color="#000000" if element in selectable_elements else "#666666")
-
-        self.figure.figure.subplots_adjust(hspace=0, wspace=0)
-
-        self.figure.draw()
-        self.figure.mpl_connect("button_press_event", self.figure_mouse_press)
+        vbox.addLayout(grid)
 
         return None
 
 
-    def figure_mouse_press(self, event):
+    def selected_elements(self):
+        
+        # This could/should be a property, but I am following Qt coding
+        # practices and making it a function.
+        return self._selected_elements
+
+
+    def toggle_element(self):
+        """ An element was selected in the GUI. """
+
+        element = self.sender().text()
+
+        if element not in self.selected_elements():
+            self.select_element(element)
+        else:
+            self.deselect_element(element)
+
+        print("currently selected", self.selected_elements())
+        return None
+
+
+    def _get_element_widget(self, element):
+        index = self.elements.split().index(element)
+        widget = self.children()[self._offset + index]
+
+        assert widget.text() == element
+        return widget
+
+
+    def select_element(self, element):
         """
-        The mouse button has been pressed in the figure.
-
-        :param event:
-            The matplotlib event.
+        Show an element as selected.
         """
 
-        print("event", event.__dict__)
 
+        widget = self._get_element_widget(element)
+        widget.setStyleSheet("QPushButton { color: red; }")
+
+        if self.multiple_select:
+            self._selected_elements.append(element)
+        else:
+            self._selected_elements = [element]
+
+        return None
+
+
+
+    def deselect_element(self, element):
+        """
+        Show an element as being de-selected.
+        """
+
+        widget = self._get_element_widget(element)
+        widget.setStyleSheet("QPushButton { color: none; }")
+
+        try:
+            self._selected_elements.remove(element)
+
+        except ValueError:
+            None
+
+        return None
+
+
+
+
+    
 
 
 if __name__ == "__main__":
@@ -136,6 +199,6 @@ if __name__ == "__main__":
         app = QtGui.QApplication(sys.argv)
     except RuntimeError:
         None
-    window = PeriodicTableDialog(None)
+    window = PeriodicTableDialog(["Fe", "Ti"])
     window.exec_()
 
