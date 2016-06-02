@@ -771,6 +771,11 @@ class StellarParametersTab(QtGui.QWidget):
         Update the trend lines in the figures.
         """
 
+        if not hasattr(self, "_state_transitions"):
+            if redraw:
+                self.figure.draw()
+            return None
+
         states = utils.equilibrium_state(self._state_transitions,
             columns=("expot", "reduced_equivalent_width"))
 
@@ -871,7 +876,7 @@ class StellarParametersTab(QtGui.QWidget):
     def _get_selected_model(self, full_output=False):
 
         # Map the first selected row back to the source model index.
-        proxy_index = self.table_view.selectionModel().selectedIndexes()[0]
+        proxy_index = self.table_view.selectionModel().selectedIndexes()[-1]
         index = self.proxy_spectral_models.mapToSource(proxy_index).row()
         model = self.parent.session.metadata["spectral_models"][index]
         return (model, proxy_index, index) if full_output else model
@@ -949,7 +954,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.update_selected_points()
 
         # Show spectrum.
-        self.update_spectrum_figure()
+        self.update_spectrum_figure(redraw=True)
 
         return None
 
