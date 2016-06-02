@@ -80,10 +80,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         self.proxy_spectral_models.setDynamicSortFilter(True)
         header = ["", u"λ\n(Å)", "log ε\n(dex)", u"E. W.\n(mÅ)",
-                  "REW", "Element\n"]
-        attrs = ("is_acceptable", "_repr_wavelength", "abundance", "equivalent_width", 
-                 "reduced_equivalent_width", "_repr_element")
-        self.all_spectral_models = SpectralModelsTableModel(self, header, attrs)
+                  "REW", "σ(X)\n(dex)", "σ(E.W.)\n(mÅ)", "Element\n"]
+        #attrs = ("is_acceptable", "_repr_wavelength", "abundance", "equivalent_width", 
+        #         "reduced_equivalent_width", "_repr_element")
+        self.all_spectral_models = SpectralModelsTableModel(self, header, None)
         self.proxy_spectral_models.setSourceModel(self.all_spectral_models)
 
         self.table_view.setModel(self.proxy_spectral_models)
@@ -1576,7 +1576,7 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
                 value = "; ".join(["{0:.2f}".format(abundance) \
                     for abundance in abundances])
 
-        elif column == 3 or column == 4:
+        elif column in [3, 4]:
             try:
                 result = spectral_model.metadata["fitted_result"][2]
                 equivalent_width = result["equivalent_width"][0]
@@ -1589,8 +1589,21 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
             if column == 4:
                 value = "{:.2f}".format(np.log10(equivalent_width/float(spectral_model._repr_wavelength))) \
                     if np.isfinite(equivalent_width) else ""
-                
-        elif column == 5:
+        elif column == 5: #abundance err
+            try:
+                result = spectral_model.metadata["fitted_result"][2]
+                err = result["abundance_uncertainties"][0]
+                value = "{:.2f}".format(err)
+            except:
+                value = ""
+        elif column == 6: #EW err
+            try:
+                result = spectral_model.metadata["fitted_result"][2]
+                err = 1000.*np.nanmax(np.abs(result["equivalent_width"][1:3]))
+                value = "{:.2f}".format(err)
+            except:
+                value = ""
+        elif column == 7:
             # TODO need to get current element from session to pick which one
             value = "; ".join(["{}".format(element) \
                       for element in spectral_model.elements])
