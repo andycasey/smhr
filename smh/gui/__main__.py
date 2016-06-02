@@ -89,4 +89,5 @@ if __name__ == '__main__':
     #])
     app.window = Ui_MainWindow()
     app.window.show()
+    app.window.raise_()
     sys.exit(app.exec_())
