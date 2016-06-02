@@ -32,7 +32,7 @@ class PeriodicTableDialog(QtGui.QDialog):
 
 
     def __init__(self, selectable_elements=None, explanation=None, 
-        multiple_select=True, **kwargs):
+        multiple_select=False, close_on_first_select=True, **kwargs):
         """
         Show a widget that will let the user select element(s) from the
         specified list.
@@ -46,6 +46,11 @@ class PeriodicTableDialog(QtGui.QDialog):
 
         :param multiple_select: [optional]
             Allow multiple elements to be selected.
+
+        :param close_on_first_select: [optional]
+            If `multiple_select` is set to False and the this option is set to
+            True, then the dialog will be closed the first time an element is
+            selected.
         """
 
         super(PeriodicTableDialog, self).__init__(**kwargs)
@@ -53,6 +58,7 @@ class PeriodicTableDialog(QtGui.QDialog):
         self._offset = 1
         self._selected_elements = []
         self.multiple_select = multiple_select
+        self.close_on_first_select = close_on_first_select
 
         if selectable_elements is None:
             selectable_elements = self.elements.split()
@@ -87,7 +93,7 @@ class PeriodicTableDialog(QtGui.QDialog):
         grid = QtGui.QGridLayout()
 
         # How many columns and rows of axes?
-        N_rows = len(self.elements.split("\n")) - 1
+        N_rows = len(self.elements.split("\n"))
         N_cols = max([int(np.ceil(float(len(row))/self.element_length)) \
             for row in dedent(self.elements).split("\n")])
 
@@ -97,6 +103,7 @@ class PeriodicTableDialog(QtGui.QDialog):
         # a human-readable way.
         for i, row in enumerate(dedent(self.elements).split("\n")[1:]):
 
+            print(i, row)
             for j in range(N_cols):
                 element = row[j*self.element_length:(j + 1)*self.element_length]
                 element = element.strip()
@@ -116,12 +123,18 @@ class PeriodicTableDialog(QtGui.QDialog):
 
                     grid.addWidget(label, i, j, 1, 1)
 
+            if not row.strip(): # Blank row.
+                grid.addItem(
+                    QtGui.QSpacerItem(size, size, 
+                        QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Minimum),
+                    i, 0, 1, 1)
 
         vbox.addLayout(grid)
 
         return None
 
 
+    @property
     def selected_elements(self):
         
         # This could/should be a property, but I am following Qt coding
@@ -134,12 +147,12 @@ class PeriodicTableDialog(QtGui.QDialog):
 
         element = self.sender().text()
 
-        if element not in self.selected_elements():
+        if element not in self.selected_elements:
             self.select_element(element)
         else:
             self.deselect_element(element)
 
-        print("currently selected", self.selected_elements())
+        print("currently selected", self.selected_elements)
         return None
 
 
@@ -164,6 +177,8 @@ class PeriodicTableDialog(QtGui.QDialog):
             self._selected_elements.append(element)
         else:
             self._selected_elements = [element]
+            if self.close_on_first_select:
+                self.close()
 
         return None
 
@@ -186,6 +201,20 @@ class PeriodicTableDialog(QtGui.QDialog):
         return None
 
 
+    def closeEvent(self, event):
+        """
+        The widget cannot be closed until at least one element is selected.
+
+        :param event:
+            The close event.
+        """
+
+        if not self.selected_elements:
+            event.ignore()
+            return False
+
+        event.accept()
+        return None
 
 
     
