@@ -123,8 +123,8 @@ def relim_axes(axes, percent=20):
     x, y = data[:,0], data[:, 1]
 
     # Only use finite values.
-    x = x[np.isfinite(x)]
-    y = y[np.isfinite(y)]
+    finite = np.isfinite(x*y)
+    x, y = x[finite], y[finite]
 
     if x.size > 1:
         xlim = [

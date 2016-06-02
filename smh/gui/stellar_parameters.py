@@ -365,9 +365,8 @@ class StellarParametersTab(QtGui.QWidget):
         hide = self.btn_filter.text().startswith("Hide")
 
         if hide:
-            self.proxy_spectral_models.add_filter_function("is_acceptable",
-                lambda model: model.is_acceptable)
-
+            self.proxy_spectral_models.add_filter_function(
+                "is_acceptable", lambda model: model.is_acceptable)
         else:
             self.proxy_spectral_models.delete_filter_function("is_acceptable")
 
@@ -391,8 +390,16 @@ class StellarParametersTab(QtGui.QWidget):
         :param event:
             The matplotlib event.
         """
+        
+        # Because the state transitions are linked to the parent source model of
+        # the table view, we will have to get the proxy index.
 
-        self.table_view.selectRow(event.ind[0])
+        print("selected index", event.ind)
+
+        proxy_index = self.table_view.model().mapFromSource(
+            self.proxy_spectral_models.sourceModel().createIndex(event.ind[0], 0)).row()
+
+        self.table_view.selectRow(proxy_index)
         return None
 
 
@@ -642,7 +649,7 @@ class StellarParametersTab(QtGui.QWidget):
                 # Load line list manager.
                 dialog = TransitionsDialog(self.parent.session,
                     callbacks=[
-                        self.session.index_spectral_models,
+                        self.parent.session.index_spectral_models,
                         self.proxy_spectral_models.reset
                     ])
                 dialog.exec_()
@@ -660,8 +667,14 @@ class StellarParametersTab(QtGui.QWidget):
 
     def update_scatter_plots(self, redraw=False):
 
+        if not hasattr(self, "_state_transitions"):
+            if redraw:
+                self.figure.draw()
+            return None
+
         # Update figures.
-        colors = [self._colors[s] for s in self._state_transitions["species"]]
+        colors = [self._colors.get(s, "#FFFFFF") \
+            for s in self._state_transitions["species"]]
         ex_collection, line_strength_collection = self._lines["scatter_points"]
 
         ex_collection.set_offsets(np.array([
@@ -696,9 +709,11 @@ class StellarParametersTab(QtGui.QWidget):
         # calculate abundances.
         self.update_stellar_parameters()
 
+        filtering = lambda *_: True
         try:
-            self._state_transitions, state, self._spectral_model_indices \
-                = self.parent.session.stellar_parameter_state(full_output=True)
+            self._state_transitions, state, \
+                = self.parent.session.stellar_parameter_state(full_output=True,
+                    filtering=filtering)
 
         except ValueError:
             logger.warn("No measured transitions to calculate abundances for.")
@@ -720,8 +735,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Otherwise we're fucked:
         expected_hashes = np.array([each.transitions["hash"][0] for each in \
-            self.parent.session.metadata["spectral_models"] \
-            if each.use_for_stellar_parameter_inference]) 
+            self.parent.session.metadata["spectral_models"] if filtering(each)]) 
 
         assert np.all(expected_hashes == self._state_transitions["hash"])
 
@@ -765,7 +779,9 @@ class StellarParametersTab(QtGui.QWidget):
         y_offset = 0.10
         y_space = 0.15
 
+        no_state = (np.nan, np.nan, np.nan, np.nan, 0)
         for i, (species, state) in enumerate(states.items()):
+            if not state: continue
 
             color = self._colors[species]
 
@@ -786,13 +802,13 @@ class StellarParametersTab(QtGui.QWidget):
 
             # Do actual updates.
             #(m, b, np.median(y), np.std(y), len(x))
-            m, b, median, sigma, N = state["expot"]
+            m, b, median, sigma, N = state.get("expot", no_state)
 
             x = np.array(self.ax_excitation.get_xlim())
             self._lines["excitation_medians"][species].set_data(x, median)
             self._lines["excitation_trends"][species].set_data(x, m * x + b)
 
-            m, b, median, sigma, N = state["reduced_equivalent_width"]
+            m, b, median, sigma, N = state.get("reduced_equivalent_width", no_state)
             x = np.array(self.ax_line_strength.get_xlim())
             self._lines["line_strength_medians"][species].set_data(x, median)
             self._lines["line_strength_trends"][species].set_data(x, m * x + b)
@@ -818,7 +834,7 @@ class StellarParametersTab(QtGui.QWidget):
             self._lines["abundance_text"][species].set_text(text)
 
 
-            m, b, median, sigma, N = state["expot"]                
+            m, b, median, sigma, N = state.get("expot", no_state)
             if species not in self._lines["excitation_slope_text"]:
                 self._lines["excitation_slope_text"][species] \
                     = self.ax_excitation.text(
@@ -832,7 +848,8 @@ class StellarParametersTab(QtGui.QWidget):
             self._lines["excitation_slope_text"][species].set_text(text)
 
 
-            m, b, median, sigma, N = state["reduced_equivalent_width"]                
+            m, b, median, sigma, N = state.get("reduced_equivalent_width",
+                no_state)
             if species not in self._lines["line_strength_slope_text"]:
                 self._lines["line_strength_slope_text"][species] \
                     = self.ax_line_strength.text(
@@ -862,8 +879,16 @@ class StellarParametersTab(QtGui.QWidget):
 
     def update_selected_points(self, redraw=False):
         # Show selected points.
-        indices = np.unique(np.array([index.row() for index in \
+        proxy_indices = np.unique(np.array([index for index in \
             self.table_view.selectionModel().selectedIndexes()]))
+
+        print("selected proxy indices", np.unique([_.row() for _ in proxy_indices]))
+        # These indices are proxy indices, which must be mapped back.
+
+        indices = np.unique([self.table_view.model().mapToSource(index).row() \
+            for index in proxy_indices])
+        print("selected actual indices", indices)
+
 
         try:
             x_excitation = self._state_transitions["expot"][indices]
@@ -873,6 +898,12 @@ class StellarParametersTab(QtGui.QWidget):
         except:
             x_excitation, x_strength, y = (np.nan, np.nan, np.nan)
 
+        print("selected indices values", x_excitation, x_strength, y)
+        try:
+            print("len etc", len(self._state_transitions),
+                np.where(np.isfinite(self._state_transitions["abundance"])))
+        except:
+            None
 
         point_excitation, point_strength = self._lines["selected_point"]
         point_excitation.set_offsets(np.array([x_excitation, y]).T)
@@ -894,6 +925,7 @@ class StellarParametersTab(QtGui.QWidget):
             selected_model = self._get_selected_model()
 
         except IndexError:
+            logger.exception("Could not get selected model")
             for collection in self._lines["selected_point"]:
                 collection.set_offsets(np.array([np.nan, np.nan]).T)
 
@@ -901,13 +933,18 @@ class StellarParametersTab(QtGui.QWidget):
 
             return None
 
+        print("selected model is at ", selected_model._repr_wavelength)
         try:
             metadata = selected_model.metadata["fitted_result"][-1]
             abundances = metadata["abundances"]
             equivalent_width = metadata["equivalent_width"][0]
 
         except (IndexError, KeyError):
+            print("could not find result")
             abundances = [np.nan]
+
+        else:
+            print("found result")
 
         self.update_selected_points()
 
@@ -1096,6 +1133,7 @@ class StellarParametersTab(QtGui.QWidget):
 class SpectralModelsTableView(SpectralModelsTableViewBase):
     pass
 
+
 class SpectralModelsTableModel(SpectralModelsTableModelBase):
     def data(self, index, role):
         """
@@ -1153,32 +1191,39 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
 
         return value if role == QtCore.Qt.DisplayRole else None
     
+
     def setData(self, index, value, role=QtCore.Qt.DisplayRole):
-        value = super(SpectralModelsTableModel, self).setData(index, value, role)
         
-        # It ought to be enough just to emit the dataChanged signal, but
-        # there is a bug when using proxy models where the data table is
-        # updated but the view is not, so we do this hack to make it
-        # work:
+        # We only allow the checkbox to be ticked or unticked here. The other
+        # columns cannot be edited. 
+        # This is handled by the SpectralModelsTableModelBase class.
 
-        # TODO: This means when this model is used in a tab, that tab
-        #       (or whatever the parent is)
-        #       should have a .table_view widget and an .update_spectrum_figure
-        #       method.
+        # If the checkbox has just been ticked by the user but the selected
+        # spectral model does not have a result, we should not allow the
+        # spectral model to be marked as acceptable.
+        if index.column() == 0 and value and \
+        "fitted_result" not in self.spectral_models[index.row()].metadata:
+            return False
+        
+        value = super(SpectralModelsTableModel, self).setData(index, value, role)
 
-        proxy_index = self.parent.table_view.model().mapFromSource(index).row()
-        self.parent.table_view.rowMoved(proxy_index, proxy_index, proxy_index)
-
-        # TODO THIS IS CLUMSY:
         # If we have a cache of the state transitions, update the entries.
         if hasattr(self.parent, "_state_transitions"):
             cols = ("equivalent_width", "reduced_equivalent_width", "abundance")
             for col in cols:
-                self.parent._state_transitions[col][proxy_index] = np.nan
+                self.parent._state_transitions[col][index.row()] = np.nan
             self.parent.update_scatter_plots(redraw=False)
             self.parent.update_selected_points(redraw=False)
 
-        self.parent.update_spectrum_figure(redraw=True)
+        # TODO: Any cheaper way to update this?
+        #       layoutAboutToBeChanged() and layoutChanged() didn't work
+        #       neither did rowCountChanged or rowMoved()
+        self.parent.proxy_spectral_models.reset()
+
+        # Update figures.
+        self.parent.update_scatter_plots(redraw=False)
+        self.parent.update_selected_points(redraw=False)
+        self.parent.update_trend_lines(redraw=True)
         
         return value
 

@@ -614,18 +614,23 @@ class Session(BaseSession):
         """
         Calculate the abundances of all spectral models that are used in the
         determination of stellar parameters.
+
+
         """
 
         # Get the transitions & EWs together from spectral models.
         equivalent_widths = []
         transition_indices = []
         spectral_model_indices = []
+
+        filtering = kwargs.pop("filtering",
+            lambda model: model.use_for_stellar_parameter_inference)
         for i, model in enumerate(self.metadata["spectral_models"]):
-            if model.use_for_stellar_parameter_inference:
+            if filtering(model):
 
                 # TODO assert it is a profile model.
                 spectral_model_indices.append(i)
-                transition_indices.extend(model._transition_indices)
+                transition_indices.append(model._transition_indices[0])
                 if model.is_acceptable:
                     equivalent_widths.append(1e3 * \
                         model.metadata["fitted_result"][-1]["equivalent_width"][0])
@@ -671,7 +676,7 @@ class Session(BaseSession):
         #    ("expot", "reduced_equivalent_width", "wavelength"))
 
         # Otherwise return full state information.
-        return (transitions, slopes, spectral_model_indices)
+        return (transitions, slopes)
 
 
 
