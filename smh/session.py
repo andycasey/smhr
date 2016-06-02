@@ -303,6 +303,42 @@ class Session(BaseSession):
 
 
 
+    def apply_quality_constraints(self, constraints, only=None):
+        """
+        Apply quality constraints to some or all of the spectral models in this 
+        session. Spectral models that do not match the specified constraints are
+        marked as unacceptable.
+
+        :param constraints:
+            A dictionary specifying the constraints to apply.
+
+        :param only: [optional]
+            A function that takes a single argument (a spectral model) and
+            returns True or False whether that spectral model should be subject
+            to the `constraints`.
+
+        :returns:
+            The number of spectral models affected by the quality constraints.
+        """
+
+        N = 0
+        only = only or (lambda model: True)
+        for spectral_model in self.metadata.get("spectral_models", []):
+            if not only(spectral_model): continue
+
+            for key, (lower, upper) in constraints.items():
+
+                # Get data.
+
+                if (lower is not None and value < lower) \
+                or (upper is not None and value > upper):
+                    spectral_model.is_acceptable = False
+                    N += 1
+
+        return N
+
+
+
     @property
     def rt(self):
         """

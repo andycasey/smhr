@@ -44,7 +44,7 @@ class QualityControlDialog(QtGui.QDialog):
 
         self.session = session
         self.callbacks = callbacks or []
-        self.filter_spectral_models = filter_spectral_models or (lambda _: True)
+        self.filter_spectral_models = filter_spectral_models
 
         # Display dialog in center and set size policy.
         self.setGeometry(400, 300, 400, 300)
@@ -87,12 +87,7 @@ class QualityControlDialog(QtGui.QDialog):
         grid.addWidget(self.edit_wavelength_lower, 0, 2, 1, 1)
         grid.addWidget(self.edit_wavelength_upper, 0, 3, 1, 1)
 
-        # DEBUG REMOVE THIS TODO:
-        if session is not None:
-            line_list = session.metadata.get("line_list", None)
-        else:
-            line_list = None
-
+        line_list = session.metadata.get("line_list", None)
         if line_list is not None:
             for item in (self.edit_wavelength_lower, self.edit_wavelength_upper):
                 item.setValidator(QtGui.QDoubleValidator(
@@ -246,36 +241,26 @@ class QualityControlDialog(QtGui.QDialog):
         Apply the specified quality constraints to the parent session.
         """
 
-        # TODO: This was for debugging only.
-        if self.session is None:
-            return self.show_affected(0)
-
         def safe_float(lineedit_widget):
             try:
                 return float(lineedit_widget.getText())
             except:
                 return None
 
-        raise NotImplementedError
-
-        
-        filters = {
+        constraints = {
             "wavelength": [
                 safe_float(self.edit_wavelength_lower),
                 safe_float(self.edit_wavelength_upper)
             ],
-            "equivalent_width"
         }
 
-        filtered = 0
-        for spectral_model in self.session.metadata["spectral_models"]:
-            if not self.filter_spectral_models(spectral_model): continue
-
-            for key, (lower, upper) in filters.items():
-                if lower is not None and spectral_model
+        raise NotImplementedError("requires a thinko..")
+        
+        affected = self.session.apply_quality_constraints(
+            constraints, only=self.filter_spectral_models)
 
         # Show how many were affected.
-        return self.show_affected(filtered)
+        return self.show_affected(affected)
 
 
     def show_affected(self, N):
