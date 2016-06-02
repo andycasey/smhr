@@ -11,6 +11,7 @@ __all__ = ["ProfileFittingModel"]
 import logging
 import numpy as np
 import scipy.optimize as op
+import astropy.table
 from astropy.table import Row
 from astropy.constants import c as speed_of_light
 from collections import OrderedDict
@@ -559,11 +560,17 @@ class ProfileFittingModel(BaseSpectralModel):
         assert len(transitions)==1,len(transitions)
         # A to mA
         transitions['equivalent_width'] = 1000.*self.metadata["fitted_result"][2]["equivalent_width"][0]
+        # Calculate symmetric error
+        transitions = astropy.table.vstack([transitions,transitions])
+        transitions[1]['equivalent_width'] += 1000.*np.nanmax(np.abs(self.metadata["fitted_result"][2]["equivalent_width"][1:3]))
         abundances = self.session.rt.abundance_cog(
             self.session.stellar_photosphere,
             transitions)
-        assert len(abundances)==1,abundances
+        assert len(abundances)==2,abundances
+        abundances = [abundances[0]]
+        uncertainties = [abundances[1]-abundances[0]]
         self.metadata["fitted_result"][2]["abundances"] = abundances
+        self.metadata["fitted_result"][2]["abundance_uncertainties"] = uncertainties
         return abundances
 
 if __name__ == "__main__":

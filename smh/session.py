@@ -14,6 +14,7 @@ import os
 import sys
 import tarfile
 import yaml
+import time
 from six import string_types
 from six.moves import cPickle as pickle
 from shutil import copyfile, rmtree
@@ -730,3 +731,85 @@ class Session(BaseSession):
         # interpolator, do obj. function
 
         raise NotImplementedError
+
+    def measure_abundances(self, spectral_models=None, 
+                           save_abundances=True,
+                           calculate_uncertainties=True):
+        """
+        Sort through list of spectral models (default is self.metadata["spectral_models"]).
+        Measure all ProfileFittingModels with self.rt.abundance_cog() at the end
+        Calculate abundance uncertainties too.
+        Measure synthesis on the fly (TODO).
+        save_abundances: if True, save measured values into the session
+        """
+        start = time.time()
+        if spectral_models is None:
+            spectral_models = self.metadata["spectral_models"]
+
+        equivalent_widths = []
+        equivalent_width_errs = []
+        transition_indices = []
+        spectral_model_indices = []
+        
+        num_profile = 0
+        num_synth = 0
+        for i,spectral_model in enumerate(spectral_models):
+            if isinstance(spectral_model, ProfileFittingModel):
+                spectral_model_indices.append(i)
+                transition_indices.extend(spectral_model._transition_indices)
+                if spectral_model.is_acceptable:
+                    equivalent_widths.append(1000.* \
+                        spectral_model.metadata["fitted_result"][-1]["equivalent_width"][0])
+                    equivalent_width_errs.append(1000.* \
+                        np.nanmax(spectral_model.metadata["fitted_result"][-1]["equivalent_width"][1:3]))
+                else:
+                    equivalent_widths.append(np.nan)
+                    equivalent_width_errs.append(np.nan)
+                num_profile += 1
+            elif isinstance(spectral_model, SpectralSynthesisModel):
+                print("Ignoring synthesis",spectral_model)
+                num_synth += 1
+            else:
+                raise RuntimeError("Unknown model type: {}".format(type(spectral_model)))
+            
+        if num_profile > 0 and \
+        (len(equivalent_widths) == 0 \
+        or np.isfinite(equivalent_widths).sum() == 0):
+            raise ValueError("no measured transitions to calculate abundances")
+        
+        transition_indices = np.array(transition_indices)
+        spectral_model_indices = np.array(spectral_model_indices)
+        transitions = self.metadata["line_list"][transition_indices].copy()
+        transitions["equivalent_width"] = equivalent_widths
+        finite = np.isfinite(transitions["equivalent_width"])
+        
+        abundances = self.rt.abundance_cog(
+            self.stellar_photosphere, transitions[finite])
+
+        if calculate_uncertainties:
+            # Increase EW by uncertainty and measure again
+            equivalent_width_errs = np.array(equivalent_width_errs)
+            transitions["equivalent_width"] += equivalent_width_errs
+            finite_uncertainty = np.isfinite(transitions["equivalent_width"])
+
+            uncertainties = self.rt.abundance_cog(
+                self.stellar_photosphere, transitions[finite_uncertainty])
+            
+            # These are not the same size. Make them the same size by filling with nan
+            # Inelegant but works...
+            _all = np.zeros(len(finite))*np.nan
+            _all[finite_uncertainty] = uncertainties
+            uncertainties = _all[finite] - abundances
+        else:
+            uncertainties = np.nan*np.ones_like(abundances)
+        assert len(uncertainties) == len(abundances)
+        
+        # This appears to save into the session just fine
+        if save_abundances:
+            for index, abundance, uncertainty in \
+                    zip(spectral_model_indices[finite], abundances, uncertainties):
+                spectral_models[index].metadata["fitted_result"][-1]["abundances"] = [abundance]
+                spectral_models[index].metadata["fitted_result"][-1]["abundance_uncertainties"] = [uncertainty]
+        print("Time to measure abundances: {:.1f}".format(time.time()-start))
+        return abundances, uncertainties if calculate_uncertainties else abundances
+

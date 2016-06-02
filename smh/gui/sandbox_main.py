@@ -11,6 +11,8 @@ from PySide import QtCore, QtGui
 import yaml
 import time, os, sys
 
+import numpy as np
+
 # Import functionality related to each tab
 import rv, normalization, summary, stellar_parameters, chemical_abundances
 
@@ -119,6 +121,22 @@ if __name__ == '__main__':
     app.window.chemical_abundances_tab.fit_all()
     print("Done! {:.1f}s".format(time.time()-start))
     app.window.tabs.setCurrentIndex(4)
+
+    print("Measuring lines..."); start = time.time()
+    app.window.chemical_abundances_tab.measure_all()
+    _current_abundances = []
+    _current_EW = []
+    for m in session.metadata['spectral_models']:
+        _current_abundances.append(m.metadata['fitted_result'][-1]['abundances'][0])
+        _current_EW.append(m.metadata['fitted_result'][-1]['equivalent_width'][0])
+    print("Done! {:.1f}s".format(time.time()-start))
+    
+    print("Measuring uncertainty from session..."); start = time.time()
+    abundances, uncertainties = session.measure_abundances()
+    print("Done! {:.1f}s".format(time.time()-start))
+    
+    total_diff = np.sum(np.abs(abundances-np.array(_current_abundances)))
+    assert total_diff == 0, total_diff
 
     app.window.show()
     sys.exit(app.exec_())

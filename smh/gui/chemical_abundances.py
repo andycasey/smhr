@@ -19,7 +19,7 @@ from smh import utils
 import mpl, style_utils
 from matplotlib.ticker import MaxNLocator
 #from smh.photospheres import available as available_photospheres
-import smh.radiative_transfer as rt
+#import smh.radiative_transfer as rt
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 from abund_tree import AbundTreeView, AbundTreeModel, AbundTreeMeasurementItem, AbundTreeElementSummaryItem
 from spectral_models_table import SpectralModelsTableViewBase, SpectralModelsFilterProxyModel, SpectralModelsTableModelBase
@@ -733,50 +733,18 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def measure_all(self):
+        # Save this just to go back 
         current_element_index = self.filter_combo_box.currentIndex()
 
-        i_profile = 0
-        i_synth = 0
-        equivalent_widths = []
-        transition_indices = []
-        spectral_model_indices = []
-        for i,m in enumerate(self.parent.session.metadata["spectral_models"]):
-            if isinstance(m, ProfileFittingModel):
-                spectral_model_indices.append(i)
-                transition_indices.extend(m._transition_indices)
-                if m.is_acceptable:
-                    equivalent_widths.append(1000.* \
-                        m.metadata["fitted_result"][-1]["equivalent_width"][0])
-                else:
-                    equivalent_widths.append(np.nan)
-                i_profile += 1
-            elif isinstance(m, SpectralSynthesisModel):
-                print("Ignoring synthesis",m)
-                i_synth += 1
-
-        if len(equivalent_widths) == 0 \
-        or np.isfinite(equivalent_widths).sum() == 0:
-            raise ValueError("no measured transitions to calculate abundances")
-        
-        transition_indices = np.array(transition_indices)
-        spectral_model_indices = np.array(spectral_model_indices)
-        transitions = self.parent.session.metadata["line_list"][transition_indices].copy()
-        transitions["equivalent_width"] = equivalent_widths
-        finite = np.isfinite(transitions["equivalent_width"])
-            
-        # Store COG abundances straight into session
-        abundances = self.parent.session.rt.abundance_cog(
-            self.parent.session.stellar_photosphere, transitions[finite])
-        for index, abundance in zip(spectral_model_indices[finite], abundances):
-            self.parent.session.metadata["spectral_models"][index]\
-                .metadata["fitted_result"][-1]["abundances"] = [abundance]
+        # Gets abundances and uncertainties into session
+        self.parent.session.measure_abundances()
 
         self.proxy_spectral_models.reset()
         self.populate_filter_combo_box()
         self.refresh_cache()
         self.summarize_current_table()
         self.refresh_plots()
-        # TODO I think this can break when adding/deleting lots of transitions
+
         self.filter_combo_box.setCurrentIndex(current_element_index)
         return None
 
@@ -799,15 +767,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def measure_one(self):
         spectral_model, proxy_index, index = self._get_selected_model(True)
         if spectral_model is None: return None
-        try:
-            ab = spectral_model.abundances
-        except rt.RTError as e:
-            logger.debug("Abundance error",spectral_model)
-            logger.debug(e)
-            return None
-        except KeyError as e:
-            print("Fit a model first!")
-            return None
+
+        self.parent.session.measure_abundances([spectral_model])
+
         self.table_view.update_row(proxy_index.row())
         self.update_cache(proxy_index)
         self.summarize_current_table()
@@ -1031,7 +993,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def _get_selected_model(self, full_output=False):
         try:
-            proxy_index = self.table_view.selectionModel().selectedIndexes()[0]
+            proxy_index = self.table_view.selectionModel().selectedRows()[-1]
         except IndexError:
             return (None, None, None) if full_output else None
         index = self.proxy_spectral_models.mapToSource(proxy_index).row()
@@ -1271,7 +1233,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             return None
         # These are the proxy model indices
         indices = np.unique(np.array([index.row() for index in \
-            self.table_view.selectionModel().selectedIndexes()]))
+            self.table_view.selectionModel().selectedRows()]))
         if len(indices) == 0:
             self._lines["selected_point"][0].set_offsets(np.array([np.nan,np.nan]).T)
             if redraw: self.figure.draw()
@@ -1519,7 +1481,8 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
         """ Fit the selected spectral models. """
 
         # Fit the models one by one
-        for i, proxy_index in enumerate(self.selectionModel().selectedIndexes()):
+        for i, proxy_index in enumerate(self.selectionModel().selectedRows()):
+            print(i)
             index = self.model().mapToSource(proxy_index).row()
             self.parent.parent.session.metadata["spectral_models"][index].fit()
 
@@ -1535,49 +1498,22 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
     def measure_selected_models(self):
         """ Fit the selected spectral models. """
 
-        # Measure all EW at the end
-        # Measure synth on the fly
-        equivalent_widths = []
-        transition_indices_for_EW = []
-        spectral_model_indices_for_EW = []
-        updated_proxy_indices_for_EW = []
-        for i, proxy_index in enumerate(self.selectionModel().selectedIndexes()):
+        # Get list of selected spectral models
+        spectral_models = []
+        for proxy_index in self.selectionModel().selectedRows():
             index = self.model().mapToSource(proxy_index).row()
-            spectral_model = self.parent.parent.session.metadata["spectral_models"][index]
-            if isinstance(spectral_model, ProfileFittingModel):
-                transition_indices_for_EW.extend(spectral_model._transition_indices)
-                spectral_model_indices_for_EW.append(index)
-                updated_proxy_indices_for_EW.append(proxy_index)
-                if spectral_model.is_acceptable:
-                    equivalent_widths.append(1000.* \
-                        spectral_model.metadata["fitted_result"][-1]["equivalent_width"][0])
-                else:
-                    equivalent_widths.append(np.nan)
-            elif isinstance(spectral_model, SpectralSynthesisModel):
-                print("Ignoring measuring synthesis",spectral_model)
-                # Update the data model, view, and cache
-                #self.update_row(proxy_index.row())
-                #self.parent.update_cache(proxy_index)
+            spectral_models.append(self.parent.parent.session.metadata["spectral_models"][index])
 
-        if len(equivalent_widths) != 0 \
-        and np.isfinite(equivalent_widths).sum() != 0:
-            transition_indices = np.array(transition_indices_for_EW)
-            spectral_model_indices = np.array(spectral_model_indices_for_EW)
-            transitions = self.parent.parent.session.metadata["line_list"][transition_indices].copy()
-            transitions["equivalent_width"] = equivalent_widths
-            finite = np.isfinite(transitions["equivalent_width"])
-            
-            # Store COG abundances straight into session
-            abundances = self.parent.parent.session.rt.abundance_cog(
-                self.parent.parent.session.stellar_photosphere, transitions[finite])
-            for index, abundance in zip(spectral_model_indices[finite], abundances):
-                self.parent.parent.session.metadata["spectral_models"][index]\
-                    .metadata["fitted_result"][-1]["abundances"] = [abundance]
-            
-            # Update the data model and cache
-            for proxy_index in updated_proxy_indices_for_EW:
-                self.update_row(proxy_index.row())
-                self.parent.update_cache(proxy_index)
+        # Fit abundances
+        self.parent.parent.session.measure_abundances(spectral_models)
+
+        # Update the data model and cache
+        start = time.time()
+        for proxy_index in self.selectionModel().selectedRows():
+            print(proxy_index)
+            self.update_row(proxy_index.row())
+            self.parent.update_cache(proxy_index)
+        print("Time to update data model and cache: {:.1f}".format(time.time()-start))
 
         # Refresh GUI
         self.parent.summarize_current_table()
@@ -1587,7 +1523,7 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
     def mark_selected_models_as_acceptable(self):
         proxy_model = self.parent.proxy_spectral_models
         full_model = proxy_model.sourceModel()
-        for i, proxy_index in enumerate(self.selectionModel().selectedIndexes()):
+        for i, proxy_index in enumerate(self.selectionModel().selectedRows()):
             full_index = proxy_model.mapToSource(proxy_index)
             full_model.setData(full_index, 2, refresh_view=False)
         self.parent.summarize_current_table()
@@ -1595,7 +1531,7 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
     def mark_selected_models_as_unacceptable(self):
         proxy_model = self.parent.proxy_spectral_models
         full_model = proxy_model.sourceModel()
-        for i, proxy_index in enumerate(self.selectionModel().selectedIndexes()):
+        for i, proxy_index in enumerate(self.selectionModel().selectedRows()):
             full_index = proxy_model.mapToSource(proxy_index)
             full_model.setData(full_index, 0, refresh_view=False)
         self.parent.summarize_current_table()
@@ -1670,16 +1606,6 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
         print("setData: superclass: {:.1f}s".format(time.time()-start))
         if index.column() != 0: return False
         
-        # It ought to be enough just to emit the dataChanged signal, but
-        # there is a bug when using proxy models where the data table is
-        # updated but the view is not, so we do this hack to make it
-        # work:
-
-        # TODO: This means when this model is used in a tab, that tab
-        #       (or whatever the parent is)
-        #       should have a .table_view widget and an .update_spectrum_figure
-        #       method.
-
         proxy_index = self.parent.table_view.model().mapFromSource(index)
         proxy_row = proxy_index.row()
         self.parent.table_view.rowMoved(proxy_row, proxy_row, proxy_row)
