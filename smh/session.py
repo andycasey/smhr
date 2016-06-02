@@ -791,6 +791,9 @@ class Session(BaseSession):
             equivalent_width_errs = np.array(equivalent_width_errs)
             transitions["equivalent_width"] += equivalent_width_errs
             finite_uncertainty = np.isfinite(transitions["equivalent_width"])
+            # Some EW uncertainties are HUGE. 
+            # Set a maximum EW of 9999, and later max abund uncertainty of 9
+            transitions["equivalent_width"][transitions["equivalent_width"] > 9999] = 9999.
 
             uncertainties = self.rt.abundance_cog(
                 self.stellar_photosphere, transitions[finite_uncertainty])
@@ -800,6 +803,8 @@ class Session(BaseSession):
             _all = np.zeros(len(finite))*np.nan
             _all[finite_uncertainty] = uncertainties
             uncertainties = _all[finite] - abundances
+            # Set a maximum abund uncertainty of 9
+            uncertainties[uncertainties > 9] = 9
         else:
             uncertainties = np.nan*np.ones_like(abundances)
         assert len(uncertainties) == len(abundances)

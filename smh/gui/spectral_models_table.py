@@ -46,9 +46,11 @@ class SpectralModelsTableViewBase(QtGui.QTableView):
         Row is proxy_index.row()
         """
         data_model = self.model().sourceModel()
+        start = time.time()
         data_model.dataChanged.emit(
             data_model.createIndex(row, 0),
             data_model.createIndex(row,data_model.columnCount(None)))
+        print("Time to emit update_row: {:.1f}".format(time.time()-start))
         # It ought to be enough just to emit the dataChanged signal, but
         # there is a bug when using proxy models where the data table is
         # updated but the view is not, so we do this hack to make it
@@ -293,19 +295,18 @@ class SpectralModelsTableModelBase(QtCore.QAbstractTableModel):
             return False
         else:
             # value appears to be 0 or 2. Set it to True or False
-            _start = time.time()
             row = index.row()
             value = (value != 0)
             model = self.spectral_models[row]
-            print("Time to get model: {:.1f}s".format(time.time()-_start))
             model.metadata["is_acceptable"] = value
-            print("Time to set value: {:.1f}s".format(time.time()-_start))
             
             # Emit data change for this row.
+            # TODO this is slow.
+            _start = time.time()
             self.dataChanged.emit(self.createIndex(row, 0),
                                   self.createIndex(row, 
                                   self.columnCount(None)))
-            print("Time to emit: {:.1f}s".format(time.time()-_start))
+            print("Time to emit setData: {:.1f}s".format(time.time()-_start))
             return value
     """
     def sort(self, column, order):

@@ -676,7 +676,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def refresh_plots(self):
         model, proxy_index, index = self._get_selected_model(True)
-        #print(model, proxy_index, index)
         start = time.time()
         self.update_spectrum_figure(redraw=False)
         self.update_selected_points_plot(redraw=False)
@@ -1482,7 +1481,6 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
 
         # Fit the models one by one
         for i, proxy_index in enumerate(self.selectionModel().selectedRows()):
-            print(i)
             index = self.model().mapToSource(proxy_index).row()
             self.parent.parent.session.metadata["spectral_models"][index].fit()
 
@@ -1510,7 +1508,6 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
         # Update the data model and cache
         start = time.time()
         for proxy_index in self.selectionModel().selectedRows():
-            print(proxy_index)
             self.update_row(proxy_index.row())
             self.parent.update_cache(proxy_index)
         print("Time to update data model and cache: {:.1f}".format(time.time()-start))
@@ -1601,18 +1598,14 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
         return value if role == QtCore.Qt.DisplayRole else None
 
     def setData(self, index, value, role=QtCore.Qt.DisplayRole, refresh_view=True):
-        start = time.time()
         value = super(SpectralModelsTableModel, self).setData(index, value, role)
-        print("setData: superclass: {:.1f}s".format(time.time()-start))
         if index.column() != 0: return False
         
         proxy_index = self.parent.table_view.model().mapFromSource(index)
         proxy_row = proxy_index.row()
         self.parent.table_view.rowMoved(proxy_row, proxy_row, proxy_row)
 
-        print(proxy_index,proxy_row)
         self.parent.update_cache(proxy_index)
-        print("Time to setData: {:.1f}s".format(time.time()-start))
         if refresh_view:
             self.parent.summarize_current_table()
             self.parent.refresh_plots()
