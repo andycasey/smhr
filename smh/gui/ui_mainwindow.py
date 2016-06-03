@@ -302,14 +302,45 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.add_to_recently_opened(path)
         self.session_path = path
 
-        raise NotImplementedError
-
-        print("Open session")
+        print("Opening session from {}".format(path))
+        self.session = smh.Session.load(path)
 
         # Enable relevant menu actions.
         self.action_transitions_manager.setEnabled(True)
         self.action_isotopes_manager.setEnabled(True)
 
+        # Refresh GUI of all tabs 
+        # TODO does this all work?
+        # Summary tab
+        for i in range(self.tabs.count()):
+            self.tabs.setTabEnabled(i, i <= 1)
+        self.summary_tab._populate_widgets()
+
+        if "rv" not in self.session.metadata: return None
+        #self.rv_tab.new_session_loaded()
+        # TODO put all these in RV tab
+        self.rv_tab._populate_widgets()
+        self.rv_tab.draw_template(refresh=True)
+        self.rv_tab.redraw_ccf(refresh=True)
+        if "rv_measured" not in self.session.metadata["rv"]: return None
+        
+        if "normalization" not in self.session.metadata: return None
+        self.tabs.setTabEnabled(2, True)
+        #self.normalization_tab.new_session_loaded()
+        # TODO put all these in normalization tab
+        # TODO seems to not save the stitched normalized order?
+        self.normalization_tab._populate_widgets()
+        self.normalization_tab.draw_continuum(refresh=True)
+        if "continuum" not in self.session.metadata["normalization"]: return None
+
+        self.tabs.setTabEnabled(3, True)
+        self.tabs.setTabEnabled(4, True)
+        #self.stellar_parameters_tab.new_session_loaded()
+        # TODO there are likely more things needed here!
+        self.stellar_parameters_tab.populate_widgets()
+
+        self.chemical_abundances_tab.new_session_loaded()
+        
         return None
 
 

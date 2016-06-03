@@ -483,7 +483,9 @@ class RVTab(QtGui.QWidget):
             = self._cache["input"]["wavelength_regions"][0]
         del self._cache["input"]["wavelength_regions"]
 
-        if not os.path.exists(defaults.get("template_spectrum", "")):
+        # Sometimes template_spectrum in a specutils.Spectrum1D
+        if isinstance(defaults.get("template_spectrum",""), string_types) \
+        and not os.path.exists(defaults.get("template_spectrum", "")):
             defaults["template_spectrum"] = ""
 
         # Template filename.
@@ -491,7 +493,8 @@ class RVTab(QtGui.QWidget):
         if isinstance(defaults.get("template_spectrum", ""), string_types):
             self.template_path.setText(defaults["template_spectrum"])
         else:
-            self.template_path.setText(defaults["template_spectrum_path"])
+            template_spectrum_path = defaults.get("template_spectrum_path","")
+            self.template_path.setText(template_spectrum_path)
         self.template_path.setReadOnly(True)
 
         # Wavelength regions.
@@ -685,6 +688,7 @@ class RVTab(QtGui.QWidget):
 
         # Update the data cache.
         self._cache["input"]["template_spectrum"] = path
+        self._cache["input"]["template_spectrum_path"] = path
 
         # Update the figure containing the template.
         self.draw_template(refresh=True)
@@ -701,7 +705,8 @@ class RVTab(QtGui.QWidget):
         kwds["normalization_kwargs"] = kwds.pop("normalization")
         
         # Do we have a template spectrum?
-        if not os.path.exists(kwds.get("template_spectrum", "")):
+        if isinstance(kwds.get("template_spectrum",""), string_types) \
+        and not os.path.exists(kwds.get("template_spectrum", "")):
             selected_valid_template = self.select_template()
             if not selected_valid_template:
                 return None

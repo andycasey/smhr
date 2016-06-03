@@ -214,7 +214,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._rew_cache = []
         self._abund_cache = []
         self._err_cache = []
-        self.populate_widgets()
+        self.refresh_table()
 
     def _create_fitting_options_widget(self):
         self.opt_tabs = QtGui.QTabWidget(self)
@@ -610,13 +610,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.btn_clear_masks.clicked.connect(
             self.clicked_btn_clear_masks)
 
-    def populate_widgets(self):
+    def new_session_loaded(self):
         """
-        Refresh widgets from session.
-        Call whenever a session is loaded or spectral models changed
-        TODO
+        Call this whenever a new session is loaded
+        TODO not tested
         """
         self.refresh_table()
+        self.refresh_cache()
+        self.summarize_current_table()
+        self.refresh_plots()
         return None
 
     def populate_filter_combo_box(self):
@@ -797,7 +799,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 # Load line list manager.
                 dialog = TransitionsDialog(self.parent.session,
                     callbacks=[self.proxy_spectral_models.reset, 
-                               self.populate_widgets])
+                               self.refresh_table])
                 dialog.exec_()
 
                 # Do we even have any spectral models now?
