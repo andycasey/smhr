@@ -34,6 +34,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         self.unsaved_session_changes = False
         self.session = None
+        self.session_path = None
 
         if session_path is not None and spectrum_filenames is not None:
             raise WTFError
@@ -235,6 +236,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         # Create a session.
         self.session = smh.Session(filenames)
+        self.session_path = None
 
         # Import default session settings
         with open(smh.Session._default_settings_path, "rb") as fp:
@@ -298,6 +300,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
 
         self.add_to_recently_opened(path)
+        self.session_path = path
 
         raise NotImplementedError
 
@@ -313,18 +316,25 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
     def save_session(self):
         """ Save session. """
-        print("Save session")
-        raise NotImplementedError("sessions cannot be saved yet")
+        if self.session_path is None:
+            self.save_session_as()
+            return
+        print("Saving to {}".format(self.session_path))
+        self.session.save(self.session_path, overwrite=True)
         return None
 
 
-    def save_session_as(self):
+    def save_session_as(self, path=None):
         """ Save session as new filename. """
         print("Save session as")
-        self.save_session_as()
+        if path is None:
+            path, _ = QtGui.QFileDialog.getSaveFileName(self,
+                caption="Enter filename", dir="", filter="*.smh")
+            if not path: return
+        self.session_path = path
+        print("Saving to {}".format(self.session_path))
+        self.session.save(path, overwrite=True)
         return None
-
-
 
     def export_normalized_spectrum(self):
         """ Export a normalized, rest-frame spectrum. """
