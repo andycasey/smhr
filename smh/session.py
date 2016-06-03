@@ -655,6 +655,12 @@ class Session(BaseSession):
 
         """
 
+        #spectral_models = []
+        #for model in self.metadata["spectral_models"]:
+        #    if model.use_for_stellar_parameter_inference:
+        #        spectral_models.append(model)
+        #self.measure_abundances(spectral_models)
+
         # Get the transitions & EWs together from spectral models.
         equivalent_widths = []
         transition_indices = []
@@ -686,7 +692,10 @@ class Session(BaseSession):
         transitions = self.metadata["line_list"][transition_indices].copy()
         transitions["equivalent_width"] = equivalent_widths
 
-        finite = np.isfinite(transitions["equivalent_width"])
+        #finite = np.isfinite(transitions["equivalent_width"])
+        min_eqw = .01
+        finite = np.logical_and(np.isfinite(transitions["equivalent_width"]),
+                                transitions["equivalent_width"] > min_eqw)
 
         # Calculate abundances and put them back into the spectral models stored
         # in the session metadata.

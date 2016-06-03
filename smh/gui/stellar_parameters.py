@@ -709,7 +709,7 @@ class StellarParametersTab(QtGui.QWidget):
         # calculate abundances.
         self.update_stellar_parameters()
 
-        filtering = lambda *_: True
+        filtering = lambda model: model.use_for_stellar_parameter_inference
         try:
             self._state_transitions, state, \
                 = self.parent.session.stellar_parameter_state(full_output=True,
