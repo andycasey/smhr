@@ -8,11 +8,9 @@ from __future__ import (division, print_function, absolute_import,
 
 __all__ = ["PeriodicTableDialog"]
 
-import numpy as np
+from numpy import ceil
 from PySide import QtCore, QtGui
 from textwrap import dedent
-
-import mpl
 
 class PeriodicTableDialog(QtGui.QDialog):
 
@@ -94,7 +92,7 @@ class PeriodicTableDialog(QtGui.QDialog):
 
         # How many columns and rows of axes?
         N_rows = len(self.elements.split("\n"))
-        N_cols = max([int(np.ceil(float(len(row))/self.element_length)) \
+        N_cols = max([int(ceil(float(len(row))/self.element_length)) \
             for row in dedent(self.elements).split("\n")])
 
         size = 30
@@ -131,6 +129,20 @@ class PeriodicTableDialog(QtGui.QDialog):
 
         vbox.addLayout(grid)
 
+        # Add an 'OK' button if this is a multiple selection dialog.
+        if multiple_select:
+            hbox = QtGui.QHBoxLayout()
+            hbox.addItem(QtGui.QSpacerItem(10, 10, 
+                QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
+
+            self.btn_ok = QtGui.QPushButton(self)
+            self.btn_ok.setText("OK")
+            self.btn_ok.setEnabled(False)
+            self.btn_ok.clicked.connect(self.close)
+            hbox.addWidget(self.btn_ok)
+
+            vbox.addLayout(hbox)
+
         return None
 
 
@@ -152,7 +164,6 @@ class PeriodicTableDialog(QtGui.QDialog):
         else:
             self.deselect_element(element)
 
-        print("currently selected", self.selected_elements)
         return None
 
 
@@ -169,12 +180,13 @@ class PeriodicTableDialog(QtGui.QDialog):
         Show an element as selected.
         """
 
-
         widget = self._get_element_widget(element)
-        widget.setStyleSheet("QPushButton { color: red; }")
+        widget.setStyleSheet("QPushButton { font-weight: bold; }")
 
         if self.multiple_select:
             self._selected_elements.append(element)
+            self.btn_ok.setEnabled(True)
+
         else:
             self._selected_elements = [element]
             if self.close_on_first_select:
@@ -183,20 +195,22 @@ class PeriodicTableDialog(QtGui.QDialog):
         return None
 
 
-
     def deselect_element(self, element):
         """
         Show an element as being de-selected.
         """
 
         widget = self._get_element_widget(element)
-        widget.setStyleSheet("QPushButton { color: none; }")
+        widget.setStyleSheet("QPushButton { font-weight: normal; }")
 
         try:
             self._selected_elements.remove(element)
 
         except ValueError:
             None
+
+        if len(self._selected_elements) == 0 and self.multiple_select:
+            self.btn_ok.setEnabled(False)
 
         return None
 
@@ -228,6 +242,7 @@ if __name__ == "__main__":
         app = QtGui.QApplication(sys.argv)
     except RuntimeError:
         None
-    window = PeriodicTableDialog(["Fe", "Ti"])
+    window = PeriodicTableDialog(["Fe", "Ti"], multiple_select=True,
+        explanation="Do something please")
     window.exec_()
 
