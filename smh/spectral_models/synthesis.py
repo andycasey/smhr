@@ -127,6 +127,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
             # Many elements fitted simultaneously.
             self._repr_element = ", ".join(self.elements)
 
+        if "Fe" not in elements:
+            self.metadata["use_for_stellar_parameter_inference"] = False
 
         return None
 
