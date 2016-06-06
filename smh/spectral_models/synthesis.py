@@ -177,10 +177,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
             # Note plurality/singularity of specie/species.
             specie = list(np.unique(transitions[ii]["species"]))
-            if len(specie) > 1:
-                # TODO how to deal with this correctly?
-                raise ValueError(
-                    "element '{}' has ambiguous species: {}".format(element,specie))
+            #if len(specie) > 1:
+            #    # TODO how to deal with this correctly?
+            #    raise ValueError(
+            #        "element '{}' has ambiguous species: {}".format(element,specie))
             species.append(specie)
 
         return species

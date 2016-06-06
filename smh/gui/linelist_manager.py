@@ -11,6 +11,7 @@ from __future__ import (division, print_function, absolute_import,
 
 import logging
 import numpy as np
+import os
 import sys
 from PySide import QtCore, QtGui
 from six import string_types
@@ -21,6 +22,8 @@ from astropy.table import Column
 from smh.linelists import LineList
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 from smh.utils import spectral_model_conflicts
+
+from periodic_table import PeriodicTableDialog
 
 logger = logging.getLogger(__name__)
 
@@ -211,20 +214,55 @@ class LineListTableView(QtGui.QTableView):
 
         return None
 
+
     def add_imported_lines_as_synthesis_model(self):
         """
         Import line list data from a file and create a single synthesis model.
         """
 
-        transitions = self.import_from_filename()
-        if transitions is None: return None
+        selected = self.import_from_filename(full_output=True)
+        if selected is None: return None
 
         ta = time()
+
+        self.session.metadata.setdefault("spectral_models", [])
+        
+        full_line_list, filenames, filename_transitions = selected
+
+        # Check each filename for things...
+        for filename, transitions in zip(filenames, filename_transitions):
+
+            if len(transitions.unique_elements) == 1:
+                self.session.metadata["spectral_models"].append(
+                    SpectralSynthesisModel(self.session, transitions["hash"], 
+                        transitions.unique_elements))
+
+            else:
+                # Need to know which element(s) should be fit by this model.
+                selectable_elements \
+                    = list(set(transitions.unique_elements).difference(["H"]))
+
+                dialog = PeriodicTableDialog(
+                    selectable_elements=selectable_elements,
+                    explanation="Please select which element(s) will be measured"
+                        " by synthesizing the transitions in {}:".format(
+                            os.path.basename(filename)),
+                    multiple_select=True)
+                dialog.exec_()
+
+                if len(dialog.selected_elements) == 0:
+                    # Nothing selected. Skip this filename.
+                    continue
+
+                self.session.metadata["spectral_models"].append(
+                    SpectralSynthesisModel(self.session, transitions["hash"],
+                        dialog.selected_elements))
+
+
         spectral_model = SpectralSynthesisModel(self.session, 
             transitions["hash"], transitions.unique_elements)
 
-        self.session.metadata.setdefault("spectral_models", [])
-        self.session.metadata["spectral_models"].append(spectral_model)
+        # Update the spectral model conflicts.
         self.session._spectral_model_conflicts = spectral_model_conflicts(
             self.session.metadata["spectral_models"],
             self.session.metadata["line_list"])
@@ -273,14 +311,31 @@ class LineListTableView(QtGui.QTableView):
         transitions = self.session.metadata["line_list"][row_indices]
         elements = transitions.unique_elements
 
-        if len(elements) > 1:
-            raise NotImplementedError("ask the user which element(s)")
-
-        spectral_model = SpectralSynthesisModel(self.session,
-            transitions["hash"], elements)
-            
         self.session.metadata.setdefault("spectral_models", [])
-        self.session.metadata["spectral_models"].append(spectral_model)
+
+        if len(elements) == 1:    
+            self.session.metadata["spectral_models"].append(
+                SpectralSynthesisModel(self.session, transitions["hash"], 
+                    elements))
+
+        else:
+            # Need to know which element(s) should be fit by this model.
+            selectable_elements \
+                = list(set(transitions.unique_elements).difference(["H"]))
+
+            dialog = PeriodicTableDialog(
+                selectable_elements=selectable_elements,
+                explanation="Please select which element(s) will be measured:",
+                multiple_select=True)
+            dialog.exec_()
+
+            if len(dialog.selected_elements) == 0:
+                # Nothing selected. Don't create a new spectral model.
+                return None
+
+            self.session.metadata["spectral_models"].append(
+                SpectralSynthesisModel(self.session, transitions["hash"],
+                    dialog.selected_elements))
 
         self.session._spectral_model_conflicts = spectral_model_conflicts(
             self.session.metadata["spectral_models"],
@@ -334,7 +389,7 @@ class LineListTableView(QtGui.QTableView):
         return None
     
 
-    def import_from_filename(self):
+    def import_from_filename(self, full_output=False):
         """ Import atomic physics data from a line list file. """
 
         filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(self,
@@ -345,8 +400,12 @@ class LineListTableView(QtGui.QTableView):
         # Load from files.
         ta = time()
         line_list = LineList.read(filenames[0])
+
+        filename_transitions = [line_list]
         for filename in filenames[1:]:
-            line_list = line_list.merge(LineList.read(filename), in_place=False)
+            new_lines = LineList.read(filename)
+            line_list = line_list.merge(new_lines, in_place=False)
+            filename_transitions.append(new_lines)
 
         # Merge the line list with any existing line list in the session.
         if self.session.metadata.get("line_list", None) is None:
@@ -361,7 +420,11 @@ class LineListTableView(QtGui.QTableView):
         self.model().reset()
         print("Time taken: {:.1f}".format(time() - ta))
 
+        if full_output:
+            return (line_list, filenames, filename_transitions)
+
         return line_list
+
 
 
     def import_transitions_with_measured_equivalent_widths(self):

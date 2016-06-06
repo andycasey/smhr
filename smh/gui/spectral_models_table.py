@@ -240,9 +240,12 @@ class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
         # TODO is this necessary every time?
         #self.reindex()
 
-        return self.createIndex(self.lookup_indices[proxy_index.row()],
-            proxy_index.column())
-
+        try:
+            return self.createIndex(self.lookup_indices[proxy_index.row()],
+                proxy_index.column())
+            
+        except AttributeError:
+            return proxy_index
 
 
 class SpectralModelsTableModelBase(QtCore.QAbstractTableModel):
