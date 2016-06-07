@@ -428,8 +428,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.clicked_checkbox_model_smoothing)
         self.edit_smoothing_bound.textChanged.connect(
             self.update_smoothing_bound)
-        self.btn_specify_abundances.clicked.connect(
-            self.clicked_btn_specify_abundances)
+        #self.btn_specify_abundances.clicked.connect(
+        #    self.clicked_btn_specify_abundances)
 
     def _create_fitting_options_widget2(self):
         self.opt_tabs = QtGui.QTabWidget(self)
@@ -577,9 +577,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         tab_hbox.addLayout(vbox_rhs)
         self.opt_tabs.addTab(self.tab_profile, "Profile")
         
-        self.tab_synthesis = QtGui.QWidget()
-        self.opt_tabs.addTab(self.tab_synthesis, "Synthesis")
-
         # Connect Signals for Profile
         self.edit_view_window.textChanged.connect(
             self.update_edit_view_window)
@@ -609,6 +606,97 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.fit_one)
         self.btn_clear_masks.clicked.connect(
             self.clicked_btn_clear_masks)
+
+        ###################
+        ### Synthesis options
+        self.tab_synthesis = QtGui.QWidget()
+        tab_hbox = QtGui.QHBoxLayout(self.tab_synthesis)
+
+        ### LHS
+        vbox_lhs = QtGui.QVBoxLayout()
+        hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "View window",
+                                                 0, 1000, 1)
+        self.edit_view_window_2 = line
+        vbox_lhs.addLayout(hbox)
+
+        hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "Fit window",
+                                                 0, 1000, 1)
+        self.edit_fit_window_2 = line
+        vbox_lhs.addLayout(hbox)
+
+        hbox, checkbox, label, combo = _create_checkcombo_in_hbox(self.tab_synthesis, 
+                                                                  "Use poly for cont.")
+        self.checkbox_continuum_2 = checkbox
+        self.combo_continuum_2 = combo
+        for i in range(10):
+            self.combo_continuum_2.addItem("{:.0f}".format(i))
+        vbox_lhs.addLayout(hbox)
+
+        hbox, checkbox, label, line = _create_checkline_in_hbox(self.tab_synthesis, "RV tol",
+                                                                0, 100, 2)
+        self.checkbox_vrad_tolerance_2 = checkbox
+        self.edit_vrad_tolerance_2 = line
+        vbox_lhs.addLayout(hbox)
+        
+        hbox, checkbox, label, line = _create_checkline_in_hbox(self.tab_synthesis, "Smoothing",
+                                                                0, 10, 3)
+        self.checkbox_model_smoothing = checkbox
+        self.edit_model_smoothing = line
+        vbox_lhs.addLayout(hbox)
+        
+        hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "Initial abund",
+                                                           0, 2, 2)
+        self.edit_initial_abundance_bound = line
+        vbox_lhs.addLayout(hbox)
+
+        ### RHS
+        vbox_rhs = QtGui.QVBoxLayout()
+
+        # TODO add element abundance table
+        
+        self.btn_fit_synth = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_fit_synth.setText("Fit/Synth")
+        vbox_rhs.addWidget(self.btn_fit_synth)
+        
+        vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
+                                           QtGui.QSizePolicy.Expanding))
+
+        self.btn_update_abund_table = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_update_abund_table.setText("Update Abundance Table")
+        vbox_rhs.addWidget(self.btn_update_abund_table)
+        
+        self.btn_clear_masks_2 = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_clear_masks_2.setText("Clear Masks")
+        vbox_rhs.addWidget(self.btn_clear_masks_2)
+
+
+        ### Finish Synthesis Tab
+        tab_hbox.addLayout(vbox_lhs)
+        tab_hbox.addLayout(vbox_rhs)
+        self.opt_tabs.addTab(self.tab_synthesis, "Synthesis")
+
+        # Connect signals for synthesis
+        self.edit_view_window_2.textChanged.connect(
+            self.update_edit_view_window_2)
+        self.edit_fit_window_2.textChanged.connect(
+            self.update_edit_fit_window_2)
+        self.checkbox_continuum_2.stateChanged.connect(
+            self.clicked_checkbox_continuum_2)
+        self.combo_continuum_2.currentIndexChanged.connect(
+            self.update_continuum_order_2)
+        self.checkbox_vrad_tolerance_2.stateChanged.connect(
+            self.clicked_checkbox_vrad_tolerance_2)
+        self.edit_vrad_tolerance_2.textChanged.connect(
+            self.update_vrad_tolerance_2)
+        self.checkbox_model_smoothing.stateChanged.connect(
+            self.clicked_checkbox_model_smoothing)
+        self.edit_model_smoothing.setEnabled(False)
+        #self.edit_model_smoothing.stateChanged.connect(
+        #    self.update_model_smoothing)
+        self.edit_initial_abundance_bound.textChanged.connect(
+            self.update_initial_abundance_bound)
+        #self.edit_smoothing_bound.textChanged.connect(
+        #    self.update_smoothing_bound)
 
     def new_session_loaded(self):
         """
@@ -1358,12 +1446,34 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.opt_tabs.setTabEnabled(1, True)
             self.opt_tabs.setCurrentIndex(1)
 
-            # Update widgets.
-            #self.edit_initial_abundance_bound.setText(
-            #    "{}".format(selected_model.metadata["initial_abundance_bounds"]))
+            self.edit_view_window.setText("{}".format(selected_model.metadata["window"]))
+            self.edit_fit_window.setText("{}".format(selected_model.metadata["window"]))
+
+            # Continuum order.
+            continuum_order = selected_model.metadata["continuum_order"]
+            if continuum_order < 0:
+                self.checkbox_continuum_2.setChecked(False)
+                self.combo_continuum_2.setEnabled(False)
+            else:
+                self.checkbox_continuum_2.setChecked(True)
+                self.combo_continuum_2.setEnabled(True)
+                self.combo_continuum_2.setCurrentIndex(continuum_order)
+
+            # Radial velocity tolerance.
+            vrad_tolerance = selected_model.metadata.get("velocity_tolerance", None)
+            if vrad_tolerance is None:
+                self.checkbox_vrad_tolerance_2.setChecked(False)
+                self.edit_vrad_tolerance_2.setEnabled(False)
+            else:
+                self.checkbox_vrad_tolerance_2.setChecked(True)
+                self.edit_vrad_tolerance_2.setEnabled(True)
+                self.edit_vrad_tolerance_2.setText("{}".format(vrad_tolerance))
+
+            self.edit_initial_abundance_bound.setText(
+                "{}".format(selected_model.metadata["initial_abundance_bounds"]))
             
-            #self.checkbox_model_smoothing.setEnabled(
-            #    selected_model.metadata["smoothing_kernel"])
+            self.checkbox_model_smoothing.setEnabled(
+                selected_model.metadata["smoothing_kernel"])
 
             # sigma smooth tolerance needs implementing.
         else:
@@ -1375,6 +1485,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     # FITTING OPTION UPDATE METHODS
     ###############################
 
+    ### Profile update
     def update_edit_view_window(self):
         """ The wavelength window was updated """
         try:
@@ -1389,7 +1500,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.ax_residual.set_xlim(xlim)
             self.figure.draw()
         return None
-
     def update_edit_fit_window(self):
         """ The wavelength window was updated """
         model = self._get_selected_model()
@@ -1400,7 +1510,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         else:
             model.metadata["window"] = window
         return None
-
     def clicked_checkbox_continuum(self):
         """ The checkbox for modeling the continuum was clicked. """
         if self.checkbox_continuum.isChecked():
@@ -1410,13 +1519,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self._get_selected_model().metadata["continuum_order"] = -1
             self.combo_continuum.setEnabled(False)
         return None
-
     def update_continuum_order(self):
         """ The continuum order to use in model fitting was changed. """
         self._get_selected_model().metadata["continuum_order"] \
             = int(self.combo_continuum.currentText())
         return None
-
     def clicked_checkbox_vrad_tolerance(self):
         """ The checkbox for velocity tolerance was clicked. """
         if self.checkbox_vrad_tolerance.isChecked():
@@ -1426,7 +1533,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.edit_vrad_tolerance.setEnabled(False)
             self._get_selected_model().metadata["velocity_tolerance"] = None
         return None
-
     def update_vrad_tolerance(self):
         """ The tolerance on radial velocity was updated. """
         try:
@@ -1435,19 +1541,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             value = None
         self._get_selected_model().metadata["velocity_tolerance"] = value
         return None
-
     def update_combo_profile(self):
         """ Update the profile that is used for fitting atomic transitions. """
         self._get_selected_model().metadata["profile"] \
             = self.combo_profile.currentText().lower()
         return None
-
     def update_detection_sigma(self):
         """ The detection sigma for nearby lines has been updated. """
         self._get_selected_model().metadata["detection_sigma"] \
             = float(self.edit_detection_sigma.text())
         return None
-
     def update_detection_pixels(self):
         """ The number of pixels to qualify a detection has been updated. """
         self._get_selected_model().metadata["detection_pixels"] \
@@ -1479,6 +1582,62 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.fit_one()
         return None
 
+    ### Synthesis update
+    def update_edit_view_window_2(self):
+        """ The wavelength window was updated """
+        try:
+            window = float(self.edit_view_window_2.text())
+        except:
+            return None
+        else:
+            transitions = self._get_selected_model().transitions
+            xlim = (transitions["wavelength"][0] - window,
+                    transitions["wavelength"][-1] + window)
+            self.ax_spectrum.set_xlim(xlim)
+            self.ax_residual.set_xlim(xlim)
+            self.figure.draw()
+        return None
+    def update_edit_fit_window_2(self):
+        """ The wavelength window was updated """
+        model = self._get_selected_model()
+        try:
+            window = float(self.edit_fit_window_2.text())
+        except:
+            return None
+        else:
+            model.metadata["window"] = window
+        return None
+    def clicked_checkbox_continuum_2(self):
+        """ The checkbox for modeling the continuum was clicked. """
+        if self.checkbox_continuum_2.isChecked():
+            self.combo_continuum_2.setEnabled(True)
+            self.update_continuum_order()
+        else:
+            self._get_selected_model().metadata["continuum_order"] = -1
+            self.combo_continuum_2.setEnabled(False)
+        return None
+    def update_continuum_order_2(self):
+        """ The continuum order to use in model fitting was changed. """
+        self._get_selected_model().metadata["continuum_order"] \
+            = int(self.combo_continuum_2.currentText())
+        return None
+    def clicked_checkbox_vrad_tolerance_2(self):
+        """ The checkbox for velocity tolerance was clicked. """
+        if self.checkbox_vrad_tolerance_2.isChecked():
+            self.edit_vrad_tolerance_2.setEnabled(True)
+            self.update_vrad_tolerance_2()
+        else:
+            self.edit_vrad_tolerance_2.setEnabled(False)
+            self._get_selected_model().metadata["velocity_tolerance"] = None
+        return None
+    def update_vrad_tolerance_2(self):
+        """ The tolerance on radial velocity was updated. """
+        try:
+            value = float(self.edit_vrad_tolerance_2.text())
+        except:
+            value = None
+        self._get_selected_model().metadata["velocity_tolerance"] = value
+        return None
     def update_initial_abundance_bound(self):
         """ The initial abundance bound has been updated. """
         self._get_selected_model().metadata["initial_abundance_bounds"] \
@@ -1488,20 +1647,19 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         """ The checkbox to smooth the model spectrum has been clicked. """
         if self.checkbox_model_smoothing.isChecked():
             self._get_selected_model().metadata["smoothing_kernel"] = True
-            self.edit_smoothing_bound.setEnabled(True)
-            self.update_smoothing_bound()
+            #self.edit_smoothing_bound.setEnabled(True)
+            #self.update_smoothing_bound()
         else:
             self._get_selected_model().metadata["smoothing_kernel"] = False
-            self.edit_smoothing_bound.setEnabled(False)
+            #self.edit_smoothing_bound.setEnabled(False)
         return None
+    def update_model_smoothing(self):
+        raise NotImplementedError
     def update_smoothing_bound(self):
         """ The limits on the smoothing kernel have been updated. """
         value = float(self.edit_smoothing_bound.text())
         self._get_selected_model().metadata["sigma_smooth"] = (-value, value)
-        if self.auto_fit_checkbox.isChecked(): self._get_selected_model().fit()
         return None
-    def clicked_btn_specify_abundances(self):
-        raise NotImplementedError
 
 class SpectralModelsTableView(SpectralModelsTableViewBase):
     def fit_selected_models(self):
