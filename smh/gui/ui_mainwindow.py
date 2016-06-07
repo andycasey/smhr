@@ -329,6 +329,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         #self.normalization_tab.new_session_loaded()
         # TODO put all these in normalization tab
         self.normalization_tab._populate_widgets()
+        #self.normalization_tab.draw_order()
         #self.normalization_tab.current_order_index = 0
         # TODO seems to not save the stitched normalized spectrum?
         self.normalization_tab.draw_continuum(refresh=True)

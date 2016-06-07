@@ -174,6 +174,15 @@ class Session(BaseSession):
                 format="fits")
             twd_paths.append(os.path.join(twd, "line_list.fits"))
 
+        # Save the normalized spectrum
+        try:
+            spec = self.normalized_spectrum
+            spec.write(os.path.join(twd, "normalized_spectrum.txt"))
+        except:
+            pass #TODO
+        else:
+            twd_paths.append(os.path.join(twd, "normalized_spectrum.txt"))
+
         # The spectral models must be treated with care.
         metadata["spectral_models"] \
             = [_.__getstate__() for _ in metadata.get("spectral_models", [])]
@@ -205,6 +214,7 @@ class Session(BaseSession):
 
             # Now re-raise the original exception.
             raise (exc_info[1], None, exc_info[2])
+
 
         # Tar it up.
         if not session_path.lower().endswith(".smh"):
@@ -282,6 +292,11 @@ class Session(BaseSession):
 
         # Update the session with the spectral models.
         session.metadata["spectral_models"] = reconstructed_spectral_models
+
+        # Load in the normalized spectrum
+        if os.path.exists(os.path.join(twd, "normalized_spectrum.txt")):
+            normalized_spectrum = specutils.Spectrum1D.read(os.path.join(twd, "normalized_spectrum.txt"))
+            session.normalized_spectrum = normalized_spectrum
 
         # TODO: We need to clean up!
         #       The line list and input spectra are stored in a TWD, and we at

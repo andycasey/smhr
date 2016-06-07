@@ -684,15 +684,11 @@ class NormalizationTab(QtGui.QWidget):
         # Draw the widgets.
         try:
             self.order_slide.setValue(0)
-            """
-
             self.update_order_index(0)
             self.update_continuum_mask(refresh=False)
             self.fit_continuum(clobber=False)
             self.draw_order(refresh=False)
             self.draw_continuum(refresh=True)
-
-            """
 
         except (AttributeError, KeyError):
             # HACK
