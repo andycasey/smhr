@@ -629,7 +629,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         all_species = set([])
         for spectral_model in self.all_spectral_models.spectral_models:
-            all_species.update(set(spectral_model.species))
+            if isinstance(spectral_model, ProfileFittingModel):
+                all_species.update(set(spectral_model.species))
+            elif isinstance(spectral_model, SpectralSynthesisModel):
+                for specie in spectral_model.species:
+                    all_species.update(set(specie))
         if len(all_species)==0: return None
         all_species = np.sort(list(all_species))
         for species in all_species:
@@ -646,7 +650,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.element_summary_text.setText("")
         else:
             species = utils.element_to_species(elem)
-            filter_function = lambda model: species in model.species
+            def filter_function(model):
+                if isinstance(model, ProfileFittingModel):
+                    return species in model.species
+                elif isinstance(model, SpectralSynthesisModel):
+                    return np.any([species in specie for specie in model.species])
             table_model.beginResetModel()
             table_model.add_filter_function(elem, filter_function)
             table_model.endResetModel()
@@ -709,7 +717,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 except (ValueError, RuntimeError) as e:
                     logger.debug("Fitting error",spectral_model)
                     logger.debug(e)
-            if isinstance(spectral_model, ProfileFittingModel):
+            elif isinstance(spectral_model, ProfileFittingModel):
                 try:
                     res = spectral_model.fit()
                 except (ValueError, RuntimeError) as e:
@@ -725,7 +733,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     except (ValueError, RuntimeError) as e:
                         logger.debug("Fitting error",spectral_model)
                         logger.debug(e)
-                if isinstance(spectral_model, ProfileFittingModel):
+                elif isinstance(spectral_model, ProfileFittingModel):
                     try:
                         res = spectral_model.fit()
                     except (ValueError, RuntimeError) as e:
@@ -1582,7 +1590,7 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
         elif column == 1:
             value = spectral_model._repr_wavelength
 
-        elif column == 2:
+        elif column == 2: #abundance
             try:
                 abundances \
                     = spectral_model.metadata["fitted_result"][2]["abundances"]
@@ -1591,12 +1599,24 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
                 value = ""
 
             else:
-                # TODO need to get current element from session to pick which one
-                # How many elements were measured?
-                value = "; ".join(["{0:.2f}".format(abundance) \
-                    for abundance in abundances])
-
-        elif column in [3, 4]:
+                if len(abundances) == 1:
+                    value = "{0:.2f}".format(abundances[0])
+                else:
+                    assert isinstance(spectral_model, SpectralSynthesisModel), spectral_model
+                    current_element = self.parent.filter_combo_box.currentText().split()[0]
+                    if current_element=="All":
+                        try:
+                            value = "; ".join(["{}".format(abund) \
+                                               for abund in spectral_model.abundances])
+                        except TypeError:
+                            value = ""
+                    else:
+                        for i,elem in enumerate(spectral_model.elements):
+                            if current_element == elem: break
+                        else:
+                            raise ValueError("{} not in {}".format(current_element, spectral_model.elements))
+                        value = "{0:.2f}".format(abundances[i])
+        elif column in [3, 4]: #EW, REW
             try:
                 result = spectral_model.metadata["fitted_result"][2]
                 equivalent_width = result["equivalent_width"][0]
@@ -1610,12 +1630,29 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
                 value = "{:.2f}".format(np.log10(equivalent_width/float(spectral_model._repr_wavelength))) \
                     if np.isfinite(equivalent_width) else ""
         elif column == 5: #abundance err
-            try:
-                result = spectral_model.metadata["fitted_result"][2]
-                err = result["abundance_uncertainties"][0]
-                value = "{:.2f}".format(err)
-            except:
-                value = ""
+            if isinstance(spectral_model, ProfileFittingModel):
+                try:
+                    result = spectral_model.metadata["fitted_result"][2]
+                    err = result["abundance_uncertainties"][0]
+                    value = "{:.2f}".format(err)
+                except:
+                    value = ""
+            elif isinstance(spectral_model, SpectralSynthesisModel):
+                current_element = self.parent.filter_combo_box.currentText().split()[0]
+                if current_element=="All":
+                    value = ""
+                else:
+                    for i,elem in enumerate(spectral_model.elements):
+                        if current_element == elem: break
+                    else:
+                        raise ValueError("{} not in {}".format(current_element, spectral_model.elements))
+                    try:
+                        covar = spectral_model.metadata["fitted_result"][1]
+                    except:
+                        value = ""
+                    else:
+                        err = np.sqrt(covar[i,i])
+                        value = "{:.2f}".format(err)
         elif column == 6: #EW err
             try:
                 result = spectral_model.metadata["fitted_result"][2]
@@ -1624,13 +1661,15 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
             except:
                 value = ""
         elif column == 7:
-            try:
-                loggf = spectral_model.transitions[0]['loggf']
-                value = "{:6.3f}".format(loggf)
-            except:
+            if isinstance(spectral_model, SpectralSynthesisModel):
                 value = ""
+            else:
+                try:
+                    loggf = spectral_model.transitions[0]['loggf']
+                    value = "{:6.3f}".format(loggf)
+                except:
+                    value = ""
         elif column == 8:
-            # TODO need to get current element from session to pick which one
             value = "; ".join(["{}".format(element) \
                       for element in spectral_model.elements])
 

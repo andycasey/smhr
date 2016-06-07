@@ -178,11 +178,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
                 transitions["elem2"] == element)
 
             # Note plurality/singularity of specie/species.
-            specie = list(np.unique(transitions[ii]["species"]))
-            #if len(specie) > 1:
-            #    # TODO how to deal with this correctly?
-            #    raise ValueError(
-            #        "element '{}' has ambiguous species: {}".format(element,specie))
+            # APJ modified to remove isotopes in species
+            specie = transitions[ii]["species"]
+            specie = (specie*10).astype(int)/10.0
+            specie = list(np.unique(specie))
             species.append(specie)
 
         return species
