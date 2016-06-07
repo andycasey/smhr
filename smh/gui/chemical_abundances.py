@@ -699,37 +699,37 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         # Fit all acceptable
         num_unacceptable = 0
-        for i,m in enumerate(self.all_spectral_models.spectral_models):
-            if not m.is_acceptable:
+        for i,spectral_model in enumerate(self.all_spectral_models.spectral_models):
+            if not spectral_model.is_acceptable:
                 num_unacceptable += 1
                 continue
-            if isinstance(m, SpectralSynthesisModel):
+            if isinstance(spectral_model, SpectralSynthesisModel):
                 try:
-                    res = m.fit()
+                    res = spectral_model.fit()
                 except (ValueError, RuntimeError) as e:
-                    logger.debug("Fitting error",m)
+                    logger.debug("Fitting error",spectral_model)
                     logger.debug(e)
-            if isinstance(m, ProfileFittingModel):
+            if isinstance(spectral_model, ProfileFittingModel):
                 try:
-                    res = m.fit()
+                    res = spectral_model.fit()
                 except (ValueError, RuntimeError) as e:
-                    logger.debug("Fitting error",m)
+                    logger.debug("Fitting error",spectral_model)
                     logger.debug(e)
         # If none are acceptable, then fit all
         if num_unacceptable == self.all_spectral_models.rowCount(None):
             print("Found no acceptable spectral models, fitting all!")
-            for i,m in enumerate(self.all_spectral_models.spectral_models):
-                if isinstance(m, SpectralSynthesisModel):
+            for i,spectral_model in enumerate(self.all_spectral_models.spectral_models):
+                if isinstance(spectral_model, SpectralSynthesisModel):
                     try:
-                        res = m.fit()
+                        res = spectral_model.fit()
                     except (ValueError, RuntimeError) as e:
-                        logger.debug("Fitting error",m)
+                        logger.debug("Fitting error",spectral_model)
                         logger.debug(e)
-                if isinstance(m, ProfileFittingModel):
+                if isinstance(spectral_model, ProfileFittingModel):
                     try:
-                        res = m.fit()
+                        res = spectral_model.fit()
                     except (ValueError, RuntimeError) as e:
-                        logger.debug("Fitting error",m)
+                        logger.debug("Fitting error",spectral_model)
                         logger.debug(e)
 
         self.proxy_spectral_models.reset()
