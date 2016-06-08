@@ -151,7 +151,7 @@ def _parse_single_spectrum(lines):
 
     # If MOOG doesn't have opacity contributions at a given wavelength, it will
     # just spit out ****** entries.
-    _pre_format = lambda l: l.strip().replace("*******", " 0.0000").split()
+    _pre_format = lambda l: l.strip().replace("*******", " 0.0000").replace("-0.0000"," 0.0000").split()
     depths = np.array(
         sum([_pre_format(line) for line in lines[i + 2:]], []),
         dtype=float)

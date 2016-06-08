@@ -655,6 +655,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.synth_abund_table_model = SynthesisAbundanceTableModel(self)
         self.synth_abund_table.setModel(self.synth_abund_table_model)
         self.synth_abund_table.resizeColumnsToContents()
+        self.synth_abund_table.setColumnWidth(0, 50) # MAGIC
         self.synth_abund_table.horizontalHeader().setStretchLastSection(True)
         sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
                                QtGui.QSizePolicy.MinimumExpanding)
@@ -793,7 +794,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.update_spectrum_figure(redraw=False)
         self.update_selected_points_plot(redraw=False)
         self.update_line_strength_figure(redraw=True)
-        print("Time to refresh plots: {:.1f}s".format(time.time()-start))
+        #print("Time to refresh plots: {:.1f}s".format(time.time()-start))
         return None
 
     def fit_all(self):
@@ -1877,6 +1878,7 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
     def __init__(self, parent, *args):
         super(SynthesisAbundanceTableModel, self).__init__(parent, *args)
         self.spectral_model = None
+        self.elem_order = None
 
     def load_new_model(self, spectral_model):
         """
@@ -1884,6 +1886,14 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
         """
         self.beginResetModel()
         self.spectral_model = spectral_model
+        # Sort table by Z
+        if spectral_model is not None:
+            elems = spectral_model.metadata["rt_abundances"].keys()
+            Zs = [int(utils.element_to_species(elem)) for elem in elems]
+            sorted_indices = np.argsort(Zs)
+            self.elem_order = dict(zip(np.arange(len(elems)), np.array(elems)[sorted_indices]))
+        else:
+            self.elem_order = None
         self.endResetModel()
         return None
     def rowCount(self, parent):
@@ -1898,9 +1908,11 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
         if not index.isValid() or role != QtCore.Qt.DisplayRole:
             return None
         if self.spectral_model is None: return None
-        elem = self.spectral_model.metadata["rt_abundances"].keys()[index.row()]
-        if index.column()==0: return elem
-        else: return "{:.3f}".format(self.spectral_model.metadata["rt_abundances"][elem])
+        elem = self.elem_order[index.row()]
+        if index.column()==0: 
+            return elem
+        else: 
+            return "{:.3f}".format(self.spectral_model.metadata["rt_abundances"][elem])
     def headerData(self, col, orientation, role):
         if orientation == QtCore.Qt.Horizontal \
         and role == QtCore.Qt.DisplayRole:
@@ -1911,9 +1923,13 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
     def setData(self, index, value, role):
         if index.column()==0: return False
         if self.spectral_model is None: return False
-        elem = self.spectral_model.metadata["rt_abundances"].keys()[index.row()]
-        self.spectral_model.metadata["rt_abundances"][elem] = value
-        return True
+        elem = self.elem_order[index.row()]
+        try:
+            self.spectral_model.metadata["rt_abundances"][elem] = float(value)
+        except ValueError:
+            return False
+        else:
+            return True
     def flags(self, index):
         if not index.isValid():
             return None

@@ -41,6 +41,13 @@ def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={}):
     calculated_abundances = np.array(list(
         itertools.product(*[[c-bounds, c, c+bounds] for c in centroids])))
 
+    # Explicitly specified abundances
+    # np.nan goes to -9.0
+    rt_abundances = rt_abundances.copy()
+    for key in rt_abundances:
+        if np.isnan(rt_abundances[key]):
+            rt_abundances[key] = -9.0
+
     # Group syntheses into 5 where possible.
     M, K = 5, calculated_abundances.shape[0]
     fluxes = None
@@ -114,6 +121,15 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Set the model parameter names based on the current metadata.
         self._update_parameter_names()
         self._verify_transitions()
+
+        # Set rt_abundances to have all the elements with nan
+        unique_atomic_numbers = np.unique(self.transitions["species"].astype(int))
+        rt_abundances = {}
+        for Z in unique_atomic_numbers:
+            elem = utils.species_to_element(Z).split()[0]
+            if elem in elements: continue
+            rt_abundances[elem] = np.nan
+        self.metadata.update({"rt_abundances": rt_abundances})
 
         if len(self.elements) == 1:
             # Which of these lines is in the line list?
