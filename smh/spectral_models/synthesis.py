@@ -27,6 +27,13 @@ from smh.photospheres.abundances import asplund_2009 as solar_composition
 logger = logging.getLogger(__name__)
 
 
+def _fix_rt_abundances(rt_abundances):
+    rt_abundances = rt_abundances.copy()
+    for key in rt_abundances:
+        if np.isnan(rt_abundances[key]):
+            rt_abundances[key] = -9.0
+    return rt_abundances
+    
 def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={}):
 
     # Generate spectra at +/- the initial bounds. For all elements.
@@ -43,10 +50,7 @@ def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={}):
 
     # Explicitly specified abundances
     # np.nan goes to -9.0
-    rt_abundances = rt_abundances.copy()
-    for key in rt_abundances:
-        if np.isnan(rt_abundances[key]):
-            rt_abundances[key] = -9.0
+    rt_abundances = _fix_rt_abundances(rt_abundances)
 
     # Group syntheses into 5 where possible.
     M, K = 5, calculated_abundances.shape[0]
@@ -420,6 +424,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
                 element = name.split("(")[1].rstrip(")")
                 abundances[utils.element_to_species(element)] = parameter
             else: break # The log_eps abundances are always first.
+
+        rt_abundances = _fix_rt_abundances(self.metadata["rt_abundances"])
+        abundances.update(rt_abundances)
 
         # Produce a synthetic spectrum.
         synth_dispersion, intensities, meta = self.session.rt.synthesize(
