@@ -8,6 +8,7 @@ __author__ = "Andy Casey <andy@astrowizici.st>"
 import os
 import logging
 import platform
+import string
 import sys
 import traceback
 
@@ -15,6 +16,7 @@ from collections import Counter
 
 from commands import getstatusoutput
 from hashlib import sha1 as sha
+from random import choice
 from socket import gethostname, gethostbyname
 
 # Third party imports
@@ -27,6 +29,10 @@ __all__ = ["element_to_species", "species_to_element", "get_common_letters", \
     "hashed_id"]
 
 logger = logging.getLogger(__name__)
+
+
+def random_string(N=10):
+    return ''.join(choice(string.ascii_uppercase + string.digits) for _ in range(N))
 
 
 def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species"):
