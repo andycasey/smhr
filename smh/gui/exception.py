@@ -357,7 +357,7 @@ class ExceptionWidget(QtGui.QDialog):
         url = "https://github.com/andycasey/smhr/issues/new?title={}&body={}"\
             .format(title, body)
 
-        os.system('open "{}"'.format(url))
+        os.system('python -m webbrowser "{}"'.format(url))
         return None
 
 
