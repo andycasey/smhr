@@ -27,7 +27,7 @@ from smh.photospheres.abundances import asplund_2009 as solar_composition
 logger = logging.getLogger(__name__)
 
 
-def approximate_spectral_synthesis(model, centroids, bounds, **kwargs):
+def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={}):
 
     # Generate spectra at +/- the initial bounds. For all elements.
     species \
@@ -50,7 +50,7 @@ def approximate_spectral_synthesis(model, centroids, bounds, **kwargs):
             abundances[specie] = calculated_abundances[M*i:M*(i + 1), j]
 
         # Include explicitly specified abundances.
-        abundances.update(kwargs.get("rt_abundances", {}))
+        abundances.update(rt_abundances)
 
         spectra = model.session.rt.synthesize(
             model.session.stellar_photosphere, 
@@ -107,7 +107,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
             "smoothing_kernel": True,
             "initial_abundance_bounds": 1,
             "elements": self._verify_elements(elements),
-            "species": self._verify_species(elements)
+            "species": self._verify_species(elements),
+            "rt_abundances": {}
         })
 
         # Set the model parameter names based on the current metadata.
@@ -309,7 +310,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         while bounds > 0.01: # dex
             central = p0[:len(self.metadata["elements"])]
             approximater \
-                = approximate_spectral_synthesis(self, central, bounds, **kwargs)
+                = approximate_spectral_synthesis(self, central, bounds, self.metadata["rt_abundances"])
 
             def objective_function(x, *parameters):
                 synth_dispersion, intensities = approximater(*parameters)
