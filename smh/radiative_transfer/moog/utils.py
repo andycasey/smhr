@@ -13,8 +13,8 @@ import signal
 import subprocess
 import tempfile
 from smh.photospheres.abundances import asplund_2009 as solar_composition
-from smh.utils import elems_isotopes_ion_to_species
-from six import iteritems
+from smh.utils import elems_isotopes_ion_to_species, element_to_atomic_number
+from six import iteritems, string_types
 
 logger = logging.getLogger(__name__)
 
@@ -136,12 +136,24 @@ def _format_abundances(elemental_abundances=None, subtract_solar=False,
 
     # First-pass to check the abundances and get the number of syntheses.
     elemental_abundances = elemental_abundances.copy()
+    
+    # Make sure that the abundances are specified as (atomic_number: abundance)
+    for key in elemental_abundances.keys():
+        if isinstance(key, string_types):
+            # It's an element. Convert to atomic number.
+            atomic_number = element_to_atomic_number(key)
+            if atomic_number in elemental_abundances.keys():
+                raise ValueError(
+                    "element {} has abundances specified by element and species"\
+                    .format(key))
+            elemental_abundances[atomic_number] = elemental_abundances.pop(key)
+
     sorted_atomic_numbers, max_synth = sorted(elemental_abundances.keys()), None
     for atomic_number in sorted_atomic_numbers:
         abundance = elemental_abundances[atomic_number]
         try:
             abundance[0]
-        except IndexError:
+        except (IndexError, TypeError):
             abundance = [abundance]
         abundance = np.array(abundance).flatten().copy()
 

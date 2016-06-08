@@ -68,6 +68,7 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
     mh = photosphere.meta["stellar_parameters"]["metallicity"]
     abundances_formatted, num_synth = utils._format_abundances(
         abundances, subtract_solar=True, subtract_metallicity=mh)
+
     kwds["abundances_formatted"] = abundances_formatted
 
     # Isotopes.
