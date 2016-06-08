@@ -56,6 +56,11 @@ class StellarParametersTab(QtGui.QWidget):
         super(StellarParametersTab, self).__init__(parent)
         self.parent = parent
 
+        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
+            QtGui.QSizePolicy.MinimumExpanding)
+        sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
+        self.setSizePolicy(sp)
+
         self.parent_layout = QtGui.QHBoxLayout(self)
         self.parent_layout.setContentsMargins(20, 20, 20, 0)
 
@@ -136,7 +141,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.btn_measure = QtGui.QPushButton(self)
         self.btn_measure.setAutoDefault(True)
         self.btn_measure.setDefault(True)
-        self.btn_measure.setText("Measure")
+        self.btn_measure.setText("Measure abundances")
 
         hbox.addWidget(self.btn_measure)
 
@@ -184,6 +189,8 @@ class StellarParametersTab(QtGui.QWidget):
         self.table_view.setColumnWidth(2, 70) # MAGIC
         self.table_view.setColumnWidth(3, 70) # MAGIC
         self.table_view.setMinimumSize(QtCore.QSize(240, 0))
+        #self.table_view.setMaximumSize(QtCore.QSize(240, 16777215))
+        
         self.table_view.horizontalHeader().setStretchLastSection(True)
         lhs_layout.addWidget(self.table_view)
 
@@ -208,6 +215,12 @@ class StellarParametersTab(QtGui.QWidget):
         # Matplotlib figure.
         self.figure = mpl.MPLWidget(None, tight_layout=True, autofocus=True)
         self.figure.setMinimumSize(QtCore.QSize(300, 300))
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Expanding)
+        sp.setHorizontalStretch(0)
+        sp.setVerticalStretch(0)
+        sp.setHeightForWidth(self.figure.sizePolicy().hasHeightForWidth())
+        self.figure.setSizePolicy(sp)
         self.figure.figure.patch.set_facecolor([(_ - 10)/255. for _ in \
             self.palette().color(QtGui.QPalette.Window).getRgb()[:3]])
 
@@ -705,6 +718,12 @@ class StellarParametersTab(QtGui.QWidget):
         if self.parent.session is None or not self._check_for_spectral_models():
             return None
 
+        # Fit the spectral models if they have not been fit before.
+        for model in self.parent.session.metadata["spectral_models"]:
+            if model.use_for_stellar_parameter_inference \
+            and model.metadata.get("fitted_result", None) is None:
+                model.fit()
+
         # Update the session with the stellar parameters in the GUI, and then
         # calculate abundances.
         self.update_stellar_parameters()
@@ -884,8 +903,18 @@ class StellarParametersTab(QtGui.QWidget):
 
     def update_selected_points(self, redraw=False):
         # Show selected points.
+
+
         proxy_indices = np.unique(np.array([index for index in \
             self.table_view.selectionModel().selectedIndexes()]))
+
+        if 1 > proxy_indices.size:
+            for collection in self._lines["selected_point"]:
+                collection.set_offsets(np.array([np.nan, np.nan]).T)
+            if redraw:
+                self.figure.draw()
+            return None
+
 
         print("selected proxy indices", np.unique([_.row() for _ in proxy_indices]))
         # These indices are proxy indices, which must be mapped back.
@@ -924,69 +953,31 @@ class StellarParametersTab(QtGui.QWidget):
         """
         The selected model was changed.
         """
+        ta = time()
 
         # Show point on excitation/line strength plot.
         try:
             selected_model = self._get_selected_model()
 
         except IndexError:
-            logger.exception("Could not get selected model")
-            for collection in self._lines["selected_point"]:
-                collection.set_offsets(np.array([np.nan, np.nan]).T)
-
-            self.figure.draw()
+            self.update_selected_points(redraw=True)
+            print("Time taken B: {}".format(time() - ta))
 
             return None
-
+            
         print("selected model is at ", selected_model._repr_wavelength)
-        try:
-            metadata = selected_model.metadata["fitted_result"][-1]
-            abundances = metadata["abundances"]
-            equivalent_width = metadata["equivalent_width"][0]
-
-        except (IndexError, KeyError):
-            print("could not find result")
-            abundances = [np.nan]
-
-        else:
-            print("found result")
-
+        
         self.update_selected_points()
 
         # Show spectrum.
         self.update_spectrum_figure(redraw=True)
 
+        print("Time taken: {}".format(time() - ta))
         return None
 
 
     def update_spectrum_figure(self, redraw=True):
         """ Update the spectrum figure. """
-
-        if self._lines["spectrum"] is None \
-        and hasattr(self.parent, "session") \
-        and hasattr(self.parent.session, "normalized_spectrum"):
-
-            # Draw the spectrum.
-            spectrum = self.parent.session.normalized_spectrum
-            self._lines["spectrum"] = self.ax_spectrum.plot(spectrum.dispersion,
-                spectrum.flux, c="k", drawstyle="steps-mid")
-
-            sigma = 1.0/np.sqrt(spectrum.ivar)
-            style_utils.fill_between_steps(self.ax_spectrum, spectrum.dispersion,
-                spectrum.flux - sigma, spectrum.flux + sigma, 
-                facecolor="#cccccc", edgecolor="#cccccc", alpha=1)
-
-            style_utils.fill_between_steps(self.ax_residual, spectrum.dispersion,
-                -sigma, +sigma, facecolor="#CCCCCC", edgecolor="none", alpha=1)
-
-            self.ax_spectrum.set_xlim(
-                spectrum.dispersion[0], spectrum.dispersion[-1])
-            self.ax_residual.set_xlim(self.ax_spectrum.get_xlim())
-            self.ax_spectrum.set_ylim(0, 1.2)
-            self.ax_spectrum.set_yticks([0, 0.5, 1])
-            self.ax_residual.set_ylim(-0.05, 0.05)
-
-            self.figure.draw()
 
         try:
             selected_model = self._get_selected_model()
@@ -997,16 +988,48 @@ class StellarParametersTab(QtGui.QWidget):
                 self.figure.draw()
             return None
 
+        # Draw the spectrum.
         transitions = selected_model.transitions
         window = selected_model.metadata["window"]
         limits = [
             transitions["wavelength"][0] - window,
             transitions["wavelength"][-1] + window,
         ]
+        spectrum = self.parent.session.normalized_spectrum
+        show = (limits[1] >= spectrum.dispersion) \
+             * (spectrum.dispersion >= limits[0])
 
-        # Zoom to region.
+        if self._lines["spectrum"] is not None:
+            for i in range(len(self._lines["spectrum"])):
+                self._lines["spectrum"][i].remove()
+            del self._lines["spectrum"]
+
+        sigma = 1.0/np.sqrt(spectrum.ivar[show])
+        self._lines["spectrum"] = [
+            # The flux values.
+            self.ax_spectrum.plot(spectrum.dispersion[show],
+                spectrum.flux[show], c="k", drawstyle="steps-mid")[0],
+
+            # The uncertainty in flue.
+            style_utils.fill_between_steps(self.ax_spectrum, 
+                spectrum.dispersion[show],
+                spectrum.flux[show] - sigma, spectrum.flux[show] + sigma, 
+                facecolor="#cccccc", edgecolor="#cccccc", alpha=1),
+
+            # The uncertainty in flux in the residuals panel.
+            style_utils.fill_between_steps(self.ax_residual, 
+                spectrum.dispersion[show], -sigma, +sigma, 
+                facecolor="#CCCCCC", edgecolor="none", alpha=1)
+        ]
+
         self.ax_spectrum.set_xlim(limits)
         self.ax_residual.set_xlim(limits)
+
+        self.ax_spectrum.set_ylim(0, 1.2)
+        self.ax_spectrum.set_yticks([0, 0.5, 1])
+        self.ax_residual.set_ylim(-0.05, 0.05)
+        
+        self.figure.draw()
 
         # If this is a profile fitting line, show where the centroid is.
         x = transitions["wavelength"][0] \
