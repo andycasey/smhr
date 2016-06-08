@@ -194,9 +194,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.open_recent_menu.clear()
 
         for i, path in enumerate(paths):
-            action = QtGui.QAction(os.path.basename(path), self)
-            self.connect(action, QtCore.SIGNAL("triggered()"),
-                lambda *_: self.open_session(path))
+            action = QtGui.QAction(os.path.basename(path), self,
+                triggered=lambda *_: self.open_session(path))
             self.open_recent_menu.addAction(action)
 
         if len(paths) == 0:
