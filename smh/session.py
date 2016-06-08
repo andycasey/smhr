@@ -125,6 +125,9 @@ class Session(BaseSession):
             `False`.
         """
 
+        if not session_path.lower().endswith(".smh"):
+            session_path = "{}.smh".format(session_path)
+
         if os.path.exists(session_path) and not overwrite:
             raise IOError("path '{}' already exists".format(session_path))
 
@@ -229,8 +232,6 @@ class Session(BaseSession):
             raise (exc_info[1], None, exc_info[2])
 
         # Tar it up.
-        if not session_path.lower().endswith(".smh"):
-            session_path = "{}.smh".format(session_path)
         tarball = tarfile.open(name=session_path, mode="w:gz")
         for path in twd_paths:
             tarball.add(path, arcname=os.path.basename(path))
