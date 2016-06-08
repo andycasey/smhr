@@ -244,6 +244,30 @@ def element_to_species(element_repr):
     return transition
 
 
+def element_to_atomic_number(element_repr):
+    """
+    Converts a string representation of an element and its ionization state
+    to a floating point.
+
+    :param element_repr:
+        A string representation of the element. Typical examples might be 'Fe',
+        'Ti I', 'si'.
+    """
+    
+    if not isinstance(element_repr, (unicode, str)):
+        raise TypeError("element must be represented by a string-type")
+    
+    element = element_repr.title().strip().split()[0]
+    try:
+        index = periodic_table.index(element)
+
+    except IndexError:
+        raise ValueError("unrecognized element '{}'".format(element_repr))
+
+    return 1 + index
+    
+
+
 
 
 
