@@ -15,9 +15,6 @@ import yaml
 # Import functionality related to each tab
 import rv, normalization, summary, stellar_parameters, chemical_abundances
 
-# Functions related to warnings and exceptions.
-import exception
-
 import smh
 from linelist_manager import TransitionsDialog
 from isotope_manager import IsotopeDialog
@@ -213,7 +210,12 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
 
     def new_session(self, filenames=None):
-        """ Initialise new session. """
+        """
+        Initialise a new session.
+
+        :param filenames: [optional]
+            A list of input spectra.
+        """
 
         # Do we already have a session open with unsaved changes?
         if self.session is not None and self.unsaved_session_changes:
@@ -289,9 +291,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
     def open_session(self, path=None):
         """ Open existing session. """
 
-        print("opening {}".format(path))
-
-
         if path is None:
             path, _ = QtGui.QFileDialog.getOpenFileName(self,
                 caption="Select session", dir="", filter="*.smh")
@@ -301,7 +300,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.add_to_recently_opened(path)
         self.session_path = path
 
-        print("Opening session from {}".format(path))
         self.session = smh.Session.load(path)
 
         # Enable relevant menu actions.
@@ -348,25 +346,33 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
     def save_session(self):
         """ Save session. """
+
         if self.session_path is None:
             self.save_session_as()
             return
-        print("Saving to {}".format(self.session_path))
+
+        logger.info("Saving to {}".format(self.session_path))
         self.session.save(self.session_path, overwrite=True)
         return None
 
 
     def save_session_as(self, path=None):
-        """ Save session as new filename. """
-        print("Save session as")
+        """
+        Save session as new filename.
+
+        :param path: [optional]
+            The filename where to save the session.
+        """
+
         if path is None:
             path, _ = QtGui.QFileDialog.getSaveFileName(self,
                 caption="Enter filename", dir="", filter="*.smh")
             if not path: return
+
         self.session_path = path
-        print("Saving to {}".format(self.session_path))
-        self.session.save(path, overwrite=True)
+        self.save_session()
         return None
+
 
     def export_normalized_spectrum(self):
         """ Export a normalized, rest-frame spectrum. """
