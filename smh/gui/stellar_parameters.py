@@ -18,6 +18,7 @@ from time import time
 
 import mpl, style_utils
 from smh.photospheres import available as available_photospheres
+from smh.photospheres.abundances import asplund_2009 as solar_composition
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 from smh import utils
 from linelist_manager import TransitionsDialog
@@ -238,17 +239,23 @@ class StellarParametersTab(QtGui.QWidget):
 
         self.ax_excitation = self.figure.figure.add_subplot(gs_top[0])
         self.ax_excitation.xaxis.get_major_formatter().set_useOffset(False)
-        self.ax_excitation.yaxis.set_major_locator(MaxNLocator(5))
         self.ax_excitation.yaxis.set_major_locator(MaxNLocator(4))
         self.ax_excitation.set_xlabel("Excitation potential (eV)")
-        self.ax_excitation.set_ylabel("[X/H]") #TODO: X/M
+        self.ax_excitation.set_ylabel("[X/H]")
+
+        self.ax_excitation_twin = self.ax_excitation.twinx()
+        self.ax_excitation_twin.yaxis.set_major_locator(MaxNLocator(4))
+        self.ax_excitation_twin.set_ylabel(r"$\log_\epsilon({\rm X})$")
 
         self.ax_line_strength = self.figure.figure.add_subplot(gs_top[1])
         self.ax_line_strength.xaxis.get_major_formatter().set_useOffset(False)
-        self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(5))
         self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(4))
         self.ax_line_strength.set_xlabel(r"$\log({\rm EW}/\lambda)$")
-        self.ax_line_strength.set_ylabel("[X/H]") # TODO: X/M
+        self.ax_line_strength.set_ylabel("[X/H]")
+
+        self.ax_line_strength_twin = self.ax_line_strength.twinx()
+        self.ax_line_strength_twin.yaxis.set_major_locator(MaxNLocator(4))
+        self.ax_line_strength_twin.set_ylabel(r"$\log_\epsilon({\rm X})$")
 
         self.ax_residual = self.figure.figure.add_subplot(gs_bottom[2])
         self.ax_residual.axhline(0, c="#666666")
@@ -292,7 +299,8 @@ class StellarParametersTab(QtGui.QWidget):
             "model_masks": [],
             "nearby_lines": [],
             "model_fit": self.ax_spectrum.plot([], [], c="r")[0],
-            "model_residual": self.ax_residual.plot([], [], c="k")[0],
+            "model_residual": self.ax_residual.plot(
+                [], [], c="k", drawstyle="steps-mid")[0],
             "interactive_mask": [
                 self.ax_spectrum.axvspan(xmin=np.nan, xmax=np.nan, ymin=np.nan,
                     ymax=np.nan, facecolor="r", edgecolor="none", alpha=0.25,
@@ -704,6 +712,29 @@ class StellarParametersTab(QtGui.QWidget):
         style_utils.relim_axes(self.ax_excitation)
         style_utils.relim_axes(self.ax_line_strength)
 
+        self.ax_excitation_twin.set_ylim(self.ax_excitation.get_ylim())
+        self.ax_line_strength_twin.set_ylim(self.ax_line_strength.get_ylim())
+
+        # Scale the left hand ticks to [X/H] or [X/M]
+
+        # How many atomic number?
+        Z = list(set(self._state_transitions["species"].astype(int)))
+        if len(Z) == 1:
+
+            scaled_ticks = np.array(self.ax_excitation.get_yticks()) \
+                - solar_composition(Z[0])
+
+            self.ax_excitation.set_yticklabels(scaled_ticks)
+            self.ax_line_strength.set_yticklabels(scaled_ticks)
+
+            label = "[{}/H]".format(
+                self._state_transitions["element"][0].split()[0])
+            self.ax_excitation.set_ylabel(label)
+            self.ax_line_strength.set_ylabel(label)
+
+        else:
+            raise NotImplementedError
+        
         # Update trend lines.
         self.update_trend_lines()
 
@@ -1098,8 +1129,8 @@ class StellarParametersTab(QtGui.QWidget):
             assert len(meta["model_x"]) == len(meta["model_yerr"])
 
             self._lines["model_fit"].set_data(meta["model_x"], meta["model_y"])
-            self._lines["model_residual"].set_data(meta["model_x"], 
-                meta["residual"])
+            self._lines["model_residual"].set_data(
+                meta["model_x"], meta["residual"])
 
             # Model yerr.
             if np.any(np.isfinite(meta["model_yerr"])):
