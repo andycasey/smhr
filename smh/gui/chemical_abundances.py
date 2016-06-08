@@ -47,15 +47,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def __init__(self, parent):
         super(ChemicalAbundancesTab, self).__init__(parent)
         self.parent = parent
-        self.parent_splitter = QtGui.QSplitter(self)
+        #self.parent_splitter = QtGui.QSplitter(self)
         self.parent_layout = QtGui.QHBoxLayout(self)
-        self.parent_splitter.setContentsMargins(3, 3, 3, 0)
-        self.parent_layout.addWidget(self.parent_splitter)
+        #self.parent_splitter.setContentsMargins(3, 3, 3, 0)
+        #self.parent_layout.addWidget(self.parent_splitter)
         
         ################
         # LEFT HAND SIDE
         ################
-        lhs_widget = QtGui.QWidget(self)
+        #lhs_widget = QtGui.QWidget(self)
         lhs_layout = QtGui.QVBoxLayout()
         
         hbox = QtGui.QHBoxLayout()
@@ -103,11 +103,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.table_view.setColumnWidth(7, 50) # MAGIC
         self.table_view.setMinimumSize(QtCore.QSize(240, 0))
         self.table_view.horizontalHeader().setStretchLastSection(True)
-        sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.MinimumExpanding, 
-            QtGui.QSizePolicy.Minimum)
-        sp.setHeightForWidth(self.table_view.sizePolicy().hasHeightForWidth())
-        self.table_view.setSizePolicy(sp)
         lhs_layout.addWidget(self.table_view)
 
         # Buttons
@@ -124,8 +119,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._create_fitting_options_widget2()
         lhs_layout.addWidget(self.opt_tabs)
         
-        lhs_widget.setLayout(lhs_layout)
-        self.parent_splitter.addWidget(lhs_widget)
+        #lhs_widget.setLayout(lhs_layout)
+        #self.parent_splitter.addWidget(lhs_widget)
+        self.parent_layout.addLayout(lhs_layout)
 
         #############################
         # RIGHT HAND SIDE: MPL WIDGET
@@ -191,7 +187,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             ]
         }
         
-        self.parent_splitter.addWidget(self.figure)
+        #self.parent_splitter.addWidget(self.figure)
+        rhs_layout.addWidget(self.figure)
+        self.parent_layout.addLayout(rhs_layout)
 
         # Connect filter combo box
         self.filter_combo_box.currentIndexChanged.connect(self.filter_combo_box_changed)
@@ -653,13 +651,23 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         vbox_rhs = QtGui.QVBoxLayout()
 
         # TODO add element abundance table
+        self.synth_abund_table = SynthesisAbundanceTableWidget(self.tab_synthesis)
+        self.synth_abund_table.resizeColumnsToContents()
+        self.synth_abund_table.setRowCount(10)
+        self.synth_abund_table.setColumnCount(4)
+        self.synth_abund_table.setHorizontalHeaderLabels(['El.','A(X)','e1','e2'])
+        self.synth_abund_table.horizontalHeader().setStretchLastSection(True)
+        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
+                               QtGui.QSizePolicy.MinimumExpanding)
+        self.synth_abund_table.setSizePolicy(sp)
+        vbox_rhs.addWidget(self.synth_abund_table)
         
         self.btn_fit_synth = QtGui.QPushButton(self.tab_synthesis)
         self.btn_fit_synth.setText("Fit/Synth")
         vbox_rhs.addWidget(self.btn_fit_synth)
         
         vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
-                                           QtGui.QSizePolicy.Expanding))
+                                           QtGui.QSizePolicy.Minimum))
 
         self.btn_update_abund_table = QtGui.QPushButton(self.tab_synthesis)
         self.btn_update_abund_table.setText("Update Abundance Table")
@@ -1679,6 +1687,12 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
         self.parent.refresh_plots()
         return None
     
+    def sizeHint(self):
+        return QtCore.QSize(240,100)
+
+    def minimumSizeHint(self):
+        return QtCore.QSize(240,0)
+
     def measure_selected_models(self):
         """ Fit the selected spectral models. """
 
@@ -1847,3 +1861,13 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
             self.parent.refresh_plots()
 
         return value
+
+class SynthesisAbundanceTableWidget(QtGui.QTableWidget):
+    """
+    Placeholder in GUI 
+    """
+    def sizeHint(self):
+        return QtCore.QSize(100,100)
+
+    def minimumSizeHint(self):
+        return QtCore.QSize(100,0)
