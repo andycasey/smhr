@@ -650,12 +650,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         ### RHS
         vbox_rhs = QtGui.QVBoxLayout()
 
-        # TODO add element abundance table
-        self.synth_abund_table = SynthesisAbundanceTableWidget(self.tab_synthesis)
+        # Element abundance table
+        self.synth_abund_table = SynthesisAbundanceTableView(self.tab_synthesis)
+        self.synth_abund_table_model = SynthesisAbundanceTableModel(self)
+        self.synth_abund_table.setModel(self.synth_abund_table_model)
         self.synth_abund_table.resizeColumnsToContents()
-        self.synth_abund_table.setRowCount(10)
-        self.synth_abund_table.setColumnCount(4)
-        self.synth_abund_table.setHorizontalHeaderLabels(['El.','A(X)','e1','e2'])
         self.synth_abund_table.horizontalHeader().setStretchLastSection(True)
         sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
                                QtGui.QSizePolicy.MinimumExpanding)
@@ -1484,6 +1483,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 selected_model.metadata["smoothing_kernel"])
 
             # sigma smooth tolerance needs implementing.
+            self.synth_abund_table_model.load_new_model(selected_model)
         else:
             self.opt_tabs.setTabEnabled(1, False)
 
@@ -1862,12 +1862,63 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
 
         return value
 
-class SynthesisAbundanceTableWidget(QtGui.QTableWidget):
+class SynthesisAbundanceTableView(QtGui.QTableView):
     """
-    Placeholder in GUI 
+    Make a small table view
     """
     def sizeHint(self):
         return QtCore.QSize(100,100)
-
     def minimumSizeHint(self):
         return QtCore.QSize(100,0)
+class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
+    """
+    Editable table of abundances to synthesize
+    """
+    def __init__(self, parent, *args):
+        super(SynthesisAbundanceTableModel, self).__init__(parent, *args)
+        self.spectral_model = None
+
+    def load_new_model(self, spectral_model):
+        """
+        Call this to reset the table with a new spectral model
+        """
+        self.beginResetModel()
+        self.spectral_model = spectral_model
+        self.endResetModel()
+        return None
+    def rowCount(self, parent):
+        try:
+            return len(self.spectral_model.metadata["rt_abundances"])
+        except Exception as e:
+            print(e)
+            return 0
+    def columnCount(self, parent):
+        return 2
+    def data(self, index, role):
+        if not index.isValid() or role != QtCore.Qt.DisplayRole:
+            return None
+        if self.spectral_model is None: return None
+        elem = self.spectral_model.metadata["rt_abundances"].keys()[index.row()]
+        if index.column()==0: return elem
+        else: return "{:.3f}".format(self.spectral_model.metadata["rt_abundances"][elem])
+    def headerData(self, col, orientation, role):
+        if orientation == QtCore.Qt.Horizontal \
+        and role == QtCore.Qt.DisplayRole:
+            if col==0: return "El."
+            if col==1: return "A(X)"
+            #if col==2: return "[X/Fe]"
+        return None
+    def setData(self, index, value, role):
+        if index.column()==0: return False
+        if self.spectral_model is None: return False
+        elem = self.spectral_model.metadata["rt_abundances"].keys()[index.row()]
+        self.spectral_model.metadata["rt_abundances"][elem] = value
+        return True
+    def flags(self, index):
+        if not index.isValid():
+            return None
+        flags = QtCore.Qt.ItemIsEnabled|\
+                QtCore.Qt.ItemIsSelectable
+        if index.column()==1: #abundance
+            flags |= QtCore.Qt.ItemIsEditable
+        return flags
