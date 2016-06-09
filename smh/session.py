@@ -861,6 +861,6 @@ class Session(BaseSession):
                     zip(spectral_model_indices[finite], abundances, uncertainties):
                 spectral_models[index].metadata["fitted_result"][-1]["abundances"] = [abundance]
                 spectral_models[index].metadata["fitted_result"][-1]["abundance_uncertainties"] = [uncertainty]
-        print("Time to measure abundances: {:.1f}".format(time.time()-start))
+        print("Time to measure {} abundances: {:.1f}".format(np.sum(finite), time.time()-start))
         return abundances, uncertainties if calculate_uncertainties else abundances
 
