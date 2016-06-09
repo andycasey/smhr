@@ -18,10 +18,8 @@ import time
 from smh import utils
 import mpl, style_utils
 from matplotlib.ticker import MaxNLocator
-#from smh.photospheres import available as available_photospheres
-#import smh.radiative_transfer as rt
+from smh.photospheres.abundances import asplund_2009 as solar_composition
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
-from abund_tree import AbundTreeView, AbundTreeModel, AbundTreeMeasurementItem, AbundTreeElementSummaryItem
 from spectral_models_table import SpectralModelsTableViewBase, SpectralModelsFilterProxyModel, SpectralModelsTableModelBase
 from linelist_manager import TransitionsDialog
 
@@ -47,6 +45,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def __init__(self, parent):
         super(ChemicalAbundancesTab, self).__init__(parent)
         self.parent = parent
+        self.FeH = np.nan
+
         self.parent_splitter = QtGui.QSplitter(self)
         self.parent_layout = QtGui.QHBoxLayout(self)
         self.parent_splitter.setContentsMargins(3, 3, 3, 0)
@@ -656,6 +656,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.table_view.selectRow(0)
         return None
 
+    def calculate_FeH(self):
+        abunds = []
+        # TODO only works measurements of single element right now
+        for spectral_model in self.parent.session.metadata["spectral_models"]:
+            if spectral_model.is_acceptable and 26.0 in spectral_model.species:
+                abunds.append(spectral_model.abundances[0])
+        self.FeH = np.mean(abunds) - solar_composition("Fe")
+        return None
+
     def summarize_current_table(self):
         elem = self.filter_combo_box.currentText()
         if elem is None or elem == "" or elem == "All":
@@ -663,17 +672,21 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.element_summary_text.setText("N={} lines".format(N))
             return None
         # Use cache to get abundance and avoid looping through proxy table
-        # TODO [X/H], [X/Fe]
-        ii = ~np.isnan(self._abund_cache)
+        # TODO [X/Fe]
+        ii = np.isfinite(self._abund_cache)
         N = np.sum(ii)
         _abund = self._abund_cache[ii]
         _errs = self._err_cache[ii]
         weights = 1/_errs**2
         total_weights = np.sum(weights)
-        abund = np.sum(_abund*weights)/total_weights
-        stdev = np.sum(_errs*weights**2)/(total_weights**2)
-        text = "N={1} A({0})={2:5.2f} e({0})={5:4.2f} [X/H]={3:5.2f} [X/Fe]={4:5.2f}"
-        text = text.format(elem,N,abund,abund,abund,stdev)
+        # TODO weights needed
+        abund = np.mean(_abund)#np.sum(_abund*weights)/total_weights
+        stdev = np.std(_abund)#np.sum(_errs*weights**2)/(total_weights**2)
+        XH = abund - solar_composition(elem.split()[0])
+        if elem == "Fe I": self.FeH = XH
+        XFe = np.nan #XH - self.FeH
+        text = "N={1} A({0})={2:5.2f} σ({0})={5:4.2f} [{0}/H]={3:5.2f} [{0}/Fe I]={4:5.2f}"
+        text = text.format(elem,N,abund,XH,XFe,stdev)
         self.element_summary_text.setText(text)
         return None
 
@@ -682,6 +695,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._check_for_spectral_models()
         self.proxy_spectral_models.reset()
         self.populate_filter_combo_box()
+        # TODO
+        #self.calculate_FeH()
         return None
 
     def refresh_plots(self):

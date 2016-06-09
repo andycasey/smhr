@@ -778,10 +778,28 @@ class StellarParametersTab(QtGui.QWidget):
             return None
 
         # Fit the spectral models if they have not been fit before.
+        num_unacceptable = 0
         for model in self.parent.session.metadata["spectral_models"]:
             if model.use_for_stellar_parameter_inference \
             and model.metadata.get("fitted_result", None) is None:
-                model.fit()
+                if not model.is_acceptable:
+                    num_unacceptable += 1
+                else:
+                    try:
+                        model.fit()
+                    except (ValueError, RuntimeError) as e:
+                        logger.debug("Fitting error",model)
+                        logger.debug(e)
+        if num_unacceptable == len(self.parent.session.metadata["spectral_models"]):
+            print("Found no acceptable spectral models, fitting all!")
+            for model in self.parent.session.metadata["spectral_models"]:
+                if model.use_for_stellar_parameter_inference \
+                and model.metadata.get("fitted_result", None) is None:
+                    try:
+                        model.fit()
+                    except (ValueError, RuntimeError) as e:
+                        logger.debug("Fitting error",model)
+                        logger.debug(e)
 
         # Update the session with the stellar parameters in the GUI, and then
         # calculate abundances.
