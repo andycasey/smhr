@@ -535,6 +535,16 @@ class Spectrum1D(object):
         continuum_indices = np.sort(list(set(continuum_indices).difference(
             zero_flux_indices)))
 
+        if 1 > continuum_indices.size:
+            no_continuum = np.nan * np.ones_like(dispersion)
+            failed_spectrum = self.__class__(dispersion=dispersion,
+                flux=no_continuum, ivar=no_continuum, metadata=self.metadata)
+
+            if kwargs.get("full_output", False):
+                return (failed_spectrum, no_continuum, 0, dispersion.size - 1)
+
+            return failed_spectrum        
+
         original_continuum_indices = continuum_indices.copy()
 
         if knot_spacing is None or knot_spacing == 0:
