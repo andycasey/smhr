@@ -83,7 +83,8 @@ def moogsilent(input_filename, cwd=None, timeout=30, shell=False, env=None,
         A dictionary of environment variables to supply.
     """
 
-    logger.debug("Executing MOOG input file: {0}".format(input_filename))
+    logger.debug("Executing MOOG input file: {} with {}".format(input_filename,
+        moogsilent_path))
 
     class Alarm(Exception):
         pass
