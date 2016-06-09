@@ -147,6 +147,11 @@ class SummaryTab(QtGui.QWidget):
             summary_notes = ""    
         self.summary_notes.setPlainText(summary_notes)
 
+        # Blank axes unless there are data.
+        for ax in (self.ax_top_comparison, self.ax_bottom_comparison):
+            ax.set_xticks([])
+            ax.set_yticks([])
+        
         return None
 
 

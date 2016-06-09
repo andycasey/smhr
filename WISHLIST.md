@@ -17,7 +17,7 @@
 - [X] Widget for when an exception occurs, asking to submit GH issue. Catch all GUI-related exceptions with this. #gui
 - [X] Fix matplotlib visualization bug for figures on the RHS. #gui
 - [ ] Edit masks GUI for normalization tab. #gui
-- [ ] I/O: Save/load new session format.
+- [X] I/O: Save/load new session format.
 - [ ] I/O: Create session .from_filename.
 - [X] Line list manager widget --> transitions/spectral_models/assigned to #category.
 - [X] Can the spectral_models __init__ arguments be abstracted more from the session?
@@ -43,7 +43,7 @@
 - [ ] Quality control metrics filter (and GUI) for spectral models. #gui
 - [ ] Refactor method names in tabs to make them more consistent (e.g., _populate_widgets, redraw_*, __init_ui__)
 - [ ] Least-recently-used cacher for the stellar photosphere.
-- [ ] A widget to select element(s) from a list that will be part of a synthesis.
+- [X] A widget to select element(s) from a list that will be part of a synthesis.
 
 
 *Easy*:
