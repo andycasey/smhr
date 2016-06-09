@@ -695,16 +695,21 @@ class Session(BaseSession):
         filtering = kwargs.pop("filtering",
             lambda model: model.use_for_stellar_parameter_inference)
         for i, model in enumerate(self.metadata["spectral_models"]):
-            if filtering(model):
 
-                # TODO assert it is a profile model.
+            transition_indices.append(model._transition_indices[0])
+            
+            # TODO assert it is a profile model.
+            if filtering(model):
                 spectral_model_indices.append(i)
-                transition_indices.append(model._transition_indices[0])
+
                 if model.is_acceptable:
                     equivalent_widths.append(1e3 * \
                         model.metadata["fitted_result"][-1]["equivalent_width"][0])
                 else:
                     equivalent_widths.append(np.nan)
+            else:
+                spectral_model_indices.append(np.nan)
+                equivalent_widths.append(np.nan)
 
 
         if len(equivalent_widths) == 0 \
@@ -730,7 +735,7 @@ class Session(BaseSession):
 
 
         for index, abundance in zip(spectral_model_indices[finite], abundances):
-            self.metadata["spectral_models"][index]\
+            self.metadata["spectral_models"][int(index)]\
                 .metadata["fitted_result"][-1]["abundances"] = [abundance]
 
         transitions["abundance"] = np.nan * np.ones(len(transitions))
@@ -742,6 +747,7 @@ class Session(BaseSession):
 
         transitions["reduced_equivalent_width"] = np.log10(1e-3 * \
             transitions["equivalent_width"] / transitions["wavelength"])
+
 
         slopes = None
         #slopes = utils.equilibrium_state(transitions,

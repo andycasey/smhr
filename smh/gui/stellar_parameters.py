@@ -222,6 +222,8 @@ class StellarParametersTab(QtGui.QWidget):
         sp.setVerticalStretch(0)
         sp.setHeightForWidth(self.figure.sizePolicy().hasHeightForWidth())
         self.figure.setSizePolicy(sp)
+        self.figure.setFocusPolicy(QtCore.Qt.StrongFocus)
+
         self.figure.figure.patch.set_facecolor([(_ - 10)/255. for _ in \
             self.palette().color(QtGui.QPalette.Window).getRgb()[:3]])
 
@@ -718,7 +720,7 @@ class StellarParametersTab(QtGui.QWidget):
         # Scale the left hand ticks to [X/H] or [X/M]
 
         # How many atomic number?
-        Z = list(set(self._state_transitions["species"].astype(int)))
+        Z = list(set(self._state_transitions["species"][np.isfinite(self._state_transitions["abundance"])].astype(int)))
         if len(Z) == 1:
 
             scaled_ticks = np.array(self.ax_excitation.get_yticks()) \
@@ -785,7 +787,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Otherwise we're fucked:
         expected_hashes = np.array([each.transitions["hash"][0] for each in \
-            self.parent.session.metadata["spectral_models"] if filtering(each)]) 
+            self.parent.session.metadata["spectral_models"]]) 
 
         assert np.all(expected_hashes == self._state_transitions["hash"])
 
@@ -953,6 +955,9 @@ class StellarParametersTab(QtGui.QWidget):
         indices = np.unique([self.table_view.model().mapToSource(index).row() \
             for index in proxy_indices])
         print("selected actual indices", indices)
+        print(len(self._state_transitions))
+        print(self._state_transitions[indices])
+
 
 
         try:
@@ -964,11 +969,11 @@ class StellarParametersTab(QtGui.QWidget):
             x_excitation, x_strength, y = (np.nan, np.nan, np.nan)
 
         print("selected indices values", x_excitation, x_strength, y)
-        try:
-            print("len etc", len(self._state_transitions),
-                np.where(np.isfinite(self._state_transitions["abundance"])))
-        except:
-            None
+        #try:
+        #    print("len etc", len(self._state_transitions),
+        #        np.where(np.isfinite(self._state_transitions["abundance"])))
+        #except:
+        #    None
 
         point_excitation, point_strength = self._lines["selected_point"]
         point_excitation.set_offsets(np.array([x_excitation, y]).T)
