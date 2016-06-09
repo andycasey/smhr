@@ -1277,21 +1277,19 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
         update_spectrum_figure = False
 
         if action == fit_models:
-    
             for idx in indices:
                 spectral_model \
                     = self.parent.parent.session.metadata["spectral_models"][idx]
                 spectral_model.fit()
-
             update_spectrum_figure = True
 
 
         elif action == mark_as_unacceptable:
-    
             for idx in indices:
                 spectral_model \
                     = self.parent.parent.session.metadata["spectral_models"][idx]
                 spectral_model.metadata["is_acceptable"] = False
+
 
         elif action == mark_as_acceptable:
             for idx in indices:
@@ -1300,11 +1298,29 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                 if "fitted_result" in spectral_model.metadata:
                     spectral_model.metadata["is_acceptable"] = True
 
+
         elif action == set_fitting_window:
-            raise NotImplementedError
+
+            first_spectral_model = \
+                self.parent.parent.session.metadata["spectral_models"][indices[0]]
+
+            window, is_ok = QtGui.QInputDialog.getDouble(
+                None, "Set fitting window", u"Fitting window (Å):", 
+                value=first_spectral_model.metadata["window"],
+                minValue=0.1, maxValue=1000)
+            if not is_ok: return None
+
+            for idx in indices:
+                spectral_model \
+                    = self.parent.parent.session.metadata["spectral_models"][idx]
+                spectral_model.metadata["window"] = window
+
+                if "fitted_result" in spectral_model.metadata:
+                    spectral_model.fit()
+                    update_spectrum_figure = True
+
 
         elif action == set_no_continuum:
-    
             for idx in indices:
                 spectral_model \
                     = self.parent.parent.session.metadata["spectral_models"][idx]
@@ -1316,8 +1332,7 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                     update_spectrum_figure = True
 
 
-        elif action in set_continuum_order:
-            
+        elif action in set_continuum_order:            
             order = set_continuum_order.index(action)
             for idx in indices:
                 spectral_model \
@@ -1347,8 +1362,8 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                         spectral_model.fit()
                         update_spectrum_figure = True
 
-        elif action in (enable_central_weighting, disable_central_weighting):
 
+        elif action in (enable_central_weighting, disable_central_weighting):
             toggle = (action == enable_central_weighting)
             for idx in indices:
                 spectral_model \
@@ -1361,8 +1376,34 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                         spectral_model.fit()
                         update_spectrum_figure = True
 
+
         elif action == set_detection_sigma:
-            raise NotImplementedError
+
+            # Get the first profile model
+            for idx in indices:
+                detection_sigma = self.parent.parent.session\
+                    .metadata["spectral_models"][idx]\
+                    .metadata.get("detection_sigma", None)
+                if detection_sigma is not None:
+                    break
+            else:
+                detection_sigma = 0.5
+
+            detection_sigma, is_ok = QtGui.QInputDialog.getDouble(
+                None, "Set detection sigma", u"Detection sigma:", 
+                value=detection_sigma, minValue=0.1, maxValue=1000)
+            if not is_ok: return None
+
+            for idx in indices:
+                spectral_model \
+                    = self.parent.parent.session.metadata["spectral_models"][idx]
+
+                if isinstance(spectral_model, ProfileFittingModel):
+                    spectral_model.metadata["detection_sigma"] = detection_sigma
+
+                    if "fitted_result" in spectral_model.metadata:
+                        spectral_model.fit()
+                        update_spectrum_figure = True
 
         elif action == set_detection_pixels:
             raise NotImplementedError
@@ -1377,7 +1418,7 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
             self.parent.update_spectrum_figure(redraw=True)
             
 
-        #self.parent.proxy_spectral_models.reset()
+        self.parent.proxy_spectral_models.reset()
 
         return None
 
