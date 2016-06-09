@@ -160,10 +160,10 @@ class StellarParametersTab(QtGui.QWidget):
         #line.setFrameShadow(QtGui.QFrame.Sunken)
         #lhs_layout.addWidget(line)
 
-        header = ["", u"λ\n(Å)", "Element\n", u"E. W.\n(mÅ)",
-                  "log ε\n(dex)"]
+        header = ["", u"λ\n[Å]", "Element", u"EW\n[mÅ]", u"σ(EW)\n[mÅ]",
+                  "log ε\n[dex]", "σ(log ε)\n[dex]"]
         attrs = ("is_acceptable", "_repr_wavelength", "_repr_element", 
-                 "equivalent_width", "abundance")
+                 "equivalent_width", "err_equivalent_width", "abundance", "err_abundance")
 
         self.table_view = SpectralModelsTableView(self)
         
@@ -182,7 +182,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         # TODO: Re-enable sorting.
         self.table_view.setSortingEnabled(False)
-        self.table_view.setMaximumSize(QtCore.QSize(370, 16777215))        
+        self.table_view.setMaximumSize(QtCore.QSize(375, 16777215))        
         self.table_view.setSizePolicy(QtGui.QSizePolicy(
             QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
         
@@ -1459,6 +1459,7 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
             try:
                 result = spectral_model.metadata["fitted_result"][2]
                 equivalent_width = result["equivalent_width"][0]
+
             except:
                 equivalent_width = np.nan
 
@@ -1466,6 +1467,18 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
                 if np.isfinite(equivalent_width) else ""
 
         elif column == 4:
+
+            try:
+                result = spectral_model.metadata["fitted_result"][2]
+                u_equivalent_width \
+                    = 1000 * np.max(np.abs(result["equivalent_width"][1:]))
+                value = "{0:.1f}".format(u_equivalent_width)
+
+            except:
+                value = ""
+
+
+        elif column == 5:
             try:
                 abundances \
                     = spectral_model.metadata["fitted_result"][2]["abundances"]
@@ -1477,6 +1490,17 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
                 # How many elements were measured?
                 value = "; ".join(["{0:.2f}".format(abundance) \
                     for abundance in abundances])
+
+
+        elif column == 6:
+
+            try:
+                result = spectral_model.metadata["fitted_result"][2]
+                u_abundance = result["abundance_uncertainties"][0]
+                value = "{0:.2f}".format(u_abundance)
+
+            except:
+                value = ""
 
         return value if role == QtCore.Qt.DisplayRole else None
     
