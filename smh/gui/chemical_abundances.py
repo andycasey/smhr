@@ -47,15 +47,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.parent = parent
         self.FeH = np.nan
 
-        self.parent_splitter = QtGui.QSplitter(self)
         self.parent_layout = QtGui.QHBoxLayout(self)
-        self.parent_splitter.setContentsMargins(3, 3, 3, 0)
-        self.parent_layout.addWidget(self.parent_splitter)
         
         ################
         # LEFT HAND SIDE
         ################
-        lhs_widget = QtGui.QWidget(self)
         lhs_layout = QtGui.QVBoxLayout()
         
         hbox = QtGui.QHBoxLayout()
@@ -103,11 +99,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.table_view.setColumnWidth(7, 50) # MAGIC
         self.table_view.setMinimumSize(QtCore.QSize(240, 0))
         self.table_view.horizontalHeader().setStretchLastSection(True)
-        sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.MinimumExpanding, 
-            QtGui.QSizePolicy.Minimum)
-        sp.setHeightForWidth(self.table_view.sizePolicy().hasHeightForWidth())
-        self.table_view.setSizePolicy(sp)
         lhs_layout.addWidget(self.table_view)
 
         # Buttons
@@ -121,11 +112,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         lhs_layout.addLayout(hbox)
 
         # Model fitting options
-        self._create_fitting_options_widget2()
+        self._create_fitting_options_widget()
         lhs_layout.addWidget(self.opt_tabs)
         
-        lhs_widget.setLayout(lhs_layout)
-        self.parent_splitter.addWidget(lhs_widget)
+        self.parent_layout.addLayout(lhs_layout)
 
         #############################
         # RIGHT HAND SIDE: MPL WIDGET
@@ -191,7 +181,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             ]
         }
         
-        self.parent_splitter.addWidget(self.figure)
+        rhs_layout.addWidget(self.figure)
+        self.parent_layout.addLayout(rhs_layout)
 
         # Connect filter combo box
         self.filter_combo_box.currentIndexChanged.connect(self.filter_combo_box_changed)
@@ -217,221 +208,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.refresh_table()
 
     def _create_fitting_options_widget(self):
-        self.opt_tabs = QtGui.QTabWidget(self)
-        sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Expanding, 
-            QtGui.QSizePolicy.MinimumExpanding)
-        self.opt_tabs.setSizePolicy(sp)
-        
-        # Common options
-        self.tab_common = QtGui.QWidget()
-        vbox_common = QtGui.QVBoxLayout(self.tab_common)
-        grid_common = QtGui.QGridLayout()
-        grid_common.addItem(
-            QtGui.QSpacerItem(40, 20, 
-                QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding),
-            1, 2, 1, 1)
-
-        label = QtGui.QLabel(self.tab_common)
-        label.setText("Data fitting window")
-        grid_common.addWidget(label, 0, 1, 1, 1)
-        self.edit_window = QtGui.QLineEdit(self.tab_common)
-        self.edit_window.setMinimumSize(QtCore.QSize(60, 0))
-        self.edit_window.setMaximumSize(QtCore.QSize(60, 16777215))
-        self.edit_window.setValidator(
-            QtGui.QDoubleValidator(0, 1000, 1, self.edit_window))
-        grid_common.addWidget(self.edit_window, 0, 3, 1, 1)
-
-        self.checkbox_continuum = QtGui.QCheckBox(self.tab_common)
-        self.checkbox_continuum.setText("")
-        grid_common.addWidget(self.checkbox_continuum, 1, 0, 1, 1)
-        label = QtGui.QLabel(self.tab_common)
-        label.setText("Model continuum with polynomial order")
-        grid_common.addWidget(label, 1, 1, 1, 1)
-        self.combo_continuum = QtGui.QComboBox(self.tab_common)
-        self.combo_continuum.setMinimumSize(QtCore.QSize(60, 0))
-        self.combo_continuum.setMaximumSize(QtCore.QSize(60, 16777215))
-        grid_common.addWidget(self.combo_continuum, 1, 3, 1, 1)
-
-        for i in range(10):
-            self.combo_continuum.addItem("{:.0f}".format(i))
-
-        self.checkbox_vrad_tolerance = QtGui.QCheckBox(self.tab_common)
-        self.checkbox_vrad_tolerance.setText("")
-        grid_common.addWidget(self.checkbox_vrad_tolerance, 2, 0, 1, 1)
-        label = QtGui.QLabel(self.tab_common)
-        label.setText("Set tolerance on residual radial velocity")
-        grid_common.addWidget(label, 2, 1, 1, 1)
-        self.edit_vrad_tolerance = QtGui.QLineEdit(self.tab_common)
-        self.edit_vrad_tolerance.setMinimumSize(QtCore.QSize(60, 0))
-        self.edit_vrad_tolerance.setMaximumSize(QtCore.QSize(60, 16777215))
-        self.edit_vrad_tolerance.setValidator(
-            QtGui.QDoubleValidator(0, 100, 2, self.edit_vrad_tolerance))
-        grid_common.addWidget(self.edit_vrad_tolerance, 2, 3, 1, 1)
-
-        grid_common.addItem(QtGui.QSpacerItem(40, 20, 
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding), 2, 2, 1, 1)
-        vbox_common.addLayout(grid_common)
-        vbox_common.addItem(QtGui.QSpacerItem(20, 40, 
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding))
-        self.opt_tabs.addTab(self.tab_common, "Common")
-        
-        # Profile model options.
-        self.tab_profile = QtGui.QWidget()
-        grid_profile = QtGui.QGridLayout(self.tab_profile)
-
-
-        label = QtGui.QLabel(self.tab_profile)
-        label.setText("Profile type")
-        grid_profile.addWidget(label, 0, 1, 1, 1)
-        grid_profile.addItem(
-            QtGui.QSpacerItem(40, 20, 
-                QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding),
-            0, 2, 1, 1)
-        self.combo_profile = QtGui.QComboBox(self.tab_profile)
-        grid_profile.addWidget(self.combo_profile, 0, 3, 1, 1)
-
-        for each in ("Gaussian", "Lorentzian", "Voigt"):
-            self.combo_profile.addItem(each)
-
-        label = QtGui.QLabel(self.tab_profile)
-        label.setText("Detection sigma for nearby absorption lines")
-        grid_profile.addWidget(label, 1, 1, 1, 1)
-        hbox = QtGui.QHBoxLayout()
-        hbox.addItem(QtGui.QSpacerItem(40, 20, 
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding))
-        self.edit_detection_sigma = QtGui.QLineEdit(self.tab_profile)
-        self.edit_detection_sigma.setMinimumSize(QtCore.QSize(60, 0))
-        self.edit_detection_sigma.setMaximumSize(QtCore.QSize(60, 16777215))
-        self.edit_detection_sigma.setValidator(
-            QtGui.QDoubleValidator(0, 100, 1, self.edit_detection_sigma))
-        hbox.addWidget(self.edit_detection_sigma)
-        grid_profile.addLayout(hbox, 1, 3, 1, 1)
-
-
-        label = QtGui.QLabel(self.tab_profile)
-        label.setText("Neighbouring pixels required to detect nearby lines")
-        grid_profile.addWidget(label, 2, 1, 1, 1)
-        hbox = QtGui.QHBoxLayout()
-        hbox.addItem(QtGui.QSpacerItem(40, 20, 
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding))
-        self.edit_detection_pixels = QtGui.QLineEdit(self.tab_profile)
-        self.edit_detection_pixels.setMinimumSize(QtCore.QSize(60, 0))
-        self.edit_detection_pixels.setMaximumSize(QtCore.QSize(60, 16777215))
-        self.edit_detection_pixels.setValidator(
-            QtGui.QIntValidator(0, 100, self.edit_detection_pixels))
-        hbox.addWidget(self.edit_detection_pixels)
-        grid_profile.addLayout(hbox, 2, 3, 1, 1)
-
-
-        label = QtGui.QLabel(self.tab_profile)
-        label.setText("Use central pixel weighting")
-        grid_profile.addWidget(label, 4, 1, 1, 1)
-        self.checkbox_use_central_weighting = QtGui.QCheckBox(self.tab_profile)
-        self.checkbox_use_central_weighting.setText("")
-        grid_profile.addWidget(self.checkbox_use_central_weighting, 4, 0, 1, 1)
-
-    
-        label = QtGui.QLabel(self.tab_profile)
-        label.setText("Tolerance in wavelength position")
-        grid_profile.addWidget(label, 3, 1, 1, 1)
-        self.checkbox_wavelength_tolerance = QtGui.QCheckBox(self.tab_profile)
-        self.checkbox_wavelength_tolerance.setText("")
-        grid_profile.addWidget(self.checkbox_wavelength_tolerance, 3, 0, 1, 1)
-        hbox = QtGui.QHBoxLayout()
-        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
-            QtGui.QSizePolicy.Expanding))
-        self.edit_wavelength_tolerance = QtGui.QLineEdit(self.tab_profile)
-        self.edit_wavelength_tolerance.setMinimumSize(QtCore.QSize(50, 0))
-        self.edit_wavelength_tolerance.setMaximumSize(QtCore.QSize(60, 16777215))
-        self.edit_wavelength_tolerance.setValidator(
-            QtGui.QDoubleValidator(0, 10, 2, self.edit_wavelength_tolerance))
-        hbox.addWidget(self.edit_wavelength_tolerance)
-        grid_profile.addLayout(hbox, 3, 3, 1, 1)
-
-        self.opt_tabs.addTab(self.tab_profile, "Profile options")
-        
-        # Synthesis model options.
-        self.tab_synthesis = QtGui.QWidget()
-        vbox_synthesis = QtGui.QVBoxLayout(self.tab_synthesis)
-        grid_synthesis = QtGui.QGridLayout()
-
-        label = QtGui.QLabel(self.tab_synthesis)
-        label.setText("Initial abundance boundary")
-        grid_synthesis.addWidget(label, 0, 1, 1, 1)
-        self.edit_initial_abundance_bound = QtGui.QLineEdit(self.tab_synthesis)
-        self.edit_initial_abundance_bound.setMinimumSize(QtCore.QSize(60, 0))
-        self.edit_initial_abundance_bound.setMaximumSize(QtCore.QSize(60, 16777215))
-        self.edit_initial_abundance_bound.setValidator(
-            QtGui.QDoubleValidator(0, 2, 1, self.edit_initial_abundance_bound))
-        grid_synthesis.addWidget(self.edit_initial_abundance_bound, 0, 3, 1, 1)
-
-        self.checkbox_model_smoothing = QtGui.QCheckBox(self.tab_synthesis)
-        self.checkbox_model_smoothing.setText("")
-        grid_synthesis.addWidget(self.checkbox_model_smoothing, 1, 0, 1, 1)
-        label = QtGui.QLabel(self.tab_synthesis)
-        label.setText("Model observed resolution by smoothing")
-        grid_synthesis.addWidget(label, 1, 1, 1, 1)
-
-        label = QtGui.QLabel(self.tab_synthesis)
-        label.setText("Constrain smoothing to less than:")
-        grid_synthesis.addWidget(label, 2, 1, 1, 1)
-        self.edit_smoothing_bound = QtGui.QLineEdit(self.tab_synthesis)
-        self.edit_smoothing_bound.setMinimumSize(QtCore.QSize(60, 0))
-        self.edit_smoothing_bound.setMaximumSize(QtCore.QSize(60, 16777215))
-        self.edit_smoothing_bound.setValidator(
-            QtGui.QDoubleValidator(0, 10, 1, self.edit_smoothing_bound))
-        grid_synthesis.addWidget(self.edit_smoothing_bound, 2, 3, 1, 1)
-
-        self.btn_specify_abundances = QtGui.QPushButton(self.tab_synthesis)
-        self.btn_specify_abundances.setText("Specify explicit abundance table TODO")
-        grid_synthesis.addWidget(self.btn_specify_abundances, 3, 1, 1, 1)
-
-        grid_synthesis.addItem(QtGui.QSpacerItem(40, 20, 
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding), 0, 2, 1, 1)
-        vbox_synthesis.addLayout(grid_synthesis)
-        vbox_synthesis.addItem(QtGui.QSpacerItem(20, 40, 
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding))
-        self.opt_tabs.addTab(self.tab_synthesis, "Synthesis options")
-
-        # Connect Signals
-        # Common options.
-        self.edit_window.textChanged.connect(
-            self.update_edit_window)
-        self.checkbox_continuum.stateChanged.connect(
-            self.clicked_checkbox_continuum)
-        self.combo_continuum.currentIndexChanged.connect(
-            self.update_continuum_order)
-        self.checkbox_vrad_tolerance.stateChanged.connect(
-            self.clicked_checkbox_vrad_tolerance)
-        self.edit_vrad_tolerance.textChanged.connect(
-            self.update_vrad_tolerance)
-
-        # Profile options.
-        self.combo_profile.currentIndexChanged.connect(
-            self.update_combo_profile)
-        self.edit_detection_sigma.textChanged.connect(
-            self.update_detection_sigma)
-        self.edit_detection_pixels.textChanged.connect(
-            self.update_detection_pixels)
-        self.checkbox_use_central_weighting.stateChanged.connect(
-            self.clicked_checkbox_use_central_weighting)
-        self.checkbox_wavelength_tolerance.stateChanged.connect(
-            self.clicked_checkbox_wavelength_tolerance)
-        self.edit_wavelength_tolerance.textChanged.connect(
-            self.update_wavelength_tolerance)
-
-        # Synthesis options.
-        self.edit_initial_abundance_bound.textChanged.connect(
-            self.update_initial_abundance_bound)
-        self.checkbox_model_smoothing.stateChanged.connect(
-            self.clicked_checkbox_model_smoothing)
-        self.edit_smoothing_bound.textChanged.connect(
-            self.update_smoothing_bound)
-        self.btn_specify_abundances.clicked.connect(
-            self.clicked_btn_specify_abundances)
-
-    def _create_fitting_options_widget2(self):
         self.opt_tabs = QtGui.QTabWidget(self)
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.Expanding, 
@@ -577,9 +353,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         tab_hbox.addLayout(vbox_rhs)
         self.opt_tabs.addTab(self.tab_profile, "Profile")
         
-        self.tab_synthesis = QtGui.QWidget()
-        self.opt_tabs.addTab(self.tab_synthesis, "Synthesis")
-
         # Connect Signals for Profile
         self.edit_view_window.textChanged.connect(
             self.update_edit_view_window)
@@ -610,6 +383,129 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.btn_clear_masks.clicked.connect(
             self.clicked_btn_clear_masks)
 
+        ###################
+        ### Synthesis options
+        self.tab_synthesis = QtGui.QWidget()
+        tab_hbox = QtGui.QHBoxLayout(self.tab_synthesis)
+
+        ### LHS
+        vbox_lhs = QtGui.QVBoxLayout()
+        hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "View window",
+                                                 0, 1000, 1)
+        self.edit_view_window_2 = line
+        vbox_lhs.addLayout(hbox)
+
+        hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "Fit window",
+                                                 0, 1000, 1)
+        self.edit_fit_window_2 = line
+        vbox_lhs.addLayout(hbox)
+
+        hbox, checkbox, label, combo = _create_checkcombo_in_hbox(self.tab_synthesis, 
+                                                                  "Use poly for cont.")
+        self.checkbox_continuum_2 = checkbox
+        self.combo_continuum_2 = combo
+        for i in range(10):
+            self.combo_continuum_2.addItem("{:.0f}".format(i))
+        vbox_lhs.addLayout(hbox)
+
+        hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "Manual cont.", 
+                                                 -10, 10, 4)
+        self.edit_manual_continuum = line
+        vbox_lhs.addLayout(hbox)
+
+        hbox, checkbox, label, line = _create_checkline_in_hbox(self.tab_synthesis, "RV tol",
+                                                                0, 100, 2)
+        self.checkbox_vrad_tolerance_2 = checkbox
+        self.edit_vrad_tolerance_2 = line
+        vbox_lhs.addLayout(hbox)
+        
+        hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "Manual RV", 
+                                                 -1000, 1000, 4)
+        self.edit_manual_rv = line
+        vbox_lhs.addLayout(hbox)
+
+        hbox, checkbox, label, line = _create_checkline_in_hbox(self.tab_synthesis, "Smoothing",
+                                                                0, 10, 3)
+        self.checkbox_model_smoothing = checkbox
+        self.edit_manual_smoothing = line
+        vbox_lhs.addLayout(hbox)
+        
+        hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "Initial abund bound",
+                                                 0.01, 2, 2)
+        self.edit_initial_abundance_bound = line
+        vbox_lhs.addLayout(hbox)
+
+        ### RHS
+        vbox_rhs = QtGui.QVBoxLayout()
+
+        # Element abundance table
+        self.synth_abund_table = SynthesisAbundanceTableView(self.tab_synthesis)
+        self.synth_abund_table_model = SynthesisAbundanceTableModel(self)
+        self.synth_abund_table.setModel(self.synth_abund_table_model)
+        self.synth_abund_table.resizeColumnsToContents()
+        self.synth_abund_table.setColumnWidth(0, 50) # MAGIC
+        self.synth_abund_table.horizontalHeader().setStretchLastSection(True)
+        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
+                               QtGui.QSizePolicy.MinimumExpanding)
+        self.synth_abund_table.setSizePolicy(sp)
+        vbox_rhs.addWidget(self.synth_abund_table)
+        
+        self.btn_synthesize = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_synthesize.setText("Synthesize")
+        vbox_rhs.addWidget(self.btn_synthesize)
+
+        vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
+                                           QtGui.QSizePolicy.Minimum))
+
+        self.btn_fit_synth = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_fit_synth.setText("Fit Model")
+        vbox_rhs.addWidget(self.btn_fit_synth)
+        
+        self.btn_update_abund_table = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_update_abund_table.setText("Update Abundance Table")
+        vbox_rhs.addWidget(self.btn_update_abund_table)
+        
+        self.btn_clear_masks_2 = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_clear_masks_2.setText("Clear Masks")
+        vbox_rhs.addWidget(self.btn_clear_masks_2)
+
+        ### Finish Synthesis Tab
+        tab_hbox.addLayout(vbox_lhs)
+        tab_hbox.addLayout(vbox_rhs)
+        self.opt_tabs.addTab(self.tab_synthesis, "Synthesis")
+
+        # Connect signals for synthesis
+        self.edit_view_window_2.textChanged.connect(
+            self.update_edit_view_window_2)
+        self.edit_fit_window_2.textChanged.connect(
+            self.update_edit_fit_window_2)
+        self.checkbox_continuum_2.stateChanged.connect(
+            self.clicked_checkbox_continuum_2)
+        self.combo_continuum_2.currentIndexChanged.connect(
+            self.update_continuum_order_2)
+        self.edit_manual_continuum.textChanged.connect(
+            self.update_edit_manual_continuum)
+        self.checkbox_vrad_tolerance_2.stateChanged.connect(
+            self.clicked_checkbox_vrad_tolerance_2)
+        self.edit_vrad_tolerance_2.textChanged.connect(
+            self.update_vrad_tolerance_2)
+        self.edit_manual_rv.textChanged.connect(
+            self.update_manual_rv)
+        self.checkbox_model_smoothing.stateChanged.connect(
+            self.clicked_checkbox_model_smoothing)
+        self.edit_manual_smoothing.textChanged.connect(
+            self.update_manual_smoothing)
+        self.edit_initial_abundance_bound.textChanged.connect(
+            self.update_initial_abundance_bound)
+        self.btn_synthesize.clicked.connect(
+            self.synthesize_current_model)
+        self.btn_fit_synth.clicked.connect(
+            self.fit_one)
+        self.btn_update_abund_table.clicked.connect(
+            self.clicked_btn_update_abund_table)
+        self.btn_clear_masks_2.clicked.connect(
+            self.clicked_btn_clear_masks)
+
     def new_session_loaded(self):
         """
         Call this whenever a new session is loaded
@@ -629,7 +525,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         all_species = set([])
         for spectral_model in self.all_spectral_models.spectral_models:
-            all_species.update(set(spectral_model.species))
+            if isinstance(spectral_model, ProfileFittingModel):
+                all_species.update(set(spectral_model.species))
+            elif isinstance(spectral_model, SpectralSynthesisModel):
+                for specie in spectral_model.species:
+                    all_species.update(set(specie))
         if len(all_species)==0: return None
         all_species = np.sort(list(all_species))
         for species in all_species:
@@ -646,7 +546,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.element_summary_text.setText("")
         else:
             species = utils.element_to_species(elem)
-            filter_function = lambda model: species in model.species
+            def filter_function(model):
+                if isinstance(model, ProfileFittingModel):
+                    return species in model.species
+                elif isinstance(model, SpectralSynthesisModel):
+                    return np.any([species in specie for specie in model.species])
             table_model.beginResetModel()
             table_model.add_filter_function(elem, filter_function)
             table_model.endResetModel()
@@ -705,7 +609,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.update_spectrum_figure(redraw=False)
         self.update_selected_points_plot(redraw=False)
         self.update_line_strength_figure(redraw=True)
-        print("Time to refresh plots: {:.1f}s".format(time.time()-start))
+        #print("Time to refresh plots: {:.1f}s".format(time.time()-start))
         return None
 
     def fit_all(self):
@@ -724,7 +628,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 except (ValueError, RuntimeError) as e:
                     logger.debug("Fitting error",spectral_model)
                     logger.debug(e)
-            if isinstance(spectral_model, ProfileFittingModel):
+            elif isinstance(spectral_model, ProfileFittingModel):
                 try:
                     res = spectral_model.fit()
                 except (ValueError, RuntimeError) as e:
@@ -740,7 +644,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     except (ValueError, RuntimeError) as e:
                         logger.debug("Fitting error",spectral_model)
                         logger.debug(e)
-                if isinstance(spectral_model, ProfileFittingModel):
+                elif isinstance(spectral_model, ProfileFittingModel):
                     try:
                         res = spectral_model.fit()
                     except (ValueError, RuntimeError) as e:
@@ -752,7 +656,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.refresh_cache()
         self.summarize_current_table()
         self.refresh_plots()
-        # TODO I think this can break when adding/deleting lots of transitions
         self.filter_combo_box.setCurrentIndex(current_element_index)
         return None
 
@@ -801,6 +704,17 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.refresh_plots()
         return None
 
+    def synthesize_current_model(self):
+        spectral_model, proxy_index, index = self._get_selected_model(True)
+        if spectral_model is None: return None
+        spectral_model.update_fit_after_parameter_change()
+        self.table_view.update_row(proxy_index.row())
+        self.update_cache(proxy_index)
+        self.summarize_current_table()
+        self.update_fitting_options()
+        self.refresh_plots()
+        return None
+        
     def _check_for_spectral_models(self):
         for sm in self.parent.session.metadata.get("spectral_models", []):
             if sm.use_for_stellar_composition_inference: break
@@ -1365,14 +1279,50 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.opt_tabs.setTabEnabled(1, True)
             self.opt_tabs.setCurrentIndex(1)
 
-            # Update widgets.
-            #self.edit_initial_abundance_bound.setText(
-            #    "{}".format(selected_model.metadata["initial_abundance_bounds"]))
+            self.edit_view_window.setText("{}".format(selected_model.metadata["window"]))
+            self.edit_fit_window.setText("{}".format(selected_model.metadata["window"]))
+
+            # Continuum order.
+            continuum_order = selected_model.metadata["continuum_order"]
+            if continuum_order < 0:
+                self.checkbox_continuum_2.setChecked(False)
+                self.combo_continuum_2.setEnabled(False)
+                self.edit_manual_continuum.setEnabled(True)
+            else:
+                self.checkbox_continuum_2.setChecked(True)
+                self.combo_continuum_2.setEnabled(True)
+                self.combo_continuum_2.setCurrentIndex(continuum_order)
+                self.edit_manual_continuum.setEnabled(False)
+            self.edit_manual_continuum.setText(
+                "{}".format(selected_model.metadata["manual_continuum"]))
+
+            # Radial velocity tolerance.
+            vrad_tolerance = selected_model.metadata.get("velocity_tolerance", None)
+            if vrad_tolerance is None:
+                self.checkbox_vrad_tolerance_2.setChecked(False)
+                self.edit_vrad_tolerance_2.setEnabled(False)
+                self.edit_manual_rv.setEnabled(True)
+            else:
+                self.checkbox_vrad_tolerance_2.setChecked(True)
+                self.edit_vrad_tolerance_2.setEnabled(True)
+                self.edit_vrad_tolerance_2.setText("{}".format(vrad_tolerance))
+                self.edit_manual_rv.setEnabled(False)
+            self.edit_manual_rv.setText("{:.4f}".format(selected_model.metadata["manual_rv"]))
+
+            self.edit_initial_abundance_bound.setText(
+                "{}".format(selected_model.metadata["initial_abundance_bounds"]))
             
-            #self.checkbox_model_smoothing.setEnabled(
-            #    selected_model.metadata["smoothing_kernel"])
+            if selected_model.metadata["smoothing_kernel"]:
+                self.checkbox_model_smoothing.setChecked(True)
+                self.edit_manual_smoothing.setEnabled(False)
+            else:
+                self.checkbox_model_smoothing.setChecked(False)
+                self.edit_manual_smoothing.setEnabled(True)
+            self.edit_manual_smoothing.setText(
+                "{:.4f}".format(selected_model.metadata["manual_sigma_smooth"]))
 
             # sigma smooth tolerance needs implementing.
+            self.synth_abund_table_model.load_new_model(selected_model)
         else:
             self.opt_tabs.setTabEnabled(1, False)
 
@@ -1382,6 +1332,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     # FITTING OPTION UPDATE METHODS
     ###############################
 
+    ### Profile update
     def update_edit_view_window(self):
         """ The wavelength window was updated """
         try:
@@ -1396,7 +1347,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.ax_residual.set_xlim(xlim)
             self.figure.draw()
         return None
-
     def update_edit_fit_window(self):
         """ The wavelength window was updated """
         model = self._get_selected_model()
@@ -1407,7 +1357,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         else:
             model.metadata["window"] = window
         return None
-
     def clicked_checkbox_continuum(self):
         """ The checkbox for modeling the continuum was clicked. """
         if self.checkbox_continuum.isChecked():
@@ -1417,13 +1366,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self._get_selected_model().metadata["continuum_order"] = -1
             self.combo_continuum.setEnabled(False)
         return None
-
     def update_continuum_order(self):
         """ The continuum order to use in model fitting was changed. """
         self._get_selected_model().metadata["continuum_order"] \
             = int(self.combo_continuum.currentText())
         return None
-
     def clicked_checkbox_vrad_tolerance(self):
         """ The checkbox for velocity tolerance was clicked. """
         if self.checkbox_vrad_tolerance.isChecked():
@@ -1433,7 +1380,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.edit_vrad_tolerance.setEnabled(False)
             self._get_selected_model().metadata["velocity_tolerance"] = None
         return None
-
     def update_vrad_tolerance(self):
         """ The tolerance on radial velocity was updated. """
         try:
@@ -1442,19 +1388,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             value = None
         self._get_selected_model().metadata["velocity_tolerance"] = value
         return None
-
     def update_combo_profile(self):
         """ Update the profile that is used for fitting atomic transitions. """
         self._get_selected_model().metadata["profile"] \
             = self.combo_profile.currentText().lower()
         return None
-
     def update_detection_sigma(self):
         """ The detection sigma for nearby lines has been updated. """
         self._get_selected_model().metadata["detection_sigma"] \
             = float(self.edit_detection_sigma.text())
         return None
-
     def update_detection_pixels(self):
         """ The number of pixels to qualify a detection has been updated. """
         self._get_selected_model().metadata["detection_pixels"] \
@@ -1486,28 +1429,119 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.fit_one()
         return None
 
+    ### Synthesis update
+    def update_edit_view_window_2(self):
+        """ The wavelength window was updated """
+        try:
+            window = float(self.edit_view_window_2.text())
+        except:
+            return None
+        else:
+            transitions = self._get_selected_model().transitions
+            xlim = (transitions["wavelength"][0] - window,
+                    transitions["wavelength"][-1] + window)
+            self.ax_spectrum.set_xlim(xlim)
+            self.ax_residual.set_xlim(xlim)
+            self.figure.draw()
+        return None
+    def update_edit_fit_window_2(self):
+        """ The wavelength window was updated """
+        model = self._get_selected_model()
+        try:
+            window = float(self.edit_fit_window_2.text())
+        except:
+            return None
+        else:
+            model.metadata["window"] = window
+        return None
+    def clicked_checkbox_continuum_2(self):
+        """ The checkbox for modeling the continuum was clicked. """
+        if self.checkbox_continuum_2.isChecked():
+            self.combo_continuum_2.setEnabled(True)
+            self.update_continuum_order()
+            self.edit_manual_continuum.setEnabled(False)
+        else:
+            self._get_selected_model().metadata["continuum_order"] = -1
+            self.combo_continuum_2.setEnabled(False)
+            self.edit_manual_continuum.setEnabled(True)
+        return None
+    def update_continuum_order_2(self):
+        """ The continuum order to use in model fitting was changed. """
+        self._get_selected_model().metadata["continuum_order"] \
+            = int(self.combo_continuum_2.currentText())
+        return None
+    def update_edit_manual_continuum(self):
+        try:
+            value = float(self.edit_manual_continuum.text())
+        except:
+            value = None
+        else:
+            selected_model = self._get_selected_model()
+            selected_model.metadata["manual_continuum"] = value
+            selected_model.update_fit_after_parameter_change()
+            self.update_spectrum_figure(redraw=True)
+        return None
+    def clicked_checkbox_vrad_tolerance_2(self):
+        """ The checkbox for velocity tolerance was clicked. """
+        if self.checkbox_vrad_tolerance_2.isChecked():
+            self.edit_vrad_tolerance_2.setEnabled(True)
+            self.update_vrad_tolerance_2()
+            self.edit_manual_rv.setEnabled(False)
+        else:
+            self.edit_vrad_tolerance_2.setEnabled(False)
+            self._get_selected_model().metadata["velocity_tolerance"] = None
+            self.edit_manual_rv.setEnabled(True)
+        return None
+    def update_vrad_tolerance_2(self):
+        """ The tolerance on radial velocity was updated. """
+        try:
+            value = float(self.edit_vrad_tolerance_2.text())
+        except:
+            value = None
+        self._get_selected_model().metadata["velocity_tolerance"] = value
+        return None
+    def update_manual_rv(self):
+        try:
+            value = float(self.edit_manual_rv.text())
+        except:
+            value = None
+        else:
+            selected_model = self._get_selected_model()
+            selected_model.metadata["manual_rv"] = value
+            selected_model.update_fit_after_parameter_change()
+            self.update_spectrum_figure(redraw=True)
+        return None
     def update_initial_abundance_bound(self):
         """ The initial abundance bound has been updated. """
-        self._get_selected_model().metadata["initial_abundance_bounds"] \
-            = float(self.edit_initial_abundance_bound.text())
+        try:
+            value = float(self.edit_initial_abundance_bound.text())
+        except:
+            value = None
+        else:
+            self._get_selected_model().metadata["initial_abundance_bounds"] \
+            = value
         return None
     def clicked_checkbox_model_smoothing(self):
         """ The checkbox to smooth the model spectrum has been clicked. """
         if self.checkbox_model_smoothing.isChecked():
             self._get_selected_model().metadata["smoothing_kernel"] = True
-            self.edit_smoothing_bound.setEnabled(True)
-            self.update_smoothing_bound()
+            self.edit_manual_smoothing.setEnabled(False)
         else:
             self._get_selected_model().metadata["smoothing_kernel"] = False
-            self.edit_smoothing_bound.setEnabled(False)
+            self.edit_manual_smoothing.setEnabled(True)
         return None
-    def update_smoothing_bound(self):
-        """ The limits on the smoothing kernel have been updated. """
-        value = float(self.edit_smoothing_bound.text())
-        self._get_selected_model().metadata["sigma_smooth"] = (-value, value)
-        if self.auto_fit_checkbox.isChecked(): self._get_selected_model().fit()
+    def update_manual_smoothing(self):
+        try:
+            value = float(self.edit_manual_smoothing.text())
+        except:
+            value = None
+        else:
+            selected_model = self._get_selected_model()
+            selected_model.metadata["manual_sigma_smooth"] = value
+            selected_model.update_fit_after_parameter_change()
+            self.update_spectrum_figure(redraw=True)
         return None
-    def clicked_btn_specify_abundances(self):
+    def clicked_btn_update_abund_table(self):
         raise NotImplementedError
 
 class SpectralModelsTableView(SpectralModelsTableViewBase):
@@ -1525,9 +1559,16 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
 
         # Refresh GUI
         self.parent.summarize_current_table()
+        self.parent.update_fitting_options()
         self.parent.refresh_plots()
         return None
     
+    def sizeHint(self):
+        return QtCore.QSize(240,100)
+
+    def minimumSizeHint(self):
+        return QtCore.QSize(240,0)
+
     def measure_selected_models(self):
         """ Fit the selected spectral models. """
 
@@ -1549,6 +1590,7 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
 
         # Refresh GUI
         self.parent.summarize_current_table()
+        self.parent.update_fitting_options()
         self.parent.refresh_plots()
         return None
 
@@ -1597,7 +1639,7 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
         elif column == 1:
             value = spectral_model._repr_wavelength
 
-        elif column == 2:
+        elif column == 2: #abundance
             try:
                 abundances \
                     = spectral_model.metadata["fitted_result"][2]["abundances"]
@@ -1606,12 +1648,24 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
                 value = ""
 
             else:
-                # TODO need to get current element from session to pick which one
-                # How many elements were measured?
-                value = "; ".join(["{0:.2f}".format(abundance) \
-                    for abundance in abundances])
-
-        elif column in [3, 4]:
+                if len(abundances) == 1:
+                    value = "{0:.2f}".format(abundances[0])
+                else:
+                    assert isinstance(spectral_model, SpectralSynthesisModel), spectral_model
+                    current_element = self.parent.filter_combo_box.currentText().split()[0]
+                    if current_element=="All":
+                        try:
+                            value = "; ".join(["{}".format(abund) \
+                                               for abund in spectral_model.abundances])
+                        except TypeError:
+                            value = ""
+                    else:
+                        for i,elem in enumerate(spectral_model.elements):
+                            if current_element == elem: break
+                        else:
+                            raise ValueError("{} not in {}".format(current_element, spectral_model.elements))
+                        value = "{0:.2f}".format(abundances[i])
+        elif column in [3, 4]: #EW, REW
             try:
                 result = spectral_model.metadata["fitted_result"][2]
                 equivalent_width = result["equivalent_width"][0]
@@ -1625,12 +1679,29 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
                 value = "{:.2f}".format(np.log10(equivalent_width/float(spectral_model._repr_wavelength))) \
                     if np.isfinite(equivalent_width) else ""
         elif column == 5: #abundance err
-            try:
-                result = spectral_model.metadata["fitted_result"][2]
-                err = result["abundance_uncertainties"][0]
-                value = "{:.2f}".format(err)
-            except:
-                value = ""
+            if isinstance(spectral_model, ProfileFittingModel):
+                try:
+                    result = spectral_model.metadata["fitted_result"][2]
+                    err = result["abundance_uncertainties"][0]
+                    value = "{:.2f}".format(err)
+                except:
+                    value = ""
+            elif isinstance(spectral_model, SpectralSynthesisModel):
+                current_element = self.parent.filter_combo_box.currentText().split()[0]
+                if current_element=="All":
+                    value = ""
+                else:
+                    for i,elem in enumerate(spectral_model.elements):
+                        if current_element == elem: break
+                    else:
+                        raise ValueError("{} not in {}".format(current_element, spectral_model.elements))
+                    try:
+                        covar = spectral_model.metadata["fitted_result"][1]
+                    except:
+                        value = ""
+                    else:
+                        err = np.sqrt(covar[i,i])
+                        value = "{:.2f}".format(err)
         elif column == 6: #EW err
             try:
                 result = spectral_model.metadata["fitted_result"][2]
@@ -1639,13 +1710,15 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
             except:
                 value = ""
         elif column == 7:
-            try:
-                loggf = spectral_model.transitions[0]['loggf']
-                value = "{:6.3f}".format(loggf)
-            except:
+            if isinstance(spectral_model, SpectralSynthesisModel):
                 value = ""
+            else:
+                try:
+                    loggf = spectral_model.transitions[0]['loggf']
+                    value = "{:6.3f}".format(loggf)
+                except:
+                    value = ""
         elif column == 8:
-            # TODO need to get current element from session to pick which one
             value = "; ".join(["{}".format(element) \
                       for element in spectral_model.elements])
 
@@ -1665,3 +1738,125 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
             self.parent.refresh_plots()
 
         return value
+
+class SynthesisAbundanceTableView(QtGui.QTableView):
+    """
+    Make a small table view
+    """
+    def sizeHint(self):
+        return QtCore.QSize(100,100)
+    def minimumSizeHint(self):
+        return QtCore.QSize(100,0)
+class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
+    """
+    Editable table of abundances to synthesize
+    """
+    def __init__(self, parent, *args):
+        super(SynthesisAbundanceTableModel, self).__init__(parent, *args)
+        self.spectral_model = None
+        self.elem_order = None
+        self.num_fit_elems = 0
+
+    def load_new_model(self, spectral_model):
+        """
+        Call this to reset the table with a new spectral model
+        """
+        self.beginResetModel()
+        self.spectral_model = spectral_model
+        # Sort table by Z
+        if spectral_model is not None:
+            # First rows in table are fit elems
+            # Other rows are rt_abundances
+            self.num_fit_elems = len(spectral_model.elements)
+
+            elems = spectral_model.metadata["rt_abundances"].keys()
+            Zs = [int(utils.element_to_species(elem)) for elem in elems]
+            sorted_indices = np.argsort(Zs)
+            # Put in rt_abundances indices
+            self.elem_order = dict(zip(self.num_fit_elems + np.arange(len(elems)), \
+                                       np.array(elems)[sorted_indices]))
+            # Put in parameters indices
+            for i,elem in enumerate(spectral_model.elements):
+                self.elem_order[i] = elem
+        else:
+            self.num_fit_elems = 0
+            self.elem_order = None
+        self.endResetModel()
+        return None
+    def rowCount(self, parent):
+        try:
+            return self.num_fit_elems + \
+                   len(self.spectral_model.metadata["rt_abundances"])
+        except Exception as e:
+            print(e)
+            return 0
+    def columnCount(self, parent):
+        return 2
+    def data(self, index, role):
+        if not index.isValid() or role != QtCore.Qt.DisplayRole:
+            return None
+        if self.spectral_model is None: return None
+        elem = self.elem_order[index.row()]
+        if index.column()==0: 
+            return elem
+        if elem in self.spectral_model.metadata["rt_abundances"]:
+            return "{:.3f}".format(self.spectral_model.metadata["rt_abundances"][elem])
+        if "fitted_result" not in self.spectral_model.metadata:
+            return str(np.nan)
+        fitted_result = self.spectral_model.metadata["fitted_result"]
+        key = "log_eps({})".format(elem)
+        assert key in fitted_result[0], "{} {}".format(key,fitted_result[0])
+        return "{:.3f}".format(fitted_result[0][key])
+    def headerData(self, col, orientation, role):
+        if orientation == QtCore.Qt.Horizontal \
+        and role == QtCore.Qt.DisplayRole:
+            if col==0: return "El."
+            if col==1: return "A(X)"
+            #if col==2: return "[X/H]"
+        return None
+    def setData(self, index, value, role):
+        if index.column()==0: return False
+        if self.spectral_model is None: return False
+        # Modify the spectral model abundance
+        elem = self.elem_order[index.row()]
+        if elem in self.spectral_model.metadata["rt_abundances"]:
+            try:
+                value = float(value)
+            except ValueError:
+                return False
+            else:
+                self.spectral_model.metadata["rt_abundances"][elem] = value
+                return True
+        elif elem in self.spectral_model.elements:
+            try:
+                value = float(value)
+            except ValueError:
+                return False
+
+            # HACK
+            # Replace abundance in both fitted parameters and abundances
+            # SpectralSynthesisModel.__call__ uses fitted parameters to synth
+            try:
+                fitted_result = self.spectral_model.metadata["fitted_result"]
+            except KeyError:
+                print("Run at least one fit before setting abundances!")
+                return False
+            else:
+                key = "log_eps({})".format(elem)
+                fitted_result[0][key] = value
+                for i,_elem in enumerate(self.spectral_model.elements):
+                    if _elem == elem: break
+                else: raise ValueError(elem+" "+str(self.spectral_model.elements))
+                fitted_result[2]["abundances"][i] = value
+                return True
+        else:
+            raise ValueError(elem+" "+str(self.spectral_model.elements))
+                
+    def flags(self, index):
+        if not index.isValid():
+            return None
+        flags = QtCore.Qt.ItemIsEnabled|\
+                QtCore.Qt.ItemIsSelectable
+        if index.column()==1: #abundance
+            flags |= QtCore.Qt.ItemIsEditable
+        return flags

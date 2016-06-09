@@ -27,7 +27,15 @@ from smh.photospheres.abundances import asplund_2009 as solar_composition
 logger = logging.getLogger(__name__)
 
 
-def approximate_spectral_synthesis(model, centroids, bounds, **kwargs):
+def _fix_rt_abundances(rt_abundances):
+    rt_abundances = rt_abundances.copy()
+    for key in rt_abundances:
+        if np.isnan(rt_abundances[key]):
+            rt_abundances[key] = -9.0
+    return rt_abundances
+    
+def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={},
+                                   isotopes={}):
 
     # Generate spectra at +/- the initial bounds. For all elements.
     species \
@@ -41,6 +49,10 @@ def approximate_spectral_synthesis(model, centroids, bounds, **kwargs):
     calculated_abundances = np.array(list(
         itertools.product(*[[c-bounds, c, c+bounds] for c in centroids])))
 
+    # Explicitly specified abundances
+    # np.nan goes to -9.0
+    rt_abundances = _fix_rt_abundances(rt_abundances)
+
     # Group syntheses into 5 where possible.
     M, K = 5, calculated_abundances.shape[0]
     fluxes = None
@@ -50,11 +62,13 @@ def approximate_spectral_synthesis(model, centroids, bounds, **kwargs):
             abundances[specie] = calculated_abundances[M*i:M*(i + 1), j]
 
         # Include explicitly specified abundances.
-        abundances.update(kwargs.get("rt_abundances", {}))
+        abundances.update(rt_abundances)
+        print(abundances)
 
         spectra = model.session.rt.synthesize(
             model.session.stellar_photosphere, 
-            model.transitions, abundances=abundances) # TODO other kwargs?
+            model.transitions, abundances=abundances,
+            isotopes=isotopes) # TODO other kwargs?
 
         dispersion = spectra[0][0]
         if fluxes is None:
@@ -64,6 +78,7 @@ def approximate_spectral_synthesis(model, centroids, bounds, **kwargs):
             fluxes[M*i + j, :] = spectrum[1]
 
     def call(*parameters):
+        print(*parameters)
         N = len(model.metadata["elements"])
         if len(parameters) < N:
             raise ValueError("missing parameters")
@@ -107,12 +122,25 @@ class SpectralSynthesisModel(BaseSpectralModel):
             "smoothing_kernel": True,
             "initial_abundance_bounds": 1,
             "elements": self._verify_elements(elements),
-            "species": self._verify_species(elements)
+            "species": self._verify_species(elements),
+            "rt_abundances": {},
+            "manual_continuum": 1.0,
+            "manual_sigma_smooth":0.15,
+            "manual_rv":0.0
         })
 
         # Set the model parameter names based on the current metadata.
         self._update_parameter_names()
         self._verify_transitions()
+
+        # Set rt_abundances to have all the elements with nan
+        unique_atomic_numbers = np.unique(self.transitions["species"].astype(int))
+        rt_abundances = {}
+        for Z in unique_atomic_numbers:
+            elem = utils.species_to_element(Z).split()[0]
+            if elem in elements: continue
+            rt_abundances[elem] = np.nan
+        self.metadata.update({"rt_abundances": rt_abundances})
 
         if len(self.elements) == 1:
             # Which of these lines is in the line list?
@@ -181,11 +209,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
                 transitions["elem2"] == element)
 
             # Note plurality/singularity of specie/species.
-            specie = list(np.unique(transitions[ii]["species"]))
-            #if len(specie) > 1:
-            #    # TODO how to deal with this correctly?
-            #    raise ValueError(
-            #        "element '{}' has ambiguous species: {}".format(element,specie))
+            # APJ modified to remove isotopes in species
+            specie = transitions[ii]["species"]
+            specie = (specie*10).astype(int)/10.0
+            specie = list(np.unique(specie))
             species.append(specie)
 
         return species
@@ -248,8 +275,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Radial velocity?
         vt = abs(self.metadata["velocity_tolerance"] or 0)
         if vt > 0:
+            rv_mid = self.metadata["manual_rv"]
             parameter_names.append("vrad")
-            bounds["vrad"] = [-vt, +vt]
+            bounds["vrad"] = [rv_mid-vt, rv_mid+vt]
 
         # Continuum coefficients?
         parameter_names += ["c{0}".format(i) \
@@ -258,7 +286,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Gaussian smoothing kernel?
         if self.metadata["smoothing_kernel"]:
             # TODO: Better init of this
-            bounds["sigma_smooth"] = (-5, 5)
+            smooth_mid = self.metadata["manual_sigma_smooth"]
+            bounds["sigma_smooth"] = (-5, +5)
             parameter_names.append("sigma_smooth")
 
         self._parameter_bounds = bounds
@@ -310,7 +339,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
         while bounds > 0.01: # dex
             central = p0[:len(self.metadata["elements"])]
             approximater \
-                = approximate_spectral_synthesis(self, central, bounds, **kwargs)
+                = approximate_spectral_synthesis(self, central, bounds, 
+                                                 rt_abundances=self.metadata["rt_abundances"],
+                                                 isotopes=self.session.metadata["isotopes"])
 
             def objective_function(x, *parameters):
                 synth_dispersion, intensities = approximater(*parameters)
@@ -380,9 +411,43 @@ class SpectralSynthesisModel(BaseSpectralModel):
         named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
         self.metadata["fitted_result"] = (named_p_opt, cov, fitting_metadata)
         self.metadata["is_acceptable"] = True
+        if "vrad" in self.parameter_names:
+            self.metadata["manual_rv"] = named_p_opt["vrad"]
+        if "sigma_smooth" in self.parameter_names:
+            self.metadata["manual_sigma_smooth"] = named_p_opt["sigma_smooth"]
         
         return self.metadata["fitted_result"]
 
+
+    def update_fit_after_parameter_change(self, synthesize=False):
+        """
+        After manual parameter change, update fitting metadata 
+        for plotting purposes.
+        This somewhat messes up the state, but if you are trying to
+        fiddle manually you probably don't care about those anyway.
+        
+        :param synthesize:
+            Not implemented. Eventually should not recalc synth every time.
+            But have to figure out when you need to recalc synth,
+            and where to store the synth.
+        """
+        self._update_parameter_names()
+        spectrum = self._verify_spectrum(None)
+        try:
+            (named_p_opt, cov, meta) = self.metadata["fitted_result"]
+        except KeyError:
+            print("Please run a fit first!")
+            return None
+        model_x = meta["model_x"]
+        model_y = self(model_x, *named_p_opt.values())
+        model_yerr = np.nan * np.ones((2, model_x.size))
+        residuals = (meta["residual"] + meta["model_y"]) - model_y
+        model_x, model_y, model_yerr, residuals = self._fill_masked_arrays(
+            spectrum, model_x, model_y, model_yerr, residuals)
+        meta["model_y"] = model_y
+        meta["model_yerr"] = model_yerr
+        meta["residual"] = residuals
+        return None
 
     def __call__(self, dispersion, *parameters):
         """
@@ -405,6 +470,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
                 abundances[utils.element_to_species(element)] = parameter
             else: break # The log_eps abundances are always first.
 
+        rt_abundances = _fix_rt_abundances(self.metadata["rt_abundances"])
+        abundances.update(rt_abundances)
+
         # Produce a synthetic spectrum.
         synth_dispersion, intensities, meta = self.session.rt.synthesize(
             self.session.stellar_photosphere, self.transitions,
@@ -420,6 +488,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
         """
         Apply nuisance operations (convolution, continuum, radial velocity, etc)
         to a model spectrum.
+
+        Attempts to use model parameters for continuum, smoothing, and radial velocity.
+        If those are not there, uses self.metadata["manual_<x>"] where
+        <x> = "continuum", "sigma_smooth", and "rv" respectively.
 
         :param dispersion:
             The dispersion points to evaluate the model at.
@@ -442,7 +514,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         names = self.parameter_names
         O = self.metadata["continuum_order"]
         if 0 > O:
-            continuum = 1
+            continuum = 1 * self.metadata["manual_continuum"]
         else:
             continuum = np.polyval([parameters[names.index("c{}".format(i))] \
                 for i in range(O + 1)][::-1], synth_dispersion)
@@ -450,21 +522,21 @@ class SpectralSynthesisModel(BaseSpectralModel):
         model = intensities * continuum
 
         # Smoothing.
-        try:
-            index = names.index("sigma_smooth")
-        except IndexError:
-            None
-        else:
-            # Scale value by pixel diff.
-            kernel = abs(parameters[index])/np.mean(np.diff(synth_dispersion))
-            if kernel > 0:
-                model = gaussian_filter(model, kernel)
+        try: # If in parameters to vary, use that
+            sigma_smooth = parameters[names.index("sigma_smooth")]
+        except (IndexError, ValueError): # Otherwise, use manual value
+            sigma_smooth = self.metadata["manual_sigma_smooth"]
+        # Scale value by pixel diff.
+        kernel = abs(sigma_smooth)/np.mean(np.diff(synth_dispersion))
+        if kernel > 0:
+            model = gaussian_filter(model, kernel)
 
         try:
             v = parameters[names.index("vrad")]
         except ValueError:
-            v = 0
+            v = self.metadata["manual_rv"]
 
+        #print("smooth: {:.4f}, rv: {:.4f}".format(sigma_smooth,v))
         # Interpolate the model spectrum onto the requested dispersion points.
         return np.interp(dispersion, synth_dispersion * (1 + v/299792458e-3), 
             model, left=1, right=1)
