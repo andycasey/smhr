@@ -1887,6 +1887,7 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
         super(SynthesisAbundanceTableModel, self).__init__(parent, *args)
         self.spectral_model = None
         self.elem_order = None
+        self.num_fit_elems = 0
 
     def load_new_model(self, spectral_model):
         """
@@ -1896,17 +1897,28 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
         self.spectral_model = spectral_model
         # Sort table by Z
         if spectral_model is not None:
+            # First rows in table are fit elems
+            # Other rows are rt_abundances
+            self.num_fit_elems = len(spectral_model.elements)
+
             elems = spectral_model.metadata["rt_abundances"].keys()
             Zs = [int(utils.element_to_species(elem)) for elem in elems]
             sorted_indices = np.argsort(Zs)
-            self.elem_order = dict(zip(np.arange(len(elems)), np.array(elems)[sorted_indices]))
+            # Put in rt_abundances indices
+            self.elem_order = dict(zip(self.num_fit_elems + np.arange(len(elems)), \
+                                       np.array(elems)[sorted_indices]))
+            # Put in parameters indices
+            for i,elem in enumerate(spectral_model.elements):
+                self.elem_order[i] = elem
         else:
+            self.num_fit_elems = 0
             self.elem_order = None
         self.endResetModel()
         return None
     def rowCount(self, parent):
         try:
-            return len(self.spectral_model.metadata["rt_abundances"])
+            return self.num_fit_elems + \
+                   len(self.spectral_model.metadata["rt_abundances"])
         except Exception as e:
             print(e)
             return 0
@@ -1919,25 +1931,59 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
         elem = self.elem_order[index.row()]
         if index.column()==0: 
             return elem
-        else: 
+        if elem in self.spectral_model.metadata["rt_abundances"]:
             return "{:.3f}".format(self.spectral_model.metadata["rt_abundances"][elem])
+        if "fitted_result" not in self.spectral_model.metadata:
+            return str(np.nan)
+        fitted_result = self.spectral_model.metadata["fitted_result"]
+        key = "log_eps({})".format(elem)
+        assert key in fitted_result[0], "{} {}".format(key,fitted_result[0])
+        return "{:.3f}".format(fitted_result[0][key])
     def headerData(self, col, orientation, role):
         if orientation == QtCore.Qt.Horizontal \
         and role == QtCore.Qt.DisplayRole:
             if col==0: return "El."
             if col==1: return "A(X)"
-            #if col==2: return "[X/Fe]"
+            #if col==2: return "[X/H]"
         return None
     def setData(self, index, value, role):
         if index.column()==0: return False
         if self.spectral_model is None: return False
+        # Modify the spectral model abundance
         elem = self.elem_order[index.row()]
-        try:
-            self.spectral_model.metadata["rt_abundances"][elem] = float(value)
-        except ValueError:
-            return False
+        if elem in self.spectral_model.metadata["rt_abundances"]:
+            try:
+                value = float(value)
+            except ValueError:
+                return False
+            else:
+                self.spectral_model.metadata["rt_abundances"][elem] = value
+                return True
+        elif elem in self.spectral_model.elements:
+            try:
+                value = float(value)
+            except ValueError:
+                return False
+
+            # HACK
+            # Replace abundance in both fitted parameters and abundances
+            # SpectralSynthesisModel.__call__ uses fitted parameters to synth
+            try:
+                fitted_result = self.spectral_model.metadata["fitted_result"]
+            except KeyError:
+                print("Run at least one fit before setting abundances!")
+                return False
+            else:
+                key = "log_eps({})".format(elem)
+                fitted_result[0][key] = value
+                for i,_elem in enumerate(self.spectral_model.elements):
+                    if _elem == elem: break
+                else: raise ValueError(elem+" "+str(self.spectral_model.elements))
+                fitted_result[2]["abundances"][i] = value
+                return True
         else:
-            return True
+            raise ValueError(elem+" "+str(self.spectral_model.elements))
+                
     def flags(self, index):
         if not index.isValid():
             return None
