@@ -34,7 +34,8 @@ def _fix_rt_abundances(rt_abundances):
             rt_abundances[key] = -9.0
     return rt_abundances
     
-def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={}):
+def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={},
+                                   isotopes={}):
 
     # Generate spectra at +/- the initial bounds. For all elements.
     species \
@@ -62,10 +63,12 @@ def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={}):
 
         # Include explicitly specified abundances.
         abundances.update(rt_abundances)
+        print(abundances)
 
         spectra = model.session.rt.synthesize(
             model.session.stellar_photosphere, 
-            model.transitions, abundances=abundances) # TODO other kwargs?
+            model.transitions, abundances=abundances,
+            isotopes=isotopes) # TODO other kwargs?
 
         dispersion = spectra[0][0]
         if fluxes is None:
@@ -75,6 +78,7 @@ def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={}):
             fluxes[M*i + j, :] = spectrum[1]
 
     def call(*parameters):
+        print(*parameters)
         N = len(model.metadata["elements"])
         if len(parameters) < N:
             raise ValueError("missing parameters")
@@ -283,7 +287,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         if self.metadata["smoothing_kernel"]:
             # TODO: Better init of this
             smooth_mid = self.metadata["manual_sigma_smooth"]
-            bounds["sigma_smooth"] = (0, +5)
+            bounds["sigma_smooth"] = (-5, +5)
             parameter_names.append("sigma_smooth")
 
         self._parameter_bounds = bounds
@@ -335,7 +339,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
         while bounds > 0.01: # dex
             central = p0[:len(self.metadata["elements"])]
             approximater \
-                = approximate_spectral_synthesis(self, central, bounds, self.metadata["rt_abundances"])
+                = approximate_spectral_synthesis(self, central, bounds, 
+                                                 rt_abundances=self.metadata["rt_abundances"],
+                                                 isotopes=self.session.metadata["isotopes"])
 
             def objective_function(x, *parameters):
                 synth_dispersion, intensities = approximater(*parameters)
@@ -405,9 +411,43 @@ class SpectralSynthesisModel(BaseSpectralModel):
         named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
         self.metadata["fitted_result"] = (named_p_opt, cov, fitting_metadata)
         self.metadata["is_acceptable"] = True
+        if "vrad" in self.parameter_names:
+            self.metadata["manual_rv"] = named_p_opt["vrad"]
+        if "sigma_smooth" in self.parameter_names:
+            self.metadata["manual_sigma_smooth"] = named_p_opt["sigma_smooth"]
         
         return self.metadata["fitted_result"]
 
+
+    def update_fit_after_parameter_change(self, synthesize=False):
+        """
+        After manual parameter change, update fitting metadata 
+        for plotting purposes.
+        This somewhat messes up the state, but if you are trying to
+        fiddle manually you probably don't care about those anyway.
+        
+        :param synthesize:
+            Not implemented. Eventually should not recalc synth every time.
+            But have to figure out when you need to recalc synth,
+            and where to store the synth.
+        """
+        self._update_parameter_names()
+        spectrum = self._verify_spectrum(None)
+        try:
+            (named_p_opt, cov, meta) = self.metadata["fitted_result"]
+        except KeyError:
+            print("Please run a fit first!")
+            return None
+        model_x = meta["model_x"]
+        model_y = self(model_x, *named_p_opt.values())
+        model_yerr = np.nan * np.ones((2, model_x.size))
+        residuals = (meta["residual"] + meta["model_y"]) - model_y
+        model_x, model_y, model_yerr, residuals = self._fill_masked_arrays(
+            spectrum, model_x, model_y, model_yerr, residuals)
+        meta["model_y"] = model_y
+        meta["model_yerr"] = model_yerr
+        meta["residual"] = residuals
+        return None
 
     def __call__(self, dispersion, *parameters):
         """
@@ -483,11 +523,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
         # Smoothing.
         try: # If in parameters to vary, use that
-            index = names.index("sigma_smooth")
-        except IndexError: # Otherwise, use manual value
+            sigma_smooth = parameters[names.index("sigma_smooth")]
+        except (IndexError, ValueError): # Otherwise, use manual value
             sigma_smooth = self.metadata["manual_sigma_smooth"]
-        else:
-            sigma_smooth = parameters[index]
         # Scale value by pixel diff.
         kernel = abs(sigma_smooth)/np.mean(np.diff(synth_dispersion))
         if kernel > 0:
@@ -498,6 +536,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         except ValueError:
             v = self.metadata["manual_rv"]
 
+        #print("smooth: {:.4f}, rv: {:.4f}".format(sigma_smooth,v))
         # Interpolate the model spectrum onto the requested dispersion points.
         return np.interp(dispersion, synth_dispersion * (1 + v/299792458e-3), 
             model, left=1, right=1)

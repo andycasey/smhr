@@ -427,11 +427,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         hbox, checkbox, label, line = _create_checkline_in_hbox(self.tab_synthesis, "Smoothing",
                                                                 0, 10, 3)
         self.checkbox_model_smoothing = checkbox
-        self.edit_model_smoothing = line
+        self.edit_manual_smoothing = line
         vbox_lhs.addLayout(hbox)
         
-        hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "Initial abund",
-                                                           0, 2, 2)
+        hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "Initial abund bound",
+                                                 0.01, 2, 2)
         self.edit_initial_abundance_bound = line
         vbox_lhs.addLayout(hbox)
 
@@ -465,7 +465,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.btn_clear_masks_2.setText("Clear Masks")
         vbox_rhs.addWidget(self.btn_clear_masks_2)
 
-
         ### Finish Synthesis Tab
         tab_hbox.addLayout(vbox_lhs)
         tab_hbox.addLayout(vbox_rhs)
@@ -486,17 +485,20 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.clicked_checkbox_vrad_tolerance_2)
         self.edit_vrad_tolerance_2.textChanged.connect(
             self.update_vrad_tolerance_2)
-        self.edit_vrad_tolerance_2.textChanged.connect(
+        self.edit_manual_rv.textChanged.connect(
             self.update_manual_rv)
         self.checkbox_model_smoothing.stateChanged.connect(
             self.clicked_checkbox_model_smoothing)
-        self.edit_model_smoothing.setEnabled(False)
-        #self.edit_model_smoothing.stateChanged.connect(
-        #    self.update_model_smoothing)
+        self.edit_manual_smoothing.textChanged.connect(
+            self.update_manual_smoothing)
         self.edit_initial_abundance_bound.textChanged.connect(
             self.update_initial_abundance_bound)
-        #self.edit_smoothing_bound.textChanged.connect(
-        #    self.update_smoothing_bound)
+        self.btn_fit_synth.clicked.connect(
+            self.fit_one)
+        self.btn_update_abund_table.clicked.connect(
+            self.clicked_btn_update_abund_table)
+        self.btn_clear_masks_2.clicked.connect(
+            self.clicked_btn_clear_masks)
 
     def new_session_loaded(self):
         """
@@ -648,7 +650,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.refresh_cache()
         self.summarize_current_table()
         self.refresh_plots()
-        # TODO I think this can break when adding/deleting lots of transitions
         self.filter_combo_box.setCurrentIndex(current_element_index)
         return None
 
@@ -1283,17 +1284,25 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             if vrad_tolerance is None:
                 self.checkbox_vrad_tolerance_2.setChecked(False)
                 self.edit_vrad_tolerance_2.setEnabled(False)
+                self.edit_manual_rv.setEnabled(True)
             else:
                 self.checkbox_vrad_tolerance_2.setChecked(True)
                 self.edit_vrad_tolerance_2.setEnabled(True)
                 self.edit_vrad_tolerance_2.setText("{}".format(vrad_tolerance))
+                self.edit_manual_rv.setEnabled(False)
+            self.edit_manual_rv.setText("{:.4f}".format(selected_model.metadata["manual_rv"]))
 
             self.edit_initial_abundance_bound.setText(
                 "{}".format(selected_model.metadata["initial_abundance_bounds"]))
             
-            self.checkbox_model_smoothing.setChecked(
-                selected_model.metadata["smoothing_kernel"])
-
+            if selected_model.metadata["smoothing_kernel"]:
+                self.checkbox_model_smoothing.setChecked(True)
+                self.edit_manual_smoothing.setEnabled(False)
+            else:
+                self.checkbox_model_smoothing.setChecked(False)
+                self.edit_manual_smoothing.setEnabled(True)
+            self.edit_manual_smoothing.setText(
+                "{:.4f}".format(selected_model.metadata["manual_sigma_smooth"]))
 
             # sigma smooth tolerance needs implementing.
             self.synth_abund_table_model.load_new_model(selected_model)
@@ -1445,18 +1454,26 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             = int(self.combo_continuum_2.currentText())
         return None
     def update_edit_manual_continuum(self):
-        self._get_selected_model().metadata["manual_continuum"] \
-            = float(self.edit_manual_continuum.text())
-        #self.update_spectrum_figure(redraw=True)
+        try:
+            value = float(self.edit_manual_continuum.text())
+        except:
+            value = None
+        else:
+            selected_model = self._get_selected_model()
+            selected_model.metadata["manual_continuum"] = value
+            selected_model.update_fit_after_parameter_change()
+            self.update_spectrum_figure(redraw=True)
         return None
     def clicked_checkbox_vrad_tolerance_2(self):
         """ The checkbox for velocity tolerance was clicked. """
         if self.checkbox_vrad_tolerance_2.isChecked():
             self.edit_vrad_tolerance_2.setEnabled(True)
             self.update_vrad_tolerance_2()
+            self.edit_manual_rv.setEnabled(False)
         else:
             self.edit_vrad_tolerance_2.setEnabled(False)
             self._get_selected_model().metadata["velocity_tolerance"] = None
+            self.edit_manual_rv.setEnabled(True)
         return None
     def update_vrad_tolerance_2(self):
         """ The tolerance on radial velocity was updated. """
@@ -1466,28 +1483,49 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             value = None
         self._get_selected_model().metadata["velocity_tolerance"] = value
         return None
+    def update_manual_rv(self):
+        try:
+            value = float(self.edit_manual_rv.text())
+        except:
+            value = None
+        else:
+            selected_model = self._get_selected_model()
+            selected_model.metadata["manual_rv"] = value
+            selected_model.update_fit_after_parameter_change()
+            self.update_spectrum_figure(redraw=True)
+        return None
     def update_initial_abundance_bound(self):
         """ The initial abundance bound has been updated. """
-        self._get_selected_model().metadata["initial_abundance_bounds"] \
-            = float(self.edit_initial_abundance_bound.text())
+        try:
+            value = float(self.edit_initial_abundance_bound.text())
+        except:
+            value = None
+        else:
+            self._get_selected_model().metadata["initial_abundance_bounds"] \
+            = value
         return None
     def clicked_checkbox_model_smoothing(self):
         """ The checkbox to smooth the model spectrum has been clicked. """
         if self.checkbox_model_smoothing.isChecked():
             self._get_selected_model().metadata["smoothing_kernel"] = True
-            #self.edit_smoothing_bound.setEnabled(True)
-            #self.update_smoothing_bound()
+            self.edit_manual_smoothing.setEnabled(False)
         else:
             self._get_selected_model().metadata["smoothing_kernel"] = False
-            #self.edit_smoothing_bound.setEnabled(False)
+            self.edit_manual_smoothing.setEnabled(True)
         return None
-    def update_model_smoothing(self):
+    def update_manual_smoothing(self):
+        try:
+            value = float(self.edit_manual_smoothing.text())
+        except:
+            value = None
+        else:
+            selected_model = self._get_selected_model()
+            selected_model.metadata["manual_sigma_smooth"] = value
+            selected_model.update_fit_after_parameter_change()
+            self.update_spectrum_figure(redraw=True)
+        return None
+    def clicked_btn_update_abund_table(self):
         raise NotImplementedError
-    def update_smoothing_bound(self):
-        """ The limits on the smoothing kernel have been updated. """
-        value = float(self.edit_smoothing_bound.text())
-        self._get_selected_model().metadata["sigma_smooth"] = (-value, value)
-        return None
 
 class SpectralModelsTableView(SpectralModelsTableViewBase):
     def fit_selected_models(self):
@@ -1504,6 +1542,7 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
 
         # Refresh GUI
         self.parent.summarize_current_table()
+        self.parent.update_fitting_options()
         self.parent.refresh_plots()
         return None
     
@@ -1534,6 +1573,7 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
 
         # Refresh GUI
         self.parent.summarize_current_table()
+        self.parent.update_fitting_options()
         self.parent.refresh_plots()
         return None
 
