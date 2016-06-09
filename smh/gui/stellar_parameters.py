@@ -39,7 +39,7 @@ if sys.platform == "darwin":
 
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
-PICKER_TOLERANCE = 10 # MAGIC HACK
+PICKER_TOLERANCE = 100 # MAGIC HACK
 
 
 class StellarParametersTab(QtGui.QWidget):
@@ -214,7 +214,7 @@ class StellarParametersTab(QtGui.QWidget):
 
 
         # Matplotlib figure.
-        self.figure = mpl.MPLWidget(None, tight_layout=True, autofocus=True)
+        self.figure = mpl.MPLWidget(None, tight_layout=True)#autofocus=True)
         self.figure.setMinimumSize(QtCore.QSize(300, 300))
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Expanding)
@@ -222,7 +222,7 @@ class StellarParametersTab(QtGui.QWidget):
         sp.setVerticalStretch(0)
         sp.setHeightForWidth(self.figure.sizePolicy().hasHeightForWidth())
         self.figure.setSizePolicy(sp)
-        self.figure.setFocusPolicy(QtCore.Qt.StrongFocus)
+        #self.figure.setFocusPolicy(QtCore.Qt.StrongFocus)
 
         self.figure.figure.patch.set_facecolor([(_ - 10)/255. for _ in \
             self.palette().color(QtGui.QPalette.Window).getRgb()[:3]])
@@ -330,9 +330,8 @@ class StellarParametersTab(QtGui.QWidget):
         # Connect matplotlib.
         self.figure.mpl_connect("button_press_event", self.figure_mouse_press)
         self.figure.mpl_connect("button_release_event", self.figure_mouse_release)
-        self.figure.figure.canvas.callbacks.connect(
-            "pick_event", self.figure_mouse_pick)
 
+        self.figure.show()
         return None
 
 
@@ -414,13 +413,24 @@ class StellarParametersTab(QtGui.QWidget):
             The matplotlib event.
         """
         
+        ycol = "abundance"
+        xcol = {
+            self.ax_excitation_twin: "expot",
+            self.ax_line_strength_twin: "reduced_equivalent_width"
+        }[event.inaxes]
+
+        xscale = np.ptp(event.inaxes.get_xlim())
+        yscale = np.ptp(event.inaxes.get_ylim())
+        distance = np.sqrt(
+                ((self._state_transitions[ycol] - event.ydata)/yscale)**2 \
+            +   ((self._state_transitions[xcol] - event.xdata)/xscale)**2)
+
+        index = np.nanargmin(distance)
+
         # Because the state transitions are linked to the parent source model of
         # the table view, we will have to get the proxy index.
-
-        print("selected index", event.ind)
-
         proxy_index = self.table_view.model().mapFromSource(
-            self.proxy_spectral_models.sourceModel().createIndex(event.ind[0], 0)).row()
+            self.proxy_spectral_models.sourceModel().createIndex(index, 0)).row()
 
         self.table_view.selectRow(proxy_index)
         return None
@@ -436,6 +446,11 @@ class StellarParametersTab(QtGui.QWidget):
 
         if event.inaxes in (self.ax_residual, self.ax_spectrum):
             self.spectrum_axis_mouse_press(event)
+
+        elif event.inaxes in (self.ax_excitation, self.ax_excitation_twin,
+            self.ax_line_strength, self.ax_line_strength_twin):
+            self.figure_mouse_pick(event)
+
         return None
 
 
