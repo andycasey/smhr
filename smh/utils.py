@@ -89,7 +89,8 @@ def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species")
                 group_lines[x_column] = (m, b, np.median(y), np.std(y), len(x))
 
         identifier = transitions[group_by][start_index]
-        lines[identifier] = group_lines
+        if group_lines:
+            lines[identifier] = group_lines
 
     return lines
 

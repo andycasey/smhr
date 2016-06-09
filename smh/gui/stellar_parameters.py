@@ -71,67 +71,68 @@ class StellarParametersTab(QtGui.QWidget):
         # Effective temperature.
         label = QtGui.QLabel(self)
         label.setText("Effective temperature (K)")
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
         grid_layout.addWidget(label, 0, 0, 1, 1)
-        hbox = QtGui.QHBoxLayout()
-        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, 
-            QtGui.QSizePolicy.Minimum))
         self.edit_teff = QtGui.QLineEdit(self)
         self.edit_teff.setMinimumSize(QtCore.QSize(40, 0))
         self.edit_teff.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_teff.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit_teff.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
         self.edit_teff.setValidator(
             QtGui.QDoubleValidator(3000, 8000, 0, self.edit_teff))
         self.edit_teff.textChanged.connect(self._check_lineedit_state)
-
-        hbox.addWidget(self.edit_teff)
-        grid_layout.addLayout(hbox, 0, 1, 1, 1)
+        grid_layout.addWidget(self.edit_teff, 0, 1)
         
         # Surface gravity.
         label = QtGui.QLabel(self)
         label.setText("Surface gravity")
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
         grid_layout.addWidget(label, 1, 0, 1, 1)
-        hbox = QtGui.QHBoxLayout()
-        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, 
-            QtGui.QSizePolicy.Minimum))
         self.edit_logg = QtGui.QLineEdit(self)
         self.edit_logg.setMinimumSize(QtCore.QSize(40, 0))
         self.edit_logg.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_logg.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_logg.setValidator(
             QtGui.QDoubleValidator(-1, 6, 3, self.edit_logg))
+        self.edit_logg.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
         self.edit_logg.textChanged.connect(self._check_lineedit_state)
-        hbox.addWidget(self.edit_logg)
-        grid_layout.addLayout(hbox, 1, 1, 1, 1)
+        grid_layout.addWidget(self.edit_logg, 1, 1)
 
         # Metallicity.
         label = QtGui.QLabel(self)
         label.setText("Metallicity")
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
         grid_layout.addWidget(label, 2, 0, 1, 1)
-        hbox = QtGui.QHBoxLayout()
-        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, 
-            QtGui.QSizePolicy.Minimum))
         self.edit_metallicity = QtGui.QLineEdit(self)
         self.edit_metallicity.setMinimumSize(QtCore.QSize(40, 0))
         self.edit_metallicity.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_metallicity.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_metallicity.setValidator(
             QtGui.QDoubleValidator(-5, 1, 3, self.edit_metallicity))
+        self.edit_metallicity.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
         self.edit_metallicity.textChanged.connect(self._check_lineedit_state)
-        hbox.addWidget(self.edit_metallicity)
-        grid_layout.addLayout(hbox, 2, 1, 1, 1)
+        grid_layout.addWidget(self.edit_metallicity, 2, 1)
 
 
         # Microturbulence.
         label = QtGui.QLabel(self)
         label.setText("Microturbulence (km/s)")
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
         grid_layout.addWidget(label, 3, 0, 1, 1)
-        hbox = QtGui.QHBoxLayout()
-        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, 
-            QtGui.QSizePolicy.Minimum))
         self.edit_xi = QtGui.QLineEdit(self)
         self.edit_xi.setMinimumSize(QtCore.QSize(40, 0))
         self.edit_xi.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_xi.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_xi.setValidator(QtGui.QDoubleValidator(0, 5, 3, self.edit_xi))
+        self.edit_xi.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
         self.edit_xi.textChanged.connect(self._check_lineedit_state)
-        hbox.addWidget(self.edit_xi)
-        grid_layout.addLayout(hbox, 3, 1, 1, 1)
+        grid_layout.addWidget(self.edit_xi, 3, 1)
 
         # Optionally TODO: alpha-enhancement.
 
@@ -143,32 +144,29 @@ class StellarParametersTab(QtGui.QWidget):
         self.btn_measure.setAutoDefault(True)
         self.btn_measure.setDefault(True)
         self.btn_measure.setText("Measure abundances")
-
         hbox.addWidget(self.btn_measure)
 
         self.btn_options = QtGui.QPushButton(self)
         self.btn_options.setText("Options..")
         hbox.addWidget(self.btn_options)
 
-        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, 
-            QtGui.QSizePolicy.Minimum))
-
         self.btn_solve = QtGui.QPushButton(self)
         self.btn_solve.setText("Solve")
         hbox.addWidget(self.btn_solve)
         lhs_layout.addLayout(hbox)
 
-        line = QtGui.QFrame(self)
-        line.setFrameShape(QtGui.QFrame.HLine)
-        line.setFrameShadow(QtGui.QFrame.Sunken)
-        lhs_layout.addWidget(line)
+        #line = QtGui.QFrame(self)
+        #line.setFrameShape(QtGui.QFrame.HLine)
+        #line.setFrameShadow(QtGui.QFrame.Sunken)
+        #lhs_layout.addWidget(line)
 
         header = ["", u"λ\n(Å)", "Element\n", u"E. W.\n(mÅ)",
                   "log ε\n(dex)"]
         attrs = ("is_acceptable", "_repr_wavelength", "_repr_element", 
                  "equivalent_width", "abundance")
-        self.table_view = SpectralModelsTableView(self)
 
+        self.table_view = SpectralModelsTableView(self)
+        
         # Set up a proxymodel.
         self.proxy_spectral_models = SpectralModelsFilterProxyModel(self)
         self.proxy_spectral_models.add_filter_function(
@@ -184,15 +182,19 @@ class StellarParametersTab(QtGui.QWidget):
 
         # TODO: Re-enable sorting.
         self.table_view.setSortingEnabled(False)
-        self.table_view.resizeColumnsToContents()
-        self.table_view.setColumnWidth(0, 30) # MAGIC
-        self.table_view.setColumnWidth(1, 70) # MAGIC
-        self.table_view.setColumnWidth(2, 70) # MAGIC
-        self.table_view.setColumnWidth(3, 70) # MAGIC
-        self.table_view.setMinimumSize(QtCore.QSize(240, 0))
-        #self.table_view.setMaximumSize(QtCore.QSize(240, 16777215))
+        self.table_view.setMaximumSize(QtCore.QSize(370, 16777215))        
+        self.table_view.setSizePolicy(QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
         
-        self.table_view.horizontalHeader().setStretchLastSection(True)
+        # Keep the first colum to a fixed width, but the rest stretched.
+        self.table_view.horizontalHeader().setResizeMode(
+            0, QtGui.QHeaderView.Fixed)
+        self.table_view.horizontalHeader().resizeSection(0, 30) # MAGIC
+
+        for i in range(1, len(header)):
+            self.table_view.horizontalHeader().setResizeMode(
+                i, QtGui.QHeaderView.Stretch)
+        
         lhs_layout.addWidget(self.table_view)
 
         _ = self.table_view.selectionModel()
@@ -204,17 +206,17 @@ class StellarParametersTab(QtGui.QWidget):
         self.btn_filter.setText("Hide unacceptable models")
         self.btn_quality_control = QtGui.QPushButton(self)
         self.btn_quality_control.setText("Quality control..")
-        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Preferred,
             QtGui.QSizePolicy.Minimum))
         hbox.addWidget(self.btn_filter)
         hbox.addWidget(self.btn_quality_control)
-        lhs_layout.addLayout(hbox)
 
+        lhs_layout.addLayout(hbox)
         self.parent_layout.addLayout(lhs_layout)
 
 
         # Matplotlib figure.
-        self.figure = mpl.MPLWidget(None, tight_layout=True)#autofocus=True)
+        self.figure = mpl.MPLWidget(None, tight_layout=True, autofocus=True)
         self.figure.setMinimumSize(QtCore.QSize(300, 300))
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Expanding)
@@ -228,7 +230,7 @@ class StellarParametersTab(QtGui.QWidget):
             self.palette().color(QtGui.QPalette.Window).getRgb()[:3]])
 
         gs_top = matplotlib.gridspec.GridSpec(4, 1)
-        gs_top.update(top=1, bottom=0.05, hspace=0.40)
+        gs_top.update(top=1, right=0.95, bottom=0.05, hspace=0.40)
         gs_bottom = matplotlib.gridspec.GridSpec(4, 1, 
             height_ratios=[2, 2, 1, 2])
         gs_bottom.update(hspace=0)
@@ -283,9 +285,9 @@ class StellarParametersTab(QtGui.QWidget):
             "line_strength_medians": {},
             "scatter_points": [
                 self.ax_excitation.scatter(
-                    [], [], s=30, alpha=0.5, picker=PICKER_TOLERANCE),
+                    [], [], s=30, alpha=0.5, ),
                 self.ax_line_strength.scatter(
-                    [], [], s=30, alpha=0.5, picker=PICKER_TOLERANCE),
+                    [], [], s=30, alpha=0.5, ),
             ],
             "selected_point": [
                 self.ax_excitation.scatter([], [],
@@ -331,7 +333,6 @@ class StellarParametersTab(QtGui.QWidget):
         self.figure.mpl_connect("button_press_event", self.figure_mouse_press)
         self.figure.mpl_connect("button_release_event", self.figure_mouse_release)
 
-        self.figure.show()
         return None
 
 
@@ -731,21 +732,25 @@ class StellarParametersTab(QtGui.QWidget):
 
         self.ax_excitation_twin.set_ylim(self.ax_excitation.get_ylim())
         self.ax_line_strength_twin.set_ylim(self.ax_line_strength.get_ylim())
+        self.ax_excitation_twin.set_ylabel(r"$\log_\epsilon({\rm X})$")
+        self.ax_line_strength_twin.set_ylabel(r"$\log_\epsilon({\rm X})$")
+
 
         # Scale the left hand ticks to [X/H] or [X/M]
 
         # How many atomic number?
-        Z = list(set(self._state_transitions["species"][np.isfinite(self._state_transitions["abundance"])].astype(int)))
+        ok = np.isfinite(self._state_transitions["abundance"])
+        Z = list(set(self._state_transitions["species"][ok].astype(int)))
         if len(Z) == 1:
 
-            scaled_ticks = np.array(self.ax_excitation.get_yticks()) \
-                - solar_composition(Z[0])
+            scaled_ticks = np.array(
+                self.ax_excitation.get_yticks()) - solar_composition(Z[0])
 
             self.ax_excitation.set_yticklabels(scaled_ticks)
             self.ax_line_strength.set_yticklabels(scaled_ticks)
 
             label = "[{}/H]".format(
-                self._state_transitions["element"][0].split()[0])
+                self._state_transitions["element"][ok][0].split()[0])
             self.ax_excitation.set_ylabel(label)
             self.ax_line_strength.set_ylabel(label)
 
@@ -845,6 +850,8 @@ class StellarParametersTab(QtGui.QWidget):
 
         states = utils.equilibrium_state(self._state_transitions,
             columns=("expot", "reduced_equivalent_width"))
+
+        print("states", states)
 
         # Offsets from the edge of axes.
         x_offset = 0.0125
@@ -964,16 +971,9 @@ class StellarParametersTab(QtGui.QWidget):
             return None
 
 
-        print("selected proxy indices", np.unique([_.row() for _ in proxy_indices]))
         # These indices are proxy indices, which must be mapped back.
-
         indices = np.unique([self.table_view.model().mapToSource(index).row() \
             for index in proxy_indices])
-        print("selected actual indices", indices)
-        print(len(self._state_transitions))
-        print(self._state_transitions[indices])
-
-
 
         try:
             x_excitation = self._state_transitions["expot"][indices]
@@ -982,13 +982,6 @@ class StellarParametersTab(QtGui.QWidget):
 
         except:
             x_excitation, x_strength, y = (np.nan, np.nan, np.nan)
-
-        print("selected indices values", x_excitation, x_strength, y)
-        #try:
-        #    print("len etc", len(self._state_transitions),
-        #        np.where(np.isfinite(self._state_transitions["abundance"])))
-        #except:
-        #    None
 
         point_excitation, point_strength = self._lines["selected_point"]
         point_excitation.set_offsets(np.array([x_excitation, y]).T)
