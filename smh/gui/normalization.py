@@ -1060,7 +1060,12 @@ class NormalizationTab(QtGui.QWidget):
         x, y = (self.current_order.dispersion, self.current_order.flux)
         
         self.ax_order.lines[0].set_data([x, y])
-        self.ax_order.set_xlim(x[0], x[-1])
+        
+        # Show a few percent either side.
+        percent = 2
+        trimming = (x[-1] - x[0]) * percent/100.
+        self.ax_order.set_xlim(x[0] - trimming, x[-1] + trimming)
+
         self.ax_order.set_ylim(np.nanmin(y), np.nanmax(y))
 
         #self.ax_order.set_title("Order {0} of {1}".format(

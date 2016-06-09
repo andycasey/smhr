@@ -559,6 +559,17 @@ class Spectrum1D(object):
         # TODO: Use inverse variance array when fitting polynomial/spline.
         for iteration in range(max_iterations):
             
+            if 1 > continuum_indices.size:
+
+                no_continuum = np.nan * np.ones_like(dispersion)
+                failed_spectrum = self.__class__(dispersion=dispersion,
+                    flux=no_continuum, ivar=no_continuum, metadata=self.metadata)
+
+                if kwargs.get("full_output", False):
+                    return (failed_spectrum, no_continuum, 0, dispersion.size - 1)
+
+                return failed_spectrum
+
             splrep_disp = dispersion[continuum_indices]
             splrep_flux = self.flux[continuum_indices]
             splrep_weights = self.ivar[continuum_indices]**0.5
@@ -584,10 +595,17 @@ class Spectrum1D(object):
                     logger.warn("Splines can only have a maximum order of 5. "
                         "Limiting order value to 5.")
                     order = 5
-                tck = interpolate.splrep(splrep_disp, splrep_flux,
-                    k=order, task=-1, t=knots, w=splrep_weights)
 
-                continuum = interpolate.splev(dispersion, tck)
+                try:
+                    tck = interpolate.splrep(splrep_disp, splrep_flux,
+                        k=order, task=-1, t=knots, w=splrep_weights)
+
+                except:
+                    logger.exception("Exception in fitting continuum:")
+                    continuum = np.nan * np.ones_like(dispersion)
+
+                else:
+                    continuum = interpolate.splev(dispersion, tck)
 
             elif function in ("poly", "polynomial"):
 
@@ -639,9 +657,6 @@ class Spectrum1D(object):
             
         # Apply flux scaling
         continuum *= scale
-
-        if not np.any(np.isfinite(continuum)):
-            raise WTFError
 
         normalized_spectrum = self.__class__(
             dispersion=dispersion[left:right],
