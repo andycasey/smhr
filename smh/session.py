@@ -270,11 +270,13 @@ class Session(BaseSession):
         # Load in the template spectrum.
         template_spectrum_path \
             = metadata["reconstruct_paths"].get("template_spectrum_path", None)
-        metadata["rv"]["template_spectrum_path"] \
-            = os.path.join(twd, template_spectrum_path)
+        if template_spectrum_path is not None:
+            metadata["rv"]["template_spectrum_path"] \
+                = os.path.join(twd, template_spectrum_path)
 
         # Create the object using the temporary working directory input spectra.
-        session = cls(metadata["reconstruct_paths"]["input_spectra"])
+        session = cls([os.path.join(twd, basename) \
+            for basename in metadata["reconstruct_paths"]["input_spectra"]])
 
         # Load in any normalized spectrum.
         normalized_spectrum \
