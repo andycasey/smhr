@@ -182,7 +182,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         # TODO: Re-enable sorting.
         self.table_view.setSortingEnabled(False)
-        self.table_view.setMaximumSize(QtCore.QSize(375, 16777215))        
+        self.table_view.setMaximumSize(QtCore.QSize(400, 16777215))        
         self.table_view.setSizePolicy(QtGui.QSizePolicy(
             QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
         
@@ -778,28 +778,17 @@ class StellarParametersTab(QtGui.QWidget):
             return None
 
         # Fit the spectral models if they have not been fit before.
-        num_unacceptable = 0
         for model in self.parent.session.metadata["spectral_models"]:
             if model.use_for_stellar_parameter_inference \
-            and model.metadata.get("fitted_result", None) is None:
-                if not model.is_acceptable:
-                    num_unacceptable += 1
-                else:
-                    try:
-                        model.fit()
-                    except (ValueError, RuntimeError) as e:
-                        logger.debug("Fitting error",model)
-                        logger.debug(e)
-        if num_unacceptable == len(self.parent.session.metadata["spectral_models"]):
-            print("Found no acceptable spectral models, fitting all!")
-            for model in self.parent.session.metadata["spectral_models"]:
-                if model.use_for_stellar_parameter_inference \
-                and model.metadata.get("fitted_result", None) is None:
-                    try:
-                        model.fit()
-                    except (ValueError, RuntimeError) as e:
-                        logger.debug("Fitting error",model)
-                        logger.debug(e)
+            and "fitted_result" not in model.metadata:
+
+                try:
+                    model.fit()
+
+                except:
+                    logger.exception(
+                        "Exception in fitting spectral model {}".format(model))
+                    continue
 
         # Update the session with the stellar parameters in the GUI, and then
         # calculate abundances.
@@ -1289,7 +1278,6 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
         if N == 0:
             menu.setEnabled(False)
 
-
         action = menu.exec_(self.mapToGlobal(event.pos()))
 
         update_spectrum_figure = False
@@ -1328,7 +1316,7 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                 minValue=0.1, maxValue=1000)
             if not is_ok: return None
 
-            for idx in indices:
+            for idx, proxy_index in zip(indices, proxy_indices):
                 spectral_model \
                     = self.parent.parent.session.metadata["spectral_models"][idx]
                 spectral_model.metadata["window"] = window
@@ -1336,10 +1324,12 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                 if "fitted_result" in spectral_model.metadata:
                     spectral_model.fit()
                     update_spectrum_figure = True
+                    self.parent.table_view.rowMoved(proxy_index.row(), 
+                        proxy_index.row(), proxy_index.row())
 
 
         elif action == set_no_continuum:
-            for idx in indices:
+            for idx, proxy_index in zip(indices, proxy_indices):
                 spectral_model \
                     = self.parent.parent.session.metadata["spectral_models"][idx]
                 spectral_model.metadata["continuum_order"] = -1
@@ -1348,11 +1338,13 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                 if "fitted_result" in spectral_model.metadata:
                     spectral_model.fit()
                     update_spectrum_figure = True
+                    self.parent.table_view.rowMoved(proxy_index.row(), 
+                        proxy_index.row(), proxy_index.row())
 
 
         elif action in set_continuum_order:            
             order = set_continuum_order.index(action)
-            for idx in indices:
+            for idx, proxy_index in zip(indices, proxy_indices):
                 spectral_model \
                     = self.parent.parent.session.metadata["spectral_models"][idx]
                 spectral_model.metadata["continuum_order"] = order
@@ -1361,6 +1353,8 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                 if "fitted_result" in spectral_model.metadata:
                     spectral_model.fit()
                     update_spectrum_figure = True
+                    self.parent.table_view.rowMoved(proxy_index.row(), 
+                        proxy_index.row(), proxy_index.row())
 
 
         elif action in (set_gaussian, set_lorentzian, set_voigt):
@@ -1370,7 +1364,7 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                 set_voigt: "voigt"
             }[action]
 
-            for idx in indices:
+            for idx, proxy_index in zip(indices, proxy_indices):
                 spectral_model \
                     = self.parent.parent.session.metadata["spectral_models"][idx]
                 if isinstance(spectral_model, ProfileFittingModel):
@@ -1379,11 +1373,13 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                     if "fitted_result" in spectral_model.metadata:
                         spectral_model.fit()
                         update_spectrum_figure = True
+                        self.parent.table_view.rowMoved(proxy_index.row(), 
+                            proxy_index.row(), proxy_index.row())
 
 
         elif action in (enable_central_weighting, disable_central_weighting):
             toggle = (action == enable_central_weighting)
-            for idx in indices:
+            for idx, proxy_index in zip(indices, proxy_indices):
                 spectral_model \
                     = self.parent.parent.session.metadata["spectral_models"][idx]
 
@@ -1393,6 +1389,8 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                     if "fitted_result" in spectral_model.metadata:
                         spectral_model.fit()
                         update_spectrum_figure = True
+                        self.parent.table_view.rowMoved(proxy_index.row(), 
+                            proxy_index.row(), proxy_index.row())
 
 
         elif action == set_detection_sigma:
@@ -1412,7 +1410,7 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                 value=detection_sigma, minValue=0.1, maxValue=1000)
             if not is_ok: return None
 
-            for idx in indices:
+            for idx, proxy_index in zip(indices, proxy_indices):
                 spectral_model \
                     = self.parent.parent.session.metadata["spectral_models"][idx]
 
@@ -1422,21 +1420,108 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                     if "fitted_result" in spectral_model.metadata:
                         spectral_model.fit()
                         update_spectrum_figure = True
+                        self.parent.table_view.rowMoved(proxy_index.row(), 
+                            proxy_index.row(), proxy_index.row())
+
+
 
         elif action == set_detection_pixels:
-            raise NotImplementedError
+
+            # Get the first profile model
+            for idx in indices:
+                detection_pixels = self.parent.parent.session\
+                    .metadata["spectral_models"][idx]\
+                    .metadata.get("detection_pixels", None)
+                if detection_pixels is not None:
+                    break
+            else:
+                detection_pixels = 3
+
+            detection_pixels, is_ok = QtGui.QInputDialog.getInt(
+                None, "Set detection pixel", u"Detection pixels:", 
+                value=detection_pixels, minValue=1, maxValue=1000)
+            if not is_ok: return None
+
+            for idx, proxy_index in zip(indices, proxy_indices):
+                spectral_model \
+                    = self.parent.parent.session.metadata["spectral_models"][idx]
+
+                if isinstance(spectral_model, ProfileFittingModel):
+                    spectral_model.metadata["detection_pixels"] = detection_pixels
+
+                    if "fitted_result" in spectral_model.metadata:
+                        spectral_model.fit()
+                        update_spectrum_figure = True
+                        self.parent.table_view.rowMoved(proxy_index.row(), 
+                            proxy_index.row(), proxy_index.row())
+
 
         elif action == set_rv_tolerance:
-            raise NotImplementedError
+
+            # Get the first profile model
+            for idx in indices:
+                velocity_tolerance = self.parent.parent.session\
+                    .metadata["spectral_models"][idx]\
+                    .metadata.get("velocity_tolerance", None)
+                if velocity_tolerance is not None:
+                    break
+            else:
+                velocity_tolerance = 0.1
+
+            velocity_tolerance, is_ok = QtGui.QInputDialog.getInt(
+                None, "Set wavelength tolerance", u"Wavelength tolerance:", 
+                value=velocity_tolerance, minValue=0.01, maxValue=1)
+            if not is_ok: return None
+
+            for idx, proxy_index in zip(indices, proxy_indices):
+                spectral_model \
+                    = self.parent.parent.session.metadata["spectral_models"][idx]
+
+                if isinstance(spectral_model, ProfileFittingModel):
+                    spectral_model.metadata["velocity_tolerance"] = velocity_tolerance
+
+                    if "fitted_result" in spectral_model.metadata:
+                        spectral_model.fit()
+                        update_spectrum_figure = True
+                        self.parent.table_view.rowMoved(proxy_index.row(), 
+                            proxy_index.row(), proxy_index.row())
+
+
 
         elif action == set_wl_tolerance:
-            raise NotImplementedError
+
+            # Get the first profile model
+            for idx in indices:
+                wavelength_tolerance = self.parent.parent.session\
+                    .metadata["spectral_models"][idx]\
+                    .metadata.get("wavelength_tolerance", None)
+                if wavelength_tolerance is not None:
+                    break
+            else:
+                wavelength_tolerance = 0.1
+
+            wavelength_tolerance, is_ok = QtGui.QInputDialog.getInt(
+                None, "Set wavelength tolerance", u"Wavelength tolerance:", 
+                value=wavelength_tolerance, minValue=0.01, maxValue=1)
+            if not is_ok: return None
+
+            for idx, proxy_index in zip(indices, proxy_indices):
+                spectral_model \
+                    = self.parent.parent.session.metadata["spectral_models"][idx]
+
+                if isinstance(spectral_model, ProfileFittingModel):
+                    spectral_model.metadata["wavelength_tolerance"] = wavelength_tolerance
+
+                    if "fitted_result" in spectral_model.metadata:
+                        spectral_model.fit()
+                        update_spectrum_figure = True
+                        self.parent.table_view.rowMoved(proxy_index.row(), 
+                            proxy_index.row(), proxy_index.row())
+
 
         if update_spectrum_figure:
             self.parent.update_spectrum_figure(redraw=True)
             
-
-        self.parent.proxy_spectral_models.reset()
 
         return None
 
