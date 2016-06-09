@@ -408,12 +408,22 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.combo_continuum_2.addItem("{:.0f}".format(i))
         vbox_lhs.addLayout(hbox)
 
+        hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "Manual cont.", 
+                                                 -10, 10, 4)
+        self.edit_manual_continuum = line
+        vbox_lhs.addLayout(hbox)
+
         hbox, checkbox, label, line = _create_checkline_in_hbox(self.tab_synthesis, "RV tol",
                                                                 0, 100, 2)
         self.checkbox_vrad_tolerance_2 = checkbox
         self.edit_vrad_tolerance_2 = line
         vbox_lhs.addLayout(hbox)
         
+        hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "Manual RV", 
+                                                 -1000, 1000, 4)
+        self.edit_manual_rv = line
+        vbox_lhs.addLayout(hbox)
+
         hbox, checkbox, label, line = _create_checkline_in_hbox(self.tab_synthesis, "Smoothing",
                                                                 0, 10, 3)
         self.checkbox_model_smoothing = checkbox
@@ -470,10 +480,14 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.clicked_checkbox_continuum_2)
         self.combo_continuum_2.currentIndexChanged.connect(
             self.update_continuum_order_2)
+        self.edit_manual_continuum.textChanged.connect(
+            self.update_edit_manual_continuum)
         self.checkbox_vrad_tolerance_2.stateChanged.connect(
             self.clicked_checkbox_vrad_tolerance_2)
         self.edit_vrad_tolerance_2.textChanged.connect(
             self.update_vrad_tolerance_2)
+        self.edit_vrad_tolerance_2.textChanged.connect(
+            self.update_manual_rv)
         self.checkbox_model_smoothing.stateChanged.connect(
             self.clicked_checkbox_model_smoothing)
         self.edit_model_smoothing.setEnabled(False)
@@ -1255,10 +1269,14 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             if continuum_order < 0:
                 self.checkbox_continuum_2.setChecked(False)
                 self.combo_continuum_2.setEnabled(False)
+                self.edit_manual_continuum.setEnabled(True)
             else:
                 self.checkbox_continuum_2.setChecked(True)
                 self.combo_continuum_2.setEnabled(True)
                 self.combo_continuum_2.setCurrentIndex(continuum_order)
+                self.edit_manual_continuum.setEnabled(False)
+            self.edit_manual_continuum.setText(
+                "{}".format(selected_model.metadata["manual_continuum"]))
 
             # Radial velocity tolerance.
             vrad_tolerance = selected_model.metadata.get("velocity_tolerance", None)
@@ -1273,8 +1291,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.edit_initial_abundance_bound.setText(
                 "{}".format(selected_model.metadata["initial_abundance_bounds"]))
             
-            self.checkbox_model_smoothing.setEnabled(
+            self.checkbox_model_smoothing.setChecked(
                 selected_model.metadata["smoothing_kernel"])
+
 
             # sigma smooth tolerance needs implementing.
             self.synth_abund_table_model.load_new_model(selected_model)
@@ -1414,14 +1433,21 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         if self.checkbox_continuum_2.isChecked():
             self.combo_continuum_2.setEnabled(True)
             self.update_continuum_order()
+            self.edit_manual_continuum.setEnabled(False)
         else:
             self._get_selected_model().metadata["continuum_order"] = -1
             self.combo_continuum_2.setEnabled(False)
+            self.edit_manual_continuum.setEnabled(True)
         return None
     def update_continuum_order_2(self):
         """ The continuum order to use in model fitting was changed. """
         self._get_selected_model().metadata["continuum_order"] \
             = int(self.combo_continuum_2.currentText())
+        return None
+    def update_edit_manual_continuum(self):
+        self._get_selected_model().metadata["manual_continuum"] \
+            = float(self.edit_manual_continuum.text())
+        #self.update_spectrum_figure(redraw=True)
         return None
     def clicked_checkbox_vrad_tolerance_2(self):
         """ The checkbox for velocity tolerance was clicked. """

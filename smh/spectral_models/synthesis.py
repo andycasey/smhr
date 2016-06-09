@@ -119,7 +119,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
             "initial_abundance_bounds": 1,
             "elements": self._verify_elements(elements),
             "species": self._verify_species(elements),
-            "rt_abundances": {}
+            "rt_abundances": {},
+            "manual_continuum": 1.0,
+            "manual_sigma_smooth":0.15,
+            "manual_rv":0.0
         })
 
         # Set the model parameter names based on the current metadata.
@@ -268,8 +271,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Radial velocity?
         vt = abs(self.metadata["velocity_tolerance"] or 0)
         if vt > 0:
+            rv_mid = self.metadata["manual_rv"]
             parameter_names.append("vrad")
-            bounds["vrad"] = [-vt, +vt]
+            bounds["vrad"] = [rv_mid-vt, rv_mid+vt]
 
         # Continuum coefficients?
         parameter_names += ["c{0}".format(i) \
@@ -278,7 +282,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Gaussian smoothing kernel?
         if self.metadata["smoothing_kernel"]:
             # TODO: Better init of this
-            bounds["sigma_smooth"] = (-5, 5)
+            smooth_mid = self.metadata["manual_sigma_smooth"]
+            bounds["sigma_smooth"] = (0, +5)
             parameter_names.append("sigma_smooth")
 
         self._parameter_bounds = bounds
@@ -444,6 +449,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
         Apply nuisance operations (convolution, continuum, radial velocity, etc)
         to a model spectrum.
 
+        Attempts to use model parameters for continuum, smoothing, and radial velocity.
+        If those are not there, uses self.metadata["manual_<x>"] where
+        <x> = "continuum", "sigma_smooth", and "rv" respectively.
+
         :param dispersion:
             The dispersion points to evaluate the model at.
 
@@ -465,7 +474,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         names = self.parameter_names
         O = self.metadata["continuum_order"]
         if 0 > O:
-            continuum = 1
+            continuum = 1 * self.metadata["manual_continuum"]
         else:
             continuum = np.polyval([parameters[names.index("c{}".format(i))] \
                 for i in range(O + 1)][::-1], synth_dispersion)
@@ -473,20 +482,21 @@ class SpectralSynthesisModel(BaseSpectralModel):
         model = intensities * continuum
 
         # Smoothing.
-        try:
+        try: # If in parameters to vary, use that
             index = names.index("sigma_smooth")
-        except IndexError:
-            None
+        except IndexError: # Otherwise, use manual value
+            sigma_smooth = self.metadata["manual_sigma_smooth"]
         else:
-            # Scale value by pixel diff.
-            kernel = abs(parameters[index])/np.mean(np.diff(synth_dispersion))
-            if kernel > 0:
-                model = gaussian_filter(model, kernel)
+            sigma_smooth = parameters[index]
+        # Scale value by pixel diff.
+        kernel = abs(sigma_smooth)/np.mean(np.diff(synth_dispersion))
+        if kernel > 0:
+            model = gaussian_filter(model, kernel)
 
         try:
             v = parameters[names.index("vrad")]
         except ValueError:
-            v = 0
+            v = self.metadata["manual_rv"]
 
         # Interpolate the model spectrum onto the requested dispersion points.
         return np.interp(dispersion, synth_dispersion * (1 + v/299792458e-3), 
