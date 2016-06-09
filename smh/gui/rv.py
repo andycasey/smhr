@@ -491,10 +491,12 @@ class RVTab(QtGui.QWidget):
         # Template filename.
         self.template_path.setReadOnly(False)
         if isinstance(defaults.get("template_spectrum", ""), string_types):
-            self.template_path.setText(defaults["template_spectrum"])
+            self.template_path.setText(
+                os.path.basename(defaults["template_spectrum"]))
         else:
             template_spectrum_path = defaults.get("template_spectrum_path","")
-            self.template_path.setText(template_spectrum_path)
+            self.template_path.setText(
+                os.path.basename(template_spectrum_path))
         self.template_path.setReadOnly(True)
 
         # Wavelength regions.

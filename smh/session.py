@@ -8,6 +8,7 @@ from __future__ import (division, print_function, absolute_import,
 
 __all__ = ["Session"]
 
+import atexit
 import logging
 import numpy as np
 import os
@@ -124,64 +125,79 @@ class Session(BaseSession):
             `False`.
         """
 
+        if not session_path.lower().endswith(".smh"):
+            session_path = "{}.smh".format(session_path)
+
         if os.path.exists(session_path) and not overwrite:
             raise IOError("path '{}' already exists".format(session_path))
 
-        # What files do we need:
-        #   --> input spectra from class.
-        #   --> template spectrum from metadata ("rv", "template_spectrum_path")
-        #   --> line list from metadata ("line_list")
-
-        # What internals do we need:
-        # - the metadata
-        #   --> spectral_models
-
-        # Create a temporary directory and copy the required files there.
-        twd_paths = []
         metadata = self.metadata.copy()
         protocol = kwargs.pop("protocol", 2)
 
-        # Store the input spectrum paths before we copy them.
-        metadata["reconstruct_paths"] = {
-            "input_spectra": [os.path.basename(path) \
-                for path in self._input_spectra_paths],
-        }
-
         # Create a temporary working directory and copy files over.
         twd = mkdtemp(**kwargs)
-        for path in self._input_spectra_paths:
-            copyfile(path, os.path.join(twd, os.path.basename(path)))
-            twd_paths.append(path)
+        twd_paths = [] + self._input_spectra_paths
 
-        # Save the template spectrum.
+        # Input spectra.
+        metadata["reconstruct_paths"] = {
+            "input_spectra": list(map(os.path.basename, twd_paths))
+        }
+
+
+        def safe_path(path, twd, metadata):
+            """
+            Function to ensure that we don't have filename clashes in the
+            temporary working directory.
+            """
+
+            basename = os.path.basename(path)
+            existing_paths = np.hstack(metadata["reconstruct_paths"].values())
+
+            if basename in existing_paths:
+
+                while basename in existing_paths:
+                    basename = ".".join([
+                        utils.random_string(), os.path.basename(path)])
+
+                new_path = os.path.join(twd, basename)
+
+                if os.path.exists(path):
+                    copyfile(path, new_path)
+
+                return new_path
+
+            return path
+
+
+        # Radial velocity template.
         if "template_spectrum_path" in metadata.get("rv", {}):
-
-            # TODO: Give a random (unused) path name to the template spectrum?
-            path = metadata["rv"].pop("template_spectrum_path")
-            new_path = os.path.join(twd, ".{}".format(os.path.basename(path)))
-            copyfile(path, new_path)
-            twd_paths.append(new_path)
+            twd_paths.append(safe_path(
+                metadata["rv"].pop("template_spectrum_path"), twd, metadata))
             metadata["reconstruct_paths"]["template_spectrum_path"] \
-                = ".{}".format(os.path.basename(path))
+                = os.path.basename(twd_paths[-1])
 
-        # The line list and session file will always have the same name, since
-        # the line list could be constructed from many paths.
-
-        # Save the line list.
+        # Line list.
         if "line_list" in metadata:
-            # TODO: Give a random (unused) path name to the line list?
-            metadata.pop("line_list").write(os.path.join(twd, "line_list.fits"),
-                format="fits")
-            twd_paths.append(os.path.join(twd, "line_list.fits"))
+            twd_paths.append(safe_path(os.path.join(twd, "line_list.fits"),
+                twd, metadata))
+            metadata.pop("line_list").write(twd_paths[-1], format="fits")
+            metadata["reconstruct_paths"]["line_list"] \
+                = os.path.basename(twd_paths[-1])
+            
 
-        # Save the normalized spectrum
+        # normalized spectrum.
+        twd_path = safe_path(os.path.join(twd, "normalized_spectrum.fits"),
+            twd, metadata)
         try:
-            spec = self.normalized_spectrum
-            spec.write(os.path.join(twd, "normalized_spectrum.txt"))
-        except:
-            pass #TODO
+            self.normalized_spectrum.write(twd_path)
+
+        except AttributeError:
+            None
+
         else:
-            twd_paths.append(os.path.join(twd, "normalized_spectrum.txt"))
+            twd_paths.append(twd_path)
+            metadata["reconstruct_paths"]["normalized_spectrum"] \
+                = os.path.basename(twd_path)
 
         # The spectral models must be treated with care.
         metadata["spectral_models"] \
@@ -215,10 +231,7 @@ class Session(BaseSession):
             # Now re-raise the original exception.
             raise (exc_info[1], None, exc_info[2])
 
-
         # Tar it up.
-        if not session_path.lower().endswith(".smh"):
-            session_path = "{}.smh".format(session_path)
         tarball = tarfile.open(name=session_path, mode="w:gz")
         for path in twd_paths:
             tarball.add(path, arcname=os.path.basename(path))
@@ -249,20 +262,26 @@ class Session(BaseSession):
             metadata = pickle.load(fp)
 
         # Load in the line list.
-        if os.path.exists(os.path.join(twd, "line_list.fits")):
+        line_list = metadata["reconstruct_paths"].get("line_list", None)
+        if line_list is not None:
             metadata["line_list"] = LineList.read(
-                os.path.join(twd, "line_list.fits"), format="fits")
-
+                os.path.join(twd, line_list), format="fits")
 
         # Load in the template spectrum.
-        # TODO: This means we actually need to keep the template spectrum on
-        #       disk until it's loaded. Let's store it now but don't load it in.
-        #if "template_spectrum_path" in metadata["reconstruct_paths"]:
-        #    metadata["rv"]["template_spectrum_path"] = 
+        template_spectrum_path \
+            = metadata["reconstruct_paths"].get("template_spectrum_path", None)
+        metadata["rv"]["template_spectrum_path"] \
+            = os.path.join(twd, template_spectrum_path)
 
         # Create the object using the temporary working directory input spectra.
-        session = cls([os.path.join(twd, basename) \
-            for basename in metadata["reconstruct_paths"]["input_spectra"]])
+        session = cls(metadata["reconstruct_paths"]["input_spectra"])
+
+        # Load in any normalized spectrum.
+        normalized_spectrum \
+            = metadata["reconstruct_paths"].get("normalized_spectrum", None)
+        if normalized_spectrum is not None:
+            session.normalized_spectrum = specutils.Spectrum1D.read(
+                os.path.join(twd, normalized_spectrum))
 
         # Remove any reconstruction paths.
         metadata.pop("reconstruct_paths")
@@ -293,16 +312,8 @@ class Session(BaseSession):
         # Update the session with the spectral models.
         session.metadata["spectral_models"] = reconstructed_spectral_models
 
-        # Load in the normalized spectrum
-        if os.path.exists(os.path.join(twd, "normalized_spectrum.txt")):
-            normalized_spectrum = specutils.Spectrum1D.read(os.path.join(twd, "normalized_spectrum.txt"))
-            session.normalized_spectrum = normalized_spectrum
-
-        # TODO: We need to clean up!
-        #       The line list and input spectra are stored in a TWD, and we at
-        #       least need to keep the input spectra until the model is saved
-        #       later on so that the input_spectra can be copied into the new
-        #       'save as' temporary working directory.
+        # Clean up the TWD when Python exits.
+        atexit.register(rmtree, twd)
 
         return session
 
@@ -684,16 +695,21 @@ class Session(BaseSession):
         filtering = kwargs.pop("filtering",
             lambda model: model.use_for_stellar_parameter_inference)
         for i, model in enumerate(self.metadata["spectral_models"]):
-            if filtering(model):
 
-                # TODO assert it is a profile model.
+            transition_indices.append(model._transition_indices[0])
+            
+            # TODO assert it is a profile model.
+            if filtering(model):
                 spectral_model_indices.append(i)
-                transition_indices.append(model._transition_indices[0])
+
                 if model.is_acceptable:
                     equivalent_widths.append(1e3 * \
                         model.metadata["fitted_result"][-1]["equivalent_width"][0])
                 else:
                     equivalent_widths.append(np.nan)
+            else:
+                spectral_model_indices.append(np.nan)
+                equivalent_widths.append(np.nan)
 
 
         if len(equivalent_widths) == 0 \
@@ -719,7 +735,7 @@ class Session(BaseSession):
 
 
         for index, abundance in zip(spectral_model_indices[finite], abundances):
-            self.metadata["spectral_models"][index]\
+            self.metadata["spectral_models"][int(index)]\
                 .metadata["fitted_result"][-1]["abundances"] = [abundance]
 
         transitions["abundance"] = np.nan * np.ones(len(transitions))
@@ -731,6 +747,7 @@ class Session(BaseSession):
 
         transitions["reduced_equivalent_width"] = np.log10(1e-3 * \
             transitions["equivalent_width"] / transitions["wavelength"])
+
 
         slopes = None
         #slopes = utils.equilibrium_state(transitions,

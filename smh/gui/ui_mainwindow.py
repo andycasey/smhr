@@ -353,6 +353,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         logger.info("Saving to {}".format(self.session_path))
         self.session.save(self.session_path, overwrite=True)
+        self.add_to_recently_opened(self.session_path)
         return None
 
 

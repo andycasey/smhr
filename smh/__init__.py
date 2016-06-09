@@ -30,7 +30,7 @@ else:
     del unstaged_changes, git_hash
     
 # Set up logging.
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("smh")
 logger.setLevel(logging.DEBUG)
 
 handler = logging.StreamHandler()

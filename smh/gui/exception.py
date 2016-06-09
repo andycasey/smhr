@@ -17,7 +17,7 @@ from PySide import QtCore, QtGui
 
 from smh import __git_status__
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("smh")
 
 def format(color, style=None):
     """
@@ -316,24 +316,51 @@ class ExceptionWidget(QtGui.QDialog):
         logger.info("Taking and uploading screenshot..")
         try:
             screenshot = QtGui.QPixmap.grabWindow(parent.winId())
-            _, path = mkstemp()
-            screenshot.save("{}.png".format(path), "png")
+            _, path = mkstemp(suffix=".png")
+            screenshot.save(path, "png")
 
             response = requests.put(
                 url="https://transfer.sh/screenshot.png",
-                data=open("{}.png".format(path), "rb"))
+                data=open(path, "rb"))
 
             if response.status_code == 200:
                 screenshot_url = response.text.strip()  
             else:
                 logger.warn("Screenshot could not be uploaded (response {})"\
                     .format(response.status_code))
+
+            os.remove(path)
+
         except:
             logger.exception("No screenshot could be uploaded.")
 
+        # Save session.
+        include_session_str = ""
+        logger.info("Uploading session..")
+        try:
+            _, path = mkstemp(suffix=".smh")
+            session.save(path, overwrite=True)
+
+            response = requests.put(
+                url="https://transfer.sh/session.smh",
+                data=open(path, "rb"))
+
+            if response.status_code == 200:
+                include_session_str = "in [this session]({}) ".format(
+                    response.text.strip())
+
+            else:
+                logger.warn("Session could not be uploaded (response {})".format(
+                        response.status_code))
+
+            os.remove(path)
+
+        except:
+            logger.exception("Session could not be uploaded.")
+
         logger.info("Creating issue..")
         body_template = \
-            "An exception was encountered in [this session]({session_url}) "\
+            "An exception was encountered {include_session_str}"\
             "using version {application_version} on Python {sys_version}:\n\n"\
             "````python\n"\
             "{formatted_exception}"\
@@ -344,7 +371,7 @@ class ExceptionWidget(QtGui.QDialog):
         # Create text.
         title = quote("Exception raised: {}".format(self.message))
         body = quote(body_template.format(
-            session_url="soon",
+            include_session_str=include_session_str,
             application_version=__git_status__,
             sys_version=sys.version.replace("\n", ""),
             formatted_exception="\n".join(tb.format_exception(
@@ -357,7 +384,7 @@ class ExceptionWidget(QtGui.QDialog):
         url = "https://github.com/andycasey/smhr/issues/new?title={}&body={}"\
             .format(title, body)
 
-        os.system('open "{}"'.format(url))
+        os.system('python -m webbrowser "{}"'.format(url))
         return None
 
 
