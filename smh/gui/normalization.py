@@ -233,8 +233,6 @@ class NormalizationTab(QtGui.QWidget):
         self.stitch_btn.setDefault(True)
         self.stitch_btn.setObjectName("stitch_btn")
         self.stitch_btn.setText("Normalize and stitch orders")
-        if sys.platform == "darwin":
-            self.stitch_btn.setStyleSheet('QPushButton {color: white}')
 
         settings_layout.addWidget(self.stitch_btn)
 

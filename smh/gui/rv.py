@@ -346,8 +346,6 @@ class RVTab(QtGui.QWidget):
         rv_ccc_btn.setDefault(True)
         rv_ccc_btn.setObjectName("rv_ccc_btn")
         rv_ccc_btn.setText("Cross-correlate and correct")
-        if sys.platform == "darwin":
-            rv_ccc_btn.setStyleSheet('QPushButton {color: white}')
 
         rv_settings_vbox.addWidget(rv_ccc_btn)
 
