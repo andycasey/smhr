@@ -18,7 +18,7 @@
 - [X] Fix matplotlib visualization bug for figures on the RHS. #gui
 - [ ] Edit masks GUI for normalization tab. #gui
 - [X] I/O: Save/load new session format.
-- [ ] I/O: Create session .from_filename.
+- [X] I/O: Create session from `.load()`
 - [X] Line list manager widget --> transitions/spectral_models/assigned to #category.
 - [X] Can the spectral_models __init__ arguments be abstracted more from the session?
 - [X] Include interactive fitting options in the spectral_models management GUI. #gui
@@ -39,7 +39,7 @@
 - [ ] Show 'heliocentric correction for UTDATE' info in RV tab if it could be calculated.
 - [ ] Ensure inverse variance arrays are being properly used in continuum fitting, and that the fits are correct at the edges.
 - [X] 'Open recent' list in the File menu.
-- [ ] Fix white-text/blue-button GUI bug in OSX. #gui
+- X ] ~~Fix white-text/blue-button GUI bug in OSX. #gui~~
 - [ ] Quality control metrics filter (and GUI) for spectral models. #gui
 - [ ] Refactor method names in tabs to make them more consistent (e.g., _populate_widgets, redraw_*, __init_ui__)
 - [ ] Least-recently-used cacher for the stellar photosphere.
