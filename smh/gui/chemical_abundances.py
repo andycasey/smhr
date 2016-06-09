@@ -450,13 +450,17 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.synth_abund_table.setSizePolicy(sp)
         vbox_rhs.addWidget(self.synth_abund_table)
         
-        self.btn_fit_synth = QtGui.QPushButton(self.tab_synthesis)
-        self.btn_fit_synth.setText("Fit/Synth")
-        vbox_rhs.addWidget(self.btn_fit_synth)
-        
+        self.btn_synthesize = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_synthesize.setText("Synthesize")
+        vbox_rhs.addWidget(self.btn_synthesize)
+
         vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
                                            QtGui.QSizePolicy.Minimum))
 
+        self.btn_fit_synth = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_fit_synth.setText("Fit Model")
+        vbox_rhs.addWidget(self.btn_fit_synth)
+        
         self.btn_update_abund_table = QtGui.QPushButton(self.tab_synthesis)
         self.btn_update_abund_table.setText("Update Abundance Table")
         vbox_rhs.addWidget(self.btn_update_abund_table)
@@ -493,6 +497,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.update_manual_smoothing)
         self.edit_initial_abundance_bound.textChanged.connect(
             self.update_initial_abundance_bound)
+        self.btn_synthesize.clicked.connect(
+            self.synthesize_current_model)
         self.btn_fit_synth.clicked.connect(
             self.fit_one)
         self.btn_update_abund_table.clicked.connect(
@@ -698,6 +704,17 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.refresh_plots()
         return None
 
+    def synthesize_current_model(self):
+        spectral_model, proxy_index, index = self._get_selected_model(True)
+        if spectral_model is None: return None
+        spectral_model.update_fit_after_parameter_change()
+        self.table_view.update_row(proxy_index.row())
+        self.update_cache(proxy_index)
+        self.summarize_current_table()
+        self.update_fitting_options()
+        self.refresh_plots()
+        return None
+        
     def _check_for_spectral_models(self):
         for sm in self.parent.session.metadata.get("spectral_models", []):
             if sm.use_for_stellar_composition_inference: break
