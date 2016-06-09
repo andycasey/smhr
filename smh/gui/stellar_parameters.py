@@ -226,11 +226,9 @@ class StellarParametersTab(QtGui.QWidget):
         self.figure.setSizePolicy(sp)
         #self.figure.setFocusPolicy(QtCore.Qt.StrongFocus)
 
-        self.figure.figure.patch.set_facecolor([(_ - 10)/255. for _ in \
-            self.palette().color(QtGui.QPalette.Window).getRgb()[:3]])
 
         gs_top = matplotlib.gridspec.GridSpec(4, 1)
-        gs_top.update(top=1, right=0.95, bottom=0.05, hspace=0.40)
+        gs_top.update(hspace=0.40)
         gs_bottom = matplotlib.gridspec.GridSpec(4, 1, 
             height_ratios=[2, 2, 1, 2])
         gs_bottom.update(hspace=0)
@@ -266,6 +264,12 @@ class StellarParametersTab(QtGui.QWidget):
         self.ax_residual.xaxis.set_major_locator(MaxNLocator(5))
         self.ax_residual.yaxis.set_major_locator(MaxNLocator(2))
         self.ax_residual.set_xticklabels([])
+
+        # This is a faux twin axis so that the ylabels on ax_line_strength_twin
+        # and ax_excitation_twin do not disappear
+        self.ax_residual_twin = self.ax_residual.twinx()
+        self.ax_residual_twin.set_yticks([])
+        self.ax_residual_twin.set_ylabel(r"$\,$", labelpad=20)
 
         self.ax_spectrum = self.figure.figure.add_subplot(gs_bottom[3])
         self.ax_spectrum.xaxis.get_major_formatter().set_useOffset(False)
@@ -314,7 +318,6 @@ class StellarParametersTab(QtGui.QWidget):
                     zorder=-5)
             ]
         }
-
 
         self.parent_layout.addWidget(self.figure)
 
@@ -445,10 +448,12 @@ class StellarParametersTab(QtGui.QWidget):
             The matplotlib event.
         """
 
-        if event.inaxes in (self.ax_residual, self.ax_spectrum):
+        if event.inaxes \
+        in (self.ax_residual, self.ax_residual_twin, self.ax_spectrum):
             self.spectrum_axis_mouse_press(event)
 
-        elif event.inaxes in (self.ax_excitation, self.ax_excitation_twin,
+        elif event.inaxes \
+        in (self.ax_excitation, self.ax_excitation_twin,
             self.ax_line_strength, self.ax_line_strength_twin):
             self.figure_mouse_pick(event)
 
@@ -463,7 +468,8 @@ class StellarParametersTab(QtGui.QWidget):
             The matplotlib event.
         """
 
-        if event.inaxes in (self.ax_residual, self.ax_spectrum):
+        if event.inaxes \
+        in (self.ax_residual, self.ax_residual_twin, self.ax_spectrum):
             self.spectrum_axis_mouse_release(event)
         return None
 
