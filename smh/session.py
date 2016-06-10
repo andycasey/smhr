@@ -684,14 +684,10 @@ class Session(BaseSession):
 
         """
 
-        #spectral_models = []
-        #for model in self.metadata["spectral_models"]:
-        #    if model.use_for_stellar_parameter_inference:
-        #        spectral_models.append(model)
-        #self.measure_abundances(spectral_models)
-
         # Get the transitions & EWs together from spectral models.
-        equivalent_widths = []
+        ews = []
+        ew_uncertainties = []
+
         transition_indices = []
         spectral_model_indices = []
 
@@ -706,17 +702,26 @@ class Session(BaseSession):
                 spectral_model_indices.append(i)
 
                 if model.is_acceptable:
-                    equivalent_widths.append(1e3 * \
-                        model.metadata["fitted_result"][-1]["equivalent_width"][0])
+
+                    model_ew \
+                        = model.metadata["fitted_result"][-1]["equivalent_width"]
+
+                    ews.append(1e3 * model_ew[0])
+
+                    # Get the largest absolute uncertainty.
+                    ew_uncertainties.append(1e3 * np.abs(model_ew[1:]).max())
+
                 else:
-                    equivalent_widths.append(np.nan)
+                    ews.append(np.nan)
+                    ew_uncertainties.append(np.nan)
             else:
                 spectral_model_indices.append(np.nan)
-                equivalent_widths.append(np.nan)
+                ews.append(np.nan)
+                ew_uncertainties.append(np.nan)
 
 
-        if len(equivalent_widths) == 0 \
-        or np.isfinite(equivalent_widths).sum() == 0:
+        if len(ews) == 0 \
+        or np.isfinite(ews).sum() == 0:
             raise ValueError("no measured transitions to calculate abundances")
 
 
@@ -724,10 +729,9 @@ class Session(BaseSession):
         transition_indices = np.array(transition_indices)
         spectral_model_indices = np.array(spectral_model_indices)
         transitions = self.metadata["line_list"][transition_indices].copy()
-        transitions["equivalent_width"] = equivalent_widths
+        transitions["equivalent_width"] = ews
 
-        #finite = np.isfinite(transitions["equivalent_width"])
-        min_eqw = .01
+        min_eqw = kwargs.pop("minimum_equivalent_width", 0.01) # mA
         finite = np.logical_and(np.isfinite(transitions["equivalent_width"]),
                                 transitions["equivalent_width"] > min_eqw)
 
@@ -736,7 +740,6 @@ class Session(BaseSession):
         abundances = self.rt.abundance_cog(
             self.stellar_photosphere, transitions[finite])
 
-
         for index, abundance in zip(spectral_model_indices[finite], abundances):
             self.metadata["spectral_models"][int(index)]\
                 .metadata["fitted_result"][-1]["abundances"] = [abundance]
@@ -744,10 +747,33 @@ class Session(BaseSession):
         transitions["abundance"] = np.nan * np.ones(len(transitions))
         transitions["abundance"][finite] = abundances
 
+        # Calculate abundance uncertainties by propagating the positive
+        # uncertainty in equivalent width.
+
+        _transitions = transitions.copy()
+        _transitions["equivalent_width"] += ew_uncertainties
+        finite = np.isfinite(_transitions["equivalent_width"])
+
+        propagated_abundances = self.rt.abundance_cog(
+            self.stellar_photosphere, _transitions[finite])
+
+        for index, abundance, propagated_abundance \
+        in zip(spectral_model_indices[finite], transitions["abundance"][finite],
+            propagated_abundances):
+
+            self.metadata["spectral_models"][int(index)]\
+                .metadata["fitted_result"][-1]["abundance_uncertainties"] \
+                    = [propagated_abundance - abundance]
+
+        transitions["abundance_uncertainty"] = np.nan * np.ones(len(transitions))
+        transitions["abundance_uncertainty"][finite] \
+            = propagated_abundances - transitions["abundance"][finite]
+
         # By default just return a transitions table for convenience.
         if not full_output:
             return transitions
 
+        # TODO TAKE THIS FROM THE SPECTRAL MODEL METADATA.
         transitions["reduced_equivalent_width"] = np.log10(1e-3 * \
             transitions["equivalent_width"] / transitions["wavelength"])
 

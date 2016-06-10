@@ -1224,10 +1224,7 @@ class StellarParametersTab(QtGui.QWidget):
     def options(self):
         """ Open a GUI for the radiative transfer and solver options. """
 
-        dialog = SolveOptionsDialog(self.parent.session)
-        dialog.exec_()
-
-        return None
+        return SolveOptionsDialog(self.parent.session).exec_()
 
 
     def solve_parameters(self):
@@ -1251,8 +1248,6 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
         indices = np.unique([self.model().mapToSource(index).row() \
             for index in proxy_indices])
 
-        print("proxy", proxy_indices)
-        print("indices", indices)
 
         N = len(indices)
 
