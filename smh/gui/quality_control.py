@@ -45,6 +45,7 @@ class QualityControlDialog(QtGui.QDialog):
 
         super(QualityControlDialog, self).__init__(**kwargs)
 
+        self.affected_indices = []
         self.session = session
         self.callbacks = callbacks or []
         self.filter_spectral_models = filter_spectral_models

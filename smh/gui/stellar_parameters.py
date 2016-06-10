@@ -13,6 +13,7 @@ import matplotlib.gridspec
 import numpy as np
 import sys
 from PySide import QtCore, QtGui
+from matplotlib.colors import ColorConverter
 from matplotlib.ticker import MaxNLocator
 from time import time
 
@@ -235,10 +236,9 @@ class StellarParametersTab(QtGui.QWidget):
         gs_bottom.update(hspace=0)
 
         self._colors = {
-            26.0: "k",
+            26.0: "#666666",
             26.1: "r"
         }
-
 
         self.ax_excitation = self.figure.figure.add_subplot(gs_top[0])
         self.ax_excitation.xaxis.get_major_formatter().set_useOffset(False)
@@ -289,16 +289,25 @@ class StellarParametersTab(QtGui.QWidget):
             "excitation_medians": {},
             "line_strength_medians": {},
             "scatter_points": [
-                self.ax_excitation.scatter(
-                    [], [], s=30, alpha=0.5, ),
-                self.ax_line_strength.scatter(
-                    [], [], s=30, alpha=0.5, ),
+                self.ax_excitation.scatter([], [], s=30, alpha=0.75, zorder=10),
+                self.ax_line_strength.scatter([], [], s=30, alpha=0.75, zorder=10),
+            ],
+            "scatter_point_errors": [
+                self.ax_excitation.errorbar(
+                    np.nan * np.ones(2), np.nan * np.ones(2), 
+                    yerr=np.nan * np.ones((2, 2)), 
+                    fmt=None, ecolor="#666666", elinewidth=2, zorder=-10),
+                self.ax_line_strength.errorbar(
+                    np.nan * np.ones(2), np.nan * np.ones(2), 
+                    xerr=np.nan * np.ones((2, 2)),
+                    yerr=np.nan * np.ones((2, 2)),
+                    fmt=None, ecolor="#666666", elinewidth=2,  zorder=-10)
             ],
             "selected_point": [
                 self.ax_excitation.scatter([], [],
-                    edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=2),
+                    edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=1e4),
                 self.ax_line_strength.scatter([], [],
-                    edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=2)
+                    edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=1e4)
             ],
             "spectrum": None,
             "transitions_center_main": self.ax_spectrum.axvline(
@@ -413,10 +422,12 @@ class StellarParametersTab(QtGui.QWidget):
         dialog.exec_()
 
         # Update the state.
-        indices = np.array(dialog.affected_indices)
-        if indices.size > 0:
-            self._state_transitions["abundance"][indices] = np.nan
-            self._state_transitions["reduced_equivalent_width"][indices] = np.nan
+        if len(dialog.affected_indices) > 0:
+
+            if hasattr(self, "_state_transitions"):
+                indices = np.array(dialog.affected_indices)
+                self._state_transitions["abundance"][indices] = np.nan
+                self._state_transitions["reduced_equivalent_width"][indices] = np.nan
 
             # Update table and view.
             self.proxy_spectral_models.reset()
@@ -728,6 +739,13 @@ class StellarParametersTab(QtGui.QWidget):
 
 
     def update_scatter_plots(self, redraw=False):
+        """
+        Update the axes showing the abundances with respect to excitation
+        potential and abundances with respect to reduced equivalent width.
+
+        :param redraw: [optional]
+            Force a redraw of the figure.
+        """
 
         if not hasattr(self, "_state_transitions"):
             if redraw:
@@ -737,17 +755,60 @@ class StellarParametersTab(QtGui.QWidget):
         # Update figures.
         colors = [self._colors.get(s, "#FFFFFF") \
             for s in self._state_transitions["species"]]
+
         ex_collection, line_strength_collection = self._lines["scatter_points"]
 
-        ex_collection.set_offsets(np.array([
-            self._state_transitions["expot"],
-            self._state_transitions["abundance"]]).T)
+        ex_container, ls_container = self._lines["scatter_point_errors"]
+
+        # No error in x-direction.
+        _, (ex_yerr_top, ex_yerr_bot), (ybars, ) = ex_container
+
+        x = self._state_transitions["expot"]
+        y = self._state_transitions["abundance"]
+        ex_collection.set_offsets(np.array([x, y]).T)
         ex_collection.set_facecolor(colors)
 
-        line_strength_collection.set_offsets(np.array([
-            self._state_transitions["reduced_equivalent_width"],
-            self._state_transitions["abundance"]]).T)
+        # Update errors.
+        yerr = self._state_transitions["abundance_uncertainty"]
+        yerr_top = self._state_transitions["abundance"] + yerr
+        yerr_bot = self._state_transitions["abundance"] - yerr
+
+        ex_yerr_top.set_xdata(x)
+        ex_yerr_bot.set_xdata(x)
+        ex_yerr_top.set_ydata(yerr_top)
+        ex_yerr_bot.set_ydata(yerr_bot)
+
+        ex_ysegments = [np.array([[x, yt], [x, yb]]) for x, yt, yb in \
+            zip(x, yerr_top, yerr_bot)]
+        ybars.set_segments(ex_ysegments)
+
+        x = self._state_transitions["reduced_equivalent_width"]
+        line_strength_collection.set_offsets(np.array([x, y]).T)
         line_strength_collection.set_facecolor(colors)
+
+        _, (ls_xerr_lt, ls_xerr_rt, ls_yerr_top, ls_yerr_bot), (xbars, ybars) \
+            = ls_container
+        
+        # Update errors (y-errors the same as above).
+        xerr = np.nan * np.ones(len(self._state_transitions))
+        xerr_rt = self._state_transitions["reduced_equivalent_width"] + xerr
+        xerr_lt = self._state_transitions["reduced_equivalent_width"] - xerr
+
+        ls_yerr_top.set_xdata(x)
+        ls_yerr_bot.set_xdata(x)
+        ls_yerr_top.set_ydata(yerr_top)
+        ls_yerr_bot.set_ydata(yerr_bot)
+
+        ls_xerr_lt.set_ydata(y)
+        ls_xerr_rt.set_ydata(y)
+        ls_xerr_lt.set_xdata(xerr_lt)
+        ls_xerr_rt.set_xdata(xerr_rt)
+
+        ybars.set_segments([np.array([[x, yt], [x, yb]]) for x, yt, yb in \
+            zip(x, yerr_top, yerr_bot)])
+
+        xbars.set_segments([np.array([[xt, y], [xb, y]]) for xt, xb, y in \
+            zip(xerr_rt, xerr_lt, y)])
 
         # Update limits on the excitation and line strength figures.
         style_utils.relim_axes(self.ax_excitation)

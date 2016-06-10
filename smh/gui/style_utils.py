@@ -8,7 +8,7 @@ from __future__ import (division, print_function, absolute_import,
 __all__ = ["wavelength_to_hex", "relim_axes", "fill_between_steps"]
 
 import numpy as np
-
+from matplotlib.collections import PathCollection
 
 def wavelength_to_hex(wavelength):
     """
@@ -115,7 +115,9 @@ def relim_axes(axes, percent=20):
         y-axis, respectively.
     """
 
-    data = np.vstack([item.get_offsets() for item in axes.collections])
+    data = np.vstack([item.get_offsets() for item in axes.collections \
+        if isinstance(item, PathCollection)])
+
     if data.size == 0:
         return (None, None)
     
