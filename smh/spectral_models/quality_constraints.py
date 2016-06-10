@@ -1,9 +1,15 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
+""" Quality constraints for spectral models. """
+
+from __future__ import (division, print_function, absolute_import,
+                        unicode_literals)
+
+__all__ = ["constraint", "constraints"]
 
 import logging
 import numpy as np
-
-__all__ = ["constraint", "constraints"]
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +52,10 @@ _get_data_from_model = {}
     (_common_constraints, _profile_constraints, _synthesis_constraints)]
 
 
-def constraint(spectral_model, constraint_name, lower, upper):
+def constraint(spectral_model, constraint_name, lower, upper, full_output=False):
     """
-    Returns a boolean flag as to whether the supplied spectral model meets a
-    constraint.
+    Returns a boolean value indicating whether the supplied spectral model meets
+    a constraint.
 
     :param spectral_model:
         A spectral model.
@@ -64,15 +70,20 @@ def constraint(spectral_model, constraint_name, lower, upper):
     :param upper:
         An (inclusive) upper bound value.
 
+    :param full_output: [optional]
+        Optionally also return the model value for this constraint.
+
     :returns:
-        `True` if the model meets the constraint, `False` if it doesn't.
+        `True` if the model meets the constraint, `False` if it doesn't. If
+        `full_output` is used, a two-length tuple containing 
+        `(is_ok, model_value)` will be returned.
     """
 
     lower, upper = (lower or -np.inf, upper or +np.inf)
 
     if not np.any(np.isfinite([lower, upper])):
         # Nothing to check.
-        return True
+        return True if not full_output else (True, None)
 
     try:
         func = _get_data_from_model[constraint_name]
@@ -87,13 +98,14 @@ def constraint(spectral_model, constraint_name, lower, upper):
 
     except KeyError:
         # That entry of data does not exist in this model.
-        return True
+        return True if not full_output else (True, None)
 
     # If we get back an array of values from get_model_data, we will
     # apply the constraint to *every* value. All values must fit within
     # the constraints.
     qualifier = np.all if isinstance(value, np.ndarray) else np.any    
-    return qualifier((upper >= value) * (value >= lower))
+    is_ok = qualifier((upper >= value) * (value >= lower))
+    return is_ok if not full_output else (is_ok, value)
 
 
 def constraints(spectral_model, quality_constraints):
@@ -113,12 +125,13 @@ def constraints(spectral_model, quality_constraints):
     """
 
     for constraint_name, (lower, upper) in quality_constraints.items():
-        if not constraint(spectral_model, constraint_name, lower, upper):
+        is_ok, value = constraint(
+            spectral_model, constraint_name, lower, upper, full_output=True)
+        if not is_ok:
             logger.debug(
-                "Spectral model {} does not meet quality constraint {} with "\
-                "bounds ({}, {})".format(
-                    spectral_model, constraint_name, lower, upper))
+                "Spectral model {} does not meet quality constraint {}: "\
+                "({} >= {} >= {}) not met".format(
+                    spectral_model, constraint_name, lower, value, upper))
             return False
 
     return True
-
