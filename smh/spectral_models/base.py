@@ -67,6 +67,17 @@ class BaseSpectralModel(object):
 
 
     @property
+    def wavelength(self):
+        """
+        Return a (sometimes approximate) wavelength for where this spectral line
+        occurs.
+        """
+
+        wavelength = np.mean(self.transitions["wavelength"])
+        return int(wavelength) if len(self.transitions) > 1 else wavelength
+        
+
+    @property
     def is_acceptable(self):
         """ Return whether this spectral model is acceptable. """
         return self.metadata.get("is_acceptable", False)

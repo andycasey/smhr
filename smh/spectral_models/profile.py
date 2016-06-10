@@ -489,8 +489,13 @@ class ProfileFittingModel(BaseSpectralModel):
         x, model_y, model_yerr, residuals = self._fill_masked_arrays(
             spectrum, x, model_y, model_yerr, residuals)
 
+    
+        rew = np.log10(ew/p0[0])
+        rew_uncertainty = np.log10((ew + ew_uncertainty)/p0[0]) - rew
+
         fitting_metadata = {
             "equivalent_width": (ew, ew_uncertainty[0], ew_uncertainty[1]),
+            "reduced_equivalent_width": np.hstack([rew, rew_uncertainty]),
             "data_indices": np.where(mask)[0][iterative_mask],
             "model_x": x,
             "model_y": model_y,
