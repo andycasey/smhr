@@ -379,7 +379,7 @@ class Session(BaseSession):
         return radiative_transfer.moog
 
 
-    def setting(self, key_tree):
+    def setting(self, key_tree, default_return_value=None):
         """
         Return a setting value either from the session metadata, or the default.
 
@@ -401,7 +401,7 @@ class Session(BaseSession):
                 for key in key_tree:
                     default = default[key]
             except KeyError:
-                return None
+                return default_return_value
 
             else:
                 return default
@@ -427,6 +427,7 @@ class Session(BaseSession):
 
         branch = defaults
         for key in key_tree[:-1]:
+            branch.setdefault(key, {})
             branch = branch[key]
         branch[key_tree[-1]] = value
 

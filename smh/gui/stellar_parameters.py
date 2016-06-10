@@ -24,8 +24,8 @@ from smh import utils
 from linelist_manager import TransitionsDialog
 
 from spectral_models_table import SpectralModelsTableViewBase, SpectralModelsFilterProxyModel, SpectralModelsTableModelBase
-
 from quality_control import QualityControlDialog
+from sp_solve_options import SolveOptionsDialog
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,6 @@ if sys.platform == "darwin":
 
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
-PICKER_TOLERANCE = 100 # MAGIC HACK
 
 
 class StellarParametersTab(QtGui.QWidget):
@@ -1224,7 +1223,11 @@ class StellarParametersTab(QtGui.QWidget):
 
     def options(self):
         """ Open a GUI for the radiative transfer and solver options. """
-        raise NotImplementedError
+
+        dialog = SolveOptionsDialog(self.parent.session)
+        dialog.exec_()
+
+        return None
 
 
     def solve_parameters(self):

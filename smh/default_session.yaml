@@ -58,6 +58,9 @@ spectral_model_quality_constraints:
   #loggf: [None, None]
   #wavelength: [None, None]
 
+stellar_parameter_inference:
+  use_abundance_uncertainties_in_line_fits: true
+
 summary:
   top_axis:
     star_x: teff
