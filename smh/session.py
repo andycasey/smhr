@@ -358,7 +358,8 @@ class Session(BaseSession):
         only = only or (lambda model: True)
         self.metadata.setdefault("spectral_models", [])
         for i, spectral_model in enumerate(self.metadata["spectral_models"]):
-            if not only(spectral_model) or not model.is_acceptable: continue
+            if not only(spectral_model) \
+            or not spectral_model.is_acceptable: continue
 
             if not spectral_model.apply_quality_constraints(constraints):
                 indices.append(i)

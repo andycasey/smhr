@@ -490,8 +490,10 @@ class ProfileFittingModel(BaseSpectralModel):
             spectrum, x, model_y, model_yerr, residuals)
 
 
-        rew = np.log10(ew/p0[0])
-        rew_uncertainty = np.log10((ew + ew_uncertainty)/p0[0]) - rew
+        # We ignore the uncertainty in wavelength position because it only
+        # affects the uncertainty in REW at the ~10^-5 level.
+        rew = np.log10(ew/p_opt[0])
+        rew_uncertainty = np.log10((ew + ew_uncertainty)/p_opt[0]) - rew
 
         fitting_metadata = {
             "equivalent_width": (ew, ew_uncertainty[0], ew_uncertainty[1]),

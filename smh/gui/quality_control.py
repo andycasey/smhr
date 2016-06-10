@@ -8,9 +8,12 @@ from __future__ import (division, print_function, absolute_import,
 
 __all__ = ["QualityControlDialog"]
 
+import logging
 import numpy as np
+
 from PySide import QtCore, QtGui
 
+logger = logging.getLogger(__name__)
 
 class QualityControlDialog(QtGui.QDialog):
 
@@ -47,7 +50,7 @@ class QualityControlDialog(QtGui.QDialog):
         self.filter_spectral_models = filter_spectral_models
 
         # Display dialog in center and set size policy.
-        self.setGeometry(400, 300, 400, 300)
+        self.setGeometry(400, 400, 400, 400)
         self.move(QtGui.QApplication.desktop().screen().rect().center() \
             - self.rect().center())
         self.setWindowTitle("Quality criteria for spectral models")
@@ -81,11 +84,12 @@ class QualityControlDialog(QtGui.QDialog):
         self.edit_wavelength_upper.setMinimumSize(QtCore.QSize(60, 0))
         self.edit_wavelength_upper.setMaximumSize(QtCore.QSize(60, 16777215))
 
-        grid.addWidget(label_wavelength, 0, 0, 1, 1)
+        index = 0
+        grid.addWidget(label_wavelength, index, 0, 1, 1)
         grid.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
-            QtGui.QSizePolicy.Minimum), 0, 1, 1, 1)
-        grid.addWidget(self.edit_wavelength_lower, 0, 2, 1, 1)
-        grid.addWidget(self.edit_wavelength_upper, 0, 3, 1, 1)
+            QtGui.QSizePolicy.Minimum), index, 1, 1, 1)
+        grid.addWidget(self.edit_wavelength_lower, index, 2, 1, 1)
+        grid.addWidget(self.edit_wavelength_upper, index, 3, 1, 1)
 
         line_list = session.metadata.get("line_list", None)
         if line_list is not None:
@@ -109,11 +113,12 @@ class QualityControlDialog(QtGui.QDialog):
         self.edit_expot_upper.setMinimumSize(QtCore.QSize(60, 0))
         self.edit_expot_upper.setMaximumSize(QtCore.QSize(60, 16777215))
 
-        grid.addWidget(label_expot, 1, 0, 1, 1)
+        index += 1
+        grid.addWidget(label_expot, index, 0, 1, 1)
         grid.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
-            QtGui.QSizePolicy.Minimum), 1, 1, 1, 1)
-        grid.addWidget(self.edit_expot_lower, 1, 2, 1, 1)
-        grid.addWidget(self.edit_expot_upper, 1, 3, 1, 1)
+            QtGui.QSizePolicy.Minimum), index, 1, 1, 1)
+        grid.addWidget(self.edit_expot_lower, index, 2, 1, 1)
+        grid.addWidget(self.edit_expot_upper, index, 3, 1, 1)
 
         try:
             expot_range = (min(line_list["expot"]), max(line_list["expot"]))
@@ -139,14 +144,63 @@ class QualityControlDialog(QtGui.QDialog):
         self.edit_ew_upper.setMinimumSize(QtCore.QSize(60, 0))
         self.edit_ew_upper.setMaximumSize(QtCore.QSize(60, 16777215))
 
-        grid.addWidget(label_ew, 2, 0, 1, 1)
+        index += 1
+        grid.addWidget(label_ew, index, 0, 1, 1)
         grid.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
-            QtGui.QSizePolicy.Minimum), 2, 1, 1, 1)
-        grid.addWidget(self.edit_ew_lower, 2, 2, 1, 1)
-        grid.addWidget(self.edit_ew_upper, 2, 3, 1, 1)
+            QtGui.QSizePolicy.Minimum), index, 1, 1, 1)
+        grid.addWidget(self.edit_ew_lower, index, 2, 1, 1)
+        grid.addWidget(self.edit_ew_upper, index, 3, 1, 1)
 
         for item in (self.edit_ew_lower, self.edit_ew_upper):
             item.setValidator(QtGui.QDoubleValidator(0, np.inf, 2, item))
+            item.textChanged.connect(self.check_lineedit_state)
+
+
+        # Uncertainty in equivalent width
+        label_ew = QtGui.QLabel(self)
+        label_ew.setText(u"Equivalent width uncertainty (mÅ)")
+
+        self.edit_ew_u_lower = QtGui.QLineEdit(self)
+        self.edit_ew_u_lower.setMinimumSize(QtCore.QSize(60, 0))
+        self.edit_ew_u_lower.setMaximumSize(QtCore.QSize(60, 16777215))
+
+        self.edit_ew_u_upper = QtGui.QLineEdit(self)
+        self.edit_ew_u_upper.setMinimumSize(QtCore.QSize(60, 0))
+        self.edit_ew_u_upper.setMaximumSize(QtCore.QSize(60, 16777215))
+
+        index += 1
+        grid.addWidget(label_ew, index, 0, 1, 1)
+        grid.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+            QtGui.QSizePolicy.Minimum), index, 1, 1, 1)
+        grid.addWidget(self.edit_ew_u_lower, index, 2, 1, 1)
+        grid.addWidget(self.edit_ew_u_upper, index, 3, 1, 1)
+
+        for item in (self.edit_ew_u_lower, self.edit_ew_u_upper):
+            item.setValidator(QtGui.QDoubleValidator(0, np.inf, 1, item))
+            item.textChanged.connect(self.check_lineedit_state)
+
+
+        # Uncertainty in equivalent width
+        label_ew = QtGui.QLabel(self)
+        label_ew.setText(u"Equivalent width uncertainty (%)")
+
+        self.edit_ew_u_percent_lower = QtGui.QLineEdit(self)
+        self.edit_ew_u_percent_lower.setMinimumSize(QtCore.QSize(60, 0))
+        self.edit_ew_u_percent_lower.setMaximumSize(QtCore.QSize(60, 16777215))
+
+        self.edit_ew_u_percent_upper = QtGui.QLineEdit(self)
+        self.edit_ew_u_percent_upper.setMinimumSize(QtCore.QSize(60, 0))
+        self.edit_ew_u_percent_upper.setMaximumSize(QtCore.QSize(60, 16777215))
+
+        index += 1
+        grid.addWidget(label_ew, index, 0, 1, 1)
+        grid.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+            QtGui.QSizePolicy.Minimum), index, 1, 1, 1)
+        grid.addWidget(self.edit_ew_u_percent_lower, index, 2, 1, 1)
+        grid.addWidget(self.edit_ew_u_percent_upper, index, 3, 1, 1)
+
+        for item in (self.edit_ew_u_percent_lower, self.edit_ew_u_percent_upper):
+            item.setValidator(QtGui.QDoubleValidator(0, 100, 0, item))
             item.textChanged.connect(self.check_lineedit_state)
 
 
@@ -162,11 +216,12 @@ class QualityControlDialog(QtGui.QDialog):
         self.edit_rew_upper.setMinimumSize(QtCore.QSize(60, 0))
         self.edit_rew_upper.setMaximumSize(QtCore.QSize(60, 16777215))
 
-        grid.addWidget(label_rew, 3, 0, 1, 1)
+        index += 1
+        grid.addWidget(label_rew, index, 0, 1, 1)
         grid.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
-            QtGui.QSizePolicy.Minimum), 3, 1, 1, 1)
-        grid.addWidget(self.edit_rew_lower, 3, 2, 1, 1)
-        grid.addWidget(self.edit_rew_upper, 3, 3, 1, 1)
+            QtGui.QSizePolicy.Minimum), index, 1, 1, 1)
+        grid.addWidget(self.edit_rew_lower, index, 2, 1, 1)
+        grid.addWidget(self.edit_rew_upper, index, 3, 1, 1)
 
         for item in (self.edit_rew_lower, self.edit_rew_upper):
             item.setValidator(QtGui.QDoubleValidator(-np.inf, np.inf, 2, item))
@@ -185,15 +240,41 @@ class QualityControlDialog(QtGui.QDialog):
         self.edit_abundance_upper.setMinimumSize(QtCore.QSize(60, 0))
         self.edit_abundance_upper.setMaximumSize(QtCore.QSize(60, 16777215))
 
-        grid.addWidget(label_abundance, 4, 0, 1, 1)
+        index += 1
+        grid.addWidget(label_abundance, index, 0, 1, 1)
         grid.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
-            QtGui.QSizePolicy.Minimum), 4, 1, 1, 1)
-        grid.addWidget(self.edit_abundance_lower, 4, 2, 1, 1)
-        grid.addWidget(self.edit_abundance_upper, 4, 3, 1, 1)
+            QtGui.QSizePolicy.Minimum), index, 1, 1, 1)
+        grid.addWidget(self.edit_abundance_lower, index, 2, 1, 1)
+        grid.addWidget(self.edit_abundance_upper, index, 3, 1, 1)
 
         for item in (self.edit_abundance_lower, self.edit_abundance_upper):
             item.setValidator(QtGui.QDoubleValidator(-np.inf, np.inf, 2, item))
             item.textChanged.connect(self.check_lineedit_state)
+
+
+        # Abundance uncertainty
+        label_abundance = QtGui.QLabel(self)
+        label_abundance.setText(u"Abundance uncertainty (log ε, dex)")
+
+        self.edit_abundance_u_lower = QtGui.QLineEdit(self)
+        self.edit_abundance_u_lower.setMinimumSize(QtCore.QSize(60, 0))
+        self.edit_abundance_u_lower.setMaximumSize(QtCore.QSize(60, 16777215))
+
+        self.edit_abundance_u_upper = QtGui.QLineEdit(self)
+        self.edit_abundance_u_upper.setMinimumSize(QtCore.QSize(60, 0))
+        self.edit_abundance_u_upper.setMaximumSize(QtCore.QSize(60, 16777215))
+
+        index += 1
+        grid.addWidget(label_abundance, index, 0, 1, 1)
+        grid.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+            QtGui.QSizePolicy.Minimum), index, 1, 1, 1)
+        grid.addWidget(self.edit_abundance_u_lower, index, 2, 1, 1)
+        grid.addWidget(self.edit_abundance_u_upper, index, 3, 1, 1)
+
+        for item in (self.edit_abundance_u_lower, self.edit_abundance_u_upper):
+            item.setValidator(QtGui.QDoubleValidator(-np.inf, np.inf, 2, item))
+            item.textChanged.connect(self.check_lineedit_state)
+
 
         vbox.addLayout(grid)
 
@@ -243,8 +324,8 @@ class QualityControlDialog(QtGui.QDialog):
 
         def safe_float(lineedit_widget):
             try:
-                return float(lineedit_widget.getText())
-            except:
+                return float(lineedit_widget.text())
+            except ValueError:
                 return None
 
         constraints = {
@@ -252,12 +333,40 @@ class QualityControlDialog(QtGui.QDialog):
                 safe_float(self.edit_wavelength_lower),
                 safe_float(self.edit_wavelength_upper)
             ],
+            "abundance": [
+                safe_float(self.edit_abundance_lower),
+                safe_float(self.edit_abundance_upper)
+            ],
+            "abundance_uncertainty": [
+                safe_float(self.edit_abundance_u_lower),
+                safe_float(self.edit_abundance_u_upper)
+            ],
+            "equivalent_width": [
+                safe_float(self.edit_ew_lower),
+                safe_float(self.edit_ew_upper)
+            ],
+            "equivalent_width_uncertainty": [
+                safe_float(self.edit_ew_u_lower),
+                safe_float(self.edit_ew_u_upper)
+            ],
+            "equivalent_width_percentage_uncertainty": [
+                safe_float(self.edit_ew_u_percent_lower),
+                safe_float(self.edit_ew_u_percent_upper)
+            ],
+            "reduced_equivalent_width": [
+                safe_float(self.edit_rew_lower),
+                safe_float(self.edit_rew_upper)
+            ],
+            "excitation_potential": [
+                safe_float(self.edit_expot_lower),
+                safe_float(self.edit_expot_upper)
+            ]
         }
 
-        raise NotImplementedError("requires a thinko..")
-        
-        affected = self.session.apply_quality_constraints(
-            constraints, only=self.filter_spectral_models)
+        logger.info("Supplying constraints: {}".format(constraints))
+        affected, self.affected_indices \
+            = self.session.apply_spectral_model_quality_constraints(
+                constraints, only=self.filter_spectral_models, full_output=True)
 
         # Show how many were affected.
         return self.show_affected(affected)
@@ -303,7 +412,10 @@ if __name__ == "__main__":
         app = QtGui.QApplication(sys.argv)
     except RuntimeError:
         None
-    window = QualityControlDialog(None)
+
+    import smh
+    a = smh.Session.load("hd122563.smh")
+    window = QualityControlDialog(a)
     window.exec_()
 
     

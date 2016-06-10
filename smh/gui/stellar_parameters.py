@@ -25,6 +25,8 @@ from linelist_manager import TransitionsDialog
 
 from spectral_models_table import SpectralModelsTableViewBase, SpectralModelsFilterProxyModel, SpectralModelsTableModelBase
 
+from quality_control import QualityControlDialog
+
 logger = logging.getLogger(__name__)
 
 if sys.platform == "darwin":
@@ -406,7 +408,23 @@ class StellarParametersTab(QtGui.QWidget):
         Show a dialog to specify quality control constraints for spectral models
         used in the determination of stellar parameters.
         """
-        raise NotImplementedError
+
+        dialog = QualityControlDialog(self.parent.session,
+            filter_spectral_models=lambda m: m.use_for_stellar_parameter_inference)
+        dialog.exec_()
+
+        # Update the state.
+        indices = np.array(dialog.affected_indices)
+        if indices.size > 0:
+            self._state_transitions["abundance"][indices] = np.nan
+            self._state_transitions["reduced_equivalent_width"][indices] = np.nan
+
+            # Update table and view.
+            self.proxy_spectral_models.reset()
+            self.update_scatter_plots()
+            self.update_trend_lines(redraw=True)
+
+        return None
 
 
     def figure_mouse_pick(self, event):
