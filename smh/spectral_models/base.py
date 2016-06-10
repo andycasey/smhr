@@ -75,12 +75,24 @@ class BaseSpectralModel(object):
 
         wavelength = np.mean(self.transitions["wavelength"])
         return int(wavelength) if len(self.transitions) > 1 else wavelength
-        
+
 
     @property
     def is_acceptable(self):
         """ Return whether this spectral model is acceptable. """
         return self.metadata.get("is_acceptable", False)
+
+
+    @is_acceptable.setter
+    def is_acceptable(self, decision):
+        """
+        Mark the spectral model as acceptable or unacceptable.
+
+        :param decision:
+            A boolean flag.
+        """
+        self.metadata["is_acceptable"] = bool(decision)
+        return None
 
 
     @property
@@ -92,6 +104,19 @@ class BaseSpectralModel(object):
         return self.metadata["use_for_stellar_parameter_inference"]
 
 
+    @use_for_stellar_parameter_inference.setter
+    def use_for_stellar_parameter_inference(self, decision):
+        """
+        Mark whether this spectral model should be used when inferring stellar
+        parameters.
+
+        :param decision:
+            A boolean flag.
+        """
+        self.metadata["use_for_stellar_parameter_inference"] = bool(decision)
+        return None
+
+
     @property
     def use_for_stellar_composition_inference(self):
         """
@@ -99,6 +124,21 @@ class BaseSpectralModel(object):
         of stellar composition.
         """
         return self.metadata["use_for_stellar_composition_inference"]
+
+
+
+    @use_for_stellar_composition_inference.setter
+    def use_for_stellar_composition_inference(self, decision):
+        """
+        Mark whether this spectral model should be used when inferring the 
+        stellar composition.
+        
+        :param decision:
+            A boolean flag.
+        """
+        self.metadata["use_for_stellar_composition_inference"] = bool(decision)
+        return None
+
 
 
     @property
