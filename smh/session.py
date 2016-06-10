@@ -331,14 +331,14 @@ class Session(BaseSession):
         return None
 
 
-
-    def apply_quality_constraints(self, constraints, only=None):
+    def apply_spectral_model_quality_constraints(self, constraints, only=None,
+        full_output=False):
         """
         Apply quality constraints to some or all of the spectral models in this 
         session. Spectral models that do not match the specified constraints are
         marked as unacceptable.
 
-        :param constraints:
+        :param constraints: 
             A dictionary specifying the constraints to apply.
 
         :param only: [optional]
@@ -346,26 +346,25 @@ class Session(BaseSession):
             returns True or False whether that spectral model should be subject
             to the `constraints`.
 
+        :param full_output: [optional]
+            Optionally return the number of models affected and their indices.
+
         :returns:
-            The number of spectral models affected by the quality constraints.
+            The number of spectral models affected by the quality constraints,
+            and optionally, the indices of those affected spectral models.
         """
 
-        N = 0
+        indices = []
         only = only or (lambda model: True)
-        for spectral_model in self.metadata.get("spectral_models", []):
-            if not only(spectral_model): continue
+        self.metadata.setdefault("spectral_models", [])
+        for i, spectral_model in enumerate(self.metadata["spectral_models"]):
+            if not only(spectral_model) or not model.is_acceptable: continue
 
-            for key, (lower, upper) in constraints.items():
+            if not spectral_model.apply_quality_constraints(constraints):
+                indices.append(i)
 
-                # Get data.
-
-                if (lower is not None and value < lower) \
-                or (upper is not None and value > upper):
-                    spectral_model.is_acceptable = False
-                    N += 1
-
-        return N
-
+        N = len(indices)
+        return N if not full_output else (N, indices)
 
 
     @property

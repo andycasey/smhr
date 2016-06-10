@@ -10,6 +10,7 @@ __all__ = ["BaseSpectralModel"]
 
 import numpy as np
 
+from .quality_constraints import constraints
 
 class BaseSpectralModel(object):
 
@@ -91,7 +92,9 @@ class BaseSpectralModel(object):
         :param decision:
             A boolean flag.
         """
-        self.metadata["is_acceptable"] = bool(decision)
+        decision = bool(decision)
+        if not decision or (decision and "fitted_result" in self.metadata):
+            self.metadata["is_acceptable"] = bool(decision)
         return None
 
 
@@ -132,13 +135,55 @@ class BaseSpectralModel(object):
         """
         Mark whether this spectral model should be used when inferring the 
         stellar composition.
-        
+
         :param decision:
             A boolean flag.
         """
         self.metadata["use_for_stellar_composition_inference"] = bool(decision)
         return None
 
+
+    def apply_quality_constraints(self, quality_constraints):
+        """
+        Apply quality constraints to the this spectral model. If the model does
+        not meet the quality constraints it will be marked as unacceptable.
+
+        :param quality_constraints:
+            A dictionary containing constraint names as keys and a 2-length
+            tuple with the (lower, upper) bounds specified as values.
+
+        :returns:
+            Whether this model met the specified quality constraints.
+        """
+
+        is_ok = constraints(self, quality_constraints)
+        self.is_acceptable = is_ok
+        return is_ok
+
+
+    def meets_quality_constraints(self, quality_constraints):
+        """
+        Check whether this spectral model meets specified quality constraints.
+
+        :param quality_constraints:
+            A dictionary containing constraint names as keys and a 2-length
+            tuple with the (lower, upper) bounds specified as values.
+
+        :returns:
+            Whether this model met the specified quality constraints.
+        """
+        return constraints(self, quality_constraints)
+
+
+    @property
+    def meets_quality_constraints_in_parent_session(self):
+        """
+        Returns whether this spectral model meets the quality constraints set
+        in the parent session.
+        """
+
+        return self.meets_quality_constraints(
+            self._session.setting(("spectral_model_quality_constraints", )) or {})
 
 
     @property

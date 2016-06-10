@@ -489,7 +489,7 @@ class ProfileFittingModel(BaseSpectralModel):
         x, model_y, model_yerr, residuals = self._fill_masked_arrays(
             spectrum, x, model_y, model_yerr, residuals)
 
-    
+
         rew = np.log10(ew/p0[0])
         rew_uncertainty = np.log10((ew + ew_uncertainty)/p0[0]) - rew
 
@@ -513,7 +513,9 @@ class ProfileFittingModel(BaseSpectralModel):
         # Convert p_opt to ordered dictionary
         named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
         self.metadata["fitted_result"] = (named_p_opt, p_cov, fitting_metadata)
-        self.metadata["is_acceptable"] = True
+
+        # Only mark as acceptable if the model meets the quality constraints.
+        self.is_acceptable = self.meets_quality_constraints_in_parent_session
 
         return self.metadata["fitted_result"]
 

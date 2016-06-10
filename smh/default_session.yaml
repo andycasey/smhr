@@ -38,6 +38,26 @@ isotopes:
     138: 0.279
     134: 0.0
     135: 0.370
+
+spectral_model_quality_constraints:
+  # These constraints apply to all models.
+  #wavelength: [None, None]
+  abundance: [-10, 10] # log_epsilon abundance
+  abundance_uncertainty: [0, 1]
+
+  # These constraints only apply to profile models.
+  equivalent_width: [1, 1000] # milliAngstroms
+  equivalent_width_uncertainty: [0, 1000] # milliAngstroms
+  equivalent_width_percentage_uncertainty: [0, 25] # percent
+  reduced_equivalent_width: [-10, -3]
+
+  # This constraint will apply to profile models and spectral synthesis models 
+  # with a single element to fit, and just one transition of that element in its
+  # line list.
+  #excitation_potential: [None, None]
+  #loggf: [None, None]
+  #wavelength: [None, None]
+
 summary:
   top_axis:
     star_x: teff
