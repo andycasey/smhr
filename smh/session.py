@@ -24,6 +24,7 @@ from tempfile import mkdtemp
 from .linelists import LineList
 from . import (photospheres, radiative_transfer, specutils, isoutils, utils)
 from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
+from smh.photospheres.abundances import asplund_2009 as solar_composition
 
 logger = logging.getLogger(__name__)
 
@@ -900,3 +901,97 @@ class Session(BaseSession):
         print("Time to measure {} abundances: {:.1f}".format(np.sum(finite), time.time()-start))
         return abundances, uncertainties if calculate_uncertainties else abundances
 
+    def summarize_spectral_models(self, spectral_models=None, organize_by_element=False,
+                                  use_weights = None, use_finite = True):
+        """
+        Loop through all spectral_models and return a summary dict
+
+        Returns:
+        summary_dict[key] = [num_models, logeps, stdev, stderr, XH, XFe]
+
+        :param spectral_models:
+            List of spectral models. Defaults to self.metadata["spectral_models"]
+        :param organize_by_element:
+            If False (default), key is species (without isotopes)
+            If True, key is element (sum all species together)
+        :param use_weights:
+            TODO Not implemented yet!
+            If True, use line-by-line weights
+            If False, weight all lines equally
+            Defaults to session settings
+        :param use_finite:
+            If True (default), only use finite abundances
+            If False, use any acceptable abundances
+            I cannot imagine why you'd set it to False unless debugging
+        """
+        what_key_type = "element" if organize_by_element else "species"
+
+        start = time.time()
+        if spectral_models is None:
+            spectral_models = self.metadata["spectral_models"]
+
+        all_logeps = {}
+        # TODO abundance uncertainties too
+        def update_one_key(key,logeps):
+            if key not in all_logeps:
+                all_logeps[key] = []
+            all_logeps[key].append(logeps)
+            return
+        for spectral_model in spectral_models:
+            if not spectral_model.is_acceptable: continue
+            abundances = spectral_model.abundances
+            if abundances is None: continue
+
+            for elem,species,logeps in zip(spectral_model.elements, \
+                                          spectral_model.species, abundances):
+                # Elements doesn't have the ionization
+                # Species do
+                if organize_by_element:
+                    key = elem
+                else:
+                    key = species
+
+                if isinstance(key,list):
+                    # In synthesis, species may be a list
+                    for species in key:
+                        update_one_key(species, logeps)
+                elif isinstance(key,float):
+                    assert not organize_by_element
+                    update_one_key(key, logeps)
+                elif isinstance(key,str):
+                    assert organize_by_element
+                    update_one_key(key, logeps)
+                else:
+                    raise TypeError("key {} is of type {} (organized by {})".format(\
+                            key,type(key),what_key_type))
+
+        summary_dict = {}
+        for key in all_logeps:
+            logepss = np.array(all_logeps[key])
+            if use_finite:
+                finite = np.isfinite(logepss)
+                num_models = np.sum(finite)
+                logepss = logepss[finite]
+            else:
+                num_models = len(logepss)
+
+            logeps = np.mean(logepss)
+            # TODO weight
+            stdev = np.std(logepss)
+            stderr= stdev/np.sqrt(num_models)
+            XH = logeps - solar_composition(key)
+            summary_dict[key] = [num_models, logeps, stdev, stderr, XH, np.nan]
+        if organize_by_element:
+            FeH = summary_dict['Fe'][4]
+        else:
+            # TODO: using Fe I for now, should make this configurable
+            FeH = summary_dict[26.0][4]
+        for key in all_logeps:
+            summary = summary_dict[key]
+            summary[5] = summary[4] - FeH
+            summary_dict[key] = summary
+
+        total_num_models_summarized = np.sum([len(x) for x in all_logeps.values()])
+        print("Time to summarize {} measurements (organized by {}): {:.1f}".format(\
+                total_num_models_summarized, what_key_type, time.time()-start))
+        return summary_dict

@@ -542,15 +542,16 @@ class SpectralSynthesisModel(BaseSpectralModel):
             model, left=1, right=1)
 
 
+    """
     def abundances(self):
-        """
+        "
         Calculate the abundances (model parameters) given the current stellar
         parameters in the parent session.
-        """
+        "
 
         #_ self.fit(self.session.normalized_spectrum)
 
         # Parse the abundances into the right format.
         raise NotImplementedError("nope")
-
+    """
         

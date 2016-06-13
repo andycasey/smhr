@@ -230,6 +230,14 @@ class BaseSpectralModel(object):
         """ Return the parent session that this model is associated with. """
         return self._session
 
+    @property
+    def abundances(self):
+        """ Return abundances if fit, else None """
+        try:
+            return self.metadata["fitted_result"][2]["abundances"]
+        except KeyError:
+            return None
+        
 
     @property
     def parameters(self):

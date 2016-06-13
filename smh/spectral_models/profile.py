@@ -544,13 +544,14 @@ class ProfileFittingModel(BaseSpectralModel):
         
         return y
 
+    """
     @property
     def abundances(self):
-        """
+        "
         Calculate the abundance from the curve-of-growth given the fitted
         equivalent width and the current stellar parameters in the parent
         session.
-        """
+        "
 
         # TODO: Create a hash of the stellar parameters, EW, and any relevant
         #       radiative transfer inputs.
@@ -581,6 +582,7 @@ class ProfileFittingModel(BaseSpectralModel):
         self.metadata["fitted_result"][2]["abundances"] = abundances
         self.metadata["fitted_result"][2]["abundance_uncertainties"] = uncertainties
         return abundances
+    """
 
 if __name__ == "__main__":
 
