@@ -150,7 +150,8 @@ class LineList(Table):
 
     def merge(self,new_ll,thresh=None,loggf_thresh=None,raise_exception=True,
               skip_equal_loggf=False,
-              override_current=False,in_place=True):
+              override_current=False,in_place=True,
+              add_new_lines=True):
         """
         new_ll: 
             new LineList object to merge into this one
@@ -180,6 +181,11 @@ class LineList(Table):
         in_place:
             If True (default), merge new lines into this object. It will do so BEFORE throwing any LineListConflict exceptions!
             If False, return a new LineList
+        
+        add_new_lines:
+            If True (default), add new lines when merging.
+            If False, do not add new lines. This is to replace lines from a list without adding them.
+
         """
         if thresh==None: thresh = self.default_thresh
         if loggf_thresh==None: loggf_thresh = self.default_loggf_thresh
@@ -216,7 +222,7 @@ class LineList(Table):
                     if override_current:
                         self[index] = new_line
         num_lines_added = len(lines_to_add)
-        if len(lines_to_add) > 0:
+        if add_new_lines and len(lines_to_add) > 0:
             if in_place:
                 for line in lines_to_add:
                     self.add_row(line)
@@ -225,6 +231,9 @@ class LineList(Table):
                 old_lines = self.copy()
                 # During the vstack creates an empty LineList and warns
                 new_data = table.vstack([old_lines,new_lines])
+        else:
+            if not in_place:
+                new_data = self.copy()
         
         # Note: if in_place == True, then it merges new lines BEFORE raising the exception
         if raise_exception:
