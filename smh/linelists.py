@@ -225,6 +225,9 @@ class LineList(Table):
                 old_lines = self.copy()
                 # During the vstack creates an empty LineList and warns
                 new_data = table.vstack([old_lines,new_lines])
+        else:
+            if not in_place:
+                new_data = self.copy()
         
         # Note: if in_place == True, then it merges new lines BEFORE raising the exception
         if raise_exception:
