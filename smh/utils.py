@@ -35,7 +35,8 @@ def random_string(N=10):
     return ''.join(choice(string.ascii_uppercase + string.digits) for _ in range(N))
 
 
-def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species"):
+def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species",
+    ycolumn="abundance", yerr_column=None):
     """
     Perform linear fits to the abundances provided in the transitions table
     with respect to x-columns.
@@ -61,9 +62,18 @@ def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species")
         for x_column in columns:
             x = transitions[x_column][start_index:end_index]
             y = transitions["abundance"][start_index:end_index]
-            try:
-                yerr = transitions["e_abundance"][start_index:end_index]
-            except:
+
+            if yerr_column is not None:
+                try:
+                    yerr = transitions[yerr_column][start_index:end_index]
+
+                except KeyError:
+                    logger.exception("Cannot find yerr column '{}':".format(
+                        yerr_column))
+                    
+                    yerr = np.ones(len(y))
+            
+            else:
                 yerr = np.ones(len(y))
 
             # Only use finite values.

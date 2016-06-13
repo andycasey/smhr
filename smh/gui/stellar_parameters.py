@@ -43,6 +43,96 @@ if sys.platform == "darwin":
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
+class StateTableModel(QtCore.QAbstractTableModel):
+
+    header = ["Species", "N", u"〈[X/H]〉\n[dex]", u"σ\n[dex]", 
+        u"∂A/∂χ\n[dex/eV]", u"∂A/∂REW\n[-]"]
+
+
+
+    def __init__(self, parent, *args):
+        super(StateTableModel, self).__init__(parent, *args)
+        self.parent = parent
+
+
+    def rowCount(self, parent):
+        try:
+            state = self.parent._state_transitions
+            finite_species = state["species"][np.isfinite(state["abundance"])]
+            return len(set(finite_species))
+
+        except AttributeError:
+            return 0
+
+    def columnCount(self, parent):
+        return len(self.header)
+
+    def data(self, index, role):
+        if not index.isValid() or role != QtCore.Qt.DisplayRole:
+            return None
+
+        try:
+            state = self.parent._state_transitions
+
+        except AttributeError:
+            return None
+
+        column = index.column()
+        finite_abundances = np.isfinite(state["abundance"])
+        finite_species = np.unique(state["species"][finite_abundances])
+
+        if column == 0:
+            return utils.species_to_element(finite_species[index.row()])
+
+        elif column == 1:
+            mask = finite_abundances \
+                 * (state["species"] == finite_species[index.row()])
+            return "{:.0f}".format(mask.sum())
+
+        elif column == 2:
+            species = finite_species[index.row()]
+            mask = finite_abundances * (state["species"] == species)
+
+            return "{0:.2f}".format(np.mean(state["abundance"][mask]) \
+                - solar_composition(species))
+
+        elif column == 3:
+            mask = finite_abundances \
+                 * (state["species"] == finite_species[index.row()])
+
+            return "{0:.2f}".format(np.std(state["abundance"][mask]))
+
+        elif column in (4, 5):
+
+            key = ["expot", "reduced_equivalent_width"][column - 4]
+            species = finite_species[index.row()]
+            try:
+                slope = self.parent._state_slopes[species][key][0]
+
+            except (AttributeError, KeyError):
+                return None
+
+            else:
+                return "{0:+.3f}".format(slope)
+
+        return None
+
+
+    def setData(self, index, value, role):
+        return False
+
+    def headerData(self, col, orientation, role):
+        if orientation == QtCore.Qt.Horizontal \
+        and role == QtCore.Qt.DisplayRole:
+            return self.header[col]
+        return None
+
+
+    def flags(self, index):
+        if not index.isValid(): return
+        return QtCore.Qt.ItemIsSelectable
+
+
 
 class StellarParametersTab(QtGui.QWidget):
 
@@ -157,10 +247,31 @@ class StellarParametersTab(QtGui.QWidget):
         hbox.addWidget(self.btn_solve)
         lhs_layout.addLayout(hbox)
 
-        #line = QtGui.QFrame(self)
-        #line.setFrameShape(QtGui.QFrame.HLine)
-        #line.setFrameShadow(QtGui.QFrame.Sunken)
-        #lhs_layout.addWidget(line)
+        line = QtGui.QFrame(self)
+        line.setFrameShape(QtGui.QFrame.HLine)
+        line.setFrameShadow(QtGui.QFrame.Sunken)
+        lhs_layout.addWidget(line)
+
+
+        self.state_table_view = QtGui.QTableView(self)
+        self.state_table_view.setModel(StateTableModel(self))
+        self.state_table_view.setSortingEnabled(False)
+        self.state_table_view.setMaximumSize(QtCore.QSize(400, 107)) # MAGIC
+        self.state_table_view.setSizePolicy(QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
+        self.state_table_view.setSelectionBehavior(
+            QtGui.QAbstractItemView.SelectRows)
+
+        self.state_table_view.horizontalHeader().setResizeMode(
+            QtGui.QHeaderView.Stretch)
+
+        self.state_table_view.horizontalHeader().setResizeMode(
+            1, QtGui.QHeaderView.Fixed)
+        self.state_table_view.horizontalHeader().resizeSection(1, 35) # MAGIC
+
+
+        lhs_layout.addWidget(self.state_table_view)
+
 
         header = ["", u"λ\n[Å]", "Element", u"EW\n[mÅ]", u"σ(EW)\n[mÅ]",
                   "log ε\n[dex]", "σ(log ε)\n[dex]"]
@@ -239,11 +350,14 @@ class StellarParametersTab(QtGui.QWidget):
             26.0: "#666666",
             26.1: "r"
         }
+        self._zorders = {
+            26.1: 10,
+        }
 
         self.ax_excitation = self.figure.figure.add_subplot(gs_top[0])
         self.ax_excitation.xaxis.get_major_formatter().set_useOffset(False)
         self.ax_excitation.yaxis.set_major_locator(MaxNLocator(4))
-        self.ax_excitation.set_xlabel("Excitation potential (eV)")
+        self.ax_excitation.set_xlabel(u"Excitation potential, χ (eV)")
         self.ax_excitation.set_ylabel("[X/H]")
 
         self.ax_excitation_twin = self.ax_excitation.twinx()
@@ -253,7 +367,8 @@ class StellarParametersTab(QtGui.QWidget):
         self.ax_line_strength = self.figure.figure.add_subplot(gs_top[1])
         self.ax_line_strength.xaxis.get_major_formatter().set_useOffset(False)
         self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(4))
-        self.ax_line_strength.set_xlabel(r"$\log({\rm EW}/\lambda)$")
+        self.ax_line_strength.set_xlabel(
+            r"Reduced equivalent width (REW), $\log({\rm EW}/\lambda)$")
         self.ax_line_strength.set_ylabel("[X/H]")
 
         self.ax_line_strength_twin = self.ax_line_strength.twinx()
@@ -288,21 +403,8 @@ class StellarParametersTab(QtGui.QWidget):
             "line_strength_trends": {},
             "excitation_medians": {},
             "line_strength_medians": {},
-            "scatter_points": [
-                self.ax_excitation.scatter([], [], s=30, alpha=0.75, zorder=10),
-                self.ax_line_strength.scatter([], [], s=30, alpha=0.75, zorder=10),
-            ],
-            "scatter_point_errors": [
-                self.ax_excitation.errorbar(
-                    np.nan * np.ones(2), np.nan * np.ones(2), 
-                    yerr=np.nan * np.ones((2, 2)), 
-                    fmt=None, ecolor="#666666", elinewidth=2, zorder=-10),
-                self.ax_line_strength.errorbar(
-                    np.nan * np.ones(2), np.nan * np.ones(2), 
-                    xerr=np.nan * np.ones((2, 2)),
-                    yerr=np.nan * np.ones((2, 2)),
-                    fmt=None, ecolor="#666666", elinewidth=2,  zorder=-10)
-            ],
+            "scatter_points": {},
+            "scatter_point_errors": {},
             "selected_point": [
                 self.ax_excitation.scatter([], [],
                     edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=1e4),
@@ -526,7 +628,11 @@ class StellarParametersTab(QtGui.QWidget):
 
                     # Update the view of the current model.
                     self.update_spectrum_figure()
-    
+
+                    # Update the reduced equivalent width for this model in the
+                    # state.
+                    self.update_selected_scatter_point()
+
                     # Update the data model.
                     data_model = self.proxy_spectral_models.sourceModel()
                     data_model.dataChanged.emit(
@@ -661,6 +767,8 @@ class StellarParametersTab(QtGui.QWidget):
             # Update the view of the spectral model.
             self.update_spectrum_figure()
 
+            self.update_selected_scatter_point() 
+
             # Update the data model.
             data_model = self.proxy_spectral_models.sourceModel()
             data_model.dataChanged.emit(
@@ -685,6 +793,27 @@ class StellarParametersTab(QtGui.QWidget):
         del self._interactive_mask_region_signal
         return None
 
+
+    def update_selected_scatter_point(self):
+        """ The current-selected spectral model has been re-fit. """
+
+        spectral_model, proxy_index, index = self._get_selected_model(True)
+
+        # Update the reduced equivalent width for this model in the state.
+        if hasattr(self, "_state_transitions"):
+
+            meta = spectral_model.metadata["fitted_result"][-1]
+            self._state_transitions["reduced_equivalent_width"][index] \
+                = meta["reduced_equivalent_width"][0]
+            self._state_transitions["abundance"][index] \
+                = meta.get("abundances", [np.nan])[0]
+            self._state_transitions["abundance_uncertainty"][index] \
+                = meta.get("abundance_uncertainties", [np.nan])[0]
+
+            self.update_scatter_plots()
+            self.update_selected_points(redraw=True)
+
+        return None
 
 
     def update_stellar_parameters(self):
@@ -747,68 +876,111 @@ class StellarParametersTab(QtGui.QWidget):
             Force a redraw of the figure.
         """
 
-        if not hasattr(self, "_state_transitions"):
+        try:
+            state = self._state_transitions
+
+        except AttributeError:
             if redraw:
                 self.figure.draw()
             return None
 
-        # Update figures.
-        colors = [self._colors.get(s, "#FFFFFF") \
-            for s in self._state_transitions["species"]]
 
-        ex_collection, line_strength_collection = self._lines["scatter_points"]
+        # Group by species with finite abundances.
+        finite_species = set(state["species"][np.isfinite(state["abundance"])])
+        for species in finite_species:
 
-        ex_container, ls_container = self._lines["scatter_point_errors"]
+            # We don't use setdefault because it would need to create the
+            # object value before checking whether the key exists in the
+            # dictionary, and we don't want that because matplotlib won't
+            # clean it up.
+            if species not in self._lines["scatter_points"]:
+                zorder = self._zorders.get(species, 1)
+                facecolor = self._colors.get(species, "#FFFFFF")
 
-        # No error in x-direction.
-        _, (ex_yerr_top, ex_yerr_bot), (ybars, ) = ex_container
+                self._lines["scatter_points"][species] = [
+                    self.ax_excitation.scatter([], [], 
+                        s=40, zorder=zorder, facecolor=facecolor,
+                        linewidths=1),
+                    self.ax_line_strength.scatter([], [], 
+                        s=40, zorder=zorder, facecolor=facecolor,
+                        linewidths=1)
+                ]
 
-        x = self._state_transitions["expot"]
-        y = self._state_transitions["abundance"]
-        ex_collection.set_offsets(np.array([x, y]).T)
-        ex_collection.set_facecolor(colors)
+                self._lines["scatter_point_errors"][species] = [
+                    self.ax_excitation.errorbar(
+                        np.nan * np.ones(2), np.nan * np.ones(2), 
+                        yerr=np.nan * np.ones((2, 2)), fmt=None, 
+                        ecolor="#666666", elinewidth=2, zorder=-10),
+                    self.ax_line_strength.errorbar(
+                        np.nan * np.ones(2), np.nan * np.ones(2), 
+                        xerr=np.nan * np.ones((2, 2)),
+                        yerr=np.nan * np.ones((2, 2)), fmt=None,
+                        ecolor="#666666", elinewidth=2,  zorder=-10)
+                ]
 
-        # Update errors.
-        yerr = self._state_transitions["abundance_uncertainty"]
-        yerr_top = self._state_transitions["abundance"] + yerr
-        yerr_bot = self._state_transitions["abundance"] - yerr
+            ex_collection, ls_collection \
+                = self._lines["scatter_points"][species]
 
-        ex_yerr_top.set_xdata(x)
-        ex_yerr_bot.set_xdata(x)
-        ex_yerr_top.set_ydata(yerr_top)
-        ex_yerr_bot.set_ydata(yerr_bot)
+            mask = state["species"] == species
+            y = state["abundance"][mask]
+            
+            x = state["expot"][mask]
+            ex_collection.set_offsets(np.array([x, y]).T)
 
-        ex_ysegments = [np.array([[x, yt], [x, yb]]) for x, yt, yb in \
-            zip(x, yerr_top, yerr_bot)]
-        ybars.set_segments(ex_ysegments)
+            x = state["reduced_equivalent_width"][mask]
+            ls_collection.set_offsets(np.array([x, y]).T)
 
-        x = self._state_transitions["reduced_equivalent_width"]
-        line_strength_collection.set_offsets(np.array([x, y]).T)
-        line_strength_collection.set_facecolor(colors)
 
-        _, (ls_xerr_lt, ls_xerr_rt, ls_yerr_top, ls_yerr_bot), (xbars, ybars) \
-            = ls_container
-        
-        # Update errors (y-errors the same as above).
-        xerr = np.nan * np.ones(len(self._state_transitions))
-        xerr_rt = self._state_transitions["reduced_equivalent_width"] + xerr
-        xerr_lt = self._state_transitions["reduced_equivalent_width"] - xerr
+            ex_container, ls_container \
+                = self._lines["scatter_point_errors"][species]
 
-        ls_yerr_top.set_xdata(x)
-        ls_yerr_bot.set_xdata(x)
-        ls_yerr_top.set_ydata(yerr_top)
-        ls_yerr_bot.set_ydata(yerr_bot)
+            # No error in x-direction.
+            _, (ex_yerr_top, ex_yerr_bot), (ybars, ) = ex_container
 
-        ls_xerr_lt.set_ydata(y)
-        ls_xerr_rt.set_ydata(y)
-        ls_xerr_lt.set_xdata(xerr_lt)
-        ls_xerr_rt.set_xdata(xerr_rt)
+            x = state["expot"][mask]
+            ex_collection.set_offsets(np.array([x, y]).T)
 
-        ybars.set_segments([np.array([[x, yt], [x, yb]]) for x, yt, yb in \
-            zip(x, yerr_top, yerr_bot)])
+            # Update errors.
+            yerr = state["abundance_uncertainty"][mask]
+            yerr_top = y + yerr
+            yerr_bot = y - yerr
 
-        xbars.set_segments([np.array([[xt, y], [xb, y]]) for xt, xb, y in \
-            zip(xerr_rt, xerr_lt, y)])
+            ex_yerr_top.set_xdata(x)
+            ex_yerr_bot.set_xdata(x)
+            ex_yerr_top.set_ydata(yerr_top)
+            ex_yerr_bot.set_ydata(yerr_bot)
+
+            ex_ysegments = [np.array([[xi, yt], [xi, yb]]) for xi, yt, yb in \
+                zip(x, yerr_top, yerr_bot)]
+            ybars.set_segments(ex_ysegments)
+
+
+            _,  (ls_xerr_lt, ls_xerr_rt, ls_yerr_top, ls_yerr_bot), \
+                (xbars, ybars) = ls_container
+            
+            # Update errors (y-errors the same as above).
+            x = state["reduced_equivalent_width"][mask]
+            xerr = np.nan * np.ones(mask.sum())
+            # TODO: Show REW errors, even if they are small?
+            xerr_rt = x + xerr
+            xerr_lt = x - xerr
+
+            ls_yerr_top.set_xdata(x)
+            ls_yerr_bot.set_xdata(x)
+            ls_yerr_top.set_ydata(yerr_top)
+            ls_yerr_bot.set_ydata(yerr_bot)
+
+            ls_xerr_lt.set_ydata(y)
+            ls_xerr_rt.set_ydata(y)
+            ls_xerr_lt.set_xdata(xerr_lt)
+            ls_xerr_rt.set_xdata(xerr_rt)
+
+            ybars.set_segments([np.array([[xi, yt], [xi, yb]]) \
+                for xi, yt, yb in zip(x, yerr_top, yerr_bot)])
+
+            xbars.set_segments([np.array([[xt, yi], [xb, yi]]) \
+                for xt, xb, yi in zip(xerr_rt, xerr_lt, y)])
+
 
         # Update limits on the excitation and line strength figures.
         style_utils.relim_axes(self.ax_excitation)
@@ -823,18 +995,16 @@ class StellarParametersTab(QtGui.QWidget):
         # Scale the left hand ticks to [X/H] or [X/M]
 
         # How many atomic number?
-        ok = np.isfinite(self._state_transitions["abundance"])
-        Z = list(set(self._state_transitions["species"][ok].astype(int)))
+        Z = set([int(species) for species in finite_species])
         if len(Z) == 1:
 
             scaled_ticks = np.array(
-                self.ax_excitation.get_yticks()) - solar_composition(Z[0])
+                self.ax_excitation.get_yticks()) - solar_composition(Z)[0]
 
             self.ax_excitation.set_yticklabels(scaled_ticks)
             self.ax_line_strength.set_yticklabels(scaled_ticks)
 
-            label = "[{}/H]".format(
-                self._state_transitions["element"][ok][0].split()[0])
+            label = "[{}/H]".format(state["element"][mask][0].split()[0])
             self.ax_excitation.set_ylabel(label)
             self.ax_line_strength.set_ylabel(label)
 
@@ -939,15 +1109,28 @@ class StellarParametersTab(QtGui.QWidget):
                 self.figure.draw()
             return None
 
+        # Use abundance errors in fit?
+        if self.parent.session.setting(("stellar_parameter_inference", 
+            "use_abundance_uncertainties_in_line_fits"), True):
+            yerr_column = "abundance_uncertainty"
+
+        else:
+            yerr_column = None
+
         states = utils.equilibrium_state(self._state_transitions,
-            columns=("expot", "reduced_equivalent_width"))
+            columns=("expot", "reduced_equivalent_width"), ycolumn="abundance",
+            yerr_column=yerr_column)
 
-        print("states", states)
+        self._state_slopes = states
+        self.state_table_view.model().reset()
 
+
+        """
         # Offsets from the edge of axes.
         x_offset = 0.0125
         y_offset = 0.10
         y_space = 0.15
+        """
 
         no_state = (np.nan, np.nan, np.nan, np.nan, 0)
         for i, (species, state) in enumerate(states.items()):
@@ -983,6 +1166,7 @@ class StellarParametersTab(QtGui.QWidget):
             self._lines["line_strength_medians"][species].set_data(x, median)
             self._lines["line_strength_trends"][species].set_data(x, m * x + b)
 
+            """
             # Show text.
             # TECH DEBT:
             # If a new species is added during stellar parameter determination
@@ -1030,6 +1214,7 @@ class StellarParametersTab(QtGui.QWidget):
             # Only show useful text.
             text = ""   if not np.isfinite(m) else r"${0:+.3f}$".format(m)
             self._lines["line_strength_slope_text"][species].set_text(text)
+            """
 
         if redraw:
             self.figure.draw()
@@ -1364,6 +1549,7 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                 spectral_model \
                     = self.parent.parent.session.metadata["spectral_models"][idx]
                 spectral_model.fit()
+
             update_spectrum_figure = True
 
 
@@ -1373,6 +1559,12 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                     = self.parent.parent.session.metadata["spectral_models"][idx]
                 spectral_model.metadata["is_acceptable"] = False
 
+            # Update trend lines and scatter points.
+            if len(indices) > 0:
+                self.update_scatter_plots()
+                self.update_selected_scatter_point()
+                self.update_trend_lines(redraw=True)
+
 
         elif action == mark_as_acceptable:
             for idx in indices:
@@ -1380,6 +1572,12 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                     = self.parent.parent.session.metadata["spectral_models"][idx]
                 if "fitted_result" in spectral_model.metadata:
                     spectral_model.metadata["is_acceptable"] = True
+
+            # Update trend lines and scatter points.
+            if len(indices) > 0:
+                self.update_scatter_plots()
+                self.update_selected_scatter_point()
+                self.update_trend_lines(redraw=True)
 
 
         elif action == set_fitting_window:
