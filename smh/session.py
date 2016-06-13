@@ -686,6 +686,7 @@ class Session(BaseSession):
 
         # Get the transitions & EWs together from spectral models.
         ews = []
+        rews = []
         ew_uncertainties = []
 
         transition_indices = []
@@ -703,20 +704,23 @@ class Session(BaseSession):
 
                 if model.is_acceptable:
 
-                    model_ew \
-                        = model.metadata["fitted_result"][-1]["equivalent_width"]
+                    meta = model.metadata["fitted_result"][-1]
+                    model_ew = meta["equivalent_width"]
 
                     ews.append(1e3 * model_ew[0])
+                    rews.append(meta["reduced_equivalent_width"][0])
 
                     # Get the largest absolute uncertainty.
                     ew_uncertainties.append(1e3 * np.abs(model_ew[1:]).max())
 
                 else:
                     ews.append(np.nan)
+                    rews.append(np.nan)
                     ew_uncertainties.append(np.nan)
             else:
                 spectral_model_indices.append(np.nan)
                 ews.append(np.nan)
+                rews.append(np.nan)
                 ew_uncertainties.append(np.nan)
 
 
@@ -730,6 +734,7 @@ class Session(BaseSession):
         spectral_model_indices = np.array(spectral_model_indices)
         transitions = self.metadata["line_list"][transition_indices].copy()
         transitions["equivalent_width"] = ews
+        transitions["reduced_equivalent_width"] = rews
 
         min_eqw = kwargs.pop("minimum_equivalent_width", 0.01) # mA
         finite = np.logical_and(np.isfinite(transitions["equivalent_width"]),
