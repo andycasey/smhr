@@ -43,6 +43,96 @@ if sys.platform == "darwin":
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
+class StateTableModel(QtCore.QAbstractTableModel):
+
+    header = ["Species", "N", u"〈[X/H]〉\n[dex]", u"σ\n[dex]", 
+        u"∂A/∂χ\n[dex/eV]", u"∂A/∂REW\n[-]"]
+
+
+
+    def __init__(self, parent, *args):
+        super(StateTableModel, self).__init__(parent, *args)
+        self.parent = parent
+
+
+    def rowCount(self, parent):
+        try:
+            state = self.parent._state_transitions
+            finite_species = state["species"][np.isfinite(state["abundance"])]
+            return len(set(finite_species))
+
+        except AttributeError:
+            return 0
+
+    def columnCount(self, parent):
+        return len(self.header)
+
+    def data(self, index, role):
+        if not index.isValid() or role != QtCore.Qt.DisplayRole:
+            return None
+
+        try:
+            state = self.parent._state_transitions
+
+        except AttributeError:
+            return None
+
+        column = index.column()
+        finite_abundances = np.isfinite(state["abundance"])
+        finite_species = np.unique(state["species"][finite_abundances])
+
+        if column == 0:
+            return utils.species_to_element(finite_species[index.row()])
+
+        elif column == 1:
+            mask = finite_abundances \
+                 * (state["species"] == finite_species[index.row()])
+            return "{:.0f}".format(mask.sum())
+
+        elif column == 2:
+            species = finite_species[index.row()]
+            mask = finite_abundances * (state["species"] == species)
+
+            return "{0:.2f}".format(np.mean(state["abundance"][mask]) \
+                - solar_composition(species))
+
+        elif column == 3:
+            mask = finite_abundances \
+                 * (state["species"] == finite_species[index.row()])
+
+            return "{0:.2f}".format(np.std(state["abundance"][mask]))
+
+        elif column in (4, 5):
+
+            key = ["expot", "reduced_equivalent_width"][column - 4]
+            species = finite_species[index.row()]
+            try:
+                slope = self.parent._state_slopes[species][key][0]
+
+            except (AttributeError, KeyError):
+                return None
+
+            else:
+                return "{0:+.3f}".format(slope)
+
+        return None
+
+
+    def setData(self, index, value, role):
+        return False
+
+    def headerData(self, col, orientation, role):
+        if orientation == QtCore.Qt.Horizontal \
+        and role == QtCore.Qt.DisplayRole:
+            return self.header[col]
+        return None
+
+
+    def flags(self, index):
+        if not index.isValid(): return
+        return QtCore.Qt.ItemIsSelectable
+
+
 
 class StellarParametersTab(QtGui.QWidget):
 
@@ -157,10 +247,31 @@ class StellarParametersTab(QtGui.QWidget):
         hbox.addWidget(self.btn_solve)
         lhs_layout.addLayout(hbox)
 
-        #line = QtGui.QFrame(self)
-        #line.setFrameShape(QtGui.QFrame.HLine)
-        #line.setFrameShadow(QtGui.QFrame.Sunken)
-        #lhs_layout.addWidget(line)
+        line = QtGui.QFrame(self)
+        line.setFrameShape(QtGui.QFrame.HLine)
+        line.setFrameShadow(QtGui.QFrame.Sunken)
+        lhs_layout.addWidget(line)
+
+
+        self.state_table_view = QtGui.QTableView(self)
+        self.state_table_view.setModel(StateTableModel(self))
+        self.state_table_view.setSortingEnabled(False)
+        self.state_table_view.setMaximumSize(QtCore.QSize(400, 107)) # MAGIC
+        self.state_table_view.setSizePolicy(QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
+        self.state_table_view.setSelectionBehavior(
+            QtGui.QAbstractItemView.SelectRows)
+
+        self.state_table_view.horizontalHeader().setResizeMode(
+            QtGui.QHeaderView.Stretch)
+
+        self.state_table_view.horizontalHeader().setResizeMode(
+            1, QtGui.QHeaderView.Fixed)
+        self.state_table_view.horizontalHeader().resizeSection(1, 35) # MAGIC
+
+
+        lhs_layout.addWidget(self.state_table_view)
+
 
         header = ["", u"λ\n[Å]", "Element", u"EW\n[mÅ]", u"σ(EW)\n[mÅ]",
                   "log ε\n[dex]", "σ(log ε)\n[dex]"]
@@ -246,7 +357,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.ax_excitation = self.figure.figure.add_subplot(gs_top[0])
         self.ax_excitation.xaxis.get_major_formatter().set_useOffset(False)
         self.ax_excitation.yaxis.set_major_locator(MaxNLocator(4))
-        self.ax_excitation.set_xlabel("Excitation potential (eV)")
+        self.ax_excitation.set_xlabel(u"Excitation potential, χ (eV)")
         self.ax_excitation.set_ylabel("[X/H]")
 
         self.ax_excitation_twin = self.ax_excitation.twinx()
@@ -256,7 +367,8 @@ class StellarParametersTab(QtGui.QWidget):
         self.ax_line_strength = self.figure.figure.add_subplot(gs_top[1])
         self.ax_line_strength.xaxis.get_major_formatter().set_useOffset(False)
         self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(4))
-        self.ax_line_strength.set_xlabel(r"$\log({\rm EW}/\lambda)$")
+        self.ax_line_strength.set_xlabel(
+            r"Reduced equivalent width (REW), $\log({\rm EW}/\lambda)$")
         self.ax_line_strength.set_ylabel("[X/H]")
 
         self.ax_line_strength_twin = self.ax_line_strength.twinx()
@@ -787,11 +899,11 @@ class StellarParametersTab(QtGui.QWidget):
 
                 self._lines["scatter_points"][species] = [
                     self.ax_excitation.scatter([], [], 
-                        s=30, zorder=zorder, facecolor=facecolor,
-                        linewidths=2),
+                        s=40, zorder=zorder, facecolor=facecolor,
+                        linewidths=1),
                     self.ax_line_strength.scatter([], [], 
-                        s=30, zorder=zorder, facecolor=facecolor,
-                        linewidths=2)
+                        s=40, zorder=zorder, facecolor=facecolor,
+                        linewidths=1)
                 ]
 
                 self._lines["scatter_point_errors"][species] = [
@@ -1009,10 +1121,16 @@ class StellarParametersTab(QtGui.QWidget):
             columns=("expot", "reduced_equivalent_width"), ycolumn="abundance",
             yerr_column=yerr_column)
 
+        self._state_slopes = states
+        self.state_table_view.model().reset()
+
+
+        """
         # Offsets from the edge of axes.
         x_offset = 0.0125
         y_offset = 0.10
         y_space = 0.15
+        """
 
         no_state = (np.nan, np.nan, np.nan, np.nan, 0)
         for i, (species, state) in enumerate(states.items()):
@@ -1048,6 +1166,7 @@ class StellarParametersTab(QtGui.QWidget):
             self._lines["line_strength_medians"][species].set_data(x, median)
             self._lines["line_strength_trends"][species].set_data(x, m * x + b)
 
+            """
             # Show text.
             # TECH DEBT:
             # If a new species is added during stellar parameter determination
@@ -1095,6 +1214,7 @@ class StellarParametersTab(QtGui.QWidget):
             # Only show useful text.
             text = ""   if not np.isfinite(m) else r"${0:+.3f}$".format(m)
             self._lines["line_strength_slope_text"][species].set_text(text)
+            """
 
         if redraw:
             self.figure.draw()
@@ -1439,6 +1559,12 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                     = self.parent.parent.session.metadata["spectral_models"][idx]
                 spectral_model.metadata["is_acceptable"] = False
 
+            # Update trend lines and scatter points.
+            if len(indices) > 0:
+                self.update_scatter_plots()
+                self.update_selected_scatter_point()
+                self.update_trend_lines(redraw=True)
+
 
         elif action == mark_as_acceptable:
             for idx in indices:
@@ -1446,6 +1572,12 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                     = self.parent.parent.session.metadata["spectral_models"][idx]
                 if "fitted_result" in spectral_model.metadata:
                     spectral_model.metadata["is_acceptable"] = True
+
+            # Update trend lines and scatter points.
+            if len(indices) > 0:
+                self.update_scatter_plots()
+                self.update_selected_scatter_point()
+                self.update_trend_lines(redraw=True)
 
 
         elif action == set_fitting_window:
