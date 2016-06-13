@@ -997,10 +997,17 @@ class StellarParametersTab(QtGui.QWidget):
                 self.figure.draw()
             return None
 
-        states = utils.equilibrium_state(self._state_transitions,
-            columns=("expot", "reduced_equivalent_width"))
+        # Use abundance errors in fit?
+        if self.parent.session.setting(("stellar_parameter_inference", 
+            "use_abundance_uncertainties_in_line_fits"), True):
+            yerr_column = "abundance_uncertainty"
 
-        print("states", states)
+        else:
+            yerr_column = None
+
+        states = utils.equilibrium_state(self._state_transitions,
+            columns=("expot", "reduced_equivalent_width"), ycolumn="abundance",
+            yerr_column=yerr_column)
 
         # Offsets from the edge of axes.
         x_offset = 0.0125
