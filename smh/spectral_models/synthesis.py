@@ -233,8 +233,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # The elemental abundances are in log_epsilon format.
         # We will assume a scaled-solar initial value based on the stellar [M/H]
         defaults = {
-            "sigma_smooth": 0.1,
-            "vrad": 0
+            "sigma_smooth": self.metadata["manual_sigma_smooth"], #0.1,
+            "vrad": self.metadata["manual_rv"]
         }
         p0 = []
         for parameter in self.parameter_names:
