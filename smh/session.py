@@ -104,6 +104,37 @@ class Session(BaseSession):
             }
         })
 
+        # Load any line list?
+        line_list_filename = self.setting(("line_list_filename",))
+        if line_list_filename is not None and os.path.exists(line_list_filename):
+            self.metadata["line_list"] = LineList.read(
+                line_list_filename, format="fits")
+
+        # Construct any default spectral models.
+        deconstructed_spectral_models = self.setting(("default_spectral_models", ))
+        if deconstructed_spectral_models is not None:
+
+            # Reconstruct them.
+            self.metadata.setdefault("spectral_models", [])
+
+            for state in deconstructed_spectral_models:
+
+                args = [self, state["transition_hashes"]]
+                if state["type"] == "SpectralSynthesisModel":
+                    klass = SpectralSynthesisModel
+                    args.append(state["metadata"]["elements"])
+
+                elif state["type"] == "ProfileFittingModel":
+                    klass = ProfileFittingModel
+
+                else:
+                    raise ValueError("unrecognized spectral model class '{}'"\
+                        .format(state["type"]))
+
+                model = klass(*args)
+                model.metadata = state["metadata"]
+                self.metadata["spectral_models"].append(model)
+
         return None
 
 
@@ -241,6 +272,53 @@ class Session(BaseSession):
         rmtree(twd)
 
         return True
+
+
+    def import_transitions(self, path):
+        """
+        Import transitions (line list data and spectral models) from disk.
+
+        :param path:
+            The disk location of the serialized transitions.
+        """
+
+        with open(path, "rb") as fp:
+            line_list, spectral_model_states = pickle.load(fp)
+
+        # Integrate line list with the existing list.
+        if "line_list" in self.metadata:
+            self.metadata["line_list"] = self.metadata["line_list"].merge(
+                line_list, in_place=False)
+        else:
+            self.metadata["line_list"] = line_list
+
+        # Add the spectral models.
+        self.metadata.setdefault("spectral_models", [])
+
+        reconstructed_spectral_models = []
+        for state in spectral_model_states:
+
+            args = [self, state["transition_hashes"]]
+            if state["type"] == "SpectralSynthesisModel":
+                klass = SpectralSynthesisModel
+                args.append(state["metadata"]["elements"])
+
+            elif state["type"] == "ProfileFittingModel":
+                klass = ProfileFittingModel
+
+            else:
+                raise ValueError("unrecognized spectral model class '{}'"\
+                    .format(state["type"]))
+
+            model = klass(*args)
+            model.metadata = state["metadata"]
+            reconstructed_spectral_models.append(model)
+
+        self.metadata["spectral_models"].extend(reconstructed_spectral_models)
+        return len(reconstructed_spectral_models)
+
+
+    # TODO: put export_transitions here from the spectral model GUI too?
 
 
     @classmethod
