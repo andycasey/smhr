@@ -774,6 +774,10 @@ class Session(BaseSession):
         transitions["abundance_uncertainty"][finite] \
             = propagated_abundances - transitions["abundance"][finite]
 
+        # Include minimum uncertainty of 0.005 dex.
+        transitions["abundance_uncertainty"][finite] \
+            = np.clip(transitions["abundance_uncertainty"][finite], 0.005, np.inf)
+
         # By default just return a transitions table for convenience.
         if not full_output:
             return transitions
