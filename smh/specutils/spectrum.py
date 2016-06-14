@@ -61,6 +61,13 @@ class Spectrum1D(object):
                 "size ({0} != {1})".format(dispersion.size, ivar.size, ))
 
         self.metadata = metadata or {}
+
+        # Don't allow orders to be back-to-front.
+        if np.all(np.diff(dispersion) < 0):
+            dispersion = dispersion[::-1]
+            flux = flux[::-1]
+            ivar = ivar[::-1]
+
         self._dispersion = dispersion
         self._flux = flux
         self._ivar = ivar
@@ -270,7 +277,7 @@ class Spectrum1D(object):
 
             flux = image[0].data
             if len(image) == 1:
-                ivar = np.ones_like(flux)*1e+5 # HACK S/N ~300 just for training/verification purposes
+                ivar = np.ones_like(flux)*1e-5 # HACK S/N ~300 just for training/verification purposes
             else:
                 ivar = image[1].data
 
