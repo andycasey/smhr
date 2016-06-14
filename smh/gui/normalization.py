@@ -289,7 +289,6 @@ class NormalizationTab(QtGui.QWidget):
         self.ax_order.scatter([], [], facecolor="k", zorder=5, picker=5)
 
         self.ax_order.set_xticklabels([])
-        self.ax_order.set_yticklabels([])
         self.ax_order.set_ylabel("Flux")
 
         self.ax_order_norm = self.norm_plot.figure.add_subplot(gs[1])
