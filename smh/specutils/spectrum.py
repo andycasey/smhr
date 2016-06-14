@@ -564,7 +564,6 @@ class Spectrum1D(object):
             zero_flux_indices)))
 
         if 1 > continuum_indices.size:
-            raise NoContinuumError
             no_continuum = np.nan * np.ones_like(dispersion)
             failed_spectrum = self.__class__(dispersion=dispersion,
                 flux=no_continuum, ivar=no_continuum, metadata=self.metadata)
@@ -599,9 +598,6 @@ class Spectrum1D(object):
         for iteration in range(max_iterations):
             
             if 1 > continuum_indices.size:
-
-                logger.warn("No continuum could be determined")
-                raise NoContinuumError
 
                 no_continuum = np.nan * np.ones_like(dispersion)
                 failed_spectrum = self.__class__(dispersion=dispersion,
