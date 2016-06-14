@@ -443,7 +443,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.synth_abund_table_model = SynthesisAbundanceTableModel(self)
         self.synth_abund_table.setModel(self.synth_abund_table_model)
         self.synth_abund_table.resizeColumnsToContents()
-        self.synth_abund_table.setColumnWidth(0, 50) # MAGIC
+        self.synth_abund_table.setColumnWidth(0, 40) # MAGIC
+        self.synth_abund_table.setColumnWidth(1, 55) # MAGIC
         self.synth_abund_table.horizontalHeader().setStretchLastSection(True)
         sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
                                QtGui.QSizePolicy.MinimumExpanding)
@@ -599,8 +600,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # TODO debug, checking against session.summarize_spectral_models()
         summary_dict = self.parent.session.summarize_spectral_models(organize_by_element=False)
         species = utils.element_to_species(elem)
-        print("From summary instead of cache",summary_dict[species])
-
+        if species in summary_dict:
+            print("From summary instead of cache",summary_dict[species])
+        
         return None
 
     def refresh_table(self):
@@ -1570,8 +1572,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             print("Run at least one fit before setting abundances of "
                   "fitted element {}!".format(elem))
         else:
-            abund = summary_dict[elem][1]
             for i,elem in enumerate(selected_model.elements):
+                abund = summary_dict[elem][1]
                 key = "log_eps({})".format(elem)
                 fitted_result[0][key] = abund
                 fitted_result[2]["abundances"][i] = abund
