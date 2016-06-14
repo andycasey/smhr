@@ -7,37 +7,44 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
 import numpy as np
-from scipy import (interpolate, ndimage)
+from scipy import (ndimage, optimize as op)
 
 import utils
 
 __all__ = ["BalmerLineModel"]
 
 
+
+def mask_common_region(observed_spectrum, model_wavelengths, mask=None):
+    """
+    Mask the region in common between the observed and model spectra, and apply
+    masks given.
+
+    """
+
+    common_region = [
+        np.max([observed_spectrum.dispersion[0], model_wavelengths[0]]),
+        np.min([observed_spectrum.dispersion[-1], model_wavelengths[-1]])
+    ]
+
+
+
+def _fit_single_model(observed_spectrum, model_wavelength, model_flux, mask=None,
+    redshift=True, smoothing=True, continuum_order=-1):
+    raise a
+
 class BalmerLineModel(object):
 
-    _minimum_required_spectra = 10
-
-    def __init__(self, paths):
+    def __init__(self, paths, **kwargs):
         """
-        Initiate a Balmer line model to fit spectra.
+        A model for fitting Balmer lines.
 
-        :param paths:
-            A list of disk paths containing pre-computed spectra for a Balmer
-            line profile.
+        :param path:
+            The disk location of a pre-computed Balmer line profile.
         """
 
-        if self._minimum_required_spectra > len(paths):
-            raise ValueError("insufficient number of spectra provided")
-
-        # The grid has different spectrum points at each set of stellar
-        # parameters. But the synthesized region is the same: Extra points are
-        # sampled to account for fast-changing flux. That's good for physics
-        # but bad for interpolation. Instead we'll use the most sampled spectrum
-        # as a common dispersion map.
-
+        # Put all the spectra onto the most densely-sampled spectrum.
         spectra = [utils.parse_spectrum(path) for path in paths]
-
         index = np.argmax([spectrum.size for spectrum in spectra])
         self.wavelengths = spectra[index][:, 0]
 
@@ -53,16 +60,12 @@ class BalmerLineModel(object):
                 fluxes.append(np.interp(self.wavelengths, spectrum[:, 0], 
                     spectrum[:, 1], left=None, right=None))
 
-        self.fluxes = np.array(fluxes)
+        self.normalized_fluxes = np.array(fluxes)
         self.paths = usable_paths
 
         # Parse the stellar parameters from the usable paths.
         self.stellar_parameters = np.array(
             [utils.parse_stellar_parameters(path) for path in self.paths])
-
-        # Create an interpolator.
-        self._interpolator = interpolate.LinearNDInterpolator(
-            self.stellar_parameters, self.fluxes, rescale=True)
 
         self.metadata = {
             "mask": [],
@@ -70,6 +73,10 @@ class BalmerLineModel(object):
             "smoothing": False,
             "continuum_order": -1
         }
+        for key, value in kwargs.items():
+            if key in self.metadata:
+                self.metadata[key] = value
+
         self._update_parameters()
 
         return None
@@ -89,7 +96,7 @@ class BalmerLineModel(object):
     def _update_parameters(self):
         """ Update the model parameter names based on the current metadata. """
 
-        parameters = ["effective_temperature", "surface_gravity", "metallicity"]
+        parameters = []
 
         # Radial velocity?
         if self.metadata["redshift"]:
@@ -108,135 +115,150 @@ class BalmerLineModel(object):
         return True
 
 
-    def _initial_guess(self, **kwargs):
-        """ Return an initial guess about the model parameters. """
 
-        p0 = list(np.mean(self.stellar_parameters, axis=1))
+    def __call__(self, x, *parameters):
 
-        if self.metadata["redshift"]:
-            p0.append(0)
-
-        if self.metadata["smoothing"]:
-            p0.append(5)
-
-        if self.metadata["continuum_order"] > -1:
-            p0.append(1)
-            p0.extend([0] * self.metadata["continuum_order"])
-
-        return np.array(p0)
-
-
-    def mask(self, spectrum):
-        """
-        Return a pixel mask based on the metadata and existing mask information
-        available.
-
-        :param spectrum:
-            A spectrum to generate a mask for.
-        """
-
-        mask = (spectrum.dispersion >= self.wavelengths[0]) \
-             * (spectrum.dispersion <= self.wavelengths[-1])
-
-        # Any masked ranges specified in the metadata?
-        for start, end in self.metadata.get("mask", []):
-            mask *= ~((spectrum.dispersion >= start) \
-                    * (spectrum.dispersion <= end))
-        return mask
-
-
-    def interpolate(self, stellar_parameters, fill_value=1.0):
-        """
-        Interpolate a Balmer line profile at the given stellar parameters.
-
-        :param stellar_parameters:
-            A list-like object containing the stellar parameters.
-
-        :returns:
-            An array of fluxes the same length as `self.wavelength`.
-        """
-
-        flux = self._interpolator(*stellar_parameters)
-        if fill_value is not None:
-            flux[~np.isfinite(flux)] = fill_value
-        return flux
-
-
-    def __call__(self, x, parameters):
-        """
-        Generate data at x given the model and specified parameters.
-
-        :param x:
-            An array of dispersion points.
-
-        :param parameters:
-            A list of model parameter values.
-        """
-
-        normalized_flux = self.interpolate(*parameters[:3])
+        # Marginalize over all models.
 
         # Continuum.
         O = self.metadata["continuum_order"]
-        continuum = np.ones_like(x) \
-            if 0 > O else np.polyval(parameters[-(O + 1):], x)    
+        continuum = 1.0 if 0 > O \
+            else np.polyval(parameters[-(O + 1)::][::-1], self.wavelengths)
 
-        y = continuum * normalized_flux
+        y = np.atleast_2d(self.normalized_fluxes * continuum)
 
-        # Smoothing.
+        # Smoothing?
         try:
             index = self.parameter_names.index("smoothing")
-
         except ValueError:
             None
-
         else:
-            y = ndimage.gaussian_filter(y, parameters[index])
+            y = ndimage.gaussian_filter(y, parameters[index], axis=1)
 
-        # Redshift.
+        # Redshift?
         try:
             index = self.parameter_names.index("redshift")
-
         except ValueError:
-            None
-
+            z = 0
         else:
             z = parameters[index]
-            y = np.interp(x, self.wavelengths * (1 + z), y, left=1, right=1)
 
-        return y
+        return np.array([np.interp(x, self.wavelengths * (1 + z), yi, 
+            left=1, right=1) for yi in y])
+
+
+
+    @property
+    def initial_guess(self):
+        """ Generate an uninformed guess for the model parameters. """
+
+        defaults = {
+            "c0": 1,
+            "redshift": 0,
+            "smoothing": 5
+        }
+        return tuple([defaults.get(p, 0) for p in self.parameter_names])
+
+
+    def fit(self, observed_spectrum):
+        """
+        Fit this Balmer line model (and the nuisance parameters) to the data.
+
+        :param observed_spectrum:
+            An observed spectrum.
+        """
+
+        self._update_parameters()
+
+        show = (observed_spectrum.dispersion >= self.wavelengths[0]) \
+             * (observed_spectrum.dispersion <= self.wavelengths[-1])
+
+        mask = show * _generate_mask(observed_spectrum.dispersion, self.metadata["mask"])
+
+        observed_dispersion = observed_spectrum.dispersion
+        observed_flux = observed_spectrum.flux
+        observed_ivar = observed_spectrum.ivar
+        observed_ivar[~mask] = 0
+
+
+        if 1 > len(self.parameter_names):
+            chi_sq = (self(observed_dispersion, None) - observed_flux)**2 \
+                * observed_ivar
+
+            return ((), None, chi_sq)
+
+
+        observed_sigma = np.sqrt(1.0/observed_ivar)
+        ok = np.isfinite(observed_flux * observed_sigma)
+
+
+        def marginalize(x, *parameters):
+            all_model_spectra = self(x, *parameters)
+
+            # Get best.
+            chi_sq = np.nansum(
+                (all_model_spectra - observed_flux[ok])**2 * observed_ivar[ok],
+                axis=1)
+            index = np.argmin(chi_sq)
+            print(index, parameters)
+            return all_model_spectra[index]
+
+
+        op_parameters, cov = op.curve_fit(marginalize, observed_dispersion[ok],
+            observed_flux[ok], sigma=observed_sigma[ok],
+            p0=self.initial_guess, absolute_sigma=True)
+
+        fig, ax = plt.subplots()
+
+        ax.plot(observed_dispersion[show], observed_flux[show], c='k')
+        ax.plot(observed_dispersion[ok], marginalize(observed_dispersion[ok], *op_parameters), c='r')
+
+        raise a
         
 
-    def fitting_function(self, dispersion, *parameters):
-        """
-        Generate data at the dispersion points, given the parameters, but
-        respect the boundaries specified on model parameters.
 
-        :param dispersion:
-            An array of dispersion points to calculate the data for.
 
-        :param parameters:
-            Keyword arguments of the model parameters and their values.
-        """
+def _generate_mask(x, masked_regions=None):
+    if masked_regions is None:
+        masked_regions = []
 
-        for parameter_name, (lower, upper) in self.parameter_bounds.items():
-            value = parameters[self.parameter_names.index(parameter_name)]
-            if not (upper >= value and value >= lower):
-                return np.nan * np.ones_like(dispersion)
-
-        return self.__call__(dispersion, *parameters)
+    mask = np.ones(x.size, dtype=bool)
+    for start, end in masked_regions:
+        mask *= ~((x >= start) * (x <= end))
+    return mask
 
 
 
-    def fit(self, spectrum):
+def mask(self, spectrum):
+    """
+    Return a pixel mask based on the metadata and existing mask information
+    available.
 
-        # Get initial point.
+    :param spectrum:
+        A spectrum to generate a mask for.
+    """
 
-        # Fit with mask.
+    window = abs(self.metadata["window"])
+    wavelengths = self.transitions["wavelength"]
+    try:
+        lower_wavelength = wavelengths[0]
+        upper_wavelength = wavelengths[-1]
+    except IndexError:
+        # Single row.
+        lower_wavelength, upper_wavelength = (wavelengths, wavelengths)
 
-        # Return optimized, cov, + metadata
+    mask = (spectrum.dispersion >= lower_wavelength - window) \
+         * (spectrum.dispersion <= upper_wavelength + window)
+
+    # Any masked ranges specified in the metadata?
+    for start, end in self.metadata["mask"]:
+        mask *= ~((spectrum.dispersion >= start) \
+                * (spectrum.dispersion <= end))
+    return mask
 
 
-        raise NotImplementedError
+
+
 
 
 
@@ -244,57 +266,26 @@ if __name__ == "__main__":
 
 
 
-    import scipy.interpolate
     from glob import glob
 
-    base_model = BalmerLineModel(glob("data/gam_*.prf"))
-
-    raise a
-    # For each point, remove it and create a new thing.
-    sampled_paths = []
-    sampled_fluxes = []
-    interpolated_fluxes = []
-
-    shuffle(base_model.paths)
-    diffs = []
-
-    N = len(base_model.paths)
-    for i, path in enumerate(base_model.paths):
-        
-        test_paths = [] + base_model.paths
-        removed_point = test_paths.pop(i)
-
-        # Is this a valid point?
-        synthesised_spectrum = utils.parse_spectrum(removed_point)
-        if synthesised_spectrum.size == 0: continue
-
-        sampled_paths.append(path)
-
-        # Create model
-        test_model = BalmerLineModel(test_paths)
-
-        f = scipy.interpolate.LinearNDInterpolator(
-            test_model.stellar_parameters, test_model.fluxes, rescale=True)
-
-        # Interpolate to our test point.
-        stellar_parameters = utils.parse_stellar_parameters(removed_point)
-
-        # Put our interpolated flux onto the same wavelengths as the point removed.
-        resampled_flux = np.interp(synthesised_spectrum[:,0],
-            test_model.wavelength, f(*stellar_parameters))
-
-        diff = synthesised_spectrum[:, 1] - resampled_flux
-        diffs.append(diff)
-
-        print("{0}/{1}: {2} (mean {3:.1e}, std {4:.1e} max abs {5:.1e})".format(
-            i, N, path, np.nanmean(diff), np.nanstd(diff), np.nanmax(np.abs(diff))))
-
-        #interpolated_fluxes.append(
-        #    np.array([synthesised_spectrum[:,0], resampled_flux]).T)
-        #sampled_fluxes.append(synthesised_spectrum)
-
-    # Calculate deltas.
+    paths = glob("data/gam_*.prf")
+    model = BalmerLineModel(paths, mask=[
+        [1000, 4330],
+        [4336.84, 4337.31],
+        [4337.48, 4338.09],
+        [4339.31, 4339.53],
+        [4340.03, 4340.98],
+        [4341.2, 4341.59],
+        [4344.11, 4344.72],
+        [4350, 10000]
+    ],
+    redshift=True,
+    continuum_order=2
+    )
 
 
+    # Get a rest-frame normalized spectrum...
+    from smh.specutils import Spectrum1D
+    hd122563 = Spectrum1D.read("hd122563.fits")
 
 
