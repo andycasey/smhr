@@ -852,13 +852,13 @@ class RVTab(QtGui.QWidget):
 
         try:
             template = self._cache["input"]["template_spectrum"]
-        except AttributeError:
+        except:
             return
 
         if not isinstance(template, specutils.Spectrum1D):
             try:
                 path = self._cache["input"]["template_spectrum_path"]
-            except AttributeError, KeyError:
+            except:
                 return
             if not os.path.exists(path): return
             template = specutils.Spectrum1D.read(path)
