@@ -462,18 +462,18 @@ class RVTab(QtGui.QWidget):
 
     def _populate_widgets(self):
         """
-        Populate widgets with values from the current SMH session, or the
-        default SMH settings file.
+        Populate widgets with values from the current SMH session.
+        Fresh sessions are populated from the SMH defaults file.
         """
         if self.parent.session is None:
             return None
-        defaults = self.parent.session.metadata["rv"]
+        rv_dict = self.parent.session.metadata["rv"]
 
         # The cache allows us to store things that won't necessarily go into the
         # session, but will update views, etc. For example, previewing continua
         # before actually using it in cross-correlation, etc.
         self._cache = {
-            "input": defaults.copy()
+            "input": rv_dict.copy()
         }
 
         # Wavelength regions should just be a single range.
@@ -482,56 +482,60 @@ class RVTab(QtGui.QWidget):
         del self._cache["input"]["wavelength_regions"]
 
         # Sometimes template_spectrum in a specutils.Spectrum1D
-        if isinstance(defaults.get("template_spectrum",""), string_types) \
-        and not os.path.exists(defaults.get("template_spectrum", "")):
-            defaults["template_spectrum"] = ""
+        if isinstance(rv_dict.get("template_spectrum",""), string_types) \
+        and not os.path.exists(rv_dict.get("template_spectrum", "")):
+            rv_dict["template_spectrum"] = ""
 
         # Template filename.
         self.template_path.setReadOnly(False)
-        if isinstance(defaults.get("template_spectrum", ""), string_types):
+        if isinstance(rv_dict.get("template_spectrum", ""), string_types):
             self.template_path.setText(
-                os.path.basename(defaults["template_spectrum"]))
+                os.path.basename(rv_dict["template_spectrum"]))
+            rv_dict["template_spectrum_path"] = rv_dict["template_spectrum"]
+            self._cache["input"]["template_spectrum_path"] = rv_dict["template_spectrum"]
         else:
-            template_spectrum_path = defaults.get("template_spectrum_path","")
+            template_spectrum_path = rv_dict.get("template_spectrum_path","")
             self.template_path.setText(
                 os.path.basename(template_spectrum_path))
         self.template_path.setReadOnly(True)
 
         # Wavelength regions.
-        # Clear combo box (triggers self.update_wl_region(), be careful)
+        # Clear combo box
         self.wl_region.clear()
-        #for i in range(self.wl_region.count()):
-        #    self.wl_region.removeItem(0)
-        for each in defaults["wavelength_regions"]:
+        for each in rv_dict["wavelength_regions"]:
             self.wl_region.addItem(u"{0:.0f}-{1:.0f} Å".format(*each))
 
         # Normalization function.
         norm_functions = [self.norm_function.itemText(i).lower() \
             for i in range(self.norm_function.count())]
         self.norm_function.setCurrentIndex(norm_functions.index(
-            defaults["normalization"]["function"].lower()))
+            rv_dict["normalization"]["function"].lower()))
 
         # Normalization order.
         norm_orders = [int(self.norm_order.itemText(i)) \
             for i in range(self.norm_order.count())]
         self.norm_order.setCurrentIndex(norm_orders.index(
-            defaults["normalization"]["order"]))
+            rv_dict["normalization"]["order"]))
 
         # Normalization maximum iterations.
         norm_max_iters = [int(self.norm_max_iter.itemText(i)) \
             for i in range(self.norm_max_iter.count())]
         self.norm_max_iter.setCurrentIndex(norm_max_iters.index(
-            defaults["normalization"]["max_iterations"]))
+            rv_dict["normalization"]["max_iterations"]))
 
         # Normalization low and high sigma clip:
         self.norm_low_sigma.setText(
-            str(defaults["normalization"]["low_sigma_clip"]))
+            str(rv_dict["normalization"]["low_sigma_clip"]))
         self.norm_high_sigma.setText(
-            str(defaults["normalization"]["high_sigma_clip"]))
+            str(rv_dict["normalization"]["high_sigma_clip"]))
         
         # Normalization knot spacing.
         self.norm_knot_spacing.setText(
-            str(defaults["normalization"]["knot_spacing"]))
+            str(rv_dict["normalization"]["knot_spacing"]))
+
+        # RV
+        self.rv_applied.setText("{0:+.1f}".format(\
+                rv_dict.get("rv_measured",np.nan)))
 
         return None
 
@@ -846,10 +850,19 @@ class RVTab(QtGui.QWidget):
         Draw the template spectrum in the figure.
         """
 
-        path = self.template_path.text()
-        if not os.path.exists(path): return
+        try:
+            template = self._cache["input"]["template_spectrum"]
+        except AttributeError:
+            return
 
-        template = specutils.Spectrum1D.read(path)
+        if not isinstance(template, specutils.Spectrum1D):
+            try:
+                path = self._cache["input"]["template_spectrum_path"]
+            except AttributeError, KeyError:
+                return
+            if not os.path.exists(path): return
+            template = specutils.Spectrum1D.read(path)
+
         self.ax_order_norm.lines[2].set_data([
             template.dispersion,
             template.flux
@@ -1201,10 +1214,19 @@ class RVRegionDialog(QtGui.QDialog):
         Draw the template spectrum in the figure.
         """
 
-        path = self.rv_tab.template_path.text()
-        if not os.path.exists(path): return
+        try:
+            template = self.rv_tab._cache["input"]["template_spectrum"]
+        except AttributeError:
+            return
 
-        template = specutils.Spectrum1D.read(path)
+        if not isinstance(template, specutils.Spectrum1D):
+            try:
+                path = self.rv_tab._cache["input"]["template_spectrum_path"]
+            except AttributeError, KeyError:
+                return
+            if not os.path.exists(path): return
+            template = specutils.Spectrum1D.read(path)
+
         self.ax_order_norm.lines[2].set_data([
             template.dispersion,
             template.flux
