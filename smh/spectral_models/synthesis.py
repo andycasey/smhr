@@ -230,11 +230,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # elemental abundances, continuum coefficients, smoothing kernel,
         # velocity offset
 
-        # The elemental abundances are in log_epsilon format.
-        # We will assume a scaled-solar initial value based on the stellar [M/H]
         defaults = {
-            "sigma_smooth": 0.1,
-            "vrad": 0
+            "sigma_smooth": self.metadata["manual_sigma_smooth"], #0.1,
+            "vrad": self.metadata["manual_rv"]
         }
         p0 = []
         for parameter in self.parameter_names:
@@ -243,12 +241,21 @@ class SpectralSynthesisModel(BaseSpectralModel):
                 p0.append(default)
 
             elif parameter.startswith("log_eps"):
+                # The elemental abundances are in log_epsilon format.
+                # If the value was already fit, we use that as the initial guess
+                # Otherwise, we assume a scaled-solar initial value based on the stellar [M/H]
+
                 # Elemental abundance.
                 element = parameter.split("(")[1].rstrip(")")
 
-                # Assume scaled-solar composition.
-                p0.append(solar_composition(element) + \
-                    self.session.metadata["stellar_parameters"]["metallicity"])
+                try:
+                    fitted_result = self.metadata["fitted_result"]
+                except KeyError:
+                    # Assume scaled-solar composition.
+                    p0.append(solar_composition(element) + \
+                        self.session.metadata["stellar_parameters"]["metallicity"])
+                else:
+                    p0.append(fitted_result[0][parameter])
                 
             elif parameter.startswith("c"):
                 # Continuum coefficient.
@@ -542,15 +549,16 @@ class SpectralSynthesisModel(BaseSpectralModel):
             model, left=1, right=1)
 
 
+    """
     def abundances(self):
-        """
+        "
         Calculate the abundances (model parameters) given the current stellar
         parameters in the parent session.
-        """
+        "
 
         #_ self.fit(self.session.normalized_spectrum)
 
         # Parse the abundances into the right format.
         raise NotImplementedError("nope")
-
+    """
         

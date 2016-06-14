@@ -443,7 +443,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.synth_abund_table_model = SynthesisAbundanceTableModel(self)
         self.synth_abund_table.setModel(self.synth_abund_table_model)
         self.synth_abund_table.resizeColumnsToContents()
-        self.synth_abund_table.setColumnWidth(0, 50) # MAGIC
+        self.synth_abund_table.setColumnWidth(0, 40) # MAGIC
+        self.synth_abund_table.setColumnWidth(1, 55) # MAGIC
         self.synth_abund_table.horizontalHeader().setStretchLastSection(True)
         sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
                                QtGui.QSizePolicy.MinimumExpanding)
@@ -561,13 +562,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def calculate_FeH(self):
-        abunds = []
-        # TODO only works measurements of single element right now
-        for spectral_model in self.parent.session.metadata["spectral_models"]:
-            if spectral_model.is_acceptable and 26.0 in spectral_model.species:
-                abunds.append(spectral_model.abundances[0])
-        self.FeH = np.mean(abunds) - solar_composition("Fe")
-        return None
+        summary_dict = self.parent.session.summarize_spectral_models()
+        # TODO using Fe I right now
+        self.FeH = summary_dict[26.0][4]
+        #abunds = []
+        ## only works measurements of single element right now
+        #for spectral_model in self.parent.session.metadata["spectral_models"]:
+        #    if spectral_model.is_acceptable and 26.0 in spectral_model.species:
+        #        abunds.append(spectral_model.abundances[0])
+        #self.FeH = np.mean(abunds) - solar_composition("Fe")
+        return self.FeH
 
     def summarize_current_table(self):
         elem = self.filter_combo_box.currentText()
@@ -576,7 +580,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.element_summary_text.setText("N={} lines".format(N))
             return None
         # Use cache to get abundance and avoid looping through proxy table
-        # TODO [X/Fe]
         ii = np.isfinite(self._abund_cache)
         N = np.sum(ii)
         _abund = self._abund_cache[ii]
@@ -587,11 +590,19 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         abund = np.mean(_abund)#np.sum(_abund*weights)/total_weights
         stdev = np.std(_abund)#np.sum(_errs*weights**2)/(total_weights**2)
         XH = abund - solar_composition(elem.split()[0])
-        if elem == "Fe I": self.FeH = XH
-        XFe = np.nan #XH - self.FeH
+        #if elem == "Fe I": self.FeH = XH
+        self.calculate_FeH()
+        XFe = XH - self.FeH
         text = "N={1} A({0})={2:5.2f} σ({0})={5:4.2f} [{0}/H]={3:5.2f} [{0}/Fe I]={4:5.2f}"
         text = text.format(elem,N,abund,XH,XFe,stdev)
         self.element_summary_text.setText(text)
+
+        # TODO debug, checking against session.summarize_spectral_models()
+        summary_dict = self.parent.session.summarize_spectral_models(organize_by_element=False)
+        species = utils.element_to_species(elem)
+        if species in summary_dict:
+            print("From summary instead of cache",summary_dict[species])
+        
         return None
 
     def refresh_table(self):
@@ -1542,7 +1553,33 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.update_spectrum_figure(redraw=True)
         return None
     def clicked_btn_update_abund_table(self):
-        raise NotImplementedError
+        selected_model = self._get_selected_model()
+        if selected_model is None: return None
+        assert isinstance(selected_model, SpectralSynthesisModel), selected_model
+        summary_dict = self.parent.session.summarize_spectral_models(organize_by_element=True)
+        
+        # Fill in fixed abundances
+        for elem in selected_model.metadata["rt_abundances"]:
+            try:
+                selected_model.metadata["rt_abundances"][elem] = summary_dict[elem][1]
+            except KeyError:
+                selected_model.metadata["rt_abundances"][elem] = np.nan
+
+        # Fill in fixed abundances
+        try:
+            fitted_result = selected_model.metadata["fitted_result"]
+        except KeyError:
+            print("Run at least one fit before setting abundances of "
+                  "fitted element {}!".format(elem))
+        else:
+            for i,elem in enumerate(selected_model.elements):
+                abund = summary_dict[elem][1]
+                key = "log_eps({})".format(elem)
+                fitted_result[0][key] = abund
+                fitted_result[2]["abundances"][i] = abund
+
+        print(summary_dict)
+        return None
 
 class SpectralModelsTableView(SpectralModelsTableViewBase):
     def fit_selected_models(self):
@@ -1753,6 +1790,7 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
     """
     def __init__(self, parent, *args):
         super(SynthesisAbundanceTableModel, self).__init__(parent, *args)
+        self.parent = parent
         self.spectral_model = None
         self.elem_order = None
         self.num_fit_elems = 0
@@ -1761,6 +1799,7 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
         """
         Call this to reset the table with a new spectral model
         """
+        self.parent.calculate_FeH()
         self.beginResetModel()
         self.spectral_model = spectral_model
         # Sort table by Z
@@ -1791,7 +1830,7 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
             print(e)
             return 0
     def columnCount(self, parent):
-        return 2
+        return 3
     def data(self, index, role):
         if not index.isValid() or role != QtCore.Qt.DisplayRole:
             return None
@@ -1799,22 +1838,31 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
         elem = self.elem_order[index.row()]
         if index.column()==0: 
             return elem
+
         if elem in self.spectral_model.metadata["rt_abundances"]:
-            return "{:.3f}".format(self.spectral_model.metadata["rt_abundances"][elem])
-        if "fitted_result" not in self.spectral_model.metadata:
-            return str(np.nan)
-        fitted_result = self.spectral_model.metadata["fitted_result"]
-        key = "log_eps({})".format(elem)
-        assert key in fitted_result[0], "{} {}".format(key,fitted_result[0])
-        return "{:.3f}".format(fitted_result[0][key])
+            logeps = self.spectral_model.metadata["rt_abundances"][elem]
+        elif "fitted_result" not in self.spectral_model.metadata:
+            logeps = np.nan
+        else:
+            fitted_result = self.spectral_model.metadata["fitted_result"]
+            key = "log_eps({})".format(elem)
+            assert key in fitted_result[0], "{} {}".format(key,fitted_result[0])
+            logeps = fitted_result[0][key]
+        
+        if index.column()==1:
+            return "{:.3f}".format(logeps)
+        elif index.column()==2:
+            return "{:.3f}".format(logeps-solar_composition(elem)-self.parent.FeH)
+        return None
     def headerData(self, col, orientation, role):
         if orientation == QtCore.Qt.Horizontal \
         and role == QtCore.Qt.DisplayRole:
             if col==0: return "El."
             if col==1: return "A(X)"
-            #if col==2: return "[X/H]"
+            if col==2: return "[X/Fe]"
         return None
     def setData(self, index, value, role):
+        # [X/Fe] and logeps appear to automatically update each other!
         if index.column()==0: return False
         if self.spectral_model is None: return False
         # Modify the spectral model abundance
@@ -1825,7 +1873,11 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
             except ValueError:
                 return False
             else:
-                self.spectral_model.metadata["rt_abundances"][elem] = value
+                if index.column() == 1:
+                    self.spectral_model.metadata["rt_abundances"][elem] = value
+                elif index.column() == 2:
+                    self.spectral_model.metadata["rt_abundances"][elem] = \
+                        value + solar_composition(elem) + self.parent.FeH
                 return True
         elif elem in self.spectral_model.elements:
             try:
@@ -1843,6 +1895,11 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
                 return False
             else:
                 key = "log_eps({})".format(elem)
+                if index.column() == 1:
+                    pass #value = value
+                elif index.column() == 2:
+                    value = value + solar_composition(elem) + self.parent.FeH
+
                 fitted_result[0][key] = value
                 for i,_elem in enumerate(self.spectral_model.elements):
                     if _elem == elem: break
@@ -1857,6 +1914,6 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
             return None
         flags = QtCore.Qt.ItemIsEnabled|\
                 QtCore.Qt.ItemIsSelectable
-        if index.column()==1: #abundance
+        if index.column()==1 or index.column(): #abundance
             flags |= QtCore.Qt.ItemIsEditable
         return flags
