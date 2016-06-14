@@ -319,7 +319,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.rv_tab._populate_widgets()
         self.rv_tab.draw_template(refresh=True)
         self.rv_tab.redraw_ccf(refresh=True)
-        if "rv_measured" not in self.session.metadata["rv"]: return None
+        if "rv_measured" not in self.session.metadata["rv"] \
+        and "rv_applied" not in self.session.metadata["rv"]: return None
         
         if "normalization" not in self.session.metadata: return None
         self.tabs.setTabEnabled(2, True)

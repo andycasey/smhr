@@ -636,13 +636,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             if isinstance(spectral_model, SpectralSynthesisModel):
                 try:
                     res = spectral_model.fit()
-                except (ValueError, RuntimeError) as e:
+                except (ValueError, RuntimeError, TypeError) as e:
                     logger.debug("Fitting error",spectral_model)
                     logger.debug(e)
             elif isinstance(spectral_model, ProfileFittingModel):
                 try:
                     res = spectral_model.fit()
-                except (ValueError, RuntimeError) as e:
+                except (ValueError, RuntimeError, TypeError) as e:
                     logger.debug("Fitting error",spectral_model)
                     logger.debug(e)
         # If none are acceptable, then fit all
@@ -652,13 +652,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 if isinstance(spectral_model, SpectralSynthesisModel):
                     try:
                         res = spectral_model.fit()
-                    except (ValueError, RuntimeError) as e:
+                    except (ValueError, RuntimeError, TypeError) as e:
                         logger.debug("Fitting error",spectral_model)
                         logger.debug(e)
                 elif isinstance(spectral_model, ProfileFittingModel):
                     try:
                         res = spectral_model.fit()
-                    except (ValueError, RuntimeError) as e:
+                    except (ValueError, RuntimeError, TypeError) as e:
                         logger.debug("Fitting error",spectral_model)
                         logger.debug(e)
 
