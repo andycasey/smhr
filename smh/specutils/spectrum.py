@@ -203,12 +203,28 @@ class Spectrum1D(object):
         md5_hash = md5(";".join([v for k, v in metadata.items() \
             if k.startswith("BANDID")])).hexdigest()
         is_carpy_product = (md5_hash == "0da149208a3c8ba608226544605ed600")
+        is_apo_product = (image[0].header.get("OBSERVAT", None) == "APO")
 
         if is_carpy_product:
             # CarPy gives a 'noise' spectrum, which we must convert to an
             # inverse variance array
             flux_ext = flux_ext or 1
             noise_ext = ivar_ext or 2
+
+            logger.info(
+                "Recognized CarPy product. Using zero-indexed flux/noise "
+                "extensions (bands) {}/{}".format(flux_ext, noise_ext))
+
+            flux = image[0].data[flux_ext]
+            ivar = image[0].data[noise_ext]**(-2)
+
+        elif is_apo_product:
+            flux_ext = flux_ext or 0
+            noise_ext = ivar_ext or -1
+
+            logger.info(
+                "Recognized APO product. Using zero-indexed flux/noise "
+                "extensions (bands) {}/{}".format(flux_ext, noise_ext))
 
             flux = image[0].data[flux_ext]
             ivar = image[0].data[noise_ext]**(-2)
