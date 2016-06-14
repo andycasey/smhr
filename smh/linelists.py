@@ -572,6 +572,19 @@ class LineList(Table):
         new_table = new_table[write_cols]
         new_table.write(filename,format='ascii.aastex')
 
+    def __eq__(self, other):
+        """
+        Define == operator to always return a single bool.
+        If not, list.remove() does not work.
+        """
+        return np.all(super(LineList, self).__eq__(other))
+    def __ne__(self, other):
+        """
+        Define != operator to always return a single bool.
+        If not, list.remove() does not work.
+        """
+        return ~self.__eq__(other)
+
 ## Add to astropy.io registry
 def _moog_identifier(*args, **kwargs):
     return isinstance(args[0], basestring) and args[0].lower().endswith(".moog")
