@@ -428,7 +428,8 @@ class StellarParametersTab(QtGui.QWidget):
                 self.ax_residual.axvspan(xmin=np.nan, xmax=np.nan, ymin=np.nan,
                     ymax=np.nan, facecolor="r", edgecolor="none", alpha=0.25,
                     zorder=-5)
-            ]
+            ],
+            "dotted_line_at_one": self.ax_spectrum.plot([2000,10000],[1,1], 'k:')
         }
 
         self.parent_layout.addWidget(self.figure)
