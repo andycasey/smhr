@@ -200,14 +200,20 @@ class MPLWidget(FigureCanvas):
             pass
         else:
             # Apply the zoom
-            x1 = min(self.x1, self.x2)
-            x2 = max(self.x1, self.x2)
-            y1 = min(self.y1, self.y2)
-            y2 = max(self.y1, self.y2)
-            ax.set_xlim([x1,x2])
-            ax.set_ylim([y1,y2])
+            if ax == self.right_clicked_axis:
+                x1 = min(self.x1, self.x2)
+                x2 = max(self.x1, self.x2)
+                y1 = min(self.y1, self.y2)
+                y2 = max(self.y1, self.y2)
+                ax.set_xlim([x1,x2])
+                ax.set_ylim([y1,y2])
         
         # Clean up
+        for i,_ax in enumerate(self.figure.axes):
+            if _ax == self.right_clicked_axis:
+                break # set i
+        else:
+            raise RuntimeError("Cannot find right clicked axis")
         self.zoom_box_lines[i][0].set_xdata([np.nan,np.nan])
         self.zoom_box_lines[i][0].set_xdata([np.nan,np.nan])
         self.zoom_box_lines[i][1].set_xdata([np.nan,np.nan])

@@ -812,26 +812,26 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def figure_mouse_press(self, event):
         """
-        Trigger for when the mouse button is pressed in the figure.
+        Trigger for when the left mouse button is pressed in the figure.
 
         :param event:
             The matplotlib event.
         """
-        if event.inaxes in (self.ax_residual, self.ax_spectrum) \
-        and event.button==1:
+        if event.button != 1: return None
+        if event.inaxes in (self.ax_residual, self.ax_spectrum):
             self.spectrum_axis_mouse_press(event)
         return None
 
 
     def figure_mouse_release(self, event):
         """
-        Trigger for when the mouse button is released in the figure.
+        Trigger for when the left mouse button is released in the figure.
 
         :param event:
             The matplotlib event.
         """
-        if event.inaxes in (self.ax_residual, self.ax_spectrum) \
-        and event.button==1:
+        if event.button != 1: return None
+        if event.inaxes in (self.ax_residual, self.ax_spectrum):
             self.spectrum_axis_mouse_release(event)
         return None
 

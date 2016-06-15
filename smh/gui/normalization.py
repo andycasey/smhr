@@ -451,7 +451,7 @@ class NormalizationTab(QtGui.QWidget):
 
     def figure_mouse_press(self, event):
         """
-        Function to handle event clicks (single or double click).
+        Function to handle event left clicks (single or double click).
         
         :param event:
             The matplotlib event signal.
@@ -551,7 +551,7 @@ class NormalizationTab(QtGui.QWidget):
 
     def figure_mouse_release(self, event):
         """
-        A callback function that is executed when the mouse button is released.
+        A callback function that is executed when the left mouse button is released.
         This signal typically triggers the extent of a region to mask in the
         current order.
 

@@ -448,6 +448,11 @@ class StellarParametersTab(QtGui.QWidget):
         # Connect matplotlib.
         self.figure.mpl_connect("button_press_event", self.figure_mouse_press)
         self.figure.mpl_connect("button_release_event", self.figure_mouse_release)
+        # Zoom box
+        self.figure.mpl_connect("button_press_event", self.figure.axis_right_mouse_press)
+        self.figure.mpl_connect("button_release_event", self.figure.axis_right_mouse_release)
+        self.figure.mpl_connect("key_press_event", self.figure.unzoom_on_z_press)
+        self.figure.setFocusPolicy(QtCore.Qt.ClickFocus)
 
         return None
 
@@ -556,9 +561,13 @@ class StellarParametersTab(QtGui.QWidget):
 
         xscale = np.ptp(event.inaxes.get_xlim())
         yscale = np.ptp(event.inaxes.get_ylim())
-        distance = np.sqrt(
-                ((self._state_transitions[ycol] - event.ydata)/yscale)**2 \
-            +   ((self._state_transitions[xcol] - event.xdata)/xscale)**2)
+        try:
+            distance = np.sqrt(
+                    ((self._state_transitions[ycol] - event.ydata)/yscale)**2 \
+                +   ((self._state_transitions[xcol] - event.xdata)/xscale)**2)
+        except AttributeError:
+            # Stellar parameters have not been measured yet
+            return None
 
         index = np.nanargmin(distance)
 
@@ -573,11 +582,13 @@ class StellarParametersTab(QtGui.QWidget):
 
     def figure_mouse_press(self, event):
         """
-        Trigger for when the mouse button is pressed in the figure.
+        Trigger for when the left mouse button is pressed in the figure.
 
         :param event:
             The matplotlib event.
         """
+
+        if event.button != 1: return None
 
         if event.inaxes \
         in (self.ax_residual, self.ax_residual_twin, self.ax_spectrum):
@@ -593,11 +604,13 @@ class StellarParametersTab(QtGui.QWidget):
 
     def figure_mouse_release(self, event):
         """
-        Trigger for when the mouse button is released in the figure.
+        Trigger for when the left mouse button is released in the figure.
 
         :param event:
             The matplotlib event.
         """
+
+        if event.button != 1: return None
 
         if event.inaxes \
         in (self.ax_residual, self.ax_residual_twin, self.ax_spectrum):
@@ -992,7 +1005,6 @@ class StellarParametersTab(QtGui.QWidget):
         self.ax_excitation_twin.set_ylabel(r"$\log_\epsilon({\rm X})$")
         self.ax_line_strength_twin.set_ylabel(r"$\log_\epsilon({\rm X})$")
 
-
         # Scale the left hand ticks to [X/H] or [X/M]
 
         # How many atomic number?
@@ -1292,6 +1304,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Show spectrum.
         self.update_spectrum_figure(redraw=True)
+        self.figure.reset_zoom_limits()
 
         print("Time taken: {}".format(time() - ta))
         return None
