@@ -1449,13 +1449,19 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
     def update_detection_sigma(self):
         """ The detection sigma for nearby lines has been updated. """
-        self._get_selected_model().metadata["detection_sigma"] \
-            = float(self.edit_detection_sigma.text())
+        try:
+            value = float(self.edit_detection_sigma.text())
+        except:
+            value = None
+        self._get_selected_model().metadata["detection_sigma"] = value
         return None
     def update_detection_pixels(self):
         """ The number of pixels to qualify a detection has been updated. """
-        self._get_selected_model().metadata["detection_pixels"] \
-            = int(self.edit_detection_pixels.text())
+        try:
+            value = int(self.edit_detection_pixels.text())
+        except:
+            value = None
+        self._get_selected_model().metadata["detection_pixels"] = value
         return None
     def clicked_checkbox_use_central_weighting(self):
         """ The checkbox to use central weighting has been clicked. """
@@ -1473,8 +1479,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
     def update_wavelength_tolerance(self):
         """ The wavelength tolerance for a profile centroid has been updated. """
-        self._get_selected_model().metadata["wavelength_tolerance"] \
-            = float(self.edit_wavelength_tolerance.text())
+        try:
+            value = float(self.edit_wavelength_tolerance.text())
+        except:
+            value = None
+        self._get_selected_model().metadata["wavelength_tolerance"] = value
         return None
     def clicked_btn_clear_masks(self):
         spectral_model = self._get_selected_model()
