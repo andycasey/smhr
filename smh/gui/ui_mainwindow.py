@@ -18,6 +18,7 @@ import rv, normalization, summary, stellar_parameters, chemical_abundances
 import smh
 from linelist_manager import TransitionsDialog
 from isotope_manager import IsotopeDialog
+from plotting import SummaryPlotDialog
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,13 @@ class Ui_MainWindow(QtGui.QMainWindow):
         edit_menu = self.menuBar().addMenu("&Edit")
         edit_menu.addAction(self.action_transitions_manager)
         edit_menu.addAction(self.action_isotopes_manager)
+
+        # Plot menu
+        plot_menu = self.menuBar().addMenu("&Plot")
+        summary_plot = QtGui.QAction("&Summary Plot", self,
+            statusTip="Make summary plot",
+            triggered=self.summary_plot)
+        plot_menu.addAction(summary_plot)
 
         # Export menu.
         self._menu_export_normalized_spectrum \
@@ -408,6 +416,14 @@ class Ui_MainWindow(QtGui.QMainWindow):
         window.exec_()
         return None
 
+
+    def summary_plot(self):
+        """
+        Make a summary plot in a popup dialog
+        """
+        window = SummaryPlotDialog(self.session, self)
+        window.exec_()
+        return None
 
     def __init_ui__(self):
         """

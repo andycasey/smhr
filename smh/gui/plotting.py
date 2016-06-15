@@ -1,0 +1,37 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+""" The radial velocity tab view for the Spectroscopy Made Hard GUI. """
+
+from __future__ import (division, print_function, absolute_import,
+                        unicode_literals)
+
+import numpy as np
+import os
+import sys
+from PySide import QtCore, QtGui
+
+import mpl
+from matplotlib import (gridspec, pyplot as plt)
+from smh import (Session, isoutils)
+from smh.linelists import LineList
+
+import logging
+logger = logging.getLogger(__name__)
+
+__all__ = ["SummaryPlotDialog"]
+
+class SummaryPlotDialog(QtGui.QDialog):
+    def __init__(self, session, parent):
+        super(SummaryPlotDialog, self).__init__()
+        # Center it on the parent location
+        rect = parent.geometry()
+        x, y = rect.center().x(), rect.center().y()
+        w = 1000
+        h = 640
+        self.setGeometry(x-w/2, y-h/2, w, h)
+        vbox = QtGui.QVBoxLayout(self)
+        figure_widget = mpl.MPLWidget(None, tight_layout=True)
+        vbox.addWidget(figure_widget)
+        session.make_summary_plot(figure_widget.figure)
+        

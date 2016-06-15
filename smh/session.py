@@ -25,6 +25,7 @@ from .linelists import LineList
 from . import (photospheres, radiative_transfer, specutils, isoutils, utils)
 from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
 from smh.photospheres.abundances import asplund_2009 as solar_composition
+from . import (smh_plotting)
 
 logger = logging.getLogger(__name__)
 
@@ -995,3 +996,15 @@ class Session(BaseSession):
         print("Time to summarize {} measurements (organized by {}): {:.1f}".format(\
                 total_num_models_summarized, what_key_type, time.time()-start))
         return summary_dict
+    
+    def make_summary_plot(self, figure=None):
+        with open(self._default_settings_path, "rb") as fp:
+            defaults = yaml.load(fp)
+        if "summary_figure" not in defaults:
+            raise RuntimeError("Defaults file ({}) must have summary_figure".format(\
+                    self._default_settings_path))
+        if not isinstance(self.normalized_spectrum, specutils.Spectrum1D):
+            print("Must have normalized spectrum to make summary plot")
+            return None
+        smh_plotting.make_summary_plot(defaults["summary_figure"],
+                                       self.normalized_spectrum, figure)
