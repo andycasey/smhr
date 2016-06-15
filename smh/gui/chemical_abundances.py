@@ -201,6 +201,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.figure.mpl_connect("button_release_event", self.figure_mouse_release)
         self.figure.figure.canvas.callbacks.connect(
             "pick_event", self.figure_mouse_pick)
+        # Zoom box
+        self.figure.mpl_connect("button_press_event", self.figure.axis_right_mouse_press)
+        self.figure.mpl_connect("button_release_event", self.figure.axis_right_mouse_release)
+        self.figure.mpl_connect("key_press_event", self.figure.unzoom_on_z_press)
+        self.figure.setFocusPolicy(QtCore.Qt.ClickFocus)
         
         self._currently_plotted_element = None
         self._rew_cache = []
@@ -812,9 +817,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         :param event:
             The matplotlib event.
         """
-        logger.debug("Mouse pressed"+str(event))
-
-        if event.inaxes in (self.ax_residual, self.ax_spectrum):
+        if event.inaxes in (self.ax_residual, self.ax_spectrum) \
+        and event.button==1:
             self.spectrum_axis_mouse_press(event)
         return None
 
@@ -826,9 +830,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         :param event:
             The matplotlib event.
         """
-        logger.debug("Mouse released"+str(event))
-
-        if event.inaxes in (self.ax_residual, self.ax_spectrum):
+        if event.inaxes in (self.ax_residual, self.ax_spectrum) \
+        and event.button==1:
             self.spectrum_axis_mouse_release(event)
         return None
 
@@ -995,6 +998,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def selected_model_changed(self):
         self.update_fitting_options()
         self.refresh_plots()
+        self.figure.reset_zoom_limits()
         return None
 
     def update_spectrum_figure(self, redraw=False):
@@ -1055,6 +1059,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # Zoom to region.
         self.ax_spectrum.set_xlim(limits)
         self.ax_residual.set_xlim(limits)
+        self.figure.reset_zoom_limits()
             
         # If this is a profile fitting line, show where the centroid is.
         x = transitions["wavelength"][0] \
@@ -1401,6 +1406,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     transitions["wavelength"][-1] + window)
             self.ax_spectrum.set_xlim(xlim)
             self.ax_residual.set_xlim(xlim)
+            self.figure.reset_zoom_limits()
             self.figure.draw()
         return None
     def update_edit_fit_window(self):
@@ -1507,6 +1513,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     transitions["wavelength"][-1] + window)
             self.ax_spectrum.set_xlim(xlim)
             self.ax_residual.set_xlim(xlim)
+            self.figure.reset_zoom_limits()
             self.figure.draw()
         return None
     def update_edit_fit_window_2(self):
