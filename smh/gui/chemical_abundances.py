@@ -358,26 +358,48 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.update_edit_view_window)
         self.edit_fit_window.textChanged.connect(
             self.update_edit_fit_window)
+        self.edit_fit_window.returnPressed.connect(
+            self.fit_one)
         self.checkbox_continuum.stateChanged.connect(
             self.clicked_checkbox_continuum)
+        self.checkbox_continuum.stateChanged.connect(
+            self.fit_one)
         self.combo_continuum.currentIndexChanged.connect(
             self.update_continuum_order)
+        self.combo_continuum.currentIndexChanged.connect(
+            self.fit_one)
         self.checkbox_vrad_tolerance.stateChanged.connect(
             self.clicked_checkbox_vrad_tolerance)
+        self.checkbox_vrad_tolerance.stateChanged.connect(
+            self.fit_one)
         self.edit_vrad_tolerance.textChanged.connect(
             self.update_vrad_tolerance)
+        self.edit_vrad_tolerance.returnPressed.connect(
+            self.fit_one)
         self.combo_profile.currentIndexChanged.connect(
             self.update_combo_profile)
+        self.combo_profile.currentIndexChanged.connect(
+            self.fit_one)
         self.edit_detection_sigma.textChanged.connect(
             self.update_detection_sigma)
+        self.edit_detection_sigma.returnPressed.connect(
+            self.fit_one)
         self.edit_detection_pixels.textChanged.connect(
             self.update_detection_pixels)
+        self.edit_detection_pixels.returnPressed.connect(
+            self.fit_one)
         self.checkbox_use_central_weighting.stateChanged.connect(
             self.clicked_checkbox_use_central_weighting)
+        self.checkbox_use_central_weighting.stateChanged.connect(
+            self.fit_one)
         self.checkbox_wavelength_tolerance.stateChanged.connect(
             self.clicked_checkbox_wavelength_tolerance)
+        self.checkbox_wavelength_tolerance.stateChanged.connect(
+            self.fit_one)
         self.edit_wavelength_tolerance.textChanged.connect(
             self.update_wavelength_tolerance)
+        self.edit_wavelength_tolerance.returnPressed.connect(
+            self.fit_one)
         self.btn_fit_one.clicked.connect(
             self.fit_one)
         self.btn_clear_masks.clicked.connect(
@@ -476,28 +498,48 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.opt_tabs.addTab(self.tab_synthesis, "Synthesis")
 
         # Connect signals for synthesis
+        self.synthDefaultAction = self.fit_one
+
         self.edit_view_window_2.textChanged.connect(
             self.update_edit_view_window_2)
         self.edit_fit_window_2.textChanged.connect(
             self.update_edit_fit_window_2)
         self.checkbox_continuum_2.stateChanged.connect(
             self.clicked_checkbox_continuum_2)
+        #self.checkbox_continuum_2.stateChanged.connect(
+        #    self.synthDefaultAction)
         self.combo_continuum_2.currentIndexChanged.connect(
             self.update_continuum_order_2)
+        #self.combo_continuum_2.currentIndexChanged.connect(
+        #    self.synthDefaultAction)
         self.edit_manual_continuum.textChanged.connect(
             self.update_edit_manual_continuum)
+        #self.edit_manual_continuum.returnPressed.connect(
+        #    self.synthDefaultAction)
         self.checkbox_vrad_tolerance_2.stateChanged.connect(
             self.clicked_checkbox_vrad_tolerance_2)
+        #self.checkbox_vrad_tolerance_2.stateChanged.connect(
+        #    self.synthDefaultAction)
         self.edit_vrad_tolerance_2.textChanged.connect(
             self.update_vrad_tolerance_2)
+        #self.edit_vrad_tolerance_2.returnPressed.connect(
+        #    self.synthDefaultAction)
         self.edit_manual_rv.textChanged.connect(
             self.update_manual_rv)
+        #self.edit_manual_rv.returnPressed.connect(
+        #    self.synthDefaultAction)
         self.checkbox_model_smoothing.stateChanged.connect(
             self.clicked_checkbox_model_smoothing)
+        #self.checkbox_model_smoothing.stateChanged.connect(
+        #    self.synthDefaultAction)
         self.edit_manual_smoothing.textChanged.connect(
             self.update_manual_smoothing)
+        #self.edit_manual_smoothing.returnPressed.connect(
+        #    self.synthDefaultAction)
         self.edit_initial_abundance_bound.textChanged.connect(
             self.update_initial_abundance_bound)
+        #self.edit_initial_abundance_bound.returnPressed.connect(
+        #    self.synthDefaultAction)
         self.btn_synthesize.clicked.connect(
             self.synthesize_current_model)
         self.btn_fit_synth.clicked.connect(
@@ -1235,7 +1277,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.opt_tabs.setTabEnabled(0, True)
             self.opt_tabs.setCurrentIndex(0)
 
-            self.edit_view_window.setText("{}".format(selected_model.metadata["window"]))
+            # Increase view window by 2 percent for ease of masking edges
+            self.edit_view_window.setText("{}".format(selected_model.metadata["window"]*1.02))
             self.edit_fit_window.setText("{}".format(selected_model.metadata["window"]))
 
             # Continuum order.
