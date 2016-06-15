@@ -6,6 +6,7 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+import logging
 import numpy as np
 from scipy import (integrate, ndimage, optimize as op)
 
@@ -14,26 +15,17 @@ import utils
 __all__ = ["BalmerLineModel"]
 
 
+logger = logging.getLogger(__name__)
 
-def mask_common_region(observed_spectrum, model_wavelengths, mask=None):
-    """
-    Mask the region in common between the observed and model spectra, and apply
-    masks given.
-
-    """
-
-    common_region = [
-        np.max([observed_spectrum.dispersion[0], model_wavelengths[0]]),
-        np.min([observed_spectrum.dispersion[-1], model_wavelengths[-1]])
-    ]
-
-
-
-def _fit_single_model(observed_spectrum, model_wavelength, model_flux, mask=None,
-    redshift=True, smoothing=True, continuum_order=-1):
-    raise a
 
 class BalmerLineModel(object):
+
+    _default_metadata = {
+        "mask": [],
+        "redshift": False,
+        "smoothing": False,
+        "continuum_order": -1
+    }
 
     def __init__(self, paths, **kwargs):
         """
@@ -49,7 +41,6 @@ class BalmerLineModel(object):
         self.wavelengths = spectra[index][:, 0]
 
         # Skip over empty spectra and resample the others.
-        
         fluxes = []
         usable_paths = []
         for i, (path, spectrum) in enumerate(zip(paths, spectra)):
@@ -67,16 +58,8 @@ class BalmerLineModel(object):
         self.stellar_parameters = np.array(
             [utils.parse_stellar_parameters(path) for path in self.paths])
 
-        self.metadata = {
-            "mask": [],
-            "redshift": False,
-            "smoothing": False,
-            "continuum_order": -1,
-            "marginalization_boundaries": {
-                "smoothing": [0, 10],
-                "redshift": [-30/299792.458, +30,299792.458],
-            }
-        }
+        self.metadata = {}
+        self.metadata.update(self._default_metadata)
         for key, value in kwargs.items():
             if key in self.metadata:
                 self.metadata[key] = value
@@ -124,10 +107,12 @@ class BalmerLineModel(object):
 
         # Marginalize over all models.
 
+        assert len(parameters) == len(self.parameter_names)
+
         # Continuum.
         O = self.metadata["continuum_order"]
         continuum = 1.0 if 0 > O \
-            else np.polyval(parameters[-(O + 1)::][::-1], self.wavelengths)
+            else np.polyval(parameters[-(O + 1):][::-1], self.wavelengths)
 
         if model_index is not None:
             y = np.atleast_2d(self.normalized_fluxes[model_index, :] * continuum)
@@ -140,7 +125,9 @@ class BalmerLineModel(object):
         except ValueError:
             None
         else:
-            y = ndimage.gaussian_filter(y, parameters[index], axis=1)
+            kernel = abs(parameters[index])
+            y = ndimage.gaussian_filter1d(y, kernel, axis=-1)
+
 
         # Redshift?
         try:
@@ -148,7 +135,8 @@ class BalmerLineModel(object):
         except ValueError:
             z = 0
         else:
-            z = parameters[index]
+            v = parameters[index]
+            z = v/299792.458 # km/s
 
         return np.array([np.interp(x, self.wavelengths * (1 + z), yi, 
             left=1, right=1) for yi in y])
@@ -171,7 +159,7 @@ class BalmerLineModel(object):
         )
 
 
-    def _optimize_nuisance_parameters(self, dispersion, flux, sigma, grid_index,
+    def _optimize_nuisance_parameters(self, dispersion, flux, ivar, grid_index,
         **kwargs):
         """
         Optimize nuisance parameters at a single grid point. Note that no
@@ -183,8 +171,6 @@ class BalmerLineModel(object):
         :param flux:
             The observed flux values.
 
-        :param sigma:
-            The 1-sigma uncertainty of the observed flux values.
 
         :param grid_index:
             The grid index.
@@ -194,8 +180,8 @@ class BalmerLineModel(object):
             "f": lambda x, *theta: self(grid_index, x, *theta).flatten(),
             "xdata": dispersion,
             "ydata": flux,
-            "sigma": sigma,
-            "absolute_sigma": True,
+            "sigma": ivar,
+            "absolute_sigma": False,
             "p0": self.initial_guess,
         }
         kwds.update(kwargs)
@@ -235,8 +221,7 @@ class BalmerLineModel(object):
             grid_index = np.argmin(chi_sq)
 
             print(grid_index, parameters, chi_sq[grid_index])
-            return chi_sq[grid_index]
-
+            return model_fluxes[grid_index]
 
         op_parameters, cov = op.curve_fit(selector, 
             obs_dispersion, obs_flux, sigma=obs_sigma, 
@@ -255,18 +240,18 @@ class BalmerLineModel(object):
         defaults = {
             "c0": 1,
             "redshift": 0,
-            "smoothing": 5
+            "smoothing": 20
         }
         return tuple([defaults.get(p, 0) for p in self.parameter_names])
 
 
-    def _nll(self, grid_index, theta, obs_dispersion, obs_flux, obs_ivar):
+    def _chi_sq(self, grid_index, theta, obs_dispersion, obs_flux, obs_ivar):
         """
-        Calculate the negative log-likelihood for the data, given the model and
+        Calculate the chi_sq for the data, given the model and
         parameters.
         """
         model = self(grid_index, obs_dispersion, *theta).flatten()
-        return -0.5 * np.sum((model - obs_flux)**2 * obs_ivar)
+        return np.sum((model - obs_flux)**2 * obs_ivar)
 
 
 
@@ -277,63 +262,103 @@ class BalmerLineModel(object):
 
         """
 
-        N_samples = kwargs.pop("N_samples", 30) # This is *per* grid point.       
-        scale_uncertainties = kwargs.pop("scale_uncertainties", 5)
-
         self._update_parameters()
 
         obs_dispersion, obs_flux, obs_ivar = self._slice_spectrum(data)
-        obs_sigma = np.sqrt(1.0/obs_ivar)
-
+        
         # Apply masks.
         mask = _generate_mask(obs_dispersion, self.metadata["mask"]) \
-             * np.isfinite(obs_flux * obs_sigma)
+             * np.isfinite(obs_flux * obs_ivar)
 
         obs_dispersion = obs_dispersion[mask]
-        obs_flux = obs_flux[mask]
-        obs_ivar = obs_ivar[mask]
-        obs_sigma = obs_sigma[mask]
+        obs_flux, obs_ivar = obs_flux[mask], obs_ivar[mask]
+        
+        K = len(self.parameter_names)
+        S = self.normalized_fluxes.shape[0]
+        
+        previous_cov = None
+        likelihoods = np.nan * np.ones(S)
+        integrals = np.nan * np.ones(S)
+        optimized_theta = np.nan * np.ones((S, K))
 
-
-        N_stars, N_pixels = self.normalized_fluxes.shape
-        N_theta = self.stellar_parameters.shape[1] + len(self.parameter_names)
-
-        nlls = np.inf * np.ones((N_pixels * N_samples))
-        sampled_theta = np.nan * np.ones((N_pixels * N_samples, N_theta))
         for index, stellar_parameters in enumerate(self.stellar_parameters):
 
             # At each grid point, optimize the parameters.
-            op_theta, cov = self._optimize_nuisance_parameters(
-                obs_dispersion, obs_flux, obs_sigma, index)
+            try:
+                op_theta, cov = self._optimize_nuisance_parameters(
+                    obs_dispersion, obs_flux, obs_ivar, index, maxfev=50000)
 
-            scaled_cov = np.copy(cov)
-            scaled_cov[np.diag_indices(op_theta.size)] *= scale_uncertainties**2
-            samples = np.random.multivariate_normal(op_theta, cov, size=N_samples)
+            except RuntimeError:
+                logger.exception(
+                    "Could not optimize nuisance parameters at grid point {}"\
+                    .format(stellar_parameters))
+                continue
 
-            # Calculate the likelihood at all nuisance parameter samples.
-            si, ei = (index * N_samples, (index + 1) * N_samples)
-            sampled_theta[si:ei, :] = np.hstack([
-                np.repeat(stellar_parameters, N_samples).reshape(N_samples, -1),
-                samples
-            ])
-            nlls[si:ei] \
-                = [self._nll(index, theta, obs_dispersion, obs_flux, obs_ivar) \
-                    for theta in samples]
+            # TODO revisit this -- maybe we should just force bounds on params
+            if np.all(np.isfinite(cov)):
+                previous_cov = cov
+            else:
+                cov = previous_cov
+
+            optimized_theta[index] = op_theta
+            model_flux = self(index, obs_dispersion, *op_theta).flatten()
+            likelihoods[index] \
+                = np.exp(-0.5 * np.sum((model_flux - obs_flux)**2 * obs_ivar))
+
+            # Use a multi-Gaussian approximation of the nuisance parameters.
+            integrals[index] = (2*np.pi)**(K/2.) * np.abs(np.linalg.det(cov))**(-0.5)
+
+            # DEBUG show progress.
+            print(index, S, dict(zip(self.parameter_names, op_theta)))
+        
+
+        fig, ax = plt.subplots(3)
+        ax[0].scatter(self.stellar_parameters[:, 0], self.stellar_parameters[:, 1],
+            c=likelihoods, cmap=matplotlib.cm.afmhot)
+        ax[0].set_title("likelihoods")
+        ax[1].scatter(self.stellar_parameters[:,0], self.stellar_parameters[:, 1],
+            c=integrals, cmap=matplotlib.cm.afmhot)
+        ax[1].set_title("integrals")
+        ax[2].scatter(self.stellar_parameters[:, 0], self.stellar_parameters[:,1],
+            c=likelihoods * integrals, cmap=matplotlib.cm.afmhot)
+
+        
+        metrics = likelihoods * integrals
+        normalized_metrics = metrics / np.nansum(metrics)
+
+        # Marginalize over Teff.
+        index = 0
+        teffs = np.unique(self.stellar_parameters[:,index])
+        yvals = [np.sum(normalized_metrics[self.stellar_parameters[:, index] == teff]) for teff in teffs]
+
+        fig, ax = plt.subplots()
+        ax.scatter(teffs, yvals)
+
+        # Show the best thing.
+        fig, ax = plt.subplots()
+        best_index = np.nanargmax(normalized_metrics)
+
+        ax.plot(obs_dispersion, obs_flux, c='k')
+        ax.plot(obs_dispersion, self(best_index, obs_dispersion, *optimized_theta[best_index]).flatten(),
+            c='r')
 
 
-            foo = integrate.quad(lambda v: self._nll(index, [v] + list(theta[1:]),
-                obs_dispersion, obs_flux, obs_ivar), op_theta[0] - 3 * np.sqrt(cov[0,0]),
-            op_theta[0] + 3 * np.sqrt(cov[0,0]))
+        raise a
 
-            raise a
 
-            # 5 sigma = -0.027855
-            # 3 sigma = -0.016702
+        fig, ax = plt.subplots()
+        ind = np.nanargmin(normalized_chi_sqs)
 
-            print(index, N_pixels)
+        f = self(int(ind/float(L)), obs_dispersion, *samples[ind, 3:]).flatten()
+        ax.plot(obs_dispersion, f, c='r')
+        ax.plot(obs_dispersion, obs_flux, c='k')
 
-            if index > 10:
-                raise a
+        bad_ind = np.nanargmax(normalized_chi_sqs)
+
+        f = self(int(bad_ind/float(L)), obs_dispersion, *samples[bad_ind, 3:]).flatten()
+        ax.plot(obs_dispersion, f, c='b')
+
+
         raise a
 
         
@@ -455,9 +480,8 @@ if __name__ == "__main__":
 
     from glob import glob
 
-    paths = glob("data/gam_*.prf")
-    model = BalmerLineModel(paths, mask=[
-        [1000, 4330],
+    model = BalmerLineModel(glob("data/gam_*.prf"), mask=[
+        [1000, 4328],
         [4336.84, 4337.31],
         [4337.48, 4338.09],
         [4339.31, 4339.53],
@@ -467,12 +491,27 @@ if __name__ == "__main__":
         [4350, 10000]
     ],
     redshift=True,
+    smoothing=False,
     continuum_order=2
     )
 
+    """
+    model = BalmerLineModel(paths,
+        mask=[
+            [1000, 4841],
+            [4859.51, 4859.84],
+            [4860, 4862], # core.
+            [4871, 4873],
+            [4878, 4879],
+            [4881, 10000]
+        ],
+        redshift=True, smoothing=False, continuum_order=2)
+    """
 
     # Get a rest-frame normalized spectrum...
     from smh.specutils import Spectrum1D
     hd122563 = Spectrum1D.read("hd122563.fits")
-
-
+    hd140283 = Spectrum1D.read("../../hd140283.fits")
+    hd140283._ivar = 1e-5 * np.ones(hd140283.dispersion.size)
+    hd122563._ivar = 1e-5 * np.ones(hd122563.dispersion.size)
+ 
