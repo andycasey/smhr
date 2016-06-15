@@ -1304,13 +1304,14 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             # Wavelength tolerance
             tolerance = selected_model.metadata.get("wavelength_tolerance", None)
             if tolerance is None:
-                self.checkbox_wavelength_tolerance.setEnabled(False)
+                self.checkbox_wavelength_tolerance.setChecked(False)
+                self.edit_wavelength_tolerance.setText("")
             else:
-                self.checkbox_wavelength_tolerance.setEnabled(True)
+                self.checkbox_wavelength_tolerance.setChecked(True)
                 self.edit_wavelength_tolerance.setText(
                     "{}".format(tolerance))
 
-            self.checkbox_use_central_weighting.setEnabled(
+            self.checkbox_use_central_weighting.setChecked(
                 selected_model.metadata["central_weighting"])
 
             self.combo_profile.setCurrentIndex(
