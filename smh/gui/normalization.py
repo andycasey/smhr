@@ -311,6 +311,14 @@ class NormalizationTab(QtGui.QWidget):
             "button_press_event", self.figure_mouse_press)
         self.norm_plot.mpl_connect(
             "button_release_event", self.figure_mouse_release)
+
+        # Zoom box
+        self.norm_plot.mpl_connect(
+            "button_press_event", self.norm_plot.axis_right_mouse_press)
+        self.norm_plot.mpl_connect(
+            "button_release_event", self.norm_plot.axis_right_mouse_release)
+        self.norm_plot.mpl_connect(
+            "key_press_event", self.norm_plot.unzoom_on_z_press)
         
         self.function.currentIndexChanged.connect(
             self.update_normalization_function)
@@ -503,7 +511,8 @@ class NormalizationTab(QtGui.QWidget):
             self.draw_continuum(refresh=True)
 
             return None
-
+        
+        if event.button != 1: return None
         # Single click.
         # Set up/update the excluded region.
         xmin, xmax, ymin, ymax = (event.xdata, np.nan, -1e8, +1e8)
@@ -550,6 +559,7 @@ class NormalizationTab(QtGui.QWidget):
             The matplotlib event.
         """
 
+        if event.button != 1: return None
         try:
             signal_time, signal_cid = self._exclude_selected_region_signal
         except AttributeError:
@@ -1071,6 +1081,8 @@ class NormalizationTab(QtGui.QWidget):
 
         self.ax_order.set_ylim(np.nanmin(y), np.nanmax(y))
 
+        self.norm_plot.reset_zoom_limits()
+
         #self.ax_order.set_title("Order {0} of {1}".format(
         #    1 + self.current_order_index, 
         #    len(self.parent.session.input_spectra)))
@@ -1186,6 +1198,7 @@ class NormalizationTab(QtGui.QWidget):
             self.current_order.dispersion, 
             self.current_order.flux/continuum])
         self.ax_order_norm.set_xlim(self.ax_order.get_xlim())
+        self.norm_plot.reset_zoom_limits()
 
         # Draw the additional points.
         ap = meta["normalization_kwargs"][index].get("additional_points", None)
