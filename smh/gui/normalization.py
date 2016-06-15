@@ -842,7 +842,10 @@ class NormalizationTab(QtGui.QWidget):
         """ Update the high sigma clip value. """
         high_sigma = self.high_sigma_clip.text()
         if high_sigma:
-            self._cache["input"]["high_sigma_clip"] = float(high_sigma)
+            try:
+                self._cache["input"]["high_sigma_clip"] = float(high_sigma)
+            except ValueError:
+                pass
             self.reset_input_style_defaults()
             self.fit_continuum(True)
             self.draw_continuum(True)
@@ -853,7 +856,10 @@ class NormalizationTab(QtGui.QWidget):
         """ Update the low sigma clip value. """
         low_sigma = self.low_sigma_clip.text()
         if low_sigma:
-            self._cache["input"]["low_sigma_clip"] = float(low_sigma)
+            try:
+                self._cache["input"]["low_sigma_clip"] = float(low_sigma)
+            except ValueError:
+                pass
             self.reset_input_style_defaults()
             self.fit_continuum(True)
             self.draw_continuum(True)
