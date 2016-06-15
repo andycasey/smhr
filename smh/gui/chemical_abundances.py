@@ -1314,7 +1314,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 selected_model.metadata["central_weighting"])
 
             self.combo_profile.setCurrentIndex(
-                ["gaussian", "lorentzian", "voight"].index(
+                ["gaussian", "lorentzian", "voigt"].index(
                     selected_model.metadata["profile"]))
 
             self.edit_detection_sigma.setText("{}".format(
