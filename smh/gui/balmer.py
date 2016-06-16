@@ -156,7 +156,8 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         self.p1_model_options.setSizePolicy(sp)
         self.p1_model_options.setMinimumSize(QtCore.QSize(300, 16777215))
         self.p1_model_options.setMaximumSize(QtCore.QSize(300, 16777215))
-        
+        self.p1_model_options.setEditTriggers(
+            QtGui.QAbstractItemView.CurrentChanged)
         self.p1_model_options.setModel(BalmerLineOptionsTableModel(self))
         self.p1_model_options.horizontalHeader().setResizeMode(
             QtGui.QHeaderView.Stretch)
@@ -229,6 +230,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         self.populate_widgets()
         
         return None
+
 
 
 
@@ -357,6 +359,8 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
 class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
 
+    _max_continuum_order = 30
+    _parameters = ["redshift", "smoothing", "continuum"]
 
     def __init__(self, parent, *args):
         super(BalmerLineOptionsTableModel, self).__init__(parent, *args)
@@ -364,7 +368,7 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
 
 
     def rowCount(self, parent):
-        return 3
+        return len(self._parameters)
 
     def columnCount(self, parent):
         return 3
@@ -374,18 +378,39 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
 
         if index.column() == 0:
             try:
-                key = ("redshift", "smoothing", "continuum")[index.row()]
+                parameter = self._parameters[index.row()]
 
             except IndexError:
                 return False
 
-            self.parent.metadata[key] = bool(value)
+            value = bool(value)
+
+            # Continuum is a special case.
+            if index.row() == 2:
+                if value:
+
+                    N, is_ok = QtGui.QInputDialog.getItem(None, 
+                        "Continuum order", "Specify continuum order:", 
+                        ["{:.0f}".format(i) \
+                            for i in range(1 + self._max_continuum_order)])
+
+                    if not is_ok or int(N) > self._max_continuum_order:
+                        return False
+
+                    self._parameters.extend(
+                        ["c{}".format(i) for i in range(1 + int(N))])
+
+                else:
+                    self._parameters = self._parameters[:3]
+
+                self.reset()
+
+            self.parent.metadata[parameter] = bool(value)
             return True
 
         else:
-            key = ("redshift", "smoothing", "continuum")[index.row()]
-
-            self.parent.metadata["bounds"].setdefault(key, [None, None])
+            parameter = self._parameters[index.row()]
+            self.parent.metadata["bounds"].setdefault(parameter, [None, None])
 
             try:
                 value = float(value)
@@ -395,18 +420,18 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
 
             else:
                 # Check bound is less than other bound.
-                bounds = self.parent.metadata["bounds"][key]
+                bounds = self.parent.metadata["bounds"][parameter]
                 if (index.column() == 1 and bounds[1] is not None \
                     and value >= bounds[1]) \
                 or (index.column() == 2 and bounds[0] is not None \
                     and value <= bounds[0]):
                     raise ValueError("bounds must be (lower, upper)")
 
-
                 if not np.isfinite(value):
                     return False
 
-                self.parent.metadata["bounds"][key][index.column() - 1] = value
+                self.parent.metadata["bounds"][parameter][index.column() - 1] \
+                    = value
                 
             return True
 
@@ -417,11 +442,14 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
 
         if orientation == QtCore.Qt.Vertical \
         and role == QtCore.Qt.DisplayRole:
-            return [
-                "Radial velocity [km/s]",
-                "Macroturbulence [km/s]",
-                "Continuum",
-            ][index]
+
+            translation = {
+                "redshift": "Radial velocity [km/s]",
+                "smoothing": "Macroturbulence [km/s]",
+                "continuum": "Continuum",
+            }.get(self._parameters[index], None)
+
+            return translation or "        c{}".format(index - 3)
 
         elif orientation == QtCore.Qt.Horizontal \
         and role == QtCore.Qt.DisplayRole:
@@ -430,16 +458,24 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
 
 
     def flags(self, index):
-        if not index.isValid(): return
-        if index.column() == 0:
+        if not index.isValid():
+            return None
+
+        if index.column() == 0 and index.row() < 3:
             return  QtCore.Qt.ItemIsEnabled|\
                     QtCore.Qt.ItemIsUserCheckable
+
+        elif index.column() == 0 and index.row() >= 3:
+            return QtCore.Qt.NoItemFlags
+
         else:
-            key = ["redshift", "smoothing", "continuum"][index.row()]
-            if self.parent.metadata[key]:
+            parameter = self._parameters[index.row()]
+            if index.row() > 2 or self.parent.metadata[parameter]:
                 return QtCore.Qt.ItemIsEnabled|QtCore.Qt.ItemIsEditable
             else:
                 return QtCore.Qt.NoItemFlags
+        return None
+
 
 
     def data(self, index, role):
@@ -449,28 +485,35 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
         if index.column() == 0 and index.row() < 3 \
         and role in (QtCore.Qt.DisplayRole, QtCore.Qt.CheckStateRole):
 
-            key = ["redshift", "smoothing", "continuum"][index.row()]
-            value = self.parent.metadata[key]
+            value = self.parent.metadata[self._parameters[index.row()]]
             if role == QtCore.Qt.CheckStateRole:
                 return QtCore.Qt.Checked if value else QtCore.Qt.Unchecked
 
             else:
                 return None
         
+        elif index.column() == 0 and index.row() >= 3 \
+        and role == QtCore.Qt.DisplayRole:
+            return ""
+
+
         if role != QtCore.Qt.DisplayRole:
             return None
 
         # Look for bound information.
-        key = ["redshift", "smoothing", "continuum"][index.row()]
-        bounds = self.parent.metadata["bounds"].get(key, (None, None))
+        bounds = self.parent.metadata["bounds"].get(
+            self._parameters[index.row()], (None, None))
 
         value = bounds[index.column() - 1]
         if value is None:
             return "None"
+
         elif value == np.inf:
             return u"+inf"
+
         elif value == -np.inf:
             return u"-inf"
+
         else:
             return "{}".format(value)
 
