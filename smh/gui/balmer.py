@@ -28,6 +28,7 @@ if sys.platform == "darwin":
         QtGui.QFont.insertSubstitution(*substitute)
 
 
+
 class BalmerLineFittingDialog(QtGui.QDialog):
 
     # If the peak-to-peak wavelength range of the observed spectrum is greater
@@ -43,7 +44,8 @@ class BalmerLineFittingDialog(QtGui.QDialog):
     _default_option_metadata = {
         "redshift": True,
         "smoothing": False,
-        "continuum": False
+        "continuum": False,
+        "bounds": {}
     }
 
     def __init__(self, observed_spectra, observed_spectra_labels=None, 
@@ -211,6 +213,9 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         ax.xaxis.set_visible(False)
         ax.yaxis.set_visible(False)
 
+        # Enable drag to mask regions.
+        self.p1_figure.enable_drag_to_mask(ax)
+
         self.metadata = {}
         self.metadata.update(self._default_option_metadata)
 
@@ -229,7 +234,6 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
     def _identify_balmer_lines(self):
         """ Identify the Balmer lines in the spectra provided. """
-
 
         spectra_indices = []
         for wavelength in self.__balmer_line_wavelengths:
@@ -347,6 +351,10 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         return None
 
 
+
+
+
+
 class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
 
 
@@ -363,7 +371,47 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
 
 
     def setData(self, index, value, role):
+
+        if index.column() == 0:
+            try:
+                key = ("redshift", "smoothing", "continuum")[index.row()]
+
+            except IndexError:
+                return False
+
+            self.parent.metadata[key] = bool(value)
+            return True
+
+        else:
+            key = ("redshift", "smoothing", "continuum")[index.row()]
+
+            self.parent.metadata["bounds"].setdefault(key, [None, None])
+
+            try:
+                value = float(value)
+
+            except:
+                return False
+
+            else:
+                # Check bound is less than other bound.
+                bounds = self.parent.metadata["bounds"][key]
+                if (index.column() == 1 and bounds[1] is not None \
+                    and value >= bounds[1]) \
+                or (index.column() == 2 and bounds[0] is not None \
+                    and value <= bounds[0]):
+                    raise ValueError("bounds must be (lower, upper)")
+
+
+                if not np.isfinite(value):
+                    return False
+
+                self.parent.metadata["bounds"][key][index.column() - 1] = value
+                
+            return True
+
         return False
+
 
     def headerData(self, index, orientation, role):
 
@@ -387,7 +435,11 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
             return  QtCore.Qt.ItemIsEnabled|\
                     QtCore.Qt.ItemIsUserCheckable
         else:
-            return QtCore.Qt.ItemIsEnabled|QtCore.Qt.ItemIsEditable
+            key = ["redshift", "smoothing", "continuum"][index.row()]
+            if self.parent.metadata[key]:
+                return QtCore.Qt.ItemIsEnabled|QtCore.Qt.ItemIsEditable
+            else:
+                return QtCore.Qt.NoItemFlags
 
 
     def data(self, index, role):
@@ -408,7 +460,28 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
         if role != QtCore.Qt.DisplayRole:
             return None
 
+        # Look for bound information.
+        key = ["redshift", "smoothing", "continuum"][index.row()]
+        bounds = self.parent.metadata["bounds"].get(key, (None, None))
+
+        value = bounds[index.column() - 1]
+        if value is None:
+            return "None"
+        elif value == np.inf:
+            return u"+inf"
+        elif value == -np.inf:
+            return u"-inf"
+        else:
+            return "{}".format(value)
+
         return "None"
+
+
+
+
+
+
+
 
 
 
