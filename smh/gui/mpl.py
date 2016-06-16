@@ -8,6 +8,8 @@ from __future__ import (division, print_function, absolute_import,
 
 import os
 import matplotlib
+import numpy as np
+from time import time
 from warnings import simplefilter
 import time
 import numpy as np
@@ -32,6 +34,8 @@ class MPLWidget(FigureCanvas):
     """
     A widget to contain a matplotlib figure.
     """
+
+    __double_click_interval = 0.1 # seconds
 
     def __init__(self, parent=None, toolbar=False, tight_layout=True,
         autofocus=False, background_hack=True, **kwargs):
@@ -97,204 +101,226 @@ class MPLWidget(FigureCanvas):
         print("_focus", event)
         self.canvas.setFocus()
 
-    ######################
-    # Methods for zooming
-    ######################
 
-    def get_current_axis(self,event):
-        for i,ax in enumerate(self.figure.axes):
-            if event.inaxes in [ax]:
-                return i,ax
-        raise RuntimeError("Cannot find correct axis")
-    
-    def axis_right_mouse_press(self, event):
+    def enable_drag_to_mask(self, axes):
         """
-        Right mouse button pressed in axis
+        Enable drag-to-mask on axes in this figure.
+
+        :param axes:
+            The axis or list of axes in this figure where drag-to-mask should
+            be enabled. If a list of axes are given, then masking in one will
+            display in all others.
         """
-        print("axis_right_mouse_press",event)
-        
-        if event.button != 3: return None
 
-        self.x1 = event.xdata
-        self.y1 = event.ydata
-        try:
-            i,ax = self.get_current_axis(event)
-        except RuntimeError:
-            return None
+        if isinstance(axes, matplotlib.axes.Axes):
+            axes = [axes]
 
-        # Save original limits if not previously saved
-        if i not in self.old_xlim or \
-        self.old_xlim[i] is None:
-            self.old_xlim[i] = ax.get_xlim()
-            self.old_ylim[i] = ax.get_ylim()
+        for i, ax in enumerate(axes):
+            if ax not in self.figure.axes:
+                raise ValueError(
+                    "axes (zero-index {}) is not in this figure".format(i))
 
-        # Mark this as currently rightclicked axis
-        self.right_clicked_axis = ax
+        self._drag_to_mask_axes = axes
 
-        # Create lines if needed
-        if i not in self.zoom_box_lines:
-            self.zoom_box_lines[i] = [ax.plot([np.nan,np.nan],[np.nan,np.nan],'k--')[0],
-                                      ax.plot([np.nan,np.nan],[np.nan,np.nan],'k--')[0],
-                                      ax.plot([np.nan,np.nan],[np.nan,np.nan],'k--')[0],
-                                      ax.plot([np.nan,np.nan],[np.nan,np.nan],'k--')[0]]
-        
-        # Create zoom box signal
-        self._interactive_zoom_box_signal = (
-            time.time(),
-            self.mpl_connect("motion_notify_event",
-                             self.update_zoom_box)
-        )
-        return None
-    
-    def update_zoom_box(self, event):
-        """
-        Updated the zoom box
-        """
-        print("update_zoom_box",event)
+        # Connect events.
+        self.mpl_connect("button_press_event", self._drag_to_mask_press)
+        self.mpl_connect("button_release_event", self._drag_to_mask_release)
 
-        self.x2 = event.xdata
-        self.y2 = event.ydata
-        try:
-            i,ax = self.get_current_axis(event)
-        except RuntimeError:
-            return None
+        self.dragged_masks = []
 
-        # Don't update if not in current axis
-        if ax != self.right_clicked_axis:
-            return None
+        self._mask_interactive_region = dict(zip(axes, [None] * len(axes)))
 
-        # Skip if doubleclick
-        signal_time, signal_cid = self._interactive_zoom_box_signal
-        if time.time() - signal_time < DOUBLE_CLICK_INTERVAL:
-            return None
+        self._masked_regions = {}
+        [self._masked_regions.setdefault(ax, []) for ax in axes]
 
-        #  Plot dashed box
-        self.zoom_box_lines[i][0].set_xdata([self.x1,self.x2])
-        self.zoom_box_lines[i][0].set_ydata([self.y1,self.y1])
-        self.zoom_box_lines[i][1].set_xdata([self.x1,self.x2])
-        self.zoom_box_lines[i][1].set_ydata([self.y2,self.y2])
-        self.zoom_box_lines[i][2].set_xdata([self.x1,self.x1])
-        self.zoom_box_lines[i][2].set_ydata([self.y1,self.y2])
-        self.zoom_box_lines[i][3].set_xdata([self.x2,self.x2])
-        self.zoom_box_lines[i][3].set_ydata([self.y1,self.y2])
-        self.draw()
         return None
 
-    def axis_right_mouse_release(self, event):
-        """
-        Right mouse button released in axis
-        """
-        print("axis_right_mouse_release",event)
 
-        if event.button != 3: return None
 
-        # Skip if not mouse pressed
+    def _drag_to_mask_press(self, event):
+        """
+        Event for triggering when the left mouse button has been clicked, just
+        before a region is dragged to be masked.
+
+        :param event:
+            The matplotlib event.
+        """
+
+        if event.inaxes not in self._drag_to_mask_axes or event.button != 1:
+            return None
+
+        if not event.dblclick:
+
+            # Single left-hand mouse button click.
+            xmin, xmax, ymin, ymax = (event.xdata, np.nan, -1e8, +1e8)
+
+            for ax in self._mask_interactive_region.keys():
+                interactive_region = self._mask_interactive_region[ax]
+                if interactive_region is None:
+                    self._mask_interactive_region[ax] = ax.axvspan(**{
+                            "xmin": xmin,
+                            "xmax": xmax,
+                            "ymin": ymin,
+                            "ymax": ymax,
+                            "facecolor": "r",
+                            "edgecolor": "none",
+                            "alpha": 0.25,
+                            "zorder": -1
+                        })
+
+                else:
+                    interactive_region.set_xy([
+                        [xmin, ymin],
+                        [xmin, ymax],
+                        [xmax, ymax],
+                        [xmax, ymin],
+                        [xmin, ymin]
+                    ])
+
+            # Set the signal and the time.
+            self._mask_interactive_region_signal = (
+                time(),
+                self.mpl_connect(
+                    "motion_notify_event", self._drag_to_mask_motion)
+            )
+        
+        else:
+            # Double click.
+
+            # Matches any existing masked regions?
+            delete_mask_index = None
+            for i, (xmin, xmax) in enumerate(self.dragged_masks):
+                if xmax >= event.xdata >= xmin:
+                    # Remove this mask.
+                    delete_mask_index = i
+                    break
+
+            if delete_mask_index is not None:
+                self.dragged_masks.pop(delete_mask_index)
+                self._draw_dragged_masks()
+
+            return None
+
+        return None
+
+
+    def _drag_to_mask_motion(self, event):
+        """
+        Event for triggering when the mouse has been moved while the left-hand
+        button is held, indicating a change in the region to be masked.
+
+        :param event:
+            The matplotlib event.
+        """
+
+        if event.xdata is None or event.inaxes not in self._drag_to_mask_axes \
+        or event.button != 1:
+            return None 
+
+        signal_time, signal_cid = self._mask_interactive_region_signal
+        if time() - signal_time > self.__double_click_interval:
+
+            # Update all interactive masks.
+            for ax in self._mask_interactive_region.keys():
+                data = self._mask_interactive_region[ax].get_xy()
+
+                # Update xmax.
+                data[2:4, 0] = event.xdata
+                self._mask_interactive_region[ax].set_xy(data)
+
+            self.draw()
+
+        return None
+
+
+    def _drag_to_mask_release(self, event):
+        """
+        Event for triggering when the left-hand mouse button has been released
+        and a region has been marked to be masked.
+
+        :param event:
+            The matplotlib event.
+        """
+
         try:
-            signal_time, signal_cid = self._interactive_zoom_box_signal
+            signal_time, signal_cid = self._mask_interactive_region_signal
+
         except AttributeError:
             return None
-
-        # Skip if doubleclick
-        if time.time() - signal_time < DOUBLE_CLICK_INTERVAL:
-            return None
-
-        self.x2 = event.xdata
-        self.y2 = event.ydata
-        try:
-            i,ax = self.get_current_axis(event)
-        except RuntimeError:
-            # Pass because still have to clean up
-            pass
-        else:
-            # Apply the zoom
-            if ax == self.right_clicked_axis:
-                x1 = min(self.x1, self.x2)
-                x2 = max(self.x1, self.x2)
-                y1 = min(self.y1, self.y2)
-                y2 = max(self.y1, self.y2)
-                ax.set_xlim([x1,x2])
-                ax.set_ylim([y1,y2])
         
-        # Clean up
-        for i,_ax in enumerate(self.figure.axes):
-            if _ax == self.right_clicked_axis:
-                break # set i
-        else:
-            raise RuntimeError("Cannot find right clicked axis")
-        self.zoom_box_lines[i][0].set_xdata([np.nan,np.nan])
-        self.zoom_box_lines[i][0].set_xdata([np.nan,np.nan])
-        self.zoom_box_lines[i][1].set_xdata([np.nan,np.nan])
-        self.zoom_box_lines[i][1].set_xdata([np.nan,np.nan])
-        self.zoom_box_lines[i][2].set_xdata([np.nan,np.nan])
-        self.zoom_box_lines[i][2].set_xdata([np.nan,np.nan])
-        self.zoom_box_lines[i][3].set_xdata([np.nan,np.nan])
-        self.zoom_box_lines[i][3].set_xdata([np.nan,np.nan])
-        self.right_clicked_axis = None
+        xy = self._mask_interactive_region.values()[0].get_xy()
+        
+        xdata = event.xdata if event.xdata is not None else xy[2, 0]
+
+        # If the two mouse events were within some time interval,
+        # then we should not add a mask because those signals were probably
+        # part of a double-click event.
+        if  time() - signal_time > self.__double_click_interval \
+        and np.abs(xy[0,0] - xdata) > 0:
+            
+            # Update the cache with the new mask.
+            limits = [xy[0, 0], xy[2, 0]]
+            self.dragged_masks.append([min(limits), max(limits)])
+
+            # Update the view.
+            self._draw_dragged_masks()
+
+        # Clear the interactive masks.
+        xy[:, 0] = np.nan
+        for ax in self._mask_interactive_region.keys():
+            self._mask_interactive_region[ax].set_xy(xy)
 
         self.mpl_disconnect(signal_cid)
+        del self._mask_interactive_region_signal
+
         self.draw()
-        del self._interactive_zoom_box_signal
 
         return None
-        
-    def unzoom_on_z_press(self, event):
-        """
-        Unzoom event when keyboard "z" is pressed
-        """
-        print("unzoom_on_z_press",event)
-        
-        if event.key not in ["z","Z"]: return None
-        # right_clicked_axis is not None if you are 
-        # currently holding down the right mouse button
-        if self.right_clicked_axis is not None: return None
-        
-        #print("Key press",event,event.key)
-        
-        try:
-            i,ax = self.get_current_axis(event)
-        except RuntimeError:
-            return None
-        
-        # Skip if no zoom applied yet
-        if i not in self.old_xlim: return None
-        
-        # Get original limits
-        old_xlim = self.old_xlim[i]
-        old_ylim = self.old_ylim[i]
-        ax.set_xlim(old_xlim)
-        ax.set_ylim(old_ylim)
-        self.draw()
-        
-        # Reset zoom
-        self.old_xlim[i] = None
-        self.old_ylim[i] = None
 
-    def reset_zoom_limits(self, ax=None):
-        """
-        Need to call this after setting x/y limits not through MPLWidget
-        Otherwise MPLWidget.unzoom will reset to old limits
-        """
-        for i,_ax in enumerate(self.figure.axes):
-            if ax is None:
-                self.old_xlim[i] = None
-                self.old_ylim[i] = None
-            elif ax==_ax:
-                self.old_xlim[i] = None
-                self.old_ylim[i] = None
-                return None
-        if ax is None: return None
-        raise ValueError("Could not identify axis to reset zoom limits for")
-    
-    def key_press_flags(self, event):
-        print("key_press_flags",event)
-        print(event.key,"pressed")
-        if event.key == "shift":
-            self.shift_key_pressed = True
-        return None
-        
-    def key_release_flags(self, event):
-        print("key_release_flags",event)
-        print(event.key,"released")
-        if event.key == "shift":
-            self.shift_key_pressed = False
+
+    def _draw_dragged_masks(self):
+        """ Draw the dragged masks in the relevant axes. """
+
+        ymin, ymax = (-1e8, +1e8)
+        for i, (xmin, xmax) in enumerate(self.dragged_masks):
+
+            for ax in self._masked_regions.keys():
+                try:
+                    masked_region = self._masked_regions[ax][i]
+
+                except IndexError:
+                    self._masked_regions[ax].append(ax.axvspan(**{
+                        "xmin": xmin,
+                        "xmax": xmax,
+                        "ymin": ymin,
+                        "ymax": ymax,
+                        "facecolor": "r",
+                        "edgecolor": "none",
+                        "alpha": 0.25,
+                        "zorder": -1
+                    }))
+
+                else:
+                    masked_region.set_xy([
+                        [xmin, ymin],
+                        [xmin, ymax],
+                        [xmax, ymax],
+                        [xmax, ymin],
+                        [xmin, ymin]
+                    ])
+
+        # Clear off any additional ones.
+        N = len(self.dragged_masks)
+        for ax in self._masked_regions.keys():
+            for masked_region in self._masked_regions[ax][N:]:
+                masked_region.set_xy([
+                    [np.nan, np.nan],
+                    [np.nan, np.nan],
+                    [np.nan, np.nan],
+                    [np.nan, np.nan],
+                    [np.nan, np.nan],
+                ])
+
+        self.draw()
+
         return None
