@@ -118,9 +118,32 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
         self.setSizePolicy(sp)
 
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
+
+        # Add panes.
+        self._add_pane_1()
+        self._add_pane_2()
+
+        self.show_pane(0)
+        
+        # Populate widgets.
+        self.populate_widgets()
+
+        return None
+
+
+
+    def _add_pane_1(self):
+        """ Add the first pane of widgets to the dialog window. """
+
+        self.p1 = QtGui.QWidget()
+        self.layout.addWidget(self.p1)
 
         # Panel 1
-        self.p1_vbox = QtGui.QVBoxLayout(self)
+        p1_vbox = QtGui.QVBoxLayout()
+        self.p1.setLayout(p1_vbox)
+
 
         hbox = QtGui.QHBoxLayout()
         self.combo_balmer_line_selected = QtGui.QComboBox(self)
@@ -133,12 +156,12 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         hbox.addWidget(self.combo_spectrum_selected)
         hbox.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
-        self.p1_vbox.addLayout(hbox)
+        p1_vbox.addLayout(hbox)
 
         line = QtGui.QFrame(self)
         line.setFrameShape(QtGui.QFrame.HLine)
         line.setFrameShadow(QtGui.QFrame.Sunken)
-        self.p1_vbox.addWidget(line)
+        p1_vbox.addWidget(line)
 
         # Model options table and group.
         hbox = QtGui.QHBoxLayout()
@@ -181,7 +204,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         hbox.addWidget(self.p1_figure)
 
 
-        self.p1_vbox.addLayout(hbox)
+        p1_vbox.addLayout(hbox)
 
 
         hbox = QtGui.QHBoxLayout()
@@ -193,7 +216,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         self.p1_btn_next.setFocusPolicy(QtCore.Qt.NoFocus)
         hbox.addWidget(self.p1_btn_next)
         
-        self.p1_vbox.addLayout(hbox)
+        p1_vbox.addLayout(hbox)
 
 
         # Initialize widgets that do not depend on the input spectra.
@@ -225,10 +248,34 @@ class BalmerLineFittingDialog(QtGui.QDialog):
             self.updated_balmer_line_selected)
         self.combo_spectrum_selected.currentIndexChanged.connect(
             self.updated_spectrum_selected)
+        self.p1_btn_next.clicked.connect(lambda *_: self.show_pane(1))
 
-        # Populate widgets.
-        self.populate_widgets()
         
+        return None
+
+
+    def _add_pane_2(self):
+        """ Add the second pane of widgets to the dialog window. """
+
+        self.p2 = QtGui.QWidget()
+        self.layout.addWidget(self.p2)
+
+        # Panel 2
+        p2_vbox = QtGui.QVBoxLayout()
+        self.p2.setLayout(p2_vbox)
+
+        self.p2_figure = mpl.MPLWidget(None, tight_layout=True, matchbg=self)
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        sp.setHorizontalStretch(0)
+        sp.setVerticalStretch(0)
+        sp.setHeightForWidth(self.p2_figure.sizePolicy().hasHeightForWidth())
+        self.p2_figure.setSizePolicy(sp)
+        p2_vbox.addWidget(self.p2_figure)
+
+        ax = self.p2_figure.figure.add_subplot(111)
+        ax.set_title("hi")
+
         return None
 
 
@@ -276,6 +323,15 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
 
         return None
+
+
+    def show_pane(self, index):
+
+        panes = (self.p1, self.p2)
+        for pane_index, pane in enumerate(panes):
+            pane.setVisible(index == pane_index)
+
+        return True
 
 
     def updated_balmer_line_selected(self):
