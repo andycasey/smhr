@@ -172,7 +172,8 @@ class Session(BaseSession):
 
 
         # Radial velocity template.
-        if "template_spectrum_path" in metadata.get("rv", {}):
+        if "template_spectrum_path" in metadata.get("rv", {}) and \
+        os.path.exists(metadata["rv"]["template_spectrum_path"]):
             twd_paths.append(safe_path(
                 metadata["rv"].pop("template_spectrum_path"), twd, metadata))
             metadata["reconstruct_paths"]["template_spectrum_path"] \
