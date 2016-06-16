@@ -236,6 +236,12 @@ class Session(BaseSession):
         # Tar it up.
         tarball = tarfile.open(name=session_path, mode="w:gz")
         for path in twd_paths:
+            logger.debug("Adding path '{}' to tarball".format(path))
+            if not os.path.exists(path) or 1 > len(os.path.basename(path)):
+                logger.warn(
+                    "Skipping path '{}' because it does not exist? RAISE A GITHUB ISSUE AND DON'T CLOSE THE TERMINAL, PLEASE!")
+                continue
+                
             tarball.add(path, arcname=os.path.basename(path))
         tarball.close()
 
