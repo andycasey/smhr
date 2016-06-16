@@ -296,7 +296,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
             self.p1_model_parameters.sizePolicy().hasHeightForWidth())
         self.p1_model_parameters.setSizePolicy(sizePolicy)
         self.p1_model_parameters.setMinimumSize(QtCore.QSize(200, 150))
-        self.p1_model_parameters.setMaximumSize(QtCore.QSize(16777215, 16777215))
+        self.p1_model_parameters.setMaximumSize(QtCore.QSize(200, 16777215))
         left_vbox.addWidget(self.p1_model_parameters)
 
 
@@ -385,6 +385,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         ax.set_ylabel(r"$\log{g}$")
 
         ax = self.p2_figure_spectrum.figure.add_subplot(111)
+        ax.plot([], [], c="k", drawstyle="steps-mid")
         ax.xaxis.set_major_locator(MaxNLocator(5))
         ax.yaxis.set_major_locator(MaxNLocator(5))
         ax.set_xlabel(u"Wavelength [Å]")
@@ -392,6 +393,9 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
         self.p2_figure_spectrum.enable_drag_to_mask(ax)
 
+
+        # Signals.
+        self.p2_btn_back.clicked.connect(self.show_first_pane)
         return None
 
 
@@ -439,6 +443,11 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         return None
 
 
+    def show_first_pane(self):
+        self.show_pane(0)
+        return None
+
+
     def show_second_pane(self):
         self.populate_widgets_in_pane2()
         self.show_pane(1)
@@ -450,8 +459,15 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         Populate the widgets in the second pane.
         """
 
+        # Delete any previous odel.
+        #if hasattr(self, "model"):
+        #    delattr(self "model")
+
+
         # Construct a balmer line model based on metadata.
         from glob import glob
+        # TODO: Require H-beta at this point..
+
         self.model = BalmerLineModel(
             glob("smh/balmer/models/metpoorgiants_alpha04_bet/*.prf"),
             redshift=self.metadata["redshift"],
@@ -461,9 +477,28 @@ class BalmerLineFittingDialog(QtGui.QDialog):
             mask=self.p1_figure.dragged_masks
             )
 
-        # Grid points
+        # Grid points.
+
 
         # Spectrum to show.
+        spectrum_index = self.observed_spectra_labels.index(
+            self.combo_spectrum_selected.currentText())
+        spectrum = self.observed_spectra[spectrum_index]
+
+
+        view_mask = (spectrum.dispersion >= self.model.wavelengths[0]) \
+                  * (spectrum.dispersion <= self.model.wavelengths[-1])
+
+        ax = self.p2_figure_spectrum.figure.axes[0]
+        ax.lines[0].set_data(np.array([
+            spectrum.dispersion[view_mask],
+            spectrum.flux[view_mask],
+        ]))
+        ax.set_xlim(self.model.wavelengths[0], self.model.wavelengths[-1])
+        ax.set_ylim(0, 1.1 * np.nanmax(spectrum.flux[view_mask]))
+
+        self.p2_figure_spectrum.dragged_masks = [] + self.p1_figure.dragged_masks
+        self.p2_figure_spectrum._draw_dragged_masks()
 
         # Masks to show.
         print("We can haz model")
@@ -474,10 +509,14 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
     def show_pane(self, index):
 
-        panes = (self.p1, self.p2)
-        for pane_index, pane in enumerate(panes):
-            pane.setVisible(index == pane_index)
+        panes = [self.p1, self.p2]
+        pane_to_show = panes.pop(index)
 
+        for pane in panes:
+            pane.setVisible(False)
+
+        pane_to_show.setVisible(True)
+        
         return True
 
 

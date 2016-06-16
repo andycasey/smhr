@@ -10,7 +10,7 @@ import logging
 import numpy as np
 from scipy import (integrate, interpolate, ndimage, optimize as op)
 
-import utils
+from . import utils
 
 __all__ = ["BalmerLineModel"]
 
