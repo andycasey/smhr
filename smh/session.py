@@ -982,11 +982,16 @@ class Session(BaseSession):
             stderr= stdev/np.sqrt(num_models)
             XH = logeps - solar_composition(key)
             summary_dict[key] = [num_models, logeps, stdev, stderr, XH, np.nan]
-        if organize_by_element:
-            FeH = summary_dict['Fe'][4]
-        else:
-            # TODO: using Fe I for now, should make this configurable
-            FeH = summary_dict[26.0][4]
+
+        try:
+            if organize_by_element:
+                FeH = summary_dict['Fe'][4]
+            else:
+                # TODO: using Fe I for now, should make this configurable
+                FeH = summary_dict[26.0][4]
+        except KeyError:
+            # Fe not measured yet
+            FeH = np.nan
         for key in all_logeps:
             summary = summary_dict[key]
             summary[5] = summary[4] - FeH
