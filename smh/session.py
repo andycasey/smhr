@@ -234,21 +234,31 @@ class Session(BaseSession):
             raise (exc_info[1], None, exc_info[2])
 
         # Tar it up.
+        exception_occurred = False
         tarball = tarfile.open(name=session_path, mode="w:gz")
         for path in twd_paths:
-            logger.debug("Adding path '{}' to tarball".format(path))
-            if not os.path.exists(path) or 1 > len(os.path.basename(path)):
+            try:
+                tarball.add(path, arcname=os.path.basename(path))
+
+            except:
+                logger.exception(
+                    "Cannot save path '{}' to session:".format(path))
+
                 logger.warn(
-                    "Skipping path '{}' because it does not exist? RAISE A GITHUB ISSUE AND DON'T CLOSE THE TERMINAL, PLEASE!")
+                    "Continuing to save session without this path "
+                    "before raising the issue")
+                exception_occurred = True
                 continue
-                
-            tarball.add(path, arcname=os.path.basename(path))
+
         tarball.close()
 
         # Remove the temporary working directory.
         # TODO start removing the twd again after session saving bugs are fixed
         #rmtree(twd)
         logger.debug("Session saved in {}, not deleting".format(twd))
+
+        if exception_occurred:
+            raise
 
         return True
 
