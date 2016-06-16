@@ -12,7 +12,9 @@ import sys
 from matplotlib.ticker import MaxNLocator
 from PySide import QtCore, QtGui
 
+from smh.balmer import BalmerLineModel
 from smh.specutils import Spectrum1D
+
 
 import mpl
 
@@ -118,7 +120,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
         self.setSizePolicy(sp)
 
-        self.layout = QVBoxLayout()
+        self.layout = QtGui.QVBoxLayout()
         self.setLayout(self.layout)
 
         # Add panes.
@@ -206,6 +208,11 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
         p1_vbox.addLayout(hbox)
 
+        line = QtGui.QFrame(self)
+        line.setFrameShape(QtGui.QFrame.HLine)
+        line.setFrameShadow(QtGui.QFrame.Sunken)
+        p1_vbox.addWidget(line)
+
 
         hbox = QtGui.QHBoxLayout()
         hbox.addItem(QtGui.QSpacerItem(
@@ -248,7 +255,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
             self.updated_balmer_line_selected)
         self.combo_spectrum_selected.currentIndexChanged.connect(
             self.updated_spectrum_selected)
-        self.p1_btn_next.clicked.connect(lambda *_: self.show_pane(1))
+        self.p1_btn_next.clicked.connect(self.show_second_pane)
 
         
         return None
@@ -260,21 +267,130 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         self.p2 = QtGui.QWidget()
         self.layout.addWidget(self.p2)
 
-        # Panel 2
+        # Pane 2
         p2_vbox = QtGui.QVBoxLayout()
         self.p2.setLayout(p2_vbox)
 
-        self.p2_figure = mpl.MPLWidget(None, tight_layout=True, matchbg=self)
-        sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        hbox = QtGui.QHBoxLayout()
+        left_vbox = QtGui.QVBoxLayout()
+
+        # Matplotlib figure to show grid points.
+        self.p2_figure_grid = mpl.MPLWidget(None, tight_layout=True, matchbg=self)
+        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Expanding)
         sp.setHorizontalStretch(0)
         sp.setVerticalStretch(0)
-        sp.setHeightForWidth(self.p2_figure.sizePolicy().hasHeightForWidth())
-        self.p2_figure.setSizePolicy(sp)
-        p2_vbox.addWidget(self.p2_figure)
+        sp.setHeightForWidth(self.p2_figure_grid.sizePolicy().hasHeightForWidth())
+        self.p2_figure_grid.setSizePolicy(sp)
+        self.p2_figure_grid.setMinimumSize(QtCore.QSize(200, 150))
+        self.p2_figure_grid.setMaximumSize(QtCore.QSize(16777215, 16777215))
+        left_vbox.addWidget(self.p2_figure_grid)
 
-        ax = self.p2_figure.figure.add_subplot(111)
-        ax.set_title("hi")
+
+        # Table view for model parameters.
+        self.p1_model_parameters = QtGui.QTableView(self)
+        sizePolicy = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(
+            self.p1_model_parameters.sizePolicy().hasHeightForWidth())
+        self.p1_model_parameters.setSizePolicy(sizePolicy)
+        self.p1_model_parameters.setMinimumSize(QtCore.QSize(200, 150))
+        self.p1_model_parameters.setMaximumSize(QtCore.QSize(16777215, 16777215))
+        left_vbox.addWidget(self.p1_model_parameters)
+
+
+        self.btn_optimize_parameters = QtGui.QPushButton(self)
+        sizePolicy = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(
+            self.btn_optimize_parameters.sizePolicy().hasHeightForWidth())
+        self.btn_optimize_parameters.setSizePolicy(sizePolicy)
+        self.btn_optimize_parameters.setText("Optimize nuisance parameters")
+        self.btn_optimize_parameters.setFocusPolicy(QtCore.Qt.NoFocus)
+
+        left_vbox.addWidget(self.btn_optimize_parameters)
+
+
+
+        show_model_hbox = QtGui.QHBoxLayout()
+        self.check_show_model = QtGui.QCheckBox(self)
+        self.check_show_model.setText("Plot model in figure")
+        sizePolicy = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(
+            self.check_show_model.sizePolicy().hasHeightForWidth())
+        self.check_show_model.setSizePolicy(sizePolicy)
+        show_model_hbox.addWidget(self.check_show_model)
+
+        # Color picker
+        self.p2_color_picker = QtGui.QFrame(self)
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
+        sp.setHorizontalStretch(0)
+        sp.setVerticalStretch(0)
+        self.p2_color_picker.setSizePolicy(sp)
+        self.p2_color_picker.setMinimumSize(QtCore.QSize(20, 20))
+        self.p2_color_picker.setMaximumSize(QtCore.QSize(20, 20))
+        self.p2_color_picker.setStyleSheet(
+            "QFrame { background-color: red; border: 2px solid #000000; }")
+
+
+        show_model_hbox.addWidget(self.p2_color_picker)
+        left_vbox.addLayout(show_model_hbox)
+        hbox.addLayout(left_vbox)
+
+        # Matplotlib spectrum figure.
+        self.p2_figure_spectrum = mpl.MPLWidget(None, tight_layout=True, matchbg=self)
+        sizePolicy = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.MinimumExpanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.p2_figure_spectrum.sizePolicy().hasHeightForWidth())
+        self.p2_figure_spectrum.setSizePolicy(sizePolicy)
+        hbox.addWidget(self.p2_figure_spectrum)
+        p2_vbox.addLayout(hbox)
+
+        # Bottom part of pane.
+        line = QtGui.QFrame(self)
+        line.setFrameShape(QtGui.QFrame.HLine)
+        line.setFrameShadow(QtGui.QFrame.Sunken)
+        p2_vbox.addWidget(line)
+
+        hbox_bottom = QtGui.QHBoxLayout()
+        self.p2_btn_back = QtGui.QPushButton(self)
+        self.p2_btn_back.setText("Back")
+        self.p2_btn_back.setFocusPolicy(QtCore.Qt.NoFocus)
+        hbox_bottom.addWidget(self.p2_btn_back)
+
+        hbox_bottom.addItem(QtGui.QSpacerItem(
+            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+
+        self.p2_sample_posterior = QtGui.QPushButton(self)
+        self.p2_sample_posterior.setText("Sample posterior")
+        self.p2_sample_posterior.setFocusPolicy(QtCore.Qt.NoFocus)
+        hbox_bottom.addWidget(self.p2_sample_posterior)
+        p2_vbox.addLayout(hbox_bottom)
+
+
+        # Add axes to matplotlib things.
+        ax = self.p2_figure_grid.figure.add_subplot(111)
+        ax.xaxis.set_major_locator(MaxNLocator(5))
+        ax.yaxis.set_major_locator(MaxNLocator(5))
+        ax.set_xlabel(r"$T_{\rm eff}$ $[K]$")
+        ax.set_ylabel(r"$\log{g}$")
+
+        ax = self.p2_figure_spectrum.figure.add_subplot(111)
+        ax.xaxis.set_major_locator(MaxNLocator(5))
+        ax.yaxis.set_major_locator(MaxNLocator(5))
+        ax.set_xlabel(u"Wavelength [Å]")
+        ax.set_ylabel(u"Flux")
+
+        self.p2_figure_spectrum.enable_drag_to_mask(ax)
 
         return None
 
@@ -320,9 +436,40 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         if first_available is not None:
             self.combo_balmer_line_selected.setCurrentIndex(first_available)
 
-
-
         return None
+
+
+    def show_second_pane(self):
+        self.populate_widgets_in_pane2()
+        self.show_pane(1)
+        return None
+
+
+    def populate_widgets_in_pane2(self):
+        """
+        Populate the widgets in the second pane.
+        """
+
+        # Construct a balmer line model based on metadata.
+        from glob import glob
+        self.model = BalmerLineModel(
+            glob("smh/balmer/models/metpoorgiants_alpha04_bet/*.prf"),
+            redshift=self.metadata["redshift"],
+            smoothing=self.metadata["smoothing"],
+            continuum_order=self.metadata.get("continuum_order", -1) \
+                if self.metadata["continuum"] else -1,
+            mask=self.p1_figure.dragged_masks
+            )
+
+        # Grid points
+
+        # Spectrum to show.
+
+        # Masks to show.
+        print("We can haz model")
+
+        return True
+
 
 
     def show_pane(self, index):
@@ -455,6 +602,7 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
 
                     self._parameters.extend(
                         ["c{}".format(i) for i in range(1 + int(N))])
+                    self.parent.metadata["continuum_order"] = int(N)
 
                 else:
                     self._parameters = self._parameters[:3]
