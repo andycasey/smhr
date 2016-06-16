@@ -8,7 +8,7 @@ from __future__ import (division, print_function, absolute_import,
 
 import logging
 import numpy as np
-from scipy import (integrate, ndimage, optimize as op)
+from scipy import (integrate, interpolate, ndimage, optimize as op)
 
 import utils
 
@@ -277,9 +277,11 @@ class BalmerLineModel(object):
         S = self.normalized_fluxes.shape[0]
         
         previous_cov = None
+
         likelihoods = np.nan * np.ones(S)
         integrals = np.nan * np.ones(S)
         optimized_theta = np.nan * np.ones((S, K))
+        covariances = np.nan * np.ones((S, K, K))
 
         for index, stellar_parameters in enumerate(self.stellar_parameters):
 
@@ -301,6 +303,8 @@ class BalmerLineModel(object):
                 cov = previous_cov
 
             optimized_theta[index] = op_theta
+            covariances[index, :, :] = cov
+
             model_flux = self(index, obs_dispersion, *op_theta).flatten()
             likelihoods[index] \
                 = np.exp(-0.5 * np.sum((model_flux - obs_flux)**2 * obs_ivar))
@@ -312,6 +316,7 @@ class BalmerLineModel(object):
             print(index, S, dict(zip(self.parameter_names, op_theta)))
         
 
+        """
         fig, ax = plt.subplots(3)
         ax[0].scatter(self.stellar_parameters[:, 0], self.stellar_parameters[:, 1],
             c=likelihoods, cmap=matplotlib.cm.afmhot)
@@ -321,18 +326,37 @@ class BalmerLineModel(object):
         ax[1].set_title("integrals")
         ax[2].scatter(self.stellar_parameters[:, 0], self.stellar_parameters[:,1],
             c=likelihoods * integrals, cmap=matplotlib.cm.afmhot)
+        # TODO No priors here... yet
+        """
 
-        
-        metrics = likelihoods * integrals
-        normalized_metrics = metrics / np.nansum(metrics)
+        # Marginalize over the grid parameters.
+        posteriors = likelihoods * integrals
+        marginalized_posteriors = posteriors / np.nansum(posteriors)
 
-        # Marginalize over Teff.
-        index = 0
-        teffs = np.unique(self.stellar_parameters[:,index])
-        yvals = [np.sum(normalized_metrics[self.stellar_parameters[:, index] == teff]) for teff in teffs]
+        return (marginalized_posteriors, likelihoods, integrals, optimized_theta,
+            covariances)
 
-        fig, ax = plt.subplots()
-        ax.scatter(teffs, yvals)
+        """
+
+
+        fig, axes = plt.subplots(3, 2)
+        for i in range(3):
+            x = np.unique(self.stellar_parameters[:,i])
+            yvals = np.array([np.sum(marginalized_posteriors[self.stellar_parameters[:, i] == xi]) for xi in x])
+            axes[i, 0].scatter(x, yvals)
+
+
+            
+            # Fit spline
+            percentiles = np.array([np.sum(yvals[:j+1]) for j in range(yvals.size)])
+            tck = interpolate.splrep(x, percentiles)
+
+            axes[i, 1].scatter(x, percentiles)
+
+            x_resampled = np.linspace(min(x), max(x), 1000)
+            axes[i, 1].plot(x_resampled, intepolate.splev(x_resampled, tck), c='b')
+
+
 
         # Show the best thing.
         fig, ax = plt.subplots()
@@ -343,32 +367,9 @@ class BalmerLineModel(object):
             c='r')
 
 
-        raise a
+        return marginalized_posteriors
 
-
-        fig, ax = plt.subplots()
-        ind = np.nanargmin(normalized_chi_sqs)
-
-        f = self(int(ind/float(L)), obs_dispersion, *samples[ind, 3:]).flatten()
-        ax.plot(obs_dispersion, f, c='r')
-        ax.plot(obs_dispersion, obs_flux, c='k')
-
-        bad_ind = np.nanargmax(normalized_chi_sqs)
-
-        f = self(int(bad_ind/float(L)), obs_dispersion, *samples[bad_ind, 3:]).flatten()
-        ax.plot(obs_dispersion, f, c='b')
-
-
-        raise a
-
-        
-
-        # Now integrate +/- some reasonable limits.
-
-        # Sum the likelihoods.
-
-        # Look at the grou
-
+        """
 
 
     def fit(self, observed_spectrum):

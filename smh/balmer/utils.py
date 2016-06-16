@@ -22,9 +22,14 @@ def parse_stellar_parameters(path):
     """
 
     basename = os.path.basename(path).split("_")[-1]
+    parent_folder = path.split("/")[-2]
+    
     teff, logg, mh = (float(each) for each in \
-        (basename[1:5], basename[6:10], basename[11:16].rstrip("x")))
-    return (teff, logg, mh)
+        (basename[1:5],  basename[6:10], basename[11:16].rstrip("x")))
+    alpha_mh = 0.4 if "alpha04" in parent_folder.lower() else 0.0
+
+    return (teff, logg, mh, alpha_mh)
+
 
 
 def parse_spectrum(path):
