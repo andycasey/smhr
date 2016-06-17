@@ -8,9 +8,11 @@ from __future__ import (division, print_function, absolute_import,
 
 import logging
 import numpy as np
+import os
 from scipy import (integrate, interpolate, ndimage, optimize as op)
 
 from . import utils
+#import utils
 
 __all__ = ["BalmerLineModel"]
 
@@ -35,24 +37,27 @@ class BalmerLineModel(object):
             The disk location of a pre-computed Balmer line profile.
         """
 
-        # Put all the spectra onto the most densely-sampled spectrum.
-        spectra = [utils.parse_spectrum(path) for path in paths]
-        index = np.argmax([spectrum.size for spectrum in spectra])
-        self.wavelengths = spectra[index][:, 0]
-
-        # Skip over empty spectra and resample the others.
-        fluxes = []
+        # Check file sizes to verify they are probably usable.
         usable_paths = []
-        for i, (path, spectrum) in enumerate(zip(paths, spectra)):
-            if spectrum.size > 0:
-                usable_paths.append(path)
+        for path in paths:
+            if not os.path.exists(path):
+                logger.warn("Skipping path '{}' because it does not exist."\
+                    .format(path))
+                continue
 
-                # Interpolate the spectrum onto the common dispersion map.
-                fluxes.append(np.interp(self.wavelengths, spectrum[:, 0], 
-                    spectrum[:, 1], left=None, right=None))
+            elif os.stat(path).st_size < 33:
+                logger.warn(
+                    "Skipping path '{}' because it is a nearly-empty file."\
+                    .format(path))
+                continue
 
-        self.normalized_fluxes = np.array(fluxes)
+            usable_paths.append(path)
+
         self.paths = usable_paths
+
+        # Get representative wavelength limits.
+        wavelengths = utils.parse_spectrum(path)[:, 0]
+        self.wavelength_limits = (min(wavelengths), max(wavelengths))
 
         # Parse the stellar parameters from the usable paths.
         self.stellar_parameters = np.array(
@@ -262,6 +267,9 @@ class BalmerLineModel(object):
 
         """
 
+        # Any multiprocessing queue to send progress through?
+        mp_queue = kwargs.pop("mp_queue", None)
+
         self._update_parameters()
 
         obs_dispersion, obs_flux, obs_ivar = self._slice_spectrum(data)
@@ -294,6 +302,9 @@ class BalmerLineModel(object):
                 logger.exception(
                     "Could not optimize nuisance parameters at grid point {}"\
                     .format(stellar_parameters))
+                if mp_queue is not None:
+                    mp_queue.put([1 + index, S])
+
                 continue
 
             # TODO revisit this -- maybe we should just force bounds on params
@@ -314,62 +325,24 @@ class BalmerLineModel(object):
 
             # DEBUG show progress.
             print(index, S, dict(zip(self.parameter_names, op_theta)))
-        
-
-        """
-        fig, ax = plt.subplots(3)
-        ax[0].scatter(self.stellar_parameters[:, 0], self.stellar_parameters[:, 1],
-            c=likelihoods, cmap=matplotlib.cm.afmhot)
-        ax[0].set_title("likelihoods")
-        ax[1].scatter(self.stellar_parameters[:,0], self.stellar_parameters[:, 1],
-            c=integrals, cmap=matplotlib.cm.afmhot)
-        ax[1].set_title("integrals")
-        ax[2].scatter(self.stellar_parameters[:, 0], self.stellar_parameters[:,1],
-            c=likelihoods * integrals, cmap=matplotlib.cm.afmhot)
-        # TODO No priors here... yet
-        """
+            
+            if mp_queue is not None:
+                mp_queue.put([1 + index, S])
 
         # Marginalize over the grid parameters.
         posteriors = likelihoods * integrals
         marginalized_posteriors = posteriors / np.nansum(posteriors)
 
+        # Save information to the class.
+        self._inference_result = (marginalized_posteriors, likelihoods,
+            integrals, optimized_theta, covariances)
+
+        if mp_queue is not None:
+            mp_queue.put(self._inference_result)
+
         return (marginalized_posteriors, likelihoods, integrals, optimized_theta,
             covariances)
 
-        """
-
-
-        fig, axes = plt.subplots(3, 2)
-        for i in range(3):
-            x = np.unique(self.stellar_parameters[:,i])
-            yvals = np.array([np.sum(marginalized_posteriors[self.stellar_parameters[:, i] == xi]) for xi in x])
-            axes[i, 0].scatter(x, yvals)
-
-
-            
-            # Fit spline
-            percentiles = np.array([np.sum(yvals[:j+1]) for j in range(yvals.size)])
-            tck = interpolate.splrep(x, percentiles)
-
-            axes[i, 1].scatter(x, percentiles)
-
-            x_resampled = np.linspace(min(x), max(x), 1000)
-            axes[i, 1].plot(x_resampled, intepolate.splev(x_resampled, tck), c='b')
-
-
-
-        # Show the best thing.
-        fig, ax = plt.subplots()
-        best_index = np.nanargmax(normalized_metrics)
-
-        ax.plot(obs_dispersion, obs_flux, c='k')
-        ax.plot(obs_dispersion, self(best_index, obs_dispersion, *optimized_theta[best_index]).flatten(),
-            c='r')
-
-
-        return marginalized_posteriors
-
-        """
 
 
     def fit(self, observed_spectrum):
@@ -474,14 +447,28 @@ def mask(self, spectrum):
 
 
 
+def unique_indices(a):
+    b = np.ascontiguousarray(a).view(
+        np.dtype((np.void, a.dtype.itemsize * a.shape[1])))
+    _, idx = np.unique(b, return_index=True)
+
+    return idx
+
 
 if __name__ == "__main__":
 
 
 
+    # Show results from some previous inference.
+
+
+
+    raise a
+
+
     from glob import glob
 
-    model = BalmerLineModel(glob("data/gam_*.prf"), mask=[
+    model = BalmerLineModel(glob("models/metpoorgiants_alpha04_bet/*.prf"), mask=[
         [1000, 4328],
         [4336.84, 4337.31],
         [4337.48, 4338.09],
@@ -495,6 +482,17 @@ if __name__ == "__main__":
     smoothing=False,
     continuum_order=2
     )
+
+
+    #ax = self.p2_figure_grid.figure.axes[0]
+    #ax.scatter(xyz[:, 0], xyz[:, 1], c=xyz[:, 2])
+    #self.p2_figure_grid.draw()
+    fig, ax = plt.subplots(1)
+    ax.scatter(xyz[:,0], xyz[:,1], c=xyz[:,2])
+
+
+
+    #raise a
 
     """
     model = BalmerLineModel(paths,
