@@ -172,6 +172,34 @@ class Ui_MainWindow(QtGui.QMainWindow):
         return None
 
 
+
+    def closeEvent(self, event):
+        """
+        Check to see if the user wants to save their session before closing.
+
+        :param event:
+            The close event.
+        """
+
+
+        if self.session is None:
+            # There is no session.
+            event.accept()
+            return None
+
+        reply = QtGui.QMessageBox.question(self, "Message", 
+            "Any unsaved changes will be lost. Are you sure you want to quit?", 
+            QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
+
+        if reply == QtGui.QMessageBox.Yes:
+            event.accept()
+        else:
+            event.ignore()
+
+        return None
+
+
+
     def clear_recently_opened(self):
         """
         Clear the recently opened list.
