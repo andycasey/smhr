@@ -1755,11 +1755,11 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                 if velocity_tolerance is not None:
                     break
             else:
-                velocity_tolerance = 0.1
+                velocity_tolerance = 5
 
             velocity_tolerance, is_ok = QtGui.QInputDialog.getInt(
-                None, "Set wavelength tolerance", u"Wavelength tolerance:", 
-                value=velocity_tolerance, minValue=0.01, maxValue=1)
+                None, "Set velocity tolerance", u"Velocity tolerance:", 
+                value=velocity_tolerance, minValue=0.01, maxValue=100)
             if not is_ok: return None
 
             for idx, proxy_index in zip(indices, proxy_indices):

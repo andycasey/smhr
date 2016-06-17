@@ -1643,11 +1643,22 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
 class SpectralModelsTableView(SpectralModelsTableViewBase):
-    def fit_selected_models(self):
-        """ Fit the selected spectral models. """
+    def sizeHint(self):
+        return QtCore.QSize(240,100)
 
+    def minimumSizeHint(self):
+        return QtCore.QSize(240,0)
+
+    def refresh_gui(self):
+        self.parent.summarize_current_table()
+        self.parent.update_fitting_options()
+        self.parent.refresh_plots()
+        return None
+
+    def fit_selected_models(self, proxy_indices):
+        """ Fit the selected spectral models. """
         # Fit the models one by one
-        for i, proxy_index in enumerate(self.selectionModel().selectedRows()):
+        for proxy_index in proxy_indices:
             index = self.model().mapToSource(proxy_index).row()
             self.parent.parent.session.metadata["spectral_models"][index].fit()
 
@@ -1655,24 +1666,15 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
             self.update_row(proxy_index.row())
             self.parent.update_cache(proxy_index)
 
-        # Refresh GUI
-        self.parent.summarize_current_table()
-        self.parent.update_fitting_options()
-        self.parent.refresh_plots()
+        self.refresh_gui()
         return None
     
-    def sizeHint(self):
-        return QtCore.QSize(240,100)
-
-    def minimumSizeHint(self):
-        return QtCore.QSize(240,0)
-
-    def measure_selected_models(self):
+    def measure_selected_models(self, proxy_indices):
         """ Fit the selected spectral models. """
 
         # Get list of selected spectral models
         spectral_models = []
-        for proxy_index in self.selectionModel().selectedRows():
+        for proxy_index in proxy_indices:
             index = self.model().mapToSource(proxy_index).row()
             spectral_models.append(self.parent.parent.session.metadata["spectral_models"][index])
 
@@ -1681,33 +1683,61 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
 
         # Update the data model and cache
         start = time.time()
-        for proxy_index in self.selectionModel().selectedRows():
+        for proxy_index in proxy_indices:
             self.update_row(proxy_index.row())
             self.parent.update_cache(proxy_index)
         print("Time to update data model and cache: {:.1f}".format(time.time()-start))
 
-        # Refresh GUI
-        self.parent.summarize_current_table()
-        self.parent.update_fitting_options()
-        self.parent.refresh_plots()
+        self.refresh_gui()
         return None
 
-    def mark_selected_models_as_acceptable(self):
+    def mark_selected_models_as_acceptable(self, proxy_indices):
         proxy_model = self.parent.proxy_spectral_models
         full_model = proxy_model.sourceModel()
-        for i, proxy_index in enumerate(self.selectionModel().selectedRows()):
+        for proxy_index in proxy_indices:
             full_index = proxy_model.mapToSource(proxy_index)
             full_model.setData(full_index, 2, refresh_view=False)
-        self.parent.summarize_current_table()
-        self.parent.refresh_plots()
-    def mark_selected_models_as_unacceptable(self):
+        self.refresh_gui()
+        return None
+    def mark_selected_models_as_unacceptable(self, proxy_indices):
         proxy_model = self.parent.proxy_spectral_models
         full_model = proxy_model.sourceModel()
-        for i, proxy_index in enumerate(self.selectionModel().selectedRows()):
+        for proxy_index in proxy_indices:
             full_index = proxy_model.mapToSource(proxy_index)
             full_model.setData(full_index, 0, refresh_view=False)
-        self.parent.summarize_current_table()
-        self.parent.refresh_plots()
+        self.refresh_gui()
+        return None
+
+    def set_fitting_option_value(self, proxy_indices, key, value,
+                                 valid_for_profile=False,
+                                 valid_for_synth=False):
+        num_fit = 0
+        num_profile_models = 0
+        num_synthesis_models = 0
+        for proxy_index in proxy_indices:
+            idx = self.model().mapToSource(proxy_index).row()
+            spectral_model \
+                = self.parent.parent.session.metadata["spectral_models"][idx]
+            run_fit = False
+            if valid_for_profile and isinstance(spectral_model,ProfileFittingModel):
+                num_profile_models += 1
+                spectral_model.metadata[key] = value
+                run_fit = True
+            if valid_for_synth and isinstance(spectral_model,SpectralSynthesisModel):
+                num_synthesis_models += 1
+                spectral_model.metadata[key] = value
+                run_fit = True
+                
+            if run_fit and "fitted_result" in spectral_model.metadata:
+                num_fit += 1
+                spectral_model.fit()
+                self.update_row(proxy_index.row())
+                self.parent.update_cache(proxy_index)
+        print("Changed {0}={1}, fit {2} out of {3} models ({4} profile, {5} synth)".format(\
+                key, value, num_fit, len(proxy_indices), num_profile_models, num_synthesis_models))
+        self.refresh_gui()
+        return None
+
 
 class SpectralModelsTableModel(SpectralModelsTableModelBase):
     def data(self, index, role):

@@ -66,7 +66,8 @@ class SpectralModelsTableViewBase(QtGui.QTableView):
             The mouse event that triggered the menu.
         """
 
-        N = len(self.selectionModel().selectedRows())
+        proxy_indices = self.selectionModel().selectedRows()
+        N = len(proxy_indices)
         
         menu = QtGui.QMenu(self)
         fit_models = menu.addAction("Fit selected model{}..".format(["", "s"][N != 1]))
@@ -75,33 +76,165 @@ class SpectralModelsTableViewBase(QtGui.QTableView):
         menu.addSeparator()
         mark_as_acceptable = menu.addAction("Mark as acceptable")
         mark_as_unacceptable = menu.addAction("Mark as unacceptable")
+        menu.addSeparator()
+
+        # Fitting Options
+        set_fitting_window = menu.addAction("Set fitting window..")
+
+        continuum_menu = menu.addMenu("Set continuum")
+        set_no_continuum = continuum_menu.addAction("No continuum",
+            checkable=True)
+        continuum_menu.addSeparator()
+        set_continuum_order = [continuum_menu.addAction(
+            "Order {}".format(i), checkable=True) for i in range(0, 10)]
+
+        menu.addSeparator()
+        menu_profile_type = menu.addMenu("Set profile type")
+
+        set_gaussian = menu_profile_type.addAction("Gaussian")
+        set_lorentzian = menu_profile_type.addAction("Lorentzian")
+        set_voigt = menu_profile_type.addAction("Voigt")
+
+        menu.addSeparator()
+        enable_central_weighting = menu.addAction("Enable central weighting")
+        disable_central_weighting = menu.addAction("Disable central weighting")
+
+        menu.addSeparator()
+        set_detection_sigma = menu.addAction("Set detection sigma..")
+        set_detection_pixels = menu.addAction("Set detection pixels..")
+
+        menu.addSeparator()
+        set_rv_tolerance = menu.addAction("Set RV tolerance..")
+        set_wl_tolerance = menu.addAction("Set WL tolerance..")
 
         if N == 0:
-            fit_models.setEnabled(False)
-            measure_models.setEnabled(False)
-            mark_as_acceptable.setEnabled(False)
-            mark_as_unacceptable.setEnabled(False)
+            menu.setEnabled(False)
 
         action = menu.exec_(self.mapToGlobal(event.pos()))
         if action == fit_models:
-            self.fit_selected_models()
+            self.fit_selected_models(proxy_indices)
         elif action == measure_models:
-            self.measure_selected_models()
+            self.measure_selected_models(proxy_indices)
         elif action == mark_as_acceptable:
-            self.mark_selected_models_as_acceptable()
+            self.mark_selected_models_as_acceptable(proxy_indices)
         elif action == mark_as_unacceptable:
-            self.mark_selected_models_as_unacceptable()
+            self.mark_selected_models_as_unacceptable(proxy_indices)
+        elif action == set_fitting_window:
+            self.set_fitting_window(proxy_indices)
+        elif action == set_no_continuum:
+            self.set_no_continuum(proxy_indices)
+        elif action in set_continuum_order:
+            order = set_continuum_order.index(action)
+            self.set_continuum_order(proxy_indices, order)
+        elif action in (set_gaussian, set_lorentzian, set_voigt):
+            kind = {
+                set_gaussian: "gaussian",
+                set_lorentzian: "lorentzian",
+                set_voigt: "voigt"
+            }[action]
+            self.set_profile(proxy_indices, kind)
+        elif action in (enable_central_weighting, disable_central_weighting):
+            toggle = action==enable_central_weighting
+            self.set_central_weighting(proxy_indices, toggle)
+        elif action == set_detection_sigma:
+            self.set_detection_sigma(proxy_indices)
+        elif action == set_detection_pixels:
+            self.set_detection_pixels(proxy_indices)
+        elif action == set_rv_tolerance:
+            self.set_rv_tolerance(proxy_indices)
+        elif action == set_wl_tolerance:
+            self.set_wl_tolerance(proxy_indices)
 
         return None
 
-    def fit_selected_models(self):
+    def fit_selected_models(self,indices):
         raise NotImplementedError("Base must be subclassed")
-    def measure_selected_models(self):
+    def measure_selected_models(self,indices):
         raise NotImplementedError("Base must be subclassed")
-    def mark_selected_models_as_acceptable(self):
+    def mark_selected_models_as_acceptable(self,indices):
         raise NotImplementedError("Base must be subclassed")
-    def mark_selected_models_as_unacceptable(self):
+    def mark_selected_models_as_unacceptable(self,indices):
         raise NotImplementedError("Base must be subclassed")
+    def set_fitting_option_value(self, proxy_indices, key, value,
+                                 valid_for_profile=False,
+                                 valid_for_synth=False):
+        """
+        This should be called to update all fitting options
+        and keep the GUI up to date.
+        """
+        raise NotImplementedError("Base must be subclassed")
+    def set_fitting_window(self, proxy_indices):
+        window, is_ok = QtGui.QInputDialog.getDouble(
+            None, "Set fitting window", u"Fitting window (Å):", 
+            value=5, minValue=0.1, maxValue=1000)
+        if not is_ok: return None
+        self.set_fitting_option_value(proxy_indices, 
+                                      "window", window,
+                                      valid_for_profile=True,
+                                      valid_for_synth=True)
+        return None
+    def set_no_continuum(self, proxy_indices):
+        self.set_fitting_option_value(proxy_indices, 
+                                      "continuum_order", -1,
+                                      valid_for_profile=True,
+                                      valid_for_synth=True)
+        return None
+    def set_continuum_order(self, proxy_indices, order):
+        self.set_fitting_option_value(proxy_indices, 
+                                      "continuum_order", order,
+                                      valid_for_profile=True,
+                                      valid_for_synth=True)
+        return None
+    def set_profile(self, proxy_indices, kind):
+        self.set_fitting_option_value(proxy_indices, 
+                                      "profile", kind,
+                                      valid_for_profile=True,
+                                      valid_for_synth=False)
+        return None
+    def set_central_weighting(self, proxy_indices, toggle):
+        self.set_fitting_option_value(proxy_indices, 
+                                      "central_weighting", toggle,
+                                      valid_for_profile=True,
+                                      valid_for_synth=False)
+        return None
+    def set_detection_sigma(self, proxy_indices):
+        detection_sigma, is_ok = QtGui.QInputDialog.getDouble(
+            None, "Set detection sigma", u"Detection sigma:", 
+            value=0.5, minValue=0.1, maxValue=1000)
+        if not is_ok: return None
+        self.set_fitting_option_value(proxy_indices, 
+                                      "detection_sigma", detection_sigma,
+                                      valid_for_profile=True,
+                                      valid_for_synth=False)
+    def set_detection_pixels(self, proxy_indices):
+        detection_pixels, is_ok = QtGui.QInputDialog.getInt(
+            None, "Set detection pixel", u"Detection pixels:", 
+            value=3, minValue=1, maxValue=1000)
+        if not is_ok: return None
+        self.set_fitting_option_value(proxy_indices,
+                                      "detection_pixels", detection_pixels,
+                                      valid_for_profile=True,
+                                      valid_for_synth=False)
+    def set_rv_tolerance(self, proxy_indices):
+        velocity_tolerance, is_ok = QtGui.QInputDialog.getDouble(
+            None, "Set velocity tolerance", u"Velocity tolerance:", 
+            value=5, minValue=0.01, maxValue=100)
+        if not is_ok: return None
+        # TODO cannot turn it back to None right now
+        self.set_fitting_option_value(proxy_indices,
+                                      "velocity_tolerance", velocity_tolerance,
+                                      valid_for_profile=True,
+                                      valid_for_synth=True)
+    def set_wl_tolerance(self, proxy_indices):
+        wavelength_tolerance, is_ok = QtGui.QInputDialog.getDouble(
+            None, "Set wavelength tolerance", u"Wavelength tolerance:", 
+            value=0.1, minValue=0.01, maxValue=1)
+        if not is_ok: return None
+        # TODO cannot turn it back to None right now
+        self.set_fitting_option_value(proxy_indices,
+                                      "wavelength_tolerance", wavelength_tolerance,
+                                      valid_for_profile=True,
+                                      valid_for_synth=False)
 
 class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
 
