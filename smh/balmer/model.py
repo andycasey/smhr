@@ -11,8 +11,11 @@ import numpy as np
 import os
 from scipy import (integrate, interpolate, ndimage, optimize as op)
 
-from . import utils
-#import utils
+# HACK REMOVE TODO
+try:
+    from . import utils
+except ValueError:
+    import utils
 
 __all__ = ["BalmerLineModel"]
 
@@ -22,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 class BalmerLineModel(object):
 
+    _minimum_valid_model_file_size = 32
+    _minimum_grid_points_required = 1
     _default_metadata = {
         "mask": [],
         "redshift": False,
@@ -45,7 +50,7 @@ class BalmerLineModel(object):
                     .format(path))
                 continue
 
-            elif os.stat(path).st_size < 33:
+            elif self._minimum_valid_model_file_size >= os.stat(path).st_size:
                 logger.warn(
                     "Skipping path '{}' because it is a nearly-empty file."\
                     .format(path))
@@ -53,10 +58,14 @@ class BalmerLineModel(object):
 
             usable_paths.append(path)
 
+        if len(usable_paths) < self._minimum_grid_points_required:
+            raise ValueError("insufficient number of grid points ({} < {})"\
+                .format(len(usable_paths), self._minimum_grid_points_required))
+
         self.paths = usable_paths
 
         # Get representative wavelength limits.
-        wavelengths = utils.parse_spectrum(path)[:, 0]
+        wavelengths = utils.parse_spectrum(self.paths[0])[:, 0]
         self.wavelength_limits = (min(wavelengths), max(wavelengths))
 
         # Parse the stellar parameters from the usable paths.
@@ -108,7 +117,7 @@ class BalmerLineModel(object):
 
 
 
-    def __call__(self, model_index, x, *parameters):
+    def __call__(self, x, model_dispersion, model_normalized_flux, *parameters):
 
         # Marginalize over all models.
 
@@ -117,12 +126,9 @@ class BalmerLineModel(object):
         # Continuum.
         O = self.metadata["continuum_order"]
         continuum = 1.0 if 0 > O \
-            else np.polyval(parameters[-(O + 1):][::-1], self.wavelengths)
+            else np.polyval(parameters[-(O + 1):][::-1], model_dispersion)
 
-        if model_index is not None:
-            y = np.atleast_2d(self.normalized_fluxes[model_index, :] * continuum)
-        else:
-            y = np.atleast_2d(self.normalized_fluxes * continuum)
+        y = model_normalized_flux * continuum
 
         # Smoothing?
         try:
@@ -143,16 +149,14 @@ class BalmerLineModel(object):
             v = parameters[index]
             z = v/299792.458 # km/s
 
-        return np.array([np.interp(x, self.wavelengths * (1 + z), yi, 
-            left=1, right=1) for yi in y])
+        return np.interp(x, model_dispersion * (1 + z), y)
 
 
 
 
     def _slice_spectrum(self, observed_spectrum):
 
-        idx = observed_spectrum.dispersion.searchsorted([
-            self.wavelengths[0], self.wavelengths[-1]])
+        idx = observed_spectrum.dispersion.searchsorted(self.wavelength_limits)
 
         # Account for 'right' hand behaviour.
         idx[-1] = np.clip(idx[1] + 1, 0, observed_spectrum.dispersion.size)
@@ -176,13 +180,20 @@ class BalmerLineModel(object):
         :param flux:
             The observed flux values.
 
+        :param ivar:
+            The inverse variance values for the observed fluxes.
 
         :param grid_index:
             The grid index.
         """
 
+        return_model_spectrum = kwargs.pop("__return_model_spectrum", False)
+
+        # Load the spectrum from the grid.
+        model_disp, model_flux = utils.parse_spectrum(self.paths[grid_index]).T
+
         kwds = {
-            "f": lambda x, *theta: self(grid_index, x, *theta).flatten(),
+            "f": lambda x, *theta: self(x, model_disp, model_flux, *theta),
             "xdata": dispersion,
             "ydata": flux,
             "sigma": ivar,
@@ -190,7 +201,10 @@ class BalmerLineModel(object):
             "p0": self.initial_guess,
         }
         kwds.update(kwargs)
-        return op.curve_fit(**kwds)
+        result = op.curve_fit(**kwds)
+
+        return tuple(list(result) + [model_disp, model_flux]) \
+            if return_model_spectrum else result
 
 
     def optimize_over_all_models(self, data):
@@ -278,11 +292,13 @@ class BalmerLineModel(object):
         mask = _generate_mask(obs_dispersion, self.metadata["mask"]) \
              * np.isfinite(obs_flux * obs_ivar)
 
+        if 0 in (obs_dispersion.size, mask.sum()):
+            raise ValueError("no overlapping spectra with finite flux/ivar")
+
         obs_dispersion = obs_dispersion[mask]
         obs_flux, obs_ivar = obs_flux[mask], obs_ivar[mask]
-        
-        K = len(self.parameter_names)
-        S = self.normalized_fluxes.shape[0]
+    
+        K, S = (len(self.parameter_names), len(self.paths))
         
         previous_cov = None
 
@@ -291,12 +307,16 @@ class BalmerLineModel(object):
         optimized_theta = np.nan * np.ones((S, K))
         covariances = np.nan * np.ones((S, K, K))
 
+        kwds = {}
+        kwds.update(kwargs)
+        kwds["__return_model_spectrum"] = True
         for index, stellar_parameters in enumerate(self.stellar_parameters):
 
             # At each grid point, optimize the parameters.
             try:
-                op_theta, cov = self._optimize_nuisance_parameters(
-                    obs_dispersion, obs_flux, obs_ivar, index, maxfev=50000)
+                op_theta, cov, model_disp, model_normalized_flux \
+                    = self._optimize_nuisance_parameters(
+                        obs_dispersion, obs_flux, obs_ivar, index, **kwds)
 
             except RuntimeError:
                 logger.exception(
@@ -316,9 +336,10 @@ class BalmerLineModel(object):
             optimized_theta[index] = op_theta
             covariances[index, :, :] = cov
 
-            model_flux = self(index, obs_dispersion, *op_theta).flatten()
+
+            model = self(obs_dispersion, model_disp, model_normalized_flux, *op_theta)
             likelihoods[index] \
-                = np.exp(-0.5 * np.sum((model_flux - obs_flux)**2 * obs_ivar))
+                = np.exp(-0.5 * np.sum((model - obs_flux)**2 * obs_ivar))
 
             # Use a multi-Gaussian approximation of the nuisance parameters.
             integrals[index] = (2*np.pi)**(K/2.) * np.abs(np.linalg.det(cov))**(-0.5)
@@ -344,6 +365,80 @@ class BalmerLineModel(object):
             covariances)
 
 
+    @property
+    def marginalized_posteriors(self):
+        """ Generate 1D marginalized posteriors on stellar parameters. """
+
+        N = self.stellar_parameters.shape[1]
+        grid_parameters = ("TEFF", "LOGG", "MH", "ALPHA_MH")[:N]
+        
+        pdf = {}
+        probabilities = self._inference_result[0]
+        for i, parameter_name in enumerate(grid_parameters):
+
+            unique_points = np.sort(np.unique(self.stellar_parameters[:, i]))                
+            if unique_points.size == 1: continue
+
+            discretized_probabilities = np.array(
+                [np.nansum(probabilities[self.stellar_parameters[:, i] == v]) \
+                    for v in unique_points])
+
+            # Interpolate it to provide MAP value and ~percentiles.
+            tck_pdf = interpolate.splrep(unique_points, discretized_probabilities,
+                k=min([unique_points.size - 1, 3]))
+            x = np.linspace(unique_points[0], unique_points[-1], 1000)
+            map_value = x[np.nanargmax(interpolate.splev(x, tck_pdf))]
+
+            # CDF.
+            cdf = np.array([np.nansum(discretized_probabilities[:i+1]) \
+                for i in range(discretized_probabilities.size)])
+
+            tck_cdf = interpolate.splrep(unique_points, cdf,
+                k=min([unique_points.size - 1, 3]))
+            q = x[interpolate.splev(x, tck_cdf).searchsorted([0.16, 0.5, 0.84])]
+
+            central, pos, neg = (q[0], q[2] - q[1], q[0] - q[1])
+            
+            pdf[parameter_name] = (map_value, central, pos, neg,
+                np.vstack([unique_points, discretized_probabilities]),
+                tck_pdf,
+                tck_cdf
+            )
+            
+        return pdf
+
+
+    def plot_projection(self, data):
+
+        obs_dispersion, obs_flux, obs_ivar = self._slice_spectrum(data)
+        
+        # Apply masks.
+        mask = _generate_mask(obs_dispersion, self.metadata["mask"]) \
+             * np.isfinite(obs_flux * obs_ivar)
+
+        if 0 in (obs_dispersion.size, mask.sum()):
+            raise ValueError("no overlapping spectra with finite flux/ivar")
+
+        #obs_dispersion = obs_dispersion[mask]
+        #obs_flux, obs_ivar = obs_flux[mask], obs_ivar[mask]
+        obs_flux[~mask] = np.nan
+
+        fig, ax = plt.subplots()
+
+        index = np.nanargmax(self._inference_result[0])
+        op_theta = self._inference_result[3][index]
+
+        model_disp, model_flux = utils.parse_spectrum(self.paths[index]).T
+        y = self(obs_dispersion, model_disp, model_flux, *op_theta)
+        y[~mask] = np.nan
+
+        ax.plot(obs_dispersion, obs_flux, c='k')
+        ax.plot(obs_dispersion, y, c='r')
+
+        raise a
+
+
+
 
     def fit(self, observed_spectrum):
         """
@@ -354,6 +449,8 @@ class BalmerLineModel(object):
         """
 
         self._update_parameters()
+
+        raise YoureADinasour
 
         show = (observed_spectrum.dispersion >= self.wavelengths[0]) \
              * (observed_spectrum.dispersion <= self.wavelengths[-1])
@@ -463,36 +560,39 @@ if __name__ == "__main__":
 
 
 
-    raise a
-
-
     from glob import glob
 
-    model = BalmerLineModel(glob("models/metpoorgiants_alpha04_bet/*.prf"), mask=[
-        [1000, 4328],
-        [4336.84, 4337.31],
-        [4337.48, 4338.09],
-        [4339.31, 4339.53],
-        [4340.03, 4340.98],
-        [4341.2, 4341.59],
-        [4344.11, 4344.72],
-        [4350, 10000]
-    ],
-    redshift=True,
-    smoothing=False,
-    continuum_order=2
+    """
+    model = BalmerLineModel(
+        glob("smh/balmer/models/metpoor*_bet/*.prf"), 
+        mask=[
+            [1000, 4841],
+            [4859.51, 4859.84],
+            [4860, 4862], # core.
+            [4871, 4873],
+            [4878, 4879],
+            [4846.26, 4852],
+            [4881, 10000]
+        ],
+        redshift=True,
+        smoothing=False,
+        continuum_order=3
     )
-
-
-    #ax = self.p2_figure_grid.figure.axes[0]
-    #ax.scatter(xyz[:, 0], xyz[:, 1], c=xyz[:, 2])
-    #self.p2_figure_grid.draw()
-    fig, ax = plt.subplots(1)
-    ax.scatter(xyz[:,0], xyz[:,1], c=xyz[:,2])
-
-
-
-    #raise a
+    """
+    model = BalmerLineModel(glob("smh/balmer/models/?????s_gam/*.prf"),
+        mask=[
+            [1000, 4328],
+            [4336.84, 4337.31],
+            [4337.48, 4338.09],
+            [4339.31, 4339.53],
+            [4340.03, 4340.98],
+            [4341.2, 4341.59],
+            [4344.11, 4344.72],
+            [4350, 10000]
+        ],
+        redshift=True,
+        smoothing=False,
+        continuum_order=2)
 
     """
     model = BalmerLineModel(paths,
@@ -509,8 +609,8 @@ if __name__ == "__main__":
 
     # Get a rest-frame normalized spectrum...
     from smh.specutils import Spectrum1D
-    hd122563 = Spectrum1D.read("hd122563.fits")
-    hd140283 = Spectrum1D.read("../../hd140283.fits")
+    hd122563 = Spectrum1D.read("smh/balmer/hd122563.fits")
+    hd140283 = Spectrum1D.read("hd140283.fits")
     hd140283._ivar = 1e-5 * np.ones(hd140283.dispersion.size)
     hd122563._ivar = 1e-5 * np.ones(hd122563.dispersion.size)
  

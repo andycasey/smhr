@@ -369,17 +369,22 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
 
         # Table view for model parameters.
-        self.p1_model_parameters = QtGui.QTableView(self)
+        self.p2_model_parameters = QtGui.QTableView(self)
         sizePolicy = QtGui.QSizePolicy(
             QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(
-            self.p1_model_parameters.sizePolicy().hasHeightForWidth())
-        self.p1_model_parameters.setSizePolicy(sizePolicy)
-        self.p1_model_parameters.setMinimumSize(QtCore.QSize(w, 150))
-        self.p1_model_parameters.setMaximumSize(QtCore.QSize(w, 16777215))
-        left_vbox.addWidget(self.p1_model_parameters)
+            self.p2_model_parameters.sizePolicy().hasHeightForWidth())
+        self.p2_model_parameters.setSizePolicy(sizePolicy)
+        self.p2_model_parameters.setMinimumSize(QtCore.QSize(w, 150))
+        self.p2_model_parameters.setMaximumSize(QtCore.QSize(w, 16777215))
+        self.p2_model_parameters.setModel(
+            BalmerLineModelParametersTableModel(self))
+        self.p2_model_parameters.setEditTriggers(
+            QtGui.QAbstractItemView.CurrentChanged)
+        self.p2_model_parameters.horizontalHeader().hide()
+        left_vbox.addWidget(self.p2_model_parameters)
 
 
 
@@ -723,6 +728,9 @@ class BalmerLineFittingDialog(QtGui.QDialog):
                 if self.metadata["continuum"] else -1
             )
 
+        # Reset the parameter widget.
+        self.p2_model_parameters.reset()
+
         # Grid points.
         self.draw_grid_points()
 
@@ -762,6 +770,9 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         """
 
         print("worker result", self.worker.result)
+        
+        global _BALMER_LINE_MODEL
+        _BALMER_LINE_MODEL._inference_result = self.worker.result
 
         return None
 
@@ -910,6 +921,56 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         return None
 
 
+
+class BalmerLineModelParametersTableModel(QtCore.QAbstractTableModel):
+
+
+    def __init__(self, parent, *args):
+        super(BalmerLineModelParametersTableModel, self).__init__(parent, *args)
+        self.parent = parent
+
+
+    def rowCount(self, parent):
+        global _BALMER_LINE_MODEL
+        if _BALMER_LINE_MODEL is None:
+            return 0
+        else:
+            return len(_BALMER_LINE_MODEL.parameter_names)
+
+    def columnCount(self, parent):
+        return 1
+
+
+    def headerData(self, index, orientation, role):
+
+        if orientation == QtCore.Qt.Vertical \
+        and role == QtCore.Qt.DisplayRole:
+
+            global _BALMER_LINE_MODEL
+            parameter = _BALMER_LINE_MODEL.parameter_names[index]
+
+            translation = {
+                "redshift": "Radial velocity [km/s]",
+                "smoothing": "Macroturbulence [km/s]",
+                "c0": "Continuum, c0"
+            }.get(parameter, "                    {}".format(parameter))
+
+            return translation
+
+        return None
+
+
+    def data(self, index, role):
+        if not index.isValid() or role != QtCore.Qt.DisplayRole:
+            return None
+        return 0.0
+
+
+    def flags(self, index):
+        if not index.isValid():
+            return None
+
+        return QtCore.Qt.ItemIsEnabled|QtCore.Qt.ItemIsEditable
 
 
 
