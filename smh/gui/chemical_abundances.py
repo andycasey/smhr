@@ -1771,6 +1771,7 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                                  valid_for_profile=False,
                                  valid_for_synth=False):
         num_fit = 0
+        num_unacceptable = 0
         num_profile_models = 0
         num_synthesis_models = 0
         for proxy_index in proxy_indices:
@@ -1778,6 +1779,9 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
             spectral_model \
                 = self.parent.parent.session.metadata["spectral_models"][idx]
             run_fit = False
+            if not spectral_model.is_acceptable: 
+                num_unacceptable += 1
+                continue
             if valid_for_profile and isinstance(spectral_model,ProfileFittingModel):
                 num_profile_models += 1
                 spectral_model.metadata[key] = value
@@ -1792,8 +1796,8 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                 spectral_model.fit()
                 self.update_row(proxy_index.row())
                 self.parent.update_cache(proxy_index)
-        print("Changed {0}={1}, fit {2} out of {3} models ({4} profile, {5} synth)".format(\
-                key, value, num_fit, len(proxy_indices), num_profile_models, num_synthesis_models))
+        print("Changed {0}={1}, fit {2} out of {3} models ({4} profile, {5} synth, skipped {6} unacceptable)".format(\
+                key, value, num_fit, len(proxy_indices), num_profile_models, num_synthesis_models, num_unacceptable))
         self.refresh_gui()
         return None
 
