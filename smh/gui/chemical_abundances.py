@@ -1114,7 +1114,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._lines["transitions_center_residual"].set_data([x, x], [0, 1.2])
         # Model masks specified by the user.
         # (These should be shown regardless of whether there is a fit or not.)
-        mask_color = "g" if selected_model.metadata["antimask_flag"] else "r"
+        # HACK
+        mask_color = "g" if "antimask_flag" in selected_model.metadata and \
+            selected_model.metadata["antimask_flag"] else "r"
         for i, (start, end) in enumerate(selected_model.metadata["mask"]):
             try:
                 patches = self._lines["model_masks"][i]
@@ -1378,6 +1380,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 selected_model.metadata["detection_pixels"]))
 
             try:
+                # HACK
                 self.checkbox_use_antimasks.setChecked(
                     selected_model.metadata["antimask_flag"])
             except KeyError: # HACK Old SMH sessions will not load with antimask_flag
@@ -1528,6 +1531,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
     def clicked_checkbox_use_antimasks(self):
         """ The checkbox to use antimasks has been clicked. """
+        # TODO
         self._get_selected_model().metadata["antimask_flag"] \
             = self.checkbox_use_antimasks.isChecked()
         return None
