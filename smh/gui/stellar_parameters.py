@@ -771,11 +771,15 @@ class StellarParametersTab(QtGui.QWidget):
             
             # Get current spectral model.
             spectral_model, proxy_index, index = self._get_selected_model(True)
+            if spectral_model is None: 
+                raise RuntimeError("""Must have a spectral model selected while making mask!
+                                   Must have mouseover bug?""")
 
             # Add mask metadata.
             spectral_model.metadata["mask"].append([xy[0,0], xy[2, 0]])
 
             # Re-fit the spectral model.
+            print("Fitting")
             spectral_model.fit()
 
             # Update the view of the spectral model.
