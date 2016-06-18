@@ -276,3 +276,4 @@ class MPLWidget(FigureCanvas):
                 return None
         if ax is None: return None
         raise ValueError("Could not identify axis to reset zoom limits for")
+    

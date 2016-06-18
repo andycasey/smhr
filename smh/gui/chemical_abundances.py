@@ -205,6 +205,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.figure.mpl_connect("button_press_event", self.figure.axis_right_mouse_press)
         self.figure.mpl_connect("button_release_event", self.figure.axis_right_mouse_release)
         self.figure.mpl_connect("key_press_event", self.figure.unzoom_on_z_press)
+        self.figure.mpl_connect("key_press_event", self.key_press_zoom)
         self.figure.setFocusPolicy(QtCore.Qt.ClickFocus)
         
         self._currently_plotted_element = None
@@ -835,6 +836,22 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.spectrum_axis_mouse_release(event)
         return None
 
+
+    def key_press_zoom(self, event):
+        if event.key == "1":
+            self.ax_spectrum.set_ylim((0, 1.2))
+            self.figure.draw()
+        elif event.key == "2":
+            self.ax_spectrum.set_ylim((.5, 1.1))
+            self.figure.draw()
+        elif event.key == "3":
+            self.ax_spectrum.set_ylim((.8, 1.05))
+            self.figure.draw()
+        elif event.key == "4":
+            self.ax_spectrum.set_ylim((.9, 1.05))
+            self.figure.draw()
+        return None
+
     def spectrum_axis_mouse_press(self, event):
         """
         The mouse button was pressed in the spectrum axis.
@@ -1053,6 +1070,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
             self.ax_spectrum.set_ylim(0, 1.2)
             self.ax_spectrum.set_yticks([0, 0.5, 1])
+            #self.ax_spectrum.set_yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2])
             three_sigma = 3*np.median(sigma[np.isfinite(sigma)])
             self.ax_residual.set_ylim(-three_sigma, three_sigma)
         
