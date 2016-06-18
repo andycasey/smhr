@@ -53,3 +53,10 @@ if __name__=="__main__":
     #c1, c2 = linelists.identify_conflicts(ll1,ll3)
     #c1, c2 = linelists.identify_conflicts(ll3,ll1)
     test_conflicts()
+    
+    ll2_copy = linelists.LineList.read('test_data/linelists/tiII.moog')
+    c1, c2 = linelists.LineList.identify_conflicts(ll2, ll2_copy)
+    assert len(c1) == len(ll2)
+    
+    c1, c2 = linelists.LineList.identify_conflicts(ll2, ll2_copy, skip_equal_loggf=True)
+    assert len(c1) == 0

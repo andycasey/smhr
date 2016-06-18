@@ -139,12 +139,12 @@ class LineList(Table):
             equivalence_lines1.append( ll1[np.unique(this_conflicts[:,0])] )
             equivalence_lines2.append( ll2[np.unique(this_conflicts[:,1])] )
         if skip_equal_loggf:
-            _new1 = []
-            _new2 = []
-            for x,y in zip(equivalence_lines1,equivalence_lines2):
+            _drop_indices = []
+            for i,(x,y) in enumerate(zip(equivalence_lines1,equivalence_lines2)):
                 if len(x)==1 and len(y)==1 and LineList.lines_equal(x[0],y[0]):
-                    equivalence_lines1.remove(x)
-                    equivalence_lines2.remove(y)
+                    _drop_indices.append(i)
+            equivalence_lines1 = [v for i,v in enumerate(equivalence_lines1) if i not in _drop_indices]
+            equivalence_lines2 = [v for i,v in enumerate(equivalence_lines2) if i not in _drop_indices]
         if swap: return equivalence_lines2, equivalence_lines1
         return equivalence_lines1, equivalence_lines2
 
