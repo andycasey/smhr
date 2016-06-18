@@ -88,6 +88,8 @@ class MPLWidget(FigureCanvas):
         self.right_clicked_axis = None
         self.zoom_box_lines = {}
         
+        # State for shift
+        self.shift_key_pressed = False
         return None
 
     def _focus(self, event):
@@ -277,3 +279,12 @@ class MPLWidget(FigureCanvas):
         if ax is None: return None
         raise ValueError("Could not identify axis to reset zoom limits for")
     
+    def key_press_flags(self, event):
+        if event.key == "shift":
+            self.shift_key_pressed = True
+        return None
+        
+    def key_release_flags(self, event):
+        if event.key == "shift":
+            self.shift_key_pressed = False
+        return None

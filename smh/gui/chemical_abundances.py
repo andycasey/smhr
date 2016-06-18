@@ -206,6 +206,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.figure.mpl_connect("button_release_event", self.figure.axis_right_mouse_release)
         self.figure.mpl_connect("key_press_event", self.figure.unzoom_on_z_press)
         self.figure.mpl_connect("key_press_event", self.key_press_zoom)
+        self.figure.mpl_connect("key_press_event", self.figure.key_press_flags)
+        self.figure.mpl_connect("key_release_event", self.figure.key_release_flags)
         self.figure.setFocusPolicy(QtCore.Qt.ClickFocus)
         
         self._currently_plotted_element = None
@@ -214,6 +216,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._err_cache = []
         self.refresh_table()
 
+    def print_key_press(self, event):
+        print(event.key,"press")
+    def print_key_release(self, event):
+        print(event.key,"release")
     def _create_fitting_options_widget(self):
         self.opt_tabs = QtGui.QTabWidget(self)
         sp = QtGui.QSizePolicy(
@@ -326,6 +332,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.checkbox_use_central_weighting.setText("Central pixel weighting")
         vbox_lhs.addWidget(self.checkbox_use_central_weighting)
 
+        self.checkbox_use_antimasks = QtGui.QCheckBox(self.tab_profile)
+        self.checkbox_use_antimasks.setText("Use Antimasks")
+        self.checkbox_use_antimasks.setEnabled(False) # Editable by shift clicking only
+        vbox_lhs.addWidget(self.checkbox_use_antimasks)
+
         ### RHS
         vbox_rhs = QtGui.QVBoxLayout()
         hbox, label, combo = _create_combo_in_hbox(self.tab_profile, "Type")
@@ -399,6 +410,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.clicked_checkbox_use_central_weighting)
         self.checkbox_use_central_weighting.stateChanged.connect(
             self.fit_one)
+        self.checkbox_use_antimasks.stateChanged.connect(
+            self.clicked_checkbox_use_antimasks)
         self.checkbox_wavelength_tolerance.stateChanged.connect(
             self.clicked_checkbox_wavelength_tolerance)
         self.checkbox_wavelength_tolerance.stateChanged.connect(
@@ -898,6 +911,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 return None
 
         else:
+            selected_model = self._get_selected_model()
+            # HACK
+            if "antimask_flag" not in selected_model.metadata:
+                selected_model.metadata["antimask_flag"] = False
+            # Clear all masks if shift key state is not same as antimask_flag
+            # Also change the antimask state
+            if selected_model.metadata["antimask_flag"] != self.figure.shift_key_pressed:
+                selected_model.metadata["mask"] = []
+                selected_model.metadata["antimask_flag"] = ~selected_model.metadata["antimask_flag"]
+
             # Single click.
             xmin, xmax, ymin, ymax = (event.xdata, np.nan, -1e8, +1e8)
             for patch in self._lines["interactive_mask"]:
@@ -908,6 +931,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     [xmax, ymin],
                     [xmin, ymin]
                 ])
+                patch.set_facecolor("g" if selected_model.metadata["antimask_flag"] else "r")
 
             # Set the signal and the time.
             self._interactive_mask_region_signal = (
@@ -1347,9 +1371,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.edit_detection_pixels.setText("{}".format(
                 selected_model.metadata["detection_pixels"]))
 
-            # Enables pushing enter to fit one?
-            #self.btn_fit_one.setAutoDefault(True)
-            #self.btn_fit_one.setDefault(True)
+            try:
+                self.checkbox_use_antimasks.setChecked(
+                    selected_model.metadata["antimask_flag"])
+            except KeyError: # Old SMH sessions will not load with antimask_flag
+                self.checkbox_use_antimasks.setChecked(False)
         else:
             self.opt_tabs.setTabEnabled(0, False)
 
@@ -1493,6 +1519,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         """ The checkbox to use central weighting has been clicked. """
         self._get_selected_model().metadata["central_weighting"] \
             = self.checkbox_use_central_weighting.isChecked()
+        return None
+    def clicked_checkbox_use_antimasks(self):
+        """ The checkbox to use antimasks has been clicked. """
+        self._get_selected_model().metadata["antimask_flag"] \
+            = self.checkbox_use_antimasks.isChecked()
         return None
     def clicked_checkbox_wavelength_tolerance(self):
         """ The checkbox to set a wavelength tolerance has been clicked. """
