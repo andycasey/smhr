@@ -919,7 +919,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             # Also change the antimask state
             if selected_model.metadata["antimask_flag"] != self.figure.shift_key_pressed:
                 selected_model.metadata["mask"] = []
-                selected_model.metadata["antimask_flag"] = ~selected_model.metadata["antimask_flag"]
+                selected_model.metadata["antimask_flag"] = not selected_model.metadata["antimask_flag"]
+                print("Switching antimask flag to",selected_model.metadata["antimask_flag"])
+                # HACK
+                self.update_fitting_options()
 
             # Single click.
             xmin, xmax, ymin, ymax = (event.xdata, np.nan, -1e8, +1e8)
@@ -1010,6 +1013,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             spectral_model.metadata["mask"].append([xy[0,0], xy[2, 0]])
 
             # Re-fit the spectral model.
+            print("Fitting")
             spectral_model.fit()
 
             # Update the table view for this row.
@@ -1110,6 +1114,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._lines["transitions_center_residual"].set_data([x, x], [0, 1.2])
         # Model masks specified by the user.
         # (These should be shown regardless of whether there is a fit or not.)
+        mask_color = "g" if selected_model.metadata["antimask_flag"] else "r"
         for i, (start, end) in enumerate(selected_model.metadata["mask"]):
             try:
                 patches = self._lines["model_masks"][i]
@@ -1117,9 +1122,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             except IndexError:
                 self._lines["model_masks"].append([
                     self.ax_spectrum.axvspan(np.nan, np.nan,
-                        facecolor="r", edgecolor="none", alpha=0.25),
+                        facecolor=mask_color, edgecolor="none", alpha=0.25),
                     self.ax_residual.axvspan(np.nan, np.nan,
-                        facecolor="r", edgecolor="none", alpha=0.25)
+                        facecolor=mask_color, edgecolor="none", alpha=0.25)
                 ])
                 patches = self._lines["model_masks"][-1]
 
@@ -1131,6 +1136,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     [end,   -1e8],
                     [start, -1e8]
                 ])
+                patch.set_facecolor(mask_color)
                 patch.set_visible(True)
 
         # Hide unnecessary ones.
@@ -1374,7 +1380,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             try:
                 self.checkbox_use_antimasks.setChecked(
                     selected_model.metadata["antimask_flag"])
-            except KeyError: # Old SMH sessions will not load with antimask_flag
+            except KeyError: # HACK Old SMH sessions will not load with antimask_flag
                 self.checkbox_use_antimasks.setChecked(False)
         else:
             self.opt_tabs.setTabEnabled(0, False)

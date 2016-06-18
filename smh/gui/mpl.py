@@ -280,11 +280,13 @@ class MPLWidget(FigureCanvas):
         raise ValueError("Could not identify axis to reset zoom limits for")
     
     def key_press_flags(self, event):
+        print(event.key,"pressed")
         if event.key == "shift":
             self.shift_key_pressed = True
         return None
         
     def key_release_flags(self, event):
+        print(event.key,"released")
         if event.key == "shift":
             self.shift_key_pressed = False
         return None

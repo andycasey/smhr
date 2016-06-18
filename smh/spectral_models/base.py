@@ -326,6 +326,16 @@ class BaseSpectralModel(object):
             A spectrum to generate a mask for.
         """
 
+        # HACK
+        if "antimask_flag" not in self.metadata:
+            self.metadata["antimask_flag"] = False
+        if self.metadata["antimask_flag"]:
+            antimask = np.ones_like(spectrum.dispersion,dtype=bool)
+            for start, end in self.metadata["mask"]:
+                antimask *= ~((spectrum.dispersion >= start) \
+                            * (spectrum.dispersion <= end))
+            return ~antimask
+
         window = abs(self.metadata["window"])
         wavelengths = self.transitions["wavelength"]
         try:
@@ -341,10 +351,8 @@ class BaseSpectralModel(object):
         # Any masked ranges specified in the metadata?
         for start, end in self.metadata["mask"]:
             mask *= ~((spectrum.dispersion >= start) \
-                    * (spectrum.dispersion <= end))
+                     * (spectrum.dispersion <= end))
 
-        if "antimask_flag" in self.metadata and self.metadata["antimask_flag"]:
-            mask = ~mask
         return mask
 
 
