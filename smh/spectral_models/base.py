@@ -342,6 +342,9 @@ class BaseSpectralModel(object):
         for start, end in self.metadata["mask"]:
             mask *= ~((spectrum.dispersion >= start) \
                     * (spectrum.dispersion <= end))
+
+        if "antimask_flag" in self.metadata and self.metadata["antimask_flag"]:
+            mask = ~mask
         return mask
 
 

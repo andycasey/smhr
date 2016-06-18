@@ -114,6 +114,7 @@ class ProfileFittingModel(BaseSpectralModel):
             "wavelength_tolerance": 0.5,
             "velocity_tolerance": None,
             "mask": [],
+            "antimask_flag": False,
             "elements": [self._verify_elements()],
             "species": [self._verify_species()]
         })
