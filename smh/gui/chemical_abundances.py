@@ -220,10 +220,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._err_cache = []
         self.refresh_table()
 
-    def print_key_press(self, event):
-        print(event.key,"press")
-    def print_key_release(self, event):
-        print(event.key,"release")
     def _create_fitting_options_widget(self):
         self.opt_tabs = QtGui.QTabWidget(self)
         sp = QtGui.QSizePolicy(
@@ -832,6 +828,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         :param event:
             The matplotlib event.
         """
+        print("figure_mouse_press",event)
         if event.button != 1: return None
         if event.inaxes in (self.ax_residual, self.ax_spectrum):
             self.spectrum_axis_mouse_press(event)
@@ -845,6 +842,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         :param event:
             The matplotlib event.
         """
+        print("figure_mouse_release",event)
         if event.button != 1: return None
         if event.inaxes in (self.ax_residual, self.ax_spectrum):
             self.spectrum_axis_mouse_release(event)
@@ -852,6 +850,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
 
     def key_press_zoom(self, event):
+        print("key_press_zoom",event)
         if event.key not in "1234": return None
         if self.parent.session is None: return None
         ylim = self.parent.session.setting(["zoom_shortcuts",int(event.key)],
@@ -861,6 +860,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def key_press_check_uncheck(self, event):
+        print("key_press_check_uncheck",event)
         if event.key not in ["u", "U", "a", "A"]: return None
         proxy_indices = self.table_view.selectionModel().selectedRows()
         if event.key in ["u", "U"]:
@@ -961,6 +961,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         :para event:
             The matplotlib motion event to show the current mouse position.
         """
+        print("update_mask_region",event)
 
         if event.xdata is None: return
 

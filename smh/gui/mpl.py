@@ -94,6 +94,7 @@ class MPLWidget(FigureCanvas):
 
     def _focus(self, event):
         """ Set the focus of the canvas. """
+        print("_focus", event)
         self.canvas.setFocus()
 
     ######################
@@ -110,6 +111,7 @@ class MPLWidget(FigureCanvas):
         """
         Right mouse button pressed in axis
         """
+        print("axis_right_mouse_press",event)
         
         if event.button != 3: return None
 
@@ -148,6 +150,8 @@ class MPLWidget(FigureCanvas):
         """
         Updated the zoom box
         """
+        print("update_zoom_box",event)
+
         self.x2 = event.xdata
         self.y2 = event.ydata
         try:
@@ -180,6 +184,7 @@ class MPLWidget(FigureCanvas):
         """
         Right mouse button released in axis
         """
+        print("axis_right_mouse_release",event)
 
         if event.button != 3: return None
 
@@ -236,6 +241,7 @@ class MPLWidget(FigureCanvas):
         """
         Unzoom event when keyboard "z" is pressed
         """
+        print("unzoom_on_z_press",event)
         
         if event.key not in ["z","Z"]: return None
         # right_clicked_axis is not None if you are 
@@ -280,12 +286,14 @@ class MPLWidget(FigureCanvas):
         raise ValueError("Could not identify axis to reset zoom limits for")
     
     def key_press_flags(self, event):
+        print("key_press_flags",event)
         print(event.key,"pressed")
         if event.key == "shift":
             self.shift_key_pressed = True
         return None
         
     def key_release_flags(self, event):
+        print("key_release_flags",event)
         print(event.key,"released")
         if event.key == "shift":
             self.shift_key_pressed = False
