@@ -201,13 +201,17 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.figure.mpl_connect("button_release_event", self.figure_mouse_release)
         self.figure.figure.canvas.callbacks.connect(
             "pick_event", self.figure_mouse_pick)
-        # Zoom box
+        # Zoom box and keyboard shortcuts
         self.figure.mpl_connect("button_press_event", self.figure.axis_right_mouse_press)
         self.figure.mpl_connect("button_release_event", self.figure.axis_right_mouse_release)
         self.figure.mpl_connect("key_press_event", self.figure.unzoom_on_z_press)
         self.figure.mpl_connect("key_press_event", self.key_press_zoom)
+        # Check and uncheck
+        self.figure.mpl_connect("key_press_event", self.key_press_check_uncheck)
+        # Antimasks
         self.figure.mpl_connect("key_press_event", self.figure.key_press_flags)
         self.figure.mpl_connect("key_release_event", self.figure.key_release_flags)
+        # Allow focusing figure for keyboard shortcuts
         self.figure.setFocusPolicy(QtCore.Qt.ClickFocus)
         
         self._currently_plotted_element = None
@@ -865,6 +869,17 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.figure.draw()
         return None
 
+    def key_press_check_uncheck(self, event):
+        if event.key not in ["u", "U", "a", "A"]: return None
+        proxy_indices = self.table_view.selectionModel().selectedRows()
+        if event.key in ["u", "U"]:
+            print("Pressed",event.key,"marking as unacceptable")
+            self.table_view.mark_selected_models_as_unacceptable(proxy_indices)
+        elif event.key in ["a", "A"]:
+            print("Pressed",event.key,"marking as acceptable")
+            self.table_view.mark_selected_models_as_acceptable(proxy_indices)
+        return None
+            
     def spectrum_axis_mouse_press(self, event):
         """
         The mouse button was pressed in the spectrum axis.
