@@ -630,13 +630,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def calculate_FeH(self):
         summary_dict = self.parent.session.summarize_spectral_models()
         # TODO using Fe I right now
-        self.FeH = summary_dict[26.0][4]
-        #abunds = []
-        ## only works measurements of single element right now
-        #for spectral_model in self.parent.session.metadata["spectral_models"]:
-        #    if spectral_model.is_acceptable and 26.0 in spectral_model.species:
-        #        abunds.append(spectral_model.abundances[0])
-        #self.FeH = np.mean(abunds) - solar_composition("Fe")
+        try:
+            self.FeH = summary_dict[26.0][4]
+        except KeyError: # No Fe measured yet
+            return np.nan
         return self.FeH
 
     def summarize_current_table(self):
