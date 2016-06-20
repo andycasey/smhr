@@ -618,6 +618,16 @@ class StellarParametersTab(QtGui.QWidget):
         return None
 
 
+    def key_press_zoom(self, event):
+        if event.key not in "1234": return None
+        if self.parent.session is None: return None
+        ylim = self.parent.session.setting(["zoom_shortcuts",int(event.key)],
+                                           default_return_value=[0.0,1.2])
+        self.ax_spectrum.set_ylim(ylim)
+        self.figure.draw()
+        return None
+
+
     def spectrum_axis_mouse_press(self, event):
         """
         The mouse button was pressed in the spectrum axis.

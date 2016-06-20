@@ -855,18 +855,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
 
     def key_press_zoom(self, event):
-        if event.key == "1":
-            self.ax_spectrum.set_ylim((0, 1.2))
-            self.figure.draw()
-        elif event.key == "2":
-            self.ax_spectrum.set_ylim((.5, 1.1))
-            self.figure.draw()
-        elif event.key == "3":
-            self.ax_spectrum.set_ylim((.8, 1.05))
-            self.figure.draw()
-        elif event.key == "4":
-            self.ax_spectrum.set_ylim((.9, 1.05))
-            self.figure.draw()
+        if event.key not in "1234": return None
+        if self.parent.session is None: return None
+        ylim = self.parent.session.setting(["zoom_shortcuts",int(event.key)],
+                                           default_return_value=[0.0,1.2])
+        self.ax_spectrum.set_ylim(ylim)
+        self.figure.draw()
         return None
 
     def key_press_check_uncheck(self, event):
