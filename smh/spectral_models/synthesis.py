@@ -134,11 +134,15 @@ class SpectralSynthesisModel(BaseSpectralModel):
         self._verify_transitions()
 
         # Set rt_abundances to have all the elements with nan
-        unique_atomic_numbers = np.unique(self.transitions["species"].astype(int))
+        unique_elements = np.unique(self.transitions["elem1"])
+        unique_elements = np.concatenate([unique_elements,np.unique(self.transitions["elem2"])])
+        unique_elements = np.unique(unique_elements)
+        
         rt_abundances = {}
-        for Z in unique_atomic_numbers:
-            elem = utils.species_to_element(Z).split()[0]
-            if elem in elements: continue
+        for elem in unique_elements:
+            if elem in ["","H"]: continue
+            if elem in self.elements: continue
+            assert elem in utils.periodic_table, elem
             rt_abundances[elem] = np.nan
         self.metadata.update({"rt_abundances": rt_abundances})
 

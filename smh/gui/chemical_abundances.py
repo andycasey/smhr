@@ -751,8 +751,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         try:
             res = spectral_model.fit()
         except (ValueError, RuntimeError) as e:
-            logger.debug("Fitting error",spectral_model)
-            logger.debug(e)
+            print("Fitting error",spectral_model)
+            print(e)
             return None
         self.table_view.update_row(proxy_index.row())
         self.update_cache(proxy_index)
