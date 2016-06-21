@@ -1970,7 +1970,7 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
             self.num_fit_elems = len(spectral_model.elements)
 
             elems = spectral_model.metadata["rt_abundances"].keys()
-            Zs = [int(utils.element_to_species(elem)) for elem in elems]
+            Zs = [utils.element_to_atomic_number(elem) for elem in elems]
             sorted_indices = np.argsort(Zs)
             # Put in rt_abundances indices
             self.elem_order = dict(zip(self.num_fit_elems + np.arange(len(elems)), \

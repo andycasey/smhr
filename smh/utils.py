@@ -22,7 +22,47 @@ from socket import gethostname, gethostbyname
 # Third party imports
 import numpy as np
 
-__all__ = ["element_to_species", "species_to_element", "get_common_letters", \
+common_molecule_name2Z = {
+    'Mg-H': 12,'H-Mg': 12,
+    'C-C':  6,
+    'C-N':  7, 'N-C':  7, #TODO
+    'C-H':  6, 'H-C':  6,
+    'O-H':  8, 'H-O':  8,
+    'Fe-H': 26,'H-Fe': 26,
+    'N-H':  7, 'H-N':  7,
+    'Si-H': 14,'H-Si': 14,
+    'Ti-O': 22,'O-Ti': 22,
+    'V-O':  23,'O-V':  23,
+    'Zr-O': 40,'O-Zr': 40
+    }
+common_molecule_name2species = {
+    'Mg-H': 112,'H-Mg': 112,
+    'C-C':  606,
+    'C-N':  607,'N-C':  607,
+    'C-H':  106,'H-C':  106,
+    'O-H':  108,'H-O':  108,
+    'Fe-H': 126,'H-Fe': 126,
+    'N-H':  107,'H-N':  107,
+    'Si-H': 114,'H-Si': 114,
+    'Ti-O': 822,'O-Ti': 822,
+    'V-O':  823,'O-V':  823,
+    'Zr-O': 840,'O-Zr': 840
+    }
+common_molecule_species2elems = {
+    112: ["Mg", "H"],
+    606: ["C", "C"],
+    607: ["C", "N"],
+    106: ["C", "H"],
+    108: ["O", "H"],
+    126: ["Fe", "H"],
+    107: ["N", "H"],
+    114: ["Si", "H"],
+    822: ["Ti", "O"],
+    823: ["V", "O"],
+    840: ["Zr", "O"]
+    }
+
+__all__ = ["element_to_species", "element_to_atomic_number", "species_to_element", "get_common_letters", \
     "elems_isotopes_ion_to_species", "species_to_elems_isotopes_ion", \
     "find_common_start", "extend_limits", "get_version", \
     "approximate_stellar_jacobian", "approximate_sun_hermes_jacobian",\
@@ -253,8 +293,11 @@ def element_to_species(element_repr):
         element, ionization = element_repr, "I"
     
     if element not in periodic_table:
-        # Don"t know what this element is
-        return float(element_repr)
+        try:
+            return common_molecule_name2species[element]
+        except KeyError:
+            # Don't know what this element is
+            return float(element_repr)
     
     ionization = max([0, ionization.upper().count("I") - 1]) /10.
     transition = periodic_table.index(element) + 1 + ionization
@@ -280,6 +323,12 @@ def element_to_atomic_number(element_repr):
 
     except IndexError:
         raise ValueError("unrecognized element '{}'".format(element_repr))
+    except ValueError:
+        try:
+            return common_molecule_name2Z[element]
+        except KeyError:
+            raise ValueError("unrecognized element '{}'".format(element_repr))
+        
 
     return 1 + index
     
@@ -301,26 +350,10 @@ def species_to_element(species):
 
     if species + 1 >= len(periodic_table) or 1 > species:
         # Don"t know what this element is. It"s probably a molecule.
-        common_molecules = {
-            112: ["Mg", "H"],
-            606: ["C", "C"],
-            607: ["C", "N"],
-            106: ["C", "H"],
-            108: ["O", "H"],
-            126: ["Fe", "H"],
-            107: ["N", "H"],
-            114: ["Si", "H"],
-            822: ["Ti", "O"],
-            823: ["V", "O"],
-            840: ["Zr", "O"]
-        }
-        if species in common_molecules.keys():
-            elements_in_molecule = common_molecules[species]
-            if len(list(set(elements_in_molecule))) == 1: return "{0}_{1}".format(elements_in_molecule[0], len(elements_in_molecule))
-
-            return "-".join(elements_in_molecule)
-
-        else:
+        try:
+            elems = common_molecule_species2elems[species]
+            return "-".join(elems)
+        except KeyError:
             # No idea
             return str(species)
         

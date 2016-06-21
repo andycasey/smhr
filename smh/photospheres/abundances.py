@@ -10,6 +10,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 from numpy import array
 from .utils import element
 
+from ..utils import element_to_atomic_number
 
 def asplund_2009(elements):
     """
@@ -115,7 +116,12 @@ def asplund_2009(elements):
     def parse(x):
 
         if isinstance(x, (str, unicode)):
-            return (asplund_2009[x], True)
+            try:
+                return (asplund_2009[x], True)
+            except KeyError:
+                # It's a molecule, get the "good" Z
+                Z = element_to_atomic_number(x)
+                return (asplund_2009[element(Z)], True)
 
         elif isinstance(x, (int, float)):
             el = element(x)

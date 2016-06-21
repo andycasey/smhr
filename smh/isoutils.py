@@ -7,7 +7,7 @@ import cPickle as pickle
 import os
 
 from .linelists import LineList
-from .utils import element_to_species
+from .utils import element_to_species, element_to_atomic_number
 
 __all__ = ['IsotopeError',
            'get_needed_isotopes','identify_isotopes','identify_needed_isotopes',
@@ -17,6 +17,7 @@ __all__ = ['IsotopeError',
 _datadir = os.path.dirname(__file__)+'/data/isotopes'
 
 common_molecules = ['Mg-H','C-C','C-N','C-H','O-H','Fe-H','N-H','Si-H','Ti-O','V-O','Zr-O']
+    
 
 class IsotopeError(Exception):
     """Exception raised for missing isotopes"""
@@ -44,11 +45,9 @@ def convert_isodict_to_array(isotopes,sort_by_Z=True):
         def _sorter(x):
             elem,A = x
             A = int(A)
-            try:
-                Z = int(element_to_species(elem))
-            except ValueError:
-                e1,e2 = elem.split('-')
-                Z = max(int(element_to_species(e1)),int(element_to_species(e2)))
+            # Works with molecules now
+            Z = element_to_atomic_number(elem)
+            if "-" in elem: # molecule
                 A1 = int(A/100.)
                 A2 = A-100*A1
                 A = A1+A2
