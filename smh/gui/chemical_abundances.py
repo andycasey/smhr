@@ -141,6 +141,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.ax_spectrum.xaxis.set_major_locator(MaxNLocator(5))
         self.ax_spectrum.set_xlabel(u"Wavelength (Å)")
         self.ax_spectrum.set_ylabel(r"Normalized flux")
+        self.ax_spectrum.set_ylim(0, 1.2)
+        self.ax_spectrum.set_yticks([0, 0.5, 1])
         
         self.ax_line_strength = self.figure.figure.add_subplot(gs_bot[2])
         self.ax_line_strength.xaxis.get_major_formatter().set_useOffset(False)
@@ -372,58 +374,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.opt_tabs.addTab(self.tab_profile, "Profile")
         
         # Connect Signals for Profile
-        self.edit_view_window.textChanged.connect(
-            self.update_edit_view_window)
-        self.edit_fit_window.textChanged.connect(
-            self.update_edit_fit_window)
-        self.edit_fit_window.returnPressed.connect(
-            self.fit_one)
-        self.checkbox_continuum.stateChanged.connect(
-            self.clicked_checkbox_continuum)
-        self.checkbox_continuum.stateChanged.connect(
-            self.fit_one)
-        self.combo_continuum.currentIndexChanged.connect(
-            self.update_continuum_order)
-        self.combo_continuum.currentIndexChanged.connect(
-            self.fit_one)
-        self.checkbox_vrad_tolerance.stateChanged.connect(
-            self.clicked_checkbox_vrad_tolerance)
-        self.checkbox_vrad_tolerance.stateChanged.connect(
-            self.fit_one)
-        self.edit_vrad_tolerance.textChanged.connect(
-            self.update_vrad_tolerance)
-        self.edit_vrad_tolerance.returnPressed.connect(
-            self.fit_one)
-        self.combo_profile.currentIndexChanged.connect(
-            self.update_combo_profile)
-        self.combo_profile.currentIndexChanged.connect(
-            self.fit_one)
-        self.edit_detection_sigma.textChanged.connect(
-            self.update_detection_sigma)
-        self.edit_detection_sigma.returnPressed.connect(
-            self.fit_one)
-        self.edit_detection_pixels.textChanged.connect(
-            self.update_detection_pixels)
-        self.edit_detection_pixels.returnPressed.connect(
-            self.fit_one)
-        self.checkbox_use_central_weighting.stateChanged.connect(
-            self.clicked_checkbox_use_central_weighting)
-        self.checkbox_use_central_weighting.stateChanged.connect(
-            self.fit_one)
-        self.checkbox_use_antimasks.stateChanged.connect(
-            self.clicked_checkbox_use_antimasks)
-        self.checkbox_wavelength_tolerance.stateChanged.connect(
-            self.clicked_checkbox_wavelength_tolerance)
-        self.checkbox_wavelength_tolerance.stateChanged.connect(
-            self.fit_one)
-        self.edit_wavelength_tolerance.textChanged.connect(
-            self.update_wavelength_tolerance)
-        self.edit_wavelength_tolerance.returnPressed.connect(
-            self.fit_one)
-        self.btn_fit_one.clicked.connect(
-            self.fit_one)
-        self.btn_clear_masks.clicked.connect(
-            self.clicked_btn_clear_masks)
+        self._connect_profile_signals()
 
         ###################
         ### Synthesis options
@@ -580,6 +531,91 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.refresh_plots()
         return None
 
+    def _disconnect_profile_signals(self):
+        for signal_obj, method in self._profile_signals:
+            signal_obj.disconnect(method)
+    def _connect_profile_signals(self):
+        self.edit_view_window.textChanged.connect(
+            self.update_edit_view_window)
+        self.edit_fit_window.textChanged.connect(
+            self.update_edit_fit_window)
+        self.edit_fit_window.returnPressed.connect(
+            self.fit_one)
+        self.checkbox_continuum.stateChanged.connect(
+            self.clicked_checkbox_continuum)
+        self.checkbox_continuum.stateChanged.connect(
+            self.fit_one)
+        self.combo_continuum.currentIndexChanged.connect(
+            self.update_continuum_order)
+        self.combo_continuum.currentIndexChanged.connect(
+            self.fit_one)
+        self.checkbox_vrad_tolerance.stateChanged.connect(
+            self.clicked_checkbox_vrad_tolerance)
+        self.checkbox_vrad_tolerance.stateChanged.connect(
+            self.fit_one)
+        self.edit_vrad_tolerance.textChanged.connect(
+            self.update_vrad_tolerance)
+        self.edit_vrad_tolerance.returnPressed.connect(
+            self.fit_one)
+        self.combo_profile.currentIndexChanged.connect(
+            self.update_combo_profile)
+        self.combo_profile.currentIndexChanged.connect(
+            self.fit_one)
+        self.edit_detection_sigma.textChanged.connect(
+            self.update_detection_sigma)
+        self.edit_detection_sigma.returnPressed.connect(
+            self.fit_one)
+        self.edit_detection_pixels.textChanged.connect(
+            self.update_detection_pixels)
+        self.edit_detection_pixels.returnPressed.connect(
+            self.fit_one)
+        self.checkbox_use_central_weighting.stateChanged.connect(
+            self.clicked_checkbox_use_central_weighting)
+        self.checkbox_use_central_weighting.stateChanged.connect(
+            self.fit_one)
+        self.checkbox_use_antimasks.stateChanged.connect(
+            self.clicked_checkbox_use_antimasks)
+        self.checkbox_wavelength_tolerance.stateChanged.connect(
+            self.clicked_checkbox_wavelength_tolerance)
+        self.checkbox_wavelength_tolerance.stateChanged.connect(
+            self.fit_one)
+        self.edit_wavelength_tolerance.textChanged.connect(
+            self.update_wavelength_tolerance)
+        self.edit_wavelength_tolerance.returnPressed.connect(
+            self.fit_one)
+        self.btn_fit_one.clicked.connect(
+            self.fit_one)
+        self.btn_clear_masks.clicked.connect(
+            self.clicked_btn_clear_masks)
+        self._profile_signals = [
+            (self.edit_view_window.textChanged,self.update_edit_view_window),
+            (self.edit_fit_window.textChanged,self.update_edit_fit_window),
+            (self.edit_fit_window.returnPressed,self.fit_one),
+            (self.checkbox_continuum.stateChanged,self.clicked_checkbox_continuum),
+            (self.checkbox_continuum.stateChanged,self.fit_one),
+            (self.combo_continuum.currentIndexChanged,self.update_continuum_order),
+            (self.combo_continuum.currentIndexChanged,self.fit_one),
+            (self.checkbox_vrad_tolerance.stateChanged,self.clicked_checkbox_vrad_tolerance),
+            (self.checkbox_vrad_tolerance.stateChanged,self.fit_one),
+            (self.edit_vrad_tolerance.textChanged,self.update_vrad_tolerance),
+            (self.edit_vrad_tolerance.returnPressed,self.fit_one),
+            (self.combo_profile.currentIndexChanged,self.update_combo_profile),
+            (self.combo_profile.currentIndexChanged,self.fit_one),
+            (self.edit_detection_sigma.textChanged,self.update_detection_sigma),
+            (self.edit_detection_sigma.returnPressed,self.fit_one),
+            (self.edit_detection_pixels.textChanged,self.update_detection_pixels),
+            (self.edit_detection_pixels.returnPressed,self.fit_one),
+            (self.checkbox_use_central_weighting.stateChanged,self.clicked_checkbox_use_central_weighting),
+            (self.checkbox_use_central_weighting.stateChanged,self.fit_one),
+            (self.checkbox_use_antimasks.stateChanged,self.clicked_checkbox_use_antimasks),
+            (self.checkbox_wavelength_tolerance.stateChanged,self.clicked_checkbox_wavelength_tolerance),
+            (self.checkbox_wavelength_tolerance.stateChanged,self.fit_one),
+            (self.edit_wavelength_tolerance.textChanged,self.update_wavelength_tolerance),
+            (self.edit_wavelength_tolerance.returnPressed,self.fit_one),
+            (self.btn_fit_one.clicked,self.fit_one),
+            (self.btn_clear_masks.clicked,self.clicked_btn_clear_masks)
+            ]
+            
     def populate_filter_combo_box(self):
         if self.parent.session is None: return None
         box = self.filter_combo_box
@@ -674,7 +710,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def refresh_plots(self):
-        model, proxy_index, index = self._get_selected_model(True)
         start = time.time()
         self.update_spectrum_figure(redraw=False)
         self.update_selected_points_plot(redraw=False)
@@ -1060,7 +1095,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         """
         selected_model = self._get_selected_model()
         if selected_model is None:
-            print("No model selected")
             return None
         transitions = selected_model.transitions
         try:
@@ -1103,8 +1137,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             style_utils.fill_between_steps(self.ax_residual, spectrum.dispersion[plot_ii],
                 -sigma, +sigma, facecolor="#CCCCCC", edgecolor="none", alpha=1)
 
-            self.ax_spectrum.set_ylim(0, 1.2)
-            self.ax_spectrum.set_yticks([0, 0.5, 1])
+            #self.ax_spectrum.set_ylim(0, 1.2)
+            #self.ax_spectrum.set_yticks([0, 0.5, 1])
             #self.ax_spectrum.set_yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2])
             three_sigma = 3*np.median(sigma[np.isfinite(sigma)])
             self.ax_residual.set_ylim(-three_sigma, three_sigma)
@@ -1269,6 +1303,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self._abund_cache = np.array([])
             self._err_cache = np.array([])
             return None
+        print("Resetting cache for {}".format(current_element))
         table_model = self.proxy_spectral_models
         rew_list = []
         abund_list = []
@@ -1330,6 +1365,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def update_fitting_options(self):
+        start = time.time()
         try:
             selected_model = self._get_selected_model()
         except IndexError:
@@ -1337,6 +1373,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         if selected_model is None: return None
     
         if isinstance(selected_model, ProfileFittingModel):
+            # Disconnect signals so it doesn't automatically fit
+            self._disconnect_profile_signals()
+            
             self.opt_tabs.setTabEnabled(0, True)
             self.opt_tabs.setCurrentIndex(0)
 
@@ -1392,6 +1431,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     selected_model.metadata["antimask_flag"])
             except KeyError: # HACK Old SMH sessions will not load with antimask_flag
                 self.checkbox_use_antimasks.setChecked(False)
+
+            # Reconnect signals
+            self._connect_profile_signals()
         else:
             self.opt_tabs.setTabEnabled(0, False)
 
@@ -1447,6 +1489,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         else:
             self.opt_tabs.setTabEnabled(1, False)
 
+        print("update_fitting_options: {:.1f}".format(time.time()-start))
         return None
 
     ###############################
