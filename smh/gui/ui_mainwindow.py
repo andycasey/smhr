@@ -11,6 +11,7 @@ import logging
 import os
 from PySide import QtCore, QtGui
 import yaml
+import numpy as np
 
 # Import functionality related to each tab
 import rv, normalization, summary, stellar_parameters, chemical_abundances
@@ -129,8 +130,13 @@ class Ui_MainWindow(QtGui.QMainWindow):
                           "onto a common wavelength mapping",
                 triggered=self.export_normalized_spectrum)
         self._menu_export_normalized_spectrum.setEnabled(False)
+        self._menu_print_abundance_table \
+            = QtGui.QAction("Print abundance table", self,
+                statusTip="",
+                triggered=self.print_abundance_table)
         export_menu = self.menuBar().addMenu("&Export")
         export_menu.addAction(self._menu_export_normalized_spectrum)
+        export_menu.addAction(self._menu_print_abundance_table)
 
         self.statusbar = QtGui.QStatusBar(self)
         self._default_statusbar_message = "Spectroscopy Made Harder v{} ({})"\
@@ -418,6 +424,15 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.session.normalized_spectrum.write("test.txt")
         print("wrote to test.txt")
 
+
+    def print_abundance_table(self):
+        """ Print abundance table to console (HACK) """
+        summary_dict = self.session.summarize_spectral_models()
+        keys = summary_dict.keys()
+        keys = np.sort(keys)
+        for key in keys:
+            num_models, logeps, stdev, stderr, XH, XFe = summary_dict[key]
+            print("{} {} {} {} {} {}".format(key,num_models,logeps,stdev,XH,XFe))
 
     def transitions_manager(self):
         """
