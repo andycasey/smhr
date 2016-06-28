@@ -1354,9 +1354,9 @@ class StellarParametersTab(QtGui.QWidget):
             del self._lines["spectrum"]
 
         sigma = 1.0/np.sqrt(spectrum.ivar[show])
+        drawstyle = self.parent.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
         self._lines["spectrum"] = [
             # The flux values.
-            drawstyle = self.parent.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
             self.ax_spectrum.plot(spectrum.dispersion[show],
                 spectrum.flux[show], c="k", drawstyle=drawstyle)[0],
 
