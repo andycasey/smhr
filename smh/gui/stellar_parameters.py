@@ -1356,8 +1356,9 @@ class StellarParametersTab(QtGui.QWidget):
         sigma = 1.0/np.sqrt(spectrum.ivar[show])
         self._lines["spectrum"] = [
             # The flux values.
+            drawstyle = self.parent.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
             self.ax_spectrum.plot(spectrum.dispersion[show],
-                spectrum.flux[show], c="k", drawstyle="steps-mid")[0],
+                spectrum.flux[show], c="k", drawstyle=drawstyle)[0],
 
             # The uncertainty in flue.
             style_utils.fill_between_steps(self.ax_spectrum, 

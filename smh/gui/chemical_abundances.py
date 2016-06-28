@@ -1124,8 +1124,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             if np.sum(plot_ii)==0: 
                 # Can't plot, no points!
                 return None
+            drawstyle = self.parent.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
             self._lines["spectrum"] = self.ax_spectrum.plot(spectrum.dispersion[plot_ii],
-                spectrum.flux[plot_ii], c="k", drawstyle="steps-mid")[0]
+                spectrum.flux[plot_ii], c="k", drawstyle=drawstyle)[0]
 
             sigma = 1.0/np.sqrt(spectrum.ivar[plot_ii])
             self._lines["spectrum_fill"] = \

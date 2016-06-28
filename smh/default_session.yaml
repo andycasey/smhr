@@ -143,3 +143,6 @@ summary_figure:
     ylim: [0.0, 1.4]
     spectra_to_plot:
       - he1523-0901
+plot_styles:
+  spectrum_drawstyle: steps-mid
+  
