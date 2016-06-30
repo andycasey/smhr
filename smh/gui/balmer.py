@@ -331,6 +331,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
         ax = self.p1_figure.figure.add_subplot(111)
         ax.plot([], [], c="k", drawstyle="steps-mid", zorder=10)
+        ax.plot([], [], c="#666666", linestyle="-", zorder=-1)
         ax.xaxis.set_major_locator(MaxNLocator(5))
         ax.yaxis.set_major_locator(MaxNLocator(5))
         ax.set_xlabel(u"Wavelength [Å]")
@@ -338,6 +339,10 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
         ax.xaxis.set_visible(False)
         ax.yaxis.set_visible(False)
+
+        self.p1_figure.enable_drag_to_mask(ax)
+        self.p1_figure.enable_interactive_zoom()
+
 
         self.metadata = {}
         self.metadata.update(self._default_option_metadata)
@@ -350,6 +355,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         self.p1_btn_next.clicked.connect(self.show_second_pane)
 
         
+
         return None
 
 
@@ -761,6 +767,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
             spectrum.dispersion[view],
             spectrum.flux[view],
         ]))
+
         ax.set_xlim(
             spectrum.dispersion[view].min(),
             spectrum.dispersion[view].max())
@@ -896,31 +903,29 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
         # Either show the entire spectrum, or just around the Balmer line if the
         # order goes on for >1000 Angstroms.
-        balmer_line_index = self.combo_balmer_line_selected.currentIndex()
-        if np.ptp(spectrum.dispersion) > self.__wavelength_range_decider:
-
-            balmer_wavelength = self.__balmer_line_wavelengths[balmer_line_index]
-            window = self.__wavelength_window_default
-            limits = (balmer_wavelength - window, balmer_wavelength + window)
-
-        else:
-            limits = (spectrum.dispersion.min(), spectrum.dispersion.max())
-
-        view_mask \
-            = (limits[1] >= spectrum.dispersion) * (spectrum.dispersion >= limits[0])
+        limits = (spectrum.dispersion.min(), spectrum.dispersion.max())
+        limits = (limits[0] - 0.05 * np.ptp(limits), limits[1] + 0.05 * np.ptp(limits))
 
         # Update the spectrum figure.
         ax = self.p1_figure.figure.axes[0]
-        ax.lines[0].set_data(np.array([
-            spectrum.dispersion[view_mask],
-            spectrum.flux[view_mask],
-        ]))
+        ax.lines[0].set_data(np.array([spectrum.dispersion, spectrum.flux]))
 
         ax.set_xlim(limits)
-        ax.set_ylim(0, 1.1 * np.nanmax(spectrum.flux[view_mask]))
+        ax.set_ylim(0, 1.1 * np.nanmax(spectrum.flux))
 
         ax.xaxis.set_visible(True)
         ax.yaxis.set_visible(True)
+
+        # Show the location of the currently selected Balmer line.
+        wavelength = self.__balmer_line_wavelengths[
+            self.combo_balmer_line_selected.currentIndex()]
+        ax.lines[1].set_data(np.array([
+            [wavelength, wavelength],
+            [-1e8, +1e8]
+        ]))
+
+        # Clear the zoom history.
+        self.p1_figure._clear_zoom_history()
 
         # TODO: Draw uncertainties.
 

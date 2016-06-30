@@ -8,9 +8,9 @@ from __future__ import (division, print_function, absolute_import,
 
 import os
 import matplotlib
-import numpy as np
-from time import time
 from warnings import simplefilter
+import time
+import numpy as np
 
 # Ignore warnings from matplotlib about fonts not being found.
 simplefilter("ignore", UserWarning)
@@ -26,13 +26,15 @@ from matplotlib.figure import Figure
 
 from PySide import QtCore, QtGui
 
+DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
 class MPLWidget(FigureCanvas):
     """
     A widget to contain a matplotlib figure.
     """
 
-    __double_click_interval = 0.1 # seconds
+    __double_click_interval = 0.1
+    __right_double_click_interval = 0.2
 
     def __init__(self, parent=None, toolbar=False, tight_layout=True,
         autofocus=False, background_hack=True, **kwargs):
@@ -42,6 +44,14 @@ class MPLWidget(FigureCanvas):
         :param autofocus: [optional]
             If set to `True`, the figure will be in focus when the mouse hovers
             over it so that keyboard shortcuts/matplotlib events can be used.
+
+        Methods for zooming:
+        _interactive_zoom_press: call for MPLWidget.mpl_connect("button_press_event")
+        _update_interactive_zoom: connect to MPLWidget.mpl_connect("motion_notify_event")
+                         MPLWidget.mpl_disconnect as needed
+        _interactive_zoom_release: call for MPLWidget.mpl_connect("button_release_event")
+        unzoom_on_z_press: MPLWidget.mpl_connect("key_press_event")
+        reset_zoom_limits(ax): call whenever you reset limits on an axis and want it to be zoomable
         """
         super(MPLWidget, self).__init__(Figure())
         
@@ -75,14 +85,179 @@ class MPLWidget(FigureCanvas):
             self._autofocus_cid = self.canvas.mpl_connect(
                 "figure_enter_event", self._focus)
 
+        # State for zoom box
+        self._right_click_zoom_box = {}
+        
         return None
-
 
     def _focus(self, event):
         """ Set the focus of the canvas. """
         self.canvas.setFocus()
 
+    ######################
+    # Methods for zooming
+    ######################
 
+    def get_current_axis(self,event):
+        for i,ax in enumerate(self.figure.axes):
+            if event.inaxes in [ax]:
+                return i,ax
+        raise RuntimeError("Cannot find correct axis")
+    
+
+    def enable_interactive_zoom(self):
+
+        self._interactive_zoom_history = {}
+        self._interactive_zoom_signals = [
+            self.mpl_connect("button_press_event", self._interactive_zoom_press),
+            self.mpl_connect("button_release_event", self._interactive_zoom_release),
+        ]
+
+
+    def disable_interactive_zoom(self):
+        try:
+            for cid in self._interactive_zoom_signals:
+                self.mpl_disconnect(cid)
+
+        except AttributeError:
+            return None
+
+        else:
+            del self._interactive_zoom_signals
+
+        return None
+
+
+
+    def _interactive_zoom_press(self, event):
+        """
+        Right-mouse button pressed in axis.
+
+        :param event:
+            A matplotlib event.
+        """
+        
+        if event.button != 3 or event.inaxes is None:
+            return None
+
+        self._interactive_zoom_initial_bounds = [event.xdata, event.ydata]
+        self._interactive_zoom_axis_index = self.figure.axes.index(event.inaxes)
+
+        # Create lines if needed
+        if self._interactive_zoom_axis_index not in self._right_click_zoom_box:
+            self._right_click_zoom_box[self._interactive_zoom_axis_index] \
+                = event.inaxes.plot([np.nan], [np.nan], "k:")[0]
+
+        # Create zoom box signal
+        self._interactive_zoom_box_signal = (
+            time.time(),
+            self.mpl_connect("motion_notify_event", self._update_interactive_zoom)
+        )
+        return None
+    
+
+    def _update_interactive_zoom(self, event):
+        """
+        Updated the zoom box.
+        """
+
+        if event.inaxes is None \
+        or self.figure.axes[self._interactive_zoom_axis_index] != event.inaxes:
+            return None
+
+        # Skip if doubleclick
+        # TODO: return to this.
+        signal_time, signal_cid = self._interactive_zoom_box_signal
+        if time.time() - signal_time < self.__right_double_click_interval:
+            return None
+
+        xs, ys = self._interactive_zoom_initial_bounds
+        xe, ye = event.xdata, event.ydata
+
+        self._right_click_zoom_box[self._interactive_zoom_axis_index].set_data(
+            np.array([
+                [xs, xe, xe, xs, xs],
+                [ys, ys, ye, ye, ys]
+            ])
+        )
+        self.draw()
+        return None
+
+
+    def _interactive_zoom_release(self, event):
+        """
+        Right mouse button released in axis.
+        """
+
+        if event.button != 3 or event.inaxes is None \
+        or self.figure.axes[self._interactive_zoom_axis_index] != event.inaxes:
+
+            # The right-click mouse button was released outside of the axis that
+            # we want. Disconnect the signal and let them try again.
+            try:
+                signal_time, signal_cid = self._interactive_zoom_box_signal
+
+            except AttributeError:
+                return None
+
+            else:
+                self._right_click_zoom_box[self._interactive_zoom_axis_index].set_data(
+                    np.array([[np.nan], [np.nan]]))
+
+                self.mpl_disconnect(signal_cid)
+                self.draw()
+                del self._interactive_zoom_box_signal
+
+            return None
+
+        self._interactive_zoom_history.setdefault(
+            self._interactive_zoom_axis_index, 
+            [(event.inaxes.get_xlim(), event.inaxes.get_ylim())])
+
+        # If this is a double-click, go to the previous zoom in history. 
+        signal_time, signal_cid = self._interactive_zoom_box_signal
+        if time.time() - signal_time < self.__right_double_click_interval:
+            
+            if len(self._interactive_zoom_history[self._interactive_zoom_axis_index]) > 1:
+                xlim, ylim = self._interactive_zoom_history[self._interactive_zoom_axis_index].pop(-1)
+            else:
+                xlim, ylim = self._interactive_zoom_history[self._interactive_zoom_axis_index][-1]
+
+        else:        
+            # Set the zoom.
+            xlim = np.sort([self._interactive_zoom_initial_bounds[0], event.xdata])
+            ylim = np.sort([self._interactive_zoom_initial_bounds[1], event.ydata])
+
+            self._interactive_zoom_history[self._interactive_zoom_axis_index].append(
+                [xlim, ylim])
+
+        # Hide the zoom box.
+        self._right_click_zoom_box[self._interactive_zoom_axis_index].set_data(
+            np.array([[np.nan], [np.nan]]))
+
+        event.inaxes.set_xlim(xlim)
+        event.inaxes.set_ylim(ylim)
+
+        self.mpl_disconnect(signal_cid)
+        self.draw()
+
+        del self._interactive_zoom_box_signal
+
+        return None
+
+
+    def _clear_zoom_history(self, axis_index=None):
+
+        if axis_index is None:
+            self._interactive_zoom_history = {}
+
+        elif axis_index in self._interactive_zoom_history:
+            del self._interactive_zoom_history[axis_index]
+            
+        return None
+
+
+    
 
     def enable_drag_to_mask(self, axes):
         """
@@ -161,7 +336,7 @@ class MPLWidget(FigureCanvas):
 
             # Set the signal and the time.
             self._mask_interactive_region_signal = (
-                time(),
+                time.time(),
                 self.mpl_connect(
                     "motion_notify_event", self._drag_to_mask_motion)
             )
@@ -200,7 +375,7 @@ class MPLWidget(FigureCanvas):
             return None 
 
         signal_time, signal_cid = self._mask_interactive_region_signal
-        if time() - signal_time > self.__double_click_interval:
+        if time.time() - signal_time > self.__double_click_interval:
 
             # Update all interactive masks.
             for ax in self._mask_interactive_region.keys():
@@ -237,7 +412,7 @@ class MPLWidget(FigureCanvas):
         # If the two mouse events were within some time interval,
         # then we should not add a mask because those signals were probably
         # part of a double-click event.
-        if  time() - signal_time > self.__double_click_interval \
+        if  time.time() - signal_time > self.__double_click_interval \
         and np.abs(xy[0,0] - xdata) > 0:
             
             # Update the cache with the new mask.
