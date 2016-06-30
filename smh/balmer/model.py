@@ -22,6 +22,12 @@ __all__ = ["BalmerLineModel"]
 
 logger = logging.getLogger(__name__)
 
+def unique_indices(a):
+    b = np.ascontiguousarray(a).view(
+        np.dtype((np.void, a.dtype.itemsize * a.shape[1])))
+    _, idx = np.unique(b, return_index=True)
+
+    return idx
 
 class BalmerLineModel(object):
 
@@ -199,6 +205,7 @@ class BalmerLineModel(object):
             "sigma": ivar,
             "absolute_sigma": False,
             "p0": self.initial_guess,
+            "full_output": True
         }
         kwds.update(kwargs)
         result = op.curve_fit(**kwds)
@@ -300,10 +307,7 @@ class BalmerLineModel(object):
     
         K, S = (len(self.parameter_names), len(self.paths))
         
-        previous_cov = None
-
-        likelihoods = np.nan * np.ones(S)
-        integrals = np.nan * np.ones(S)
+        ln_likelihood = np.nan * np.ones(S)
         optimized_theta = np.nan * np.ones((S, K))
         covariances = np.nan * np.ones((S, K, K))
 
@@ -314,7 +318,7 @@ class BalmerLineModel(object):
 
             # At each grid point, optimize the parameters.
             try:
-                op_theta, cov, model_disp, model_normalized_flux \
+                op_theta, cov, meta, mesg, ier, model_disp, model_flux \
                     = self._optimize_nuisance_parameters(
                         obs_dispersion, obs_flux, obs_ivar, index, **kwds)
 
@@ -327,85 +331,121 @@ class BalmerLineModel(object):
 
                 continue
 
-            # TODO revisit this -- maybe we should just force bounds on params
-            if np.all(np.isfinite(cov)):
-                previous_cov = cov
-            else:
-                cov = previous_cov
+            meta.update(mesg=mesg, ier=ier)
 
             optimized_theta[index] = op_theta
-            covariances[index, :, :] = cov
+            if cov is not None:
+                covariances[index, :, :] = cov
+            
+            model = self(obs_dispersion, model_disp, model_flux, *op_theta)
+            ln_likelihood[index] \
+                = -0.5 * np.sum((model - obs_flux)**2 * obs_ivar)
 
-
-            model = self(obs_dispersion, model_disp, model_normalized_flux, *op_theta)
-            likelihoods[index] \
-                = np.exp(-0.5 * np.sum((model - obs_flux)**2 * obs_ivar))
-
-            # Use a multi-Gaussian approximation of the nuisance parameters.
-            integrals[index] = (2*np.pi)**(K/2.) * np.abs(np.linalg.det(cov))**(-0.5)
+            assert np.isfinite(ln_likelihood[index])
 
             # DEBUG show progress.
-            print(index, S, dict(zip(self.parameter_names, op_theta)))
-            
+            print(index, S, dict(zip(self.parameter_names, op_theta)), ln_likelihood[index])
+
             if mp_queue is not None:
                 mp_queue.put([1 + index, S])
 
+        # Use a multi-Gaussian approximation of the nuisance parameters.    
+        integrals = (2*np.pi)**(K/2.) * np.abs(np.linalg.det(covariances))**(-0.5)
+        approximate_integrals = ~np.isfinite(integrals)
+        integrals[approximate_integrals] = np.nanmin(integrals)
+
         # Marginalize over the grid parameters.
-        posteriors = likelihoods * integrals
+        posteriors = ln_likelihood * integrals
         marginalized_posteriors = posteriors / np.nansum(posteriors)
 
         # Save information to the class.
-        self._inference_result = (marginalized_posteriors, likelihoods,
+        self._inference_result = (marginalized_posteriors, ln_likelihood,
             integrals, optimized_theta, covariances)
 
         if mp_queue is not None:
             mp_queue.put(self._inference_result)
 
-        return (marginalized_posteriors, likelihoods, integrals, optimized_theta,
+        return (marginalized_posteriors, ln_likelihood, integrals, optimized_theta,
             covariances)
 
 
-    @property
-    def marginalized_posteriors(self):
-        """ Generate 1D marginalized posteriors on stellar parameters. """
+    def marginalize(self, parameters):
+        """
+        Return posterior distributions marginalized over the given parameters.
+
+        :param parameters:
+            A tuple of parameters to marginalize over.
+        """
 
         N = self.stellar_parameters.shape[1]
         grid_parameters = ("TEFF", "LOGG", "MH", "ALPHA_MH")[:N]
-        
-        pdf = {}
-        probabilities = self._inference_result[0]
-        for i, parameter_name in enumerate(grid_parameters):
 
-            unique_points = np.sort(np.unique(self.stellar_parameters[:, i]))                
-            if unique_points.size == 1: continue
+        remaining_parameters = [p for p in grid_parameters if p not in parameters]
+        if not remaining_parameters:
+            raise ValueError("too many parameters!")
 
-            discretized_probabilities = np.array(
-                [np.nansum(probabilities[self.stellar_parameters[:, i] == v]) \
-                    for v in unique_points])
+        M = len(remaining_parameters)
 
-            # Interpolate it to provide MAP value and ~percentiles.
-            tck_pdf = interpolate.splrep(unique_points, discretized_probabilities,
-                k=min([unique_points.size - 1, 3]))
-            x = np.linspace(unique_points[0], unique_points[-1], 1000)
-            map_value = x[np.nanargmax(interpolate.splev(x, tck_pdf))]
+        # Get the unique set of rows.
+        column_indices \
+            = np.array([grid_parameters.index(p) for p in remaining_parameters])
 
-            # CDF.
-            cdf = np.array([np.nansum(discretized_probabilities[:i+1]) \
-                for i in range(discretized_probabilities.size)])
+        row_indices = unique_indices(self.stellar_parameters[:, column_indices])
 
-            tck_cdf = interpolate.splrep(unique_points, cdf,
-                k=min([unique_points.size - 1, 3]))
-            q = x[interpolate.splev(x, tck_cdf).searchsorted([0.16, 0.5, 0.84])]
+        points = self.stellar_parameters[row_indices][:, column_indices]
+        pdf = np.nan * np.ones(len(points))
 
-            central, pos, neg = (q[0], q[2] - q[1], q[0] - q[1])
-            
-            pdf[parameter_name] = (map_value, central, pos, neg,
-                np.vstack([unique_points, discretized_probabilities]),
-                tck_pdf,
-                tck_cdf
-            )
-            
-        return pdf
+        posteriors = self._inference_result[1] * self._inference_result[2]
+        for i, point in enumerate(points):
+            match = np.all(
+                self.stellar_parameters[:, column_indices] == point, axis=1)
+            pdf[i] = np.nansum(posteriors[match]) / match.sum()
+
+        pdf /= np.nansum(pdf)
+
+        return (points, pdf)
+
+
+
+    def draw_samples(self, N=1000):
+        """
+        Draw samples from the posterior in a very crude way.
+        """
+
+        x, pdf = model.marginalized_posteriors["TEFF"][4]
+
+
+        samples = list(np.sort(np.random.uniform(x[0], x[-1], size=10)))
+        while len(samples) < N:
+
+            a, b = np.random.uniform(x[0], x[-1], size=2)
+
+            a_index = np.argmin(np.abs(x - a))
+            b_index = np.argmin(np.abs(x - b))
+
+            if pdf[a_index] > pdf[b_index]:
+                samples.append(a)
+
+            else:
+                samples.append(b)
+
+            print("took {}".format(samples[-1]))
+
+
+
+
+        raise a
+
+
+
+
+    def plot_corner(self, fig=None):
+
+        # Plot a corner distribution for all parameters.
+
+
+        return None
+
 
 
 
@@ -580,7 +620,7 @@ if __name__ == "__main__":
         continuum_order=3
     )
     """
-    model = BalmerLineModel(glob("smh/balmer/models/?????s_gam/*.prf"),
+    model = BalmerLineModel(glob("smh/balmer/models/metpoor*bet*/*.prf"),
         mask=[
             [1000, 4328],
             [4336.84, 4337.31],
@@ -595,8 +635,11 @@ if __name__ == "__main__":
         smoothing=False,
         continuum_order=2)
 
-    """
-    model = BalmerLineModel(paths,
+    #import cPickle as pickle
+    #with open("temp_inference.pkl", "rb") as fp:
+    #    model._inference_result = pickle.load(fp)
+
+    model = BalmerLineModel(glob("smh/balmer/models/metpoor*bet*/*.prf"),
         mask=[
             [1000, 4841],
             [4859.51, 4859.84],
@@ -606,7 +649,6 @@ if __name__ == "__main__":
             [4881, 10000]
         ],
         redshift=True, smoothing=False, continuum_order=2)
-    """
 
     # Get a rest-frame normalized spectrum...
     from smh.specutils import Spectrum1D
