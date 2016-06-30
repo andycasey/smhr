@@ -213,6 +213,17 @@ class BalmerLineFittingDialog(QtGui.QDialog):
             [4881, 10000]
         ]
 
+        my_masks = [
+            [1000, 4328],
+            [4336.84, 4337.31],
+            [4337.48, 4338.09],
+            [4339.31, 4339.53],
+            [4340.03, 4340.98],
+            [4341.2, 4341.59],
+            [4344.11, 4344.72],
+            [4350, 10000]
+        ]
+
         self.p2_figure_spectrum.dragged_masks = [] + my_masks
         self.p2_figure_spectrum._draw_dragged_masks()
 
@@ -799,10 +810,9 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         theta = 360./N
         r_fraction = 0.25 # fraction between grid points.
     
-        """        
         r_x, r_y = 10, 0.02
-        assert 4 > model.stellar_parameters.shape[1] \
-            or np.unique(model.stellar_parameters[:, -1])
+        #assert 4 > model.stellar_parameters.shape[1] \
+        #    or np.unique(model.stellar_parameters[:, -1])
 
 
         # Calculate (x, y) positions based on things.
@@ -826,7 +836,6 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         ax = self.p2_figure_grid.figure.axes[0]
         ax.scatter(xyz[:, 0], xyz[:, 1], c=xyz[:, 2])
         self.p2_figure_grid.draw()
-        """
 
         #raise a
 
