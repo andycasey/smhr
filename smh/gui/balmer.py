@@ -14,6 +14,7 @@ import time
 from glob import glob
 from matplotlib.ticker import MaxNLocator
 from PySide import QtCore, QtGui
+from scipy import interpolate
 
 from smh.balmer import BalmerLineModel
 from smh.specutils import Spectrum1D
@@ -94,12 +95,7 @@ class Worker(QtCore.QThread):
 
 class BalmerLineFittingDialog(QtGui.QDialog):
 
-    # If the peak-to-peak wavelength range of the observed spectrum is greater
-    # than `wavelength_range_deciver`, then we will only show +/- the 
-    # `wavelength_window_default` around the Balmer line.
-
-    __wavelength_range_decider = 1000
-    __wavelength_window_default = 200
+    __INFERENCE = False
 
     __balmer_line_names = ("H-α", "H-β", "H-γ", "H-δ")
     __balmer_line_wavelengths = (6563, 4861, 4341, 4102)
@@ -192,7 +188,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
         # Add panes.
         self._add_pane_1()
-        self._add_pane_2()
+        #self._add_pane_2()
         self._add_pane_3()
         self._add_pane_4()
 
@@ -224,8 +220,8 @@ class BalmerLineFittingDialog(QtGui.QDialog):
             [4350, 10000]
         ]
 
-        self.p2_figure_spectrum.dragged_masks = [] + my_masks
-        self.p2_figure_spectrum._draw_dragged_masks()
+        self.p1_figure.dragged_masks = [] + my_masks
+        self.p1_figure._draw_dragged_masks()
 
         return None
 
@@ -313,10 +309,10 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         hbox.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
 
-        self.p1_btn_next = QtGui.QPushButton(self)
-        self.p1_btn_next.setText("Next")
-        self.p1_btn_next.setFocusPolicy(QtCore.Qt.NoFocus)
-        hbox.addWidget(self.p1_btn_next)
+        self.p1_sample_posterior = QtGui.QPushButton(self)
+        self.p1_sample_posterior.setText("Sample posterior")
+        self.p1_sample_posterior.setFocusPolicy(QtCore.Qt.NoFocus)
+        hbox.addWidget(self.p1_sample_posterior)
         
         p1_vbox.addLayout(hbox)
 
@@ -352,9 +348,12 @@ class BalmerLineFittingDialog(QtGui.QDialog):
             self.updated_balmer_line_selected)
         self.combo_spectrum_selected.currentIndexChanged.connect(
             self.updated_spectrum_selected)
-        self.p1_btn_next.clicked.connect(self.show_second_pane)
+        self.p1_sample_posterior.clicked.connect(self.show_third_pane)
 
         
+        # Create worker.
+        self.worker = Worker(self)
+        self.worker.updateProgress.connect(self.setProgress)
 
         return None
 
@@ -520,7 +519,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         self.p3_progressbar.setRange(1, total)
         self.p3_progressbar.setValue(completed)
         if completed == total:
-            self.show_pane(3)
+            self.show_pane(2)
             self.populate_widgets_in_pane4()
 
         return None
@@ -582,6 +581,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         sp.setHeightForWidth(self.p4_figure_posterior.sizePolicy().hasHeightForWidth())
         self.p4_figure_posterior.setSizePolicy(sp)
 
+        """
         self.p4_figure_spectrum = mpl.MPLWidget(None, tight_layout=True, matchbg=self)
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
@@ -589,9 +589,9 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         sp.setVerticalStretch(0)
         sp.setHeightForWidth(self.p4_figure_spectrum.sizePolicy().hasHeightForWidth())
         self.p4_figure_spectrum.setSizePolicy(sp)
-
+        """
         hbox.addWidget(self.p4_figure_posterior)
-        hbox.addWidget(self.p4_figure_spectrum)
+        #hbox.addWidget(self.p4_figure_spectrum)
 
         p4_layout.addLayout(hbox)
 
@@ -623,9 +623,11 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
         # Axes.
         ax = self.p4_figure_spectrum.figure.add_subplot(111)
-        ax = self.p4_figure_posterior.figure.add_subplot(111)
-
+        for i in range(1, 5):
+            self.p4_figure_posterior.figure.add_subplot(2, 2, i)
+        
         return None
+
 
 
     def save_to_session(self):
@@ -697,21 +699,6 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         return None
 
 
-    def show_second_pane(self):
-        self.populate_widgets_in_pane2()
-        self.show_pane(1)
-        return None
-
-
-    def update_masks(self):
-        """
-        Update the Balmer line model masks to ensure they are the same as what
-        is shown in the figure.
-        """
-
-        global _BALMER_LINE_MODEL
-        _BALMER_LINE_MODEL.metadata["masks"] = self.p2_figure_spectrum.dragged_masks
-        return True
 
 
     def show_third_pane(self):
@@ -719,11 +706,32 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         Show the progress pane during posterior sampling, the third in the series.
         """
 
-        self.update_masks()
+        index = self.combo_balmer_line_selected.currentIndex()
+        model_wildmask = "smh/balmer/{}".format(
+            self.__balmer_line_wildmasks[index])
 
-        self.show_pane(2)
+        global _BALMER_LINE_MODEL
+        _BALMER_LINE_MODEL = BalmerLineModel(glob(model_wildmask),
+            redshift=self.metadata["redshift"],
+            smoothing=self.metadata["smoothing"],
+            continuum_order=self.metadata.get("continuum_order", -1) \
+                if self.metadata["continuum"] else -1,
+            mask=[] + self.p1_figure.dragged_masks
+            )
 
-        self.worker.start()
+        self.show_pane(1)
+
+        # TODO:
+        if self.__INFERENCE:
+            self.worker.start()
+
+        else:
+            import cPickle as pickle
+            with open("temp_inference.pkl", "rb") as fp:
+                _BALMER_LINE_MODEL._inference_result = pickle.load(fp)
+
+            self.worker.updateProgress.emit(101, 101)
+
         return None
 
 
@@ -742,7 +750,8 @@ class BalmerLineFittingDialog(QtGui.QDialog):
             redshift=self.metadata["redshift"],
             smoothing=self.metadata["smoothing"],
             continuum_order=self.metadata.get("continuum_order", -1) \
-                if self.metadata["continuum"] else -1
+                if self.metadata["continuum"] else -1,
+            mask=self.p1_figure.dragged_masks
             )
 
         # Reset the parameter widget.
@@ -787,10 +796,43 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         Populate the figure widgets in pane 4 with results from the inference.
         """
 
-        print("worker result", self.worker.result)
-        
         global _BALMER_LINE_MODEL
-        _BALMER_LINE_MODEL._inference_result = self.worker.result
+        # TODO: 
+        if self.__INFERENCE:
+            _BALMER_LINE_MODEL._inference_result = self.worker.result
+
+        
+        # Show the posterior!
+        axes = np.array(self.p4_figure_posterior.figure.axes)
+
+        parameters = ("TEFF", "LOGG", "MH", "ALPHA_MH")
+
+        for i, (ax, parameter) in enumerate(zip(axes, parameters)):
+
+            map_value, pdf = _BALMER_LINE_MODEL.marginalized_posteriors[parameter]
+
+            #if not len(ax.collections):
+            #    ax.scatter([np.nan], [np.nan], facecolor="#666666", s=50)
+            #    ax.plot([np.nan], [np.nan], c="k", lw=2, linestyle="-")
+
+            #ax.collections[0].set_offsets(pdf)
+
+            #x = np.linspace(pdf[0].min(), pdf[0].max(), 1000)
+            #ax.lines[0].set_data(np.array([
+            #    x, interpolate.splev(x, tck_pdf)]))
+
+            ax.scatter(pdf[0], pdf[1], facecolor="#666666", s=50)
+            x = np.linspace(pdf[0].min(), pdf[0].max(), 1000)
+            #ax.plot(x, interpolate.splev(x, tck_pdf), c="k", lw=2)
+
+            ax.set_xlabel(parameter)
+
+            print(i, ax, parameter)
+
+        self.p4_figure_posterior.draw()
+
+
+        # Create samples of 
 
         return None
 
@@ -851,7 +893,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
     def show_pane(self, index):
 
-        panes = [self.p1, self.p2, self.p3, self.p4]
+        panes = [self.p1, self.p3, self.p4]
         pane_to_show = panes.pop(index)
 
         for pane in panes:
