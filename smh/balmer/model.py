@@ -408,6 +408,7 @@ class BalmerLineModel(object):
         return pdf
 
 
+
     def plot_projection(self, data):
 
         obs_dispersion, obs_flux, obs_ivar = self._slice_spectrum(data)
