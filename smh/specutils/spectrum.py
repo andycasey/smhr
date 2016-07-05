@@ -880,7 +880,6 @@ def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
     return dispersion
 
 
-
 def common_dispersion_map(spectra, full_output=True):
     """
     Produce a common dispersion mapping for (potentially overlapping) spectra
@@ -930,9 +929,8 @@ def common_dispersion_map(spectra, full_output=True):
     else:
         common = spectra[0].dispersion.copy()
 
-    # Ensure that we are contiguous from blue to red.
-    common = np.array(common)
-    common = common[np.argsort(common)]
+    # Ensure that we have sorted, unique values from blue to red.
+    common = np.unique(common)
 
     assert np.all(np.diff(common) > 0), \
         "Spectra must be contiguous from blue to red"
