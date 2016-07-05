@@ -518,6 +518,16 @@ class Spectrum1D(object):
         # Snip left and right
         finite_positive_flux = np.isfinite(self.flux) * self.flux > 0
 
+        if np.sum(finite_positive_flux) == 0:
+            # No valid continuum points, return nans
+            no_continuum = np.nan * np.ones_like(dispersion)
+            failed_spectrum = self.__class__(dispersion=dispersion,
+                flux=no_continuum, ivar=no_continuum, metadata=self.metadata)
+
+            if kwargs.get("full_output", False):
+                return (failed_spectrum, no_continuum, 0, dispersion.size - 1)
+            return failed_spectrum
+
         function = str(function).lower()
         left = np.where(finite_positive_flux)[0][0]
         right = np.where(finite_positive_flux)[0][-1]
