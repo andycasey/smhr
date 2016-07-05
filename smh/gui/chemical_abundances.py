@@ -1052,7 +1052,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                                    Must have mouseover bug?""")
 
             # Add mask metadata.
-            spectral_model.metadata["mask"].append([xy[0,0], xy[2, 0]])
+            minx = min(xy[0,0],xy[2,0])
+            maxx = max(xy[0,0],xy[2,0])
+            spectral_model.metadata["mask"].append([minx,maxx])
 
             # Re-fit the spectral model.
             print("Fitting")
