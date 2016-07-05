@@ -7,9 +7,11 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
 import logging
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 from scipy import (integrate, interpolate, ndimage, optimize as op)
+from matplotlib.ticker import MaxNLocator
 
 # HACK REMOVE TODO
 try:
@@ -415,6 +417,7 @@ class BalmerLineModel(object):
         x, pdf = model.marginalized_posteriors["TEFF"][4]
 
 
+
         samples = list(np.sort(np.random.uniform(x[0], x[-1], size=10)))
         while len(samples) < N:
 
@@ -442,9 +445,91 @@ class BalmerLineModel(object):
     def plot_corner(self, fig=None):
 
         # Plot a corner distribution for all parameters.
+        max_n_ticks = 5
+        labels = None
+        label_kwargs = {}
 
 
-        return None
+        K = self.stellar_parameters.shape[1]
+        # Credit to DFM! TODO
+        factor = 2.0
+        lbdim = 0.5 * factor
+        trdim = 0.2 * factor
+        whspace = 0.05
+        plotdim = factor * K + factor * (K - 1) * whspace
+        dim = lbdim + plotdim + trdim
+
+        if fig is None:
+            fig, axes = plt.subplots(K, K, figsize=(dim, dim))
+        else:
+            try:
+                axes = np.array(fig.axes).reshape((K, K))
+            except:
+                raise ValueError("Incorrect number of axes")
+
+        lb = lbdim / dim
+        tr = (lbdim + plotdim)/dim
+        fig.subplots_adjust(left=lb, bottom=lb, right=tr, top=tr,
+                            wspace=whspace, hspace=whspace)
+
+
+        parameters = ("TEFF", "LOGG", "MH", "ALPHA_MH")[:K]
+        for i, px in enumerate(parameters):
+
+            ax = axes if K == 1 else axes[i, i]
+
+            x, pdf = self.marginalize(set(parameters).difference([px]))
+            ax.scatter(x, pdf, facecolor="k")
+
+            ax.xaxis.set_major_locator(MaxNLocator(max_n_ticks, prune="lower"))
+            if i < K - 1:
+                ax.set_xticklabels([])
+            else:
+                [l.set_rotation(45) for l in ax.get_xticklabels()]
+            
+            ax.set_yticklabels([])
+            ax.set_ylim(0, ax.get_ylim()[1])
+
+            for j, py in enumerate(parameters):
+                
+                ax = axes[i, j]
+
+                if j > i:
+                    ax.set_frame_on(False)
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                    continue
+
+                elif j == i:
+                    continue
+                
+
+                xy, pdf = self.marginalize(set(parameters).difference([px, py]))
+                ax.scatter(xy[:, 0], xy[:,1], c=pdf, s=80)
+
+                ax.xaxis.set_major_locator(MaxNLocator(max_n_ticks, prune="lower"))
+                ax.yaxis.set_major_locator(MaxNLocator(max_n_ticks, prune="lower"))
+                
+                if i < K - 1:
+                    ax.set_xticklabels([])
+
+                else:
+                    [l.set_rotation(45) for l in ax.get_xticklabels()]
+                    if labels is not None:
+                        ax.set_xlabel(labels[i], **label_kwargs)
+                        ax.xaxis.set_label_coords(0.5, -0.3)
+
+                if j > 0:
+                    ax.set_yticklabels([])
+                else:
+                    [l.set_rotation(45) for l in ax.get_yticklabels()]
+                    if labels is not None:
+                        ax.set_ylabel(labels[i], **label_kwargs)
+                        ax.yaxis.set_label_coords(-0.3, 0.5)
+
+
+        raise a
+        return fig
 
 
 

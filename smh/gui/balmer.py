@@ -622,7 +622,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         self.p4_btn_close.clicked.connect(self.close)
 
         # Axes.
-        ax = self.p4_figure_spectrum.figure.add_subplot(111)
+        #ax = self.p4_figure_spectrum.figure.add_subplot(111)
         for i in range(1, 5):
             self.p4_figure_posterior.figure.add_subplot(2, 2, i)
         
@@ -808,6 +808,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         parameters = ("TEFF", "LOGG", "MH", "ALPHA_MH")
 
         for i, (ax, parameter) in enumerate(zip(axes, parameters)):
+
 
             map_value, pdf = _BALMER_LINE_MODEL.marginalized_posteriors[parameter]
 
