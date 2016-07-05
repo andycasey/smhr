@@ -98,7 +98,8 @@ class LineList(Table):
         return False
 
     @staticmethod
-    def identify_conflicts(ll1, ll2, skip_equal_loggf=False):
+    def identify_conflicts(ll1, ll2, skip_equal_loggf=False,
+                           dwl_thresh=.001,dEP_thresh=.01,dgf_thresh=.001):
         """
         skip_equal_loggf: if True, skips single-line conflicts that are identical
         """
@@ -141,7 +142,10 @@ class LineList(Table):
         if skip_equal_loggf:
             _drop_indices = []
             for i,(x,y) in enumerate(zip(equivalence_lines1,equivalence_lines2)):
-                if len(x)==1 and len(y)==1 and LineList.lines_equal(x[0],y[0]):
+                if len(x)==1 and len(y)==1 and LineList.lines_equal(x[0],y[0],
+                                                                    dwl_thresh=dwl_thresh,
+                                                                    dEP_thresh=dEP_thresh,
+                                                                    dgf_thresh=dgf_thresh):
                     _drop_indices.append(i)
             equivalence_lines1 = [v for i,v in enumerate(equivalence_lines1) if i not in _drop_indices]
             equivalence_lines2 = [v for i,v in enumerate(equivalence_lines2) if i not in _drop_indices]
@@ -237,7 +241,8 @@ class LineList(Table):
         
         # Note: if in_place == True, then it merges new lines BEFORE raising the exception
         if raise_exception:
-            conflicts1,conflicts2 = self.identify_conflicts(self,new_ll,skip_equal_loggf=skip_equal_loggf)
+            conflicts1,conflicts2 = self.identify_conflicts(self,new_ll,skip_equal_loggf=skip_equal_loggf,
+                                                            dwl_thresh=thresh, dgf_thresh=loggf_thresh)
             if len(conflicts1) > 0:
                 raise LineListConflict(conflicts1, conflicts2)
         if self.verbose:
