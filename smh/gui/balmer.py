@@ -95,15 +95,15 @@ class Worker(QtCore.QThread):
 
 class BalmerLineFittingDialog(QtGui.QDialog):
 
-    __INFERENCE = False
+    __INFERENCE = True
 
     __balmer_line_names = ("H-α", "H-β", "H-γ", "H-δ")
     __balmer_line_wavelengths = (6563, 4861, 4341, 4102)
     __balmer_line_wildmasks = (
-        "models/*alf*/*.prf",
-        "models/*bet*/*.prf",
-        "models/*gam*/*.prf",
-        "models/*del*/*.prf"
+        "models/*_alpha04_alf/*.prf",
+        "models/*_alpha04_bet/*.prf",
+        "models/*_alpha04_gam/*.prf",
+        "models/*_alpha04_del/*.prf"
     )
 
     _default_option_metadata = {
@@ -188,7 +188,6 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
         # Add panes.
         self._add_pane_1()
-        #self._add_pane_2()
         self._add_pane_3()
         self._add_pane_4()
 
@@ -358,152 +357,6 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         return None
 
 
-    def _add_pane_2(self):
-        """ Add the second pane of widgets to the dialog window. """
-
-        self.p2 = QtGui.QWidget()
-        self.layout.addWidget(self.p2)
-
-        # Pane 2
-        p2_vbox = QtGui.QVBoxLayout()
-        self.p2.setLayout(p2_vbox)
-
-        hbox = QtGui.QHBoxLayout()
-        left_vbox = QtGui.QVBoxLayout()
-
-        # Matplotlib figure to show grid points.
-        w = 350
-        self.p2_figure_grid = mpl.MPLWidget(None, tight_layout=True, matchbg=self)
-        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Expanding)
-        sp.setHorizontalStretch(0)
-        sp.setVerticalStretch(0)
-        sp.setHeightForWidth(self.p2_figure_grid.sizePolicy().hasHeightForWidth())
-        self.p2_figure_grid.setSizePolicy(sp)
-        self.p2_figure_grid.setMinimumSize(QtCore.QSize(w, 150))
-        self.p2_figure_grid.setMaximumSize(QtCore.QSize(16777215, 16777215))
-        left_vbox.addWidget(self.p2_figure_grid)
-
-
-        # Table view for model parameters.
-        self.p2_model_parameters = QtGui.QTableView(self)
-        sizePolicy = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Preferred)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(
-            self.p2_model_parameters.sizePolicy().hasHeightForWidth())
-        self.p2_model_parameters.setSizePolicy(sizePolicy)
-        self.p2_model_parameters.setMinimumSize(QtCore.QSize(w, 150))
-        self.p2_model_parameters.setMaximumSize(QtCore.QSize(w, 16777215))
-        self.p2_model_parameters.setModel(
-            BalmerLineModelParametersTableModel(self))
-        self.p2_model_parameters.setEditTriggers(
-            QtGui.QAbstractItemView.CurrentChanged)
-        self.p2_model_parameters.horizontalHeader().hide()
-        left_vbox.addWidget(self.p2_model_parameters)
-
-
-
-        button_hbox = QtGui.QHBoxLayout()
-
-
-        self.btn_optimize_parameters = QtGui.QPushButton(self)
-        sizePolicy = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Maximum, QtGui.QSizePolicy.Fixed)
-        self.btn_optimize_parameters.setSizePolicy(sizePolicy)
-        self.btn_optimize_parameters.setText("Optimize nuisance parameters")
-        self.btn_optimize_parameters.setFocusPolicy(QtCore.Qt.NoFocus)
-        button_hbox.addWidget(self.btn_optimize_parameters)
-
-
-        self.check_show_model = QtGui.QCheckBox(self)
-        self.check_show_model.setText("Plot model")
-        sizePolicy = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Maximum, QtGui.QSizePolicy.Fixed)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(
-            self.check_show_model.sizePolicy().hasHeightForWidth())
-        self.check_show_model.setSizePolicy(sizePolicy)
-        button_hbox.addWidget(self.check_show_model)
-
-        # Color picker
-        self.p2_color_picker = QtGui.QFrame(self)
-        sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
-        sp.setHorizontalStretch(0)
-        sp.setVerticalStretch(0)
-        self.p2_color_picker.setSizePolicy(sp)
-        self.p2_color_picker.setMinimumSize(QtCore.QSize(20, 20))
-        self.p2_color_picker.setMaximumSize(QtCore.QSize(20, 20))
-        self.p2_color_picker.setStyleSheet(
-            "QFrame { background-color: red; border: 2px solid #000000; }")
-
-        button_hbox.addWidget(self.p2_color_picker)
-        left_vbox.addLayout(button_hbox)
-
-        hbox.addLayout(left_vbox)
-
-        # Matplotlib spectrum figure.
-        self.p2_figure_spectrum = mpl.MPLWidget(None, tight_layout=True, matchbg=self)
-        sizePolicy = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.MinimumExpanding)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.p2_figure_spectrum.sizePolicy().hasHeightForWidth())
-        self.p2_figure_spectrum.setSizePolicy(sizePolicy)
-        hbox.addWidget(self.p2_figure_spectrum)
-        p2_vbox.addLayout(hbox)
-
-        # Bottom part of pane.
-        line = QtGui.QFrame(self)
-        line.setFrameShape(QtGui.QFrame.HLine)
-        line.setFrameShadow(QtGui.QFrame.Sunken)
-        p2_vbox.addWidget(line)
-
-        hbox_bottom = QtGui.QHBoxLayout()
-        self.p2_btn_back = QtGui.QPushButton(self)
-        self.p2_btn_back.setText("Back")
-        self.p2_btn_back.setFocusPolicy(QtCore.Qt.NoFocus)
-        hbox_bottom.addWidget(self.p2_btn_back)
-
-        hbox_bottom.addItem(QtGui.QSpacerItem(
-            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
-
-        self.p2_sample_posterior = QtGui.QPushButton(self)
-        self.p2_sample_posterior.setText("Sample posterior")
-        self.p2_sample_posterior.setFocusPolicy(QtCore.Qt.NoFocus)
-        hbox_bottom.addWidget(self.p2_sample_posterior)
-        p2_vbox.addLayout(hbox_bottom)
-
-
-        # Add axes to matplotlib things.
-        ax = self.p2_figure_grid.figure.add_subplot(111)
-        ax.scatter([], [])
-        ax.xaxis.set_major_locator(MaxNLocator(5))
-        ax.yaxis.set_major_locator(MaxNLocator(5))
-        ax.set_xlabel(r"$T_{\rm eff}$ $[K]$")
-        ax.set_ylabel(r"$\log{g}$")
-
-        ax = self.p2_figure_spectrum.figure.add_subplot(111)
-        ax.plot([], [], c="k", drawstyle="steps-mid")
-        ax.xaxis.set_major_locator(MaxNLocator(5))
-        ax.yaxis.set_major_locator(MaxNLocator(5))
-        ax.set_xlabel(u"Wavelength [Å]")
-        ax.set_ylabel(u"Flux")
-
-        self.p2_figure_spectrum.enable_drag_to_mask(ax)
-
-
-        # Worker for parallel inference.
-        self.worker = Worker(self)
-        self.worker.updateProgress.connect(self.setProgress)
-
-        # Signals.
-        self.p2_btn_back.clicked.connect(self.show_first_pane)
-        self.p2_sample_posterior.clicked.connect(self.show_third_pane)
-        return None
-
 
     def setProgress(self, completed, total):
         """
@@ -569,9 +422,11 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         p4_layout = QtGui.QVBoxLayout()
         self.p4.setLayout(p4_layout)
 
-        # Two neighbouring figures.
+        # Two figures in two groups.
+        self.p4_tabs = QtGui.QTabWidget(self)
+        self.p4_tabs.setTabPosition(QtGui.QTabWidget.North)
+        self.p4_tabs.setUsesScrollButtons(False)
 
-        hbox = QtGui.QHBoxLayout()
 
         self.p4_figure_posterior = mpl.MPLWidget(None, tight_layout=True, matchbg=self)
         sp = QtGui.QSizePolicy(
@@ -581,19 +436,21 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         sp.setHeightForWidth(self.p4_figure_posterior.sizePolicy().hasHeightForWidth())
         self.p4_figure_posterior.setSizePolicy(sp)
 
-        """
-        self.p4_figure_spectrum = mpl.MPLWidget(None, tight_layout=True, matchbg=self)
+        self.p4_tabs.addTab(self.p4_figure_posterior, "Posterior")
+
+
+        self.p4_figure_projection = mpl.MPLWidget(None, tight_layout=True, matchbg=self)
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         sp.setHorizontalStretch(0)
         sp.setVerticalStretch(0)
-        sp.setHeightForWidth(self.p4_figure_spectrum.sizePolicy().hasHeightForWidth())
-        self.p4_figure_spectrum.setSizePolicy(sp)
-        """
-        hbox.addWidget(self.p4_figure_posterior)
-        #hbox.addWidget(self.p4_figure_spectrum)
+        sp.setHeightForWidth(self.p4_figure_projection.sizePolicy().hasHeightForWidth())
+        self.p4_figure_projection.setSizePolicy(sp)
 
-        p4_layout.addLayout(hbox)
+        self.p4_tabs.addTab(self.p4_figure_projection, "Projection")
+
+
+        p4_layout.addWidget(self.p4_tabs)
 
         # Hbox for lower buttons.
 
@@ -625,7 +482,14 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         #ax = self.p4_figure_spectrum.figure.add_subplot(111)
         for i in range(1, 5):
             self.p4_figure_posterior.figure.add_subplot(2, 2, i)
-        
+
+        ax = self.p4_figure_projection.figure.add_subplot(111)
+        ax.plot([], [], c="k", drawstyle="steps-mid", zorder=10)
+        ax.xaxis.set_major_locator(MaxNLocator(5))
+        ax.yaxis.set_major_locator(MaxNLocator(5))
+        ax.set_xlabel(u"Wavelength [Å]")
+        ax.set_ylabel(u"Flux")
+
         return None
 
 
@@ -735,61 +599,6 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         return None
 
 
-    def populate_widgets_in_pane2(self):
-        """
-        Populate the widgets in the second pane.
-        """
-
-        # Construct a balmer line model based on metadata.
-        index = self.combo_balmer_line_selected.currentIndex()
-        model_wildmask = "smh/balmer/{}".format(
-            self.__balmer_line_wildmasks[index])
-
-        global _BALMER_LINE_MODEL
-        _BALMER_LINE_MODEL = BalmerLineModel(glob(model_wildmask),
-            redshift=self.metadata["redshift"],
-            smoothing=self.metadata["smoothing"],
-            continuum_order=self.metadata.get("continuum_order", -1) \
-                if self.metadata["continuum"] else -1,
-            mask=self.p1_figure.dragged_masks
-            )
-
-        # Reset the parameter widget.
-        self.p2_model_parameters.reset()
-
-        # Grid points.
-        self.draw_grid_points()
-
-        # Spectrum to show.
-        spectrum_index = self.observed_spectra_labels.index(
-            self.combo_spectrum_selected.currentText())
-        spectrum = self.observed_spectra[spectrum_index]
-
-        view = (spectrum.dispersion >= _BALMER_LINE_MODEL.wavelength_limits[0]) \
-                  * (spectrum.dispersion <= _BALMER_LINE_MODEL.wavelength_limits[-1])
-
-        view = (spectrum.dispersion >= self.__balmer_line_wavelengths[index] - 30) \
-             * (spectrum.dispersion <= self.__balmer_line_wavelengths[index] + 30)
-
-        ax = self.p2_figure_spectrum.figure.axes[0]
-        ax.lines[0].set_data(np.array([
-            spectrum.dispersion[view],
-            spectrum.flux[view],
-        ]))
-
-        ax.set_xlim(
-            spectrum.dispersion[view].min(),
-            spectrum.dispersion[view].max())
-        ax.set_ylim(0, 1.1 * np.nanmax(spectrum.flux[view]))
-
-        # Masks to show.
-        # TODO
-
-        self.p2_figure_spectrum.draw()
-        self.p2_figure_grid.draw()
-
-        return True
-
 
     def populate_widgets_in_pane4(self):
         """
@@ -809,31 +618,36 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
         for i, (ax, parameter) in enumerate(zip(axes, parameters)):
 
+            map_value, (x, pdf) \
+                = _BALMER_LINE_MODEL.marginalized_posteriors[parameter]
 
-            map_value, pdf = _BALMER_LINE_MODEL.marginalized_posteriors[parameter]
 
-            #if not len(ax.collections):
-            #    ax.scatter([np.nan], [np.nan], facecolor="#666666", s=50)
-            #    ax.plot([np.nan], [np.nan], c="k", lw=2, linestyle="-")
-
-            #ax.collections[0].set_offsets(pdf)
-
-            #x = np.linspace(pdf[0].min(), pdf[0].max(), 1000)
-            #ax.lines[0].set_data(np.array([
-            #    x, interpolate.splev(x, tck_pdf)]))
-
-            ax.scatter(pdf[0], pdf[1], facecolor="#666666", s=50)
-            x = np.linspace(pdf[0].min(), pdf[0].max(), 1000)
-            #ax.plot(x, interpolate.splev(x, tck_pdf), c="k", lw=2)
+            # TODO: Interpolate the PDF.
+            ax.scatter(x, pdf, facecolor="#666666", s=50)
+            
+            ax.set_xlim(x[0], x[-1])
 
             ax.set_xlabel(parameter)
+            ax.set_title(map_value)
 
             print(i, ax, parameter)
+
 
         self.p4_figure_posterior.draw()
 
 
-        # Create samples of 
+        
+
+        # Draw the data in P4self.
+        spectrum_index = self.observed_spectra_labels.index(
+            self.combo_spectrum_selected.currentText())
+        spectrum = self.observed_spectra[spectrum_index]
+
+        _BALMER_LINE_MODEL.plot_projection(spectrum, 
+            ax=self.p4_figure_projection.figure.axes[0])
+
+        # Draw the MAP results.
+        self.p4_figure_projection.draw()
 
         return None
 

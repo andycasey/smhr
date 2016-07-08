@@ -296,7 +296,7 @@ class BalmerLineModel(object):
         self._update_parameters()
 
         obs_dispersion, obs_flux, obs_ivar = self._slice_spectrum(data)
-        
+    
         # Apply masks.
         mask = _generate_mask(obs_dispersion, self.metadata["mask"]) \
              * np.isfinite(obs_flux * obs_ivar)
@@ -358,17 +358,16 @@ class BalmerLineModel(object):
 
         # Marginalize over the grid parameters.
         posteriors = ln_likelihood * integrals
-        marginalized_posteriors = posteriors / np.nansum(posteriors)
+        #posteriors = posteriors / np.nansum(posteriors)
 
         # Save information to the class.
-        self._inference_result = (marginalized_posteriors, ln_likelihood,
-            integrals, optimized_theta, covariances)
+        self._inference_result \
+            = (posteriors, ln_likelihood, integrals, optimized_theta, covariances)
 
         if mp_queue is not None:
             mp_queue.put(self._inference_result)
 
-        return (marginalized_posteriors, ln_likelihood, integrals, optimized_theta,
-            covariances)
+        return self._inference_result
 
 
     def marginalize(self, parameters):
@@ -406,6 +405,45 @@ class BalmerLineModel(object):
         pdf /= np.nansum(pdf)
 
         return (points, pdf)
+
+
+
+    @property
+    def marginalized_posteriors(self):
+
+        interpolation_factor = 100
+        N = self.stellar_parameters.shape[1]
+        grid_parameters = ("TEFF", "LOGG", "MH", "ALPHA_MH")[:N]
+
+        posteriors = {}
+        for parameter in grid_parameters:
+
+            x, pdf = self.marginalize(set(grid_parameters).difference([parameter]))
+
+            xi = np.argsort(x.flatten())
+            x, pdf = x[xi], pdf[xi]
+
+            # Estimate a MAP value
+            tck = interpolate.splrep(x, pdf, k=min(3, x.size - 1))
+            x_interp = np.linspace(x[0], x[-1], x.size * interpolation_factor)
+            pdf_interp = interpolate.splev(x_interp, tck)
+
+            # Estimate a MAP value and +/- uncertainties.
+            map_value = x_interp[pdf_interp.argmax()]
+
+            posteriors[parameter] = (map_value, (x, pdf))
+            continue
+
+            posteriors[parameter] \
+                = (map_value, np.nan, np.nan, )
+
+
+            raise a
+
+
+
+        return posteriors
+
 
 
 
@@ -534,7 +572,12 @@ class BalmerLineModel(object):
 
 
 
-    def plot_projection(self, data):
+    def plot_projection(self, data, ax=None):
+
+        if ax is None:
+            fig, ax = plt.subplots()
+        else:
+            fig = ax.figure
 
         obs_dispersion, obs_flux, obs_ivar = self._slice_spectrum(data)
         
@@ -548,20 +591,23 @@ class BalmerLineModel(object):
         #obs_dispersion = obs_dispersion[mask]
         #obs_flux, obs_ivar = obs_flux[mask], obs_ivar[mask]
         obs_flux[~mask] = np.nan
+        ax.plot(obs_dispersion, obs_flux, c='k')
 
-        fig, ax = plt.subplots()
 
-        index = np.nanargmax(self._inference_result[0])
+        # Get the MAP value.
+        index = np.nanargmin(self._inference_result[0])
         op_theta = self._inference_result[3][index]
 
         model_disp, model_flux = utils.parse_spectrum(self.paths[index]).T
+
         y = self(obs_dispersion, model_disp, model_flux, *op_theta)
         y[~mask] = np.nan
 
-        ax.plot(obs_dispersion, obs_flux, c='k')
-        ax.plot(obs_dispersion, y, c='r')
+        ax.plot(obs_dispersion, y, c='r', lw=2)
 
-        raise a
+        # Draw fill_between in y?
+
+        return fig
 
 
 
@@ -724,7 +770,7 @@ if __name__ == "__main__":
     #with open("temp_inference.pkl", "rb") as fp:
     #    model._inference_result = pickle.load(fp)
 
-    model = BalmerLineModel(glob("smh/balmer/models/metpoor*bet*/*.prf"),
+    model = BalmerLineModel(glob("smh/balmer/models/*_alpha04_bet/*.prf"),
         mask=[
             [1000, 4841],
             [4859.51, 4859.84],
