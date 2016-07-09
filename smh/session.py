@@ -974,7 +974,13 @@ class Session(BaseSession):
                 if isinstance(key,list):
                     # In synthesis, species may be a list
                     for species in key:
-                        update_one_key(species, logeps)
+                        if isinstance(species,float):
+                            update_one_key(species, logeps)
+                        elif isinstance(species,list):
+                            for _species in species: update_one_key(_species, logeps)
+                        else:
+                            raise TypeError("key {} is of type {} (organized by {})".format(\
+                                    species,type(species),what_key_type))
                 elif isinstance(key,float):
                     assert not organize_by_element
                     update_one_key(key, logeps)

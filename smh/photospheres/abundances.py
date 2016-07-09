@@ -10,7 +10,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 from numpy import array
 from .utils import element
 
-from ..utils import element_to_atomic_number
+from ..utils import element_to_atomic_number, species_to_element
 
 def asplund_2009(elements):
     """
@@ -125,7 +125,14 @@ def asplund_2009(elements):
 
         elif isinstance(x, (int, float)):
             el = element(x)
-            return (asplund_2009[el], True)
+            try:
+                return (asplund_2009[el], True)
+            except KeyError:
+                # It's a molecule, get the "good" element name
+                molecule = species_to_element(x)
+                assert "-" in molecule, "Input {}, molecule {}".format(x, molecule)
+                Z = element_to_atomic_number(molecule)
+                return (asplund_2009[element(Z)], True)
 
         else:
             # Assume list-type
