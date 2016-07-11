@@ -196,8 +196,36 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         # Populate widgets.
         self.populate_widgets()
 
-        # DEBUG TODO REMOVE HACK MAGIC BARBARA STREISSAND
+        if session is not None:
+            # Loading default values from session.
+            default_session_settings = session.setting("balmer_line_fitting", {})
+            if default_session_settings:
+                # Set the balmer line first.
+                index = default_session_settings["balmer_line_index"]
+                self.combo_balmer_line_selected.setCurrentIndex(index)
 
+                # Set the order index.
+                index = default_session_settings["spectrum_index"]
+                self.combo_spectrum_selected.setCurrentIndex(index)
+
+                # Update the metadata.
+                self.metadata.update(default_session_settings["metadata"])
+
+                # Update the table options.
+                N = self.metadata["continuum_order"]
+                self.p1_model_options.model()._parameters \
+                    += ["c{}".format(i) for i in range(1 + int(N))]
+                self.p1_model_options.model().reset()
+
+                # Update the masks.
+                self.p1_figure.dragged_masks \
+                    = [] + default_session_settings.get("masks", [])
+            
+                self.p1_figure._draw_dragged_masks()
+
+
+        # DEBUG TODO REMOVE HACK MAGIC BARBARA STREISSAND
+        """
 
         my_masks = [
             [1000, 4841],
@@ -220,6 +248,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         ]
 
         self.p1_figure.dragged_masks = [] + my_masks
+        """
         self.p1_figure._draw_dragged_masks()
 
         return None
@@ -305,6 +334,13 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
 
         hbox = QtGui.QHBoxLayout()
+        self.p1_save_settings_as_default = QtGui.QPushButton(self)
+        self.p1_save_settings_as_default.setText("Save settings as default")
+        self.p1_save_settings_as_default.setFocusPolicy(QtCore.Qt.NoFocus)
+        if self.session is None:
+            self.p1_save_settings_as_default.setEnabled(False)
+        hbox.addWidget(self.p1_save_settings_as_default)
+
         hbox.addItem(QtGui.QSpacerItem(
             40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
 
@@ -347,6 +383,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
             self.updated_balmer_line_selected)
         self.combo_spectrum_selected.currentIndexChanged.connect(
             self.updated_spectrum_selected)
+        self.p1_save_settings_as_default.clicked.connect(self.save_settings_as_default)
         self.p1_sample_posterior.clicked.connect(self.show_third_pane)
 
         
@@ -493,6 +530,33 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         return None
 
 
+    def save_settings_as_default(self):
+
+        # Things to save:
+        # - which line to use
+        # - which order index to save
+        # - Redshift? 
+        #   - Bounds
+        # - Macroturbulence?
+        #   - bounds
+        # - Continuum?
+        #   - Bounds
+
+        # Set them to the parent session.
+        self.session.update_default_setting("balmer_line_fitting", {
+            "balmer_line_index": self.combo_balmer_line_selected.currentIndex(),
+            "spectrum_index": self.combo_spectrum_selected.currentIndex(),
+            "metadata": self.metadata.copy(),
+            "masks": self.p1_figure.dragged_masks,
+        })
+
+        # Inform.
+        QtGui.QMessageBox.information(self, "Settings saved",
+            "Settings saved as default for future sessions.")
+
+        return True
+
+
 
     def save_to_session(self):
         """
@@ -580,8 +644,8 @@ class BalmerLineFittingDialog(QtGui.QDialog):
             smoothing=self.metadata["smoothing"],
             continuum_order=self.metadata.get("continuum_order", -1) \
                 if self.metadata["continuum"] else -1,
-            mask=[] + self.p1_figure.dragged_masks
-            )
+            mask=[] + self.p1_figure.dragged_masks,
+            bounds=self.metadata["bounds"])
 
         self.show_pane(1)
 
@@ -621,11 +685,13 @@ class BalmerLineFittingDialog(QtGui.QDialog):
             map_value, (x, pdf) \
                 = _BALMER_LINE_MODEL.marginalized_posteriors[parameter]
 
+            print(parameter, x, pdf)
+            if x.size > 1:
 
-            # TODO: Interpolate the PDF.
-            ax.scatter(x, pdf, facecolor="#666666", s=50)
-            
-            ax.set_xlim(x[0], x[-1])
+                # TODO: Interpolate the PDF.
+                ax.scatter(x, pdf, facecolor="#666666", s=50)
+                
+                ax.set_xlim(x[0], x[-1])
 
             ax.set_xlabel(parameter)
             ax.set_title(map_value)
@@ -1038,9 +1104,12 @@ if __name__ == "__main__":
     for spectrum in spectra[:-1]:
         spectrum._dispersion = (1 + +52.1/299792.458) * spectrum.dispersion
 
+    from smh import Session
+    session = Session.load("hd122563.smh")
 
     window = BalmerLineFittingDialog(spectra,
-        observed_spectra_labels=["Order {}".format(i) for i in range(1, len(spectra))] + ["Normalized rest-frame spectrum"])
+        observed_spectra_labels=["Order {}".format(i) for i in range(1, len(spectra))] + ["Normalized rest-frame spectrum"],
+        session=session)
 
     window.exec_()
 
