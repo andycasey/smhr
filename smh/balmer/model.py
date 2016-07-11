@@ -39,7 +39,8 @@ class BalmerLineModel(object):
         "mask": [],
         "redshift": False,
         "smoothing": False,
-        "continuum_order": -1
+        "continuum_order": -1,
+        "bounds": {}
     }
 
     def __init__(self, paths, **kwargs):
@@ -121,6 +122,10 @@ class BalmerLineModel(object):
 
         self._parameter_names = tuple(parameters)
         self._parameter_bounds = {}
+        for parameter, (lower, upper) in self.metadata.get("bounds", {}).items():
+            if parameter not in parameters: continue
+            lower, upper = (lower, upper) if upper > lower else (upper, lower)
+            self._parameter_bounds[parameter] = (lower, upper)
         return True
 
 
@@ -160,6 +165,15 @@ class BalmerLineModel(object):
         return np.interp(x, model_dispersion * (1 + z), y)
 
 
+    def fitting_function(self, x, model_disp, model_flux, *parameters):
+
+        # Return nans if outside bounds.
+        for parameter_name, (lower, upper) in self.parameter_bounds.items():
+            value = parameters[self.parameter_names.index(parameter_name)]
+            if not (upper >= value and value >= lower):
+                return np.nan * np.ones_like(x)
+
+        return self.__call__(x, model_disp, model_flux, *parameters)
 
 
     def _slice_spectrum(self, observed_spectrum):
@@ -201,13 +215,15 @@ class BalmerLineModel(object):
         model_disp, model_flux = utils.parse_spectrum(self.paths[grid_index]).T
 
         kwds = {
-            "f": lambda x, *theta: self(x, model_disp, model_flux, *theta),
+            "f": lambda x, *theta: \
+                self.fitting_function(x, model_disp, model_flux, *theta),
             "xdata": dispersion,
             "ydata": flux,
             "sigma": ivar,
             "absolute_sigma": False,
             "p0": self.initial_guess,
-            "full_output": True
+            "full_output": True,
+            "maxfev": 10000
         }
         kwds.update(kwargs)
         result = op.curve_fit(**kwds)
@@ -423,13 +439,19 @@ class BalmerLineModel(object):
             xi = np.argsort(x.flatten())
             x, pdf = x[xi], pdf[xi]
 
-            # Estimate a MAP value
-            tck = interpolate.splrep(x, pdf, k=min(3, x.size - 1))
-            x_interp = np.linspace(x[0], x[-1], x.size * interpolation_factor)
-            pdf_interp = interpolate.splev(x_interp, tck)
+            if x.size > 2:
+                # Estimate a MAP value
 
-            # Estimate a MAP value and +/- uncertainties.
-            map_value = x_interp[pdf_interp.argmax()]
+                tck = interpolate.splrep(x, pdf, k=min(3, x.size - 1))
+                x_interp = np.linspace(x[0], x[-1], x.size * interpolation_factor)
+                pdf_interp = interpolate.splev(x_interp, tck)
+
+                # Estimate a MAP value and +/- uncertainties.
+                map_value = x_interp[pdf_interp.argmax()]
+
+
+            else:
+                map_value = x.flatten()[np.argmax(pdf)]
 
             posteriors[parameter] = (map_value, (x, pdf))
             continue
