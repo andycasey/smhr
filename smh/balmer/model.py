@@ -31,6 +31,40 @@ def unique_indices(a):
 
     return idx
 
+
+def fill_between_steps(ax, x, y1, y2=0, h_align='mid', **kwargs):
+    """
+    Fill between for step plots in matplotlib.
+
+    **kwargs will be passed to the matplotlib fill_between() function.
+    """
+
+    # If no Axes opject given, grab the current one:
+
+    # First, duplicate the x values
+    xx = x.repeat(2)[1:]
+    # Now: the average x binwidth
+    xstep = np.repeat((x[1:] - x[:-1]), 2)
+    xstep = np.concatenate(([xstep[0]], xstep, [xstep[-1]]))
+    # Now: add one step at end of row.
+    xx = np.append(xx, xx.max() + xstep[-1])
+
+    # Make it possible to chenge step alignment.
+    if h_align == 'mid':
+        xx -= xstep / 2.
+    elif h_align == 'right':
+        xx -= xstep
+
+    # Also, duplicate each y coordinate in both arrays
+    y1 = y1.repeat(2)#[:-1]
+    if type(y2) == np.ndarray:
+        y2 = y2.repeat(2)#[:-1]
+
+    # now to the plotting part:
+    return ax.fill_between(xx, y1, y2=y2, **kwargs)
+
+
+
 class BalmerLineModel(object):
 
     _minimum_valid_model_file_size = 32
@@ -209,6 +243,7 @@ class BalmerLineModel(object):
             The grid index.
         """
 
+
         return_model_spectrum = kwargs.pop("__return_model_spectrum", False)
 
         # Load the spectrum from the grid.
@@ -221,7 +256,7 @@ class BalmerLineModel(object):
             "ydata": flux,
             "sigma": ivar,
             "absolute_sigma": False,
-            "p0": self.initial_guess,
+            "p0": self.initial_guess(dispersion, flux),
             "full_output": True,
             "maxfev": 10000
         }
@@ -277,16 +312,20 @@ class BalmerLineModel(object):
 
 
 
-    @property
-    def initial_guess(self):
+    def initial_guess(self, dispersion, flux):
         """ Generate an uninformed guess for the model parameters. """
 
         defaults = {
-            "c0": 1,
             "redshift": 0,
             "smoothing": 20
         }
-        return tuple([defaults.get(p, 0) for p in self.parameter_names])
+        N = self.metadata["continuum_order"]
+        if N > -1:
+            defaults.update(dict(zip(
+                ["c{}".format(i) for i in range(N + 1)],
+                np.polyfit(dispersion, flux, N)[::-1])))
+
+        return tuple([defaults[p] for p in self.parameter_names])
 
 
     def _chi_sq(self, grid_index, theta, obs_dispersion, obs_flux, obs_ivar):
@@ -326,6 +365,7 @@ class BalmerLineModel(object):
         K, S = (len(self.parameter_names), len(self.paths))
         
         ln_likelihood = np.nan * np.ones(S)
+        likelihood = np.nan * np.ones(S)
         optimized_theta = np.nan * np.ones((S, K))
         covariances = np.nan * np.ones((S, K, K))
 
@@ -359,10 +399,13 @@ class BalmerLineModel(object):
             ln_likelihood[index] \
                 = -0.5 * np.sum((model - obs_flux)**2 * obs_ivar)
 
+            likelihood[index] = np.sum(np.exp(-0.5 * ((model - obs_flux)**2 * obs_ivar)))
+
+
             assert np.isfinite(ln_likelihood[index])
 
             # DEBUG show progress.
-            print(index, S, dict(zip(self.parameter_names, op_theta)), ln_likelihood[index])
+            print(index, S, dict(zip(self.parameter_names, op_theta)), likelihood[index], ln_likelihood[index])
 
             if mp_queue is not None:
                 mp_queue.put([1 + index, S])
@@ -370,15 +413,20 @@ class BalmerLineModel(object):
         # Use a multi-Gaussian approximation of the nuisance parameters.    
         integrals = (2*np.pi)**(K/2.) * np.abs(np.linalg.det(covariances))**(-0.5)
         approximate_integrals = ~np.isfinite(integrals)
-        integrals[approximate_integrals] = np.nanmin(integrals)
+        idx = np.nanargmin(integrals)
+
+        covariances[approximate_integrals] = covariances[idx]
+        integrals[approximate_integrals] = integrals[idx]
+
+        ln_integrals = np.log(integrals)
 
         # Marginalize over the grid parameters.
-        posteriors = ln_likelihood * integrals
-        #posteriors = posteriors / np.nansum(posteriors)
+        posterior = likelihood * integrals
+        ln_posterior = ln_likelihood + ln_integrals
 
         # Save information to the class.
         self._inference_result \
-            = (posteriors, ln_likelihood, integrals, optimized_theta, covariances)
+            = (posterior, ln_likelihood, ln_integrals, optimized_theta, covariances)
 
         if mp_queue is not None:
             mp_queue.put(self._inference_result)
@@ -412,15 +460,81 @@ class BalmerLineModel(object):
         points = self.stellar_parameters[row_indices][:, column_indices]
         pdf = np.nan * np.ones(len(points))
 
-        posteriors = self._inference_result[1] * self._inference_result[2]
+        posteriors = self._inference_result[0]
         for i, point in enumerate(points):
             match = np.all(
                 self.stellar_parameters[:, column_indices] == point, axis=1)
-            pdf[i] = np.nansum(posteriors[match]) / match.sum()
+            pdf[i] = np.sum(posteriors[match]) / np.nansum(match)
+            #print(i, point, pdf[i])
 
-        pdf /= np.nansum(pdf)
+        if points.shape[1] == 1:
+            xi = np.argsort(points.flatten())
+            points = points[xi]
+            pdf = pdf[xi]
+
+        #pdf -= np.nanmin(pdf) # Normalization constant.
+        pdf /= np.nansum(pdf) # Scaling.
 
         return (points, pdf)
+
+
+    def plot_likelihoods(self, axes=None):
+
+        if axes is None:
+            fig, axes = plt.subplots(1, 3)
+        else:
+            fig = axes[0].figure
+            assert len(axes) == 3
+
+
+        for i, ax in enumerate(axes):
+            ax.scatter(
+                self.stellar_parameters[:, 0], self.stellar_parameters[:, 1],
+                c=self._inference_result[i])
+
+
+        return fig
+
+
+    def plot_projections_best_wrt_teff(self, spectrum, ax=None):
+
+        if ax is None:
+            fig, ax = plt.subplots()
+        else:
+            fig = ax.figure
+
+        ax.plot(spectrum.dispersion, spectrum.flux)
+
+        # For each unique value of teff, find the most likely result.
+        unique_teffs = np.unique(self.stellar_parameters[:, 0])
+
+        indices = []
+        colors = (
+            "#1ABC9C",
+            "#2ECC71",
+            "#3498DB",
+            "#9B59B6",
+            "#34495E",
+            "#F1C40F",
+            "#E67E22", 
+            "#E74C3C",
+            )
+        ln_posterior = self._inference_result[0]
+        for i, unique_teff in enumerate(unique_teffs):
+
+            match_indices = np.where(self.stellar_parameters[:, 0] == unique_teff)[0]
+
+            index = match_indices[np.argmax(ln_posterior[match_indices])]
+
+            self.plot_projection(spectrum, ax=ax, index=index,
+                c=colors[i % len(colors)], 
+                label="{:.0f} ({:.0f})".format(
+                    self.stellar_parameters[index, 0], index))
+
+        ax.legend()
+        return fig
+
+
 
 
 
@@ -594,7 +708,7 @@ class BalmerLineModel(object):
 
 
 
-    def plot_projection(self, data, ax=None):
+    def plot_projection(self, data, ax=None, index=None, sample_cov=0,  **kwargs):
 
         if ax is None:
             fig, ax = plt.subplots()
@@ -613,85 +727,51 @@ class BalmerLineModel(object):
         #obs_dispersion = obs_dispersion[mask]
         #obs_flux, obs_ivar = obs_flux[mask], obs_ivar[mask]
         obs_flux[~mask] = np.nan
-        ax.plot(obs_dispersion, obs_flux, c='k')
+        ax.plot(obs_dispersion, obs_flux, c='k', drawstyle="steps-mid")
 
+        # Show uncertainties.
+        obs_sigma = np.sqrt(1.0/obs_ivar)
+        fill_between_steps(ax,
+            obs_dispersion, obs_flux - obs_sigma, obs_flux + obs_sigma,
+            facecolor="#AAAAAA", edgecolor="none", alpha=1)
 
         # Get the MAP value.
-        index = np.nanargmin(self._inference_result[0])
+        if index is None:
+            index = np.nanargmax(self._inference_result[0])
         op_theta = self._inference_result[3][index]
+
 
         model_disp, model_flux = utils.parse_spectrum(self.paths[index]).T
 
         y = self(obs_dispersion, model_disp, model_flux, *op_theta)
         y[~mask] = np.nan
 
-        ax.plot(obs_dispersion, y, c='r', lw=2)
+        c = kwargs.pop("c", "r")
+        ax.plot(obs_dispersion, y, c=c, **kwargs)
+
+        # Get the covariance matrix?
+        if sample_cov > 0:
+            cov = self._inference_result[4][index]
+            print(np.sqrt(np.diag(cov)))
+
+            # Sample values from the cov matrix and project them.
+            draws = np.random.multivariate_normal(
+                self._inference_result[3][index],
+                self._inference_result[4][index],
+                size=sample_cov)
+
+            for draw in draws:
+                y_draw = self(obs_dispersion, model_disp, model_flux, *draw)
+                y_draw[~mask] = np.nan
+
+                ax.plot(obs_dispersion, y_draw, c=c, alpha=10.0/sample_cov)
 
         # Draw fill_between in y?
+        ax.set_title("Index {}: {}".format(index,
+            self.stellar_parameters[index]))
 
         return fig
 
-
-
-
-    def fit(self, observed_spectrum):
-        """
-        Fit this Balmer line model (and the nuisance parameters) to the data.
-
-        :param observed_spectrum:
-            An observed spectrum.
-        """
-
-        self._update_parameters()
-
-        raise YoureADinasour
-
-        show = (observed_spectrum.dispersion >= self.wavelengths[0]) \
-             * (observed_spectrum.dispersion <= self.wavelengths[-1])
-
-        mask = show * _generate_mask(observed_spectrum.dispersion, self.metadata["mask"])
-
-        observed_dispersion = observed_spectrum.dispersion
-        observed_flux = observed_spectrum.flux
-        observed_ivar = observed_spectrum.ivar
-        observed_ivar[~mask] = 0
-
-        observed_sigma = np.sqrt(1.0/observed_ivar)
-        finite = np.isfinite(observed_flux * observed_sigma)
-
-
-        # Marginalize over grid points.
-        N_pixels = self.normalized_fluxes.shape[0]
-        chi_sqs = np.inf * np.ones(N_pixels)
-
-        for grid_index in range(N_pixels):
-            print(grid_index, N_pixels)
-
-            f = lambda x, *p: self(grid_index, x, *p).flatten()
-
-            try:
-                op_parameters, cov = op.curve_fit(f, observed_dispersion[finite],
-                    observed_flux[finite], sigma=observed_sigma[finite],
-                    p0=self.initial_guess, absolute_sigma=True)
-
-            except RuntimeError:
-                continue
-
-
-            model_flux = f(observed_dispersion[finite], *op_parameters)
-            chi_sqs[grid_index] = np.sum((observed_flux[finite] - model_flux)**2 \
-                * observed_ivar[finite])
-
-        raise a
-
-
-        fig, ax = plt.subplots()
-
-        ax.plot(observed_dispersion[show], observed_flux[show], c='k')
-        ax.plot(observed_dispersion[ok], marginalize(observed_dispersion[ok], *op_parameters), c='r')
-
-        raise a
-        
 
 
 
@@ -773,6 +853,8 @@ if __name__ == "__main__":
         continuum_order=3
     )
     """
+
+    """
     model = BalmerLineModel(glob("smh/balmer/models/metpoor*bet*/*.prf"),
         mask=[
             [1000, 4328],
@@ -810,3 +892,55 @@ if __name__ == "__main__":
     hd140283._ivar = 1e-5 * np.ones(hd140283.dispersion.size)
     hd122563._ivar = 1e-5 * np.ones(hd122563.dispersion.size)
  
+    """
+
+    import cPickle as pickle
+    with open("tmp2.pkl", "rb") as fp:
+        spectra = pickle.load(fp)
+
+    with open("tmp.pkl", "rb") as fp:
+        result = pickle.load(fp)
+
+
+    import json
+    a = """{u'bounds': {},
+ u'continuum_order': 3,
+ u'mask': [[4897.0807173556823, 9290.8011736853732],
+  [3184.7528307346888, 4821.8135575042106],
+  [4876.9743380926166, 4907.2516520972313],
+  [4814.7376370831307, 4842.6600488873864],
+  [4859.3732784937802, 4859.9084192007494],
+  [4860.5030199862713, 4862.0489820286275],
+  [4865.3192863489967, 4865.7355068988618],
+  [4865.9138871345185, 4866.567947998592],
+  [4870.9679938114523, 4871.6220546755267],
+  [4871.8004349111825, 4872.5734159323611],
+  [4854.6164722096064, 4854.973232680919],
+  [4855.2705330736799, 4855.5678334664408],
+  [4855.2110729951282, 4855.3299931522324],
+  [4848.8488445900457, 4849.3839852970159]],
+ u'redshift': False,
+ u'smoothing': False}"""
+
+    model = BalmerLineModel(glob("smh/balmer/models/*_alpha04_bet/*.prf"),
+        continuum_order=3,
+        mask=[
+            [4897.0807173556823, 9290.8011736853732],
+          [3184.7528307346888, 4821.8135575042106],
+          [4876.9743380926166, 4907.2516520972313],
+          [4814.7376370831307, 4842.6600488873864],
+          [4859.3732784937802, 4859.9084192007494],
+          [4860.5030199862713, 4862.0489820286275],
+          [4865.3192863489967, 4865.7355068988618],
+          [4865.9138871345185, 4866.567947998592],
+          [4870.9679938114523, 4871.6220546755267],
+          [4871.8004349111825, 4872.5734159323611],
+          [4854.6164722096064, 4854.973232680919],
+          [4855.2705330736799, 4855.5678334664408],
+          [4855.2110729951282, 4855.3299931522324],
+          [4848.8488445900457, 4849.3839852970159]],
+        redshift=True,
+        smoothing=False
+        )
+
+    model._inference_result = result
