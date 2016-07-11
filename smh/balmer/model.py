@@ -364,7 +364,6 @@ class BalmerLineModel(object):
     
         K, S = (len(self.parameter_names), len(self.paths))
         
-        ln_likelihood = np.nan * np.ones(S)
         likelihood = np.nan * np.ones(S)
         optimized_theta = np.nan * np.ones((S, K))
         covariances = np.nan * np.ones((S, K, K))
@@ -396,37 +395,31 @@ class BalmerLineModel(object):
                 covariances[index, :, :] = cov
             
             model = self(obs_dispersion, model_disp, model_flux, *op_theta)
-            ln_likelihood[index] \
-                = -0.5 * np.sum((model - obs_flux)**2 * obs_ivar)
+            likelihood[index] \
+                = np.sum(np.exp(-0.5 * ((model - obs_flux)**2 * obs_ivar)))
 
-            likelihood[index] = np.sum(np.exp(-0.5 * ((model - obs_flux)**2 * obs_ivar)))
-
-
-            assert np.isfinite(ln_likelihood[index])
+            assert np.isfinite(likelihood[index])
 
             # DEBUG show progress.
-            print(index, S, dict(zip(self.parameter_names, op_theta)), likelihood[index], ln_likelihood[index])
+            print(index, S, dict(zip(self.parameter_names, op_theta)), likelihood[index])
 
             if mp_queue is not None:
                 mp_queue.put([1 + index, S])
 
         # Use a multi-Gaussian approximation of the nuisance parameters.    
         integrals = (2*np.pi)**(K/2.) * np.abs(np.linalg.det(covariances))**(-0.5)
+        
+        # Give approximate (bad) covariances to non-finite integrals.
         approximate_integrals = ~np.isfinite(integrals)
         idx = np.nanargmin(integrals)
-
         covariances[approximate_integrals] = covariances[idx]
         integrals[approximate_integrals] = integrals[idx]
 
-        ln_integrals = np.log(integrals)
-
-        # Marginalize over the grid parameters.
         posterior = likelihood * integrals
-        ln_posterior = ln_likelihood + ln_integrals
-
+        
         # Save information to the class.
         self._inference_result \
-            = (posterior, ln_likelihood, ln_integrals, optimized_theta, covariances)
+            = (posterior, likelihood, integrals, optimized_theta, covariances)
 
         if mp_queue is not None:
             mp_queue.put(self._inference_result)
@@ -472,7 +465,6 @@ class BalmerLineModel(object):
             points = points[xi]
             pdf = pdf[xi]
 
-        #pdf -= np.nanmin(pdf) # Normalization constant.
         pdf /= np.nansum(pdf) # Scaling.
 
         return (points, pdf)
@@ -519,12 +511,12 @@ class BalmerLineModel(object):
             "#E67E22", 
             "#E74C3C",
             )
-        ln_posterior = self._inference_result[0]
+        posterior = self._inference_result[0]
         for i, unique_teff in enumerate(unique_teffs):
 
             match_indices = np.where(self.stellar_parameters[:, 0] == unique_teff)[0]
 
-            index = match_indices[np.argmax(ln_posterior[match_indices])]
+            index = match_indices[np.argmax(posterior[match_indices])]
 
             self.plot_projection(spectrum, ax=ax, index=index,
                 c=colors[i % len(colors)], 
@@ -737,7 +729,7 @@ class BalmerLineModel(object):
 
         # Get the MAP value.
         if index is None:
-            index = np.nanargmax(self._inference_result[0])
+            index = np.nanargmax(self._inference_result[1])
         op_theta = self._inference_result[3][index]
 
 
