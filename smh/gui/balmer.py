@@ -99,11 +99,21 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
     __balmer_line_names = ("H-α", "H-β", "H-γ", "H-δ")
     __balmer_line_wavelengths = (6563, 4861, 4341, 4102)
+
+    # Only use \alpha-enhanced models
     __balmer_line_wildmasks = (
         "models/*_alpha04_alf/*.prf",
         "models/*_alpha04_bet/*.prf",
         "models/*_alpha04_gam/*.prf",
         "models/*_alpha04_del/*.prf"
+    )
+
+    # Use all available models
+    __balmer_line_wildmasks = (
+        "models/*_alf/*.prf",
+        "models/*_bet/*.prf",
+        "models/*_gam/*.prf",
+        "models/*_del/*.prf"
     )
 
     _default_option_metadata = {
@@ -197,6 +207,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         self.populate_widgets()
 
         if session is not None:
+
             # Loading default values from session.
             default_session_settings = session.setting("balmer_line_fitting", {})
             if default_session_settings:
@@ -222,34 +233,6 @@ class BalmerLineFittingDialog(QtGui.QDialog):
                     = [] + default_session_settings.get("masks", [])
             
                 self.p1_figure._draw_dragged_masks()
-
-
-        # DEBUG TODO REMOVE HACK MAGIC BARBARA STREISSAND
-        """
-
-        my_masks = [
-            [1000, 4841],
-            [4859.51, 4859.84],
-            [4860, 4862], # core.
-            [4871, 4873],
-            [4878, 4879],
-            [4881, 10000]
-        ]
-
-        my_masks = [
-            [1000, 4328],
-            [4336.84, 4337.31],
-            [4337.48, 4338.09],
-            [4339.31, 4339.53],
-            [4340.03, 4340.98],
-            [4341.2, 4341.59],
-            [4344.11, 4344.72],
-            [4350, 10000]
-        ]
-
-        self.p1_figure.dragged_masks = [] + my_masks
-        """
-        self.p1_figure._draw_dragged_masks()
 
         return None
 
@@ -710,7 +693,8 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         spectrum = self.observed_spectra[spectrum_index]
 
         _BALMER_LINE_MODEL.plot_projection(spectrum, 
-            ax=self.p4_figure_projection.figure.axes[0])
+            ax=self.p4_figure_projection.figure.axes[0],
+            sample_cov=100)
 
         # Draw the MAP results.
         self.p4_figure_projection.draw()
@@ -961,6 +945,14 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
 
                 self.reset()
 
+            elif not value and parameter in self.parent.metadata["bounds"]:
+
+                del self.parent.metadata["bounds"][parameter]
+                self.parent.metadata[parameter] = bool(value)
+
+                self.reset()
+                return True
+
             self.parent.metadata[parameter] = bool(value)
             return True
 
@@ -1103,6 +1095,12 @@ if __name__ == "__main__":
 
     for spectrum in spectra[:-1]:
         spectrum._dispersion = (1 + +52.1/299792.458) * spectrum.dispersion
+
+    spectra = [Spectrum1D.read("hd140283.fits")]
+    #spectra = [Spectrum1D.read("/Users/arc/research/fe-rich-stars/sm0342-2842.rest.fits")]
+    
+    sigma = 0.01 * np.ones_like(spectra[-1].dispersion)
+    spectra[-1]._ivar = sigma**(-2)
 
     from smh import Session
     session = Session.load("hd122563.smh")
