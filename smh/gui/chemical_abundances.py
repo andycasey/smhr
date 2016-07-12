@@ -685,7 +685,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         abund = np.mean(_abund)#np.sum(_abund*weights)/total_weights
         stdev = np.std(_abund)#np.sum(_errs*weights**2)/(total_weights**2)
         XH = abund - solar_composition(elem.split()[0])
-        #if elem == "Fe I": self.FeH = XH
         self.calculate_FeH()
         XFe = XH - self.FeH
         text = "N={1} A({0})={2:5.2f} σ({0})={5:4.2f} [{0}/H]={3:5.2f} [{0}/Fe I]={4:5.2f}"
@@ -705,8 +704,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._check_for_spectral_models()
         self.proxy_spectral_models.reset()
         self.populate_filter_combo_box()
-        # TODO
-        #self.calculate_FeH()
+        self.calculate_FeH()
         return None
 
     def refresh_plots(self):
@@ -831,9 +829,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 "Click 'OK' to load the transitions manager.")
             if reply == QtGui.QMessageBox.Ok:
                 # Load line list manager.
+                # Make sure callbacks are included in ui_mainwindow too!
                 dialog = TransitionsDialog(self.parent.session,
-                    callbacks=[self.proxy_spectral_models.reset, 
-                               self.refresh_table])
+                    callbacks=[self.refresh_table])
                 dialog.exec_()
 
                 # Do we even have any spectral models now?
@@ -844,7 +842,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             else:
                 return False
         return True
-
 
     def figure_mouse_pick(self, event):
         """
@@ -1731,6 +1728,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         assert isinstance(selected_model, SpectralSynthesisModel), selected_model
         summary_dict = self.parent.session.summarize_spectral_models(organize_by_element=True)
         
+        self.synth_abund_table.model().beginResetModel()
+
         # Fill in fixed abundances
         for elem in selected_model.metadata["rt_abundances"]:
             try:
@@ -1750,6 +1749,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 key = "log_eps({})".format(elem)
                 fitted_result[0][key] = abund
                 fitted_result[2]["abundances"][i] = abund
+
+        self.synth_abund_table.model().endResetModel()
 
         print(summary_dict)
         return None

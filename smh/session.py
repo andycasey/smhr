@@ -1023,8 +1023,9 @@ class Session(BaseSession):
             summary_dict[key] = summary
 
         total_num_models_summarized = np.sum([len(x) for x in all_logeps.values()])
-        print("Time to summarize {} measurements (organized by {}): {:.1f}".format(\
-                total_num_models_summarized, what_key_type, time.time()-start))
+        ## This is basically instantaneous, which is good!
+        #print("Time to summarize {} measurements (organized by {}): {:.1f}".format(\
+        #        total_num_models_summarized, what_key_type, time.time()-start))
         return summary_dict
     
     def make_summary_plot(self, figure=None):

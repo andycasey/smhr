@@ -445,6 +445,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         window = TransitionsDialog(self.session, callbacks=[
             self.session.index_spectral_models,
             self.stellar_parameters_tab.proxy_spectral_models.reset,
+            self.chemical_abundances_tab.refresh_table,
             ])
         window.exec_()
 
