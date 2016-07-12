@@ -279,10 +279,32 @@ class Spectrum1D(object):
         for hdu_index, hdu in enumerate(image):
             if hdu.data is not None: break
 
-        if len(image) == 2 and hdu_index == 1:            
-            dispersion = image[hdu_index].data["dispersion"]
+        if len(image) == 2 and hdu_index == 1:
+
+            dispersion_keys = ("dispersion", "disp")
+            for key in dispersion_keys:
+                try:
+                    dispersion = image[hdu_index].data[key]
+
+                except KeyError:
+                    continue
+
+                else:
+                    break
+
+            else:
+                raise KeyError("could not find any dispersion key: {}".format(
+                    ", ".join(dispersion_keys)))
+
             flux = image[hdu_index].data["flux"]
-            ivar = image[hdu_index].data["ivar"]
+
+            # Try ivar, then variance.
+            try:
+                ivar = image[hdu_index].data["ivar"]
+
+            except KeyError:
+                variance = image[hdu_index].data["variance"]
+                ivar = 1.0/variance
 
         else:
             # Build a simple linear dispersion map from the headers.
