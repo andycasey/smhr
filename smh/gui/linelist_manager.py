@@ -13,8 +13,10 @@ import logging
 import numpy as np
 import os
 import sys
+from copy import deepcopy
 from PySide import QtCore, QtGui
 from six import string_types
+from six.moves import cPickle as pickle
 from time import time # DEBUG TODO
 
 from astropy.table import Column
@@ -708,7 +710,8 @@ class SpectralModelsTableView(QtGui.QTableView):
         """
         
         menu = QtGui.QMenu(self)
-        delete_action = menu.addAction("Delete")
+        
+        export_spectral_models = menu.addAction("Export spectral models..")
 
         # Select 'use for stellar parameter determination'
         menu.addSeparator()
@@ -724,11 +727,15 @@ class SpectralModelsTableView(QtGui.QTableView):
         deselect_for_sp_abundances = menu.addAction(
             "Do not use for stellar abundance determination")
 
+        menu.addSeparator()
+        delete_action = menu.addAction("Delete")
+
 
         selected = self.selectionModel().selectedRows()
         any_selected = len(selected) > 0
         if not any_selected:
             delete_action.setEnabled(False)
+            export_spectral_models.setEnabled(False)
 
         else:
             a = "use_for_stellar_parameter_inference"
@@ -760,7 +767,10 @@ class SpectralModelsTableView(QtGui.QTableView):
                     deselect_for_sp_abundances.setEnabled(False)
 
         action = menu.exec_(self.mapToGlobal(event.pos()))
-        if action == delete_action:
+        if action == export_spectral_models:
+            self.export_selected_spectral_models()
+
+        elif action == delete_action:
             self.delete_selected_rows()
 
         elif action == select_for_sp_determination:
@@ -824,6 +834,46 @@ class SpectralModelsTableView(QtGui.QTableView):
 
         self.clearSelection()
         return None
+
+
+    def export_selected_spectral_models(self):
+        """
+        Export the selected spectral models and their associated line list data
+        to disk.
+        """
+
+        path, _ = QtGui.QFileDialog.getSaveFileName(self,
+            caption="Export spectral models to disk", dir="", filter="*.pkl")
+        if not path: return
+
+        transition_indices = []
+        spectral_model_states = []
+        for row in self.selectionModel().selectedRows():
+            index = row.row() # your boat, gently down a stream
+
+            spectral_model = self.session.metadata["spectral_models"][index]
+
+            # Re-index this spectral model just in case of weirdness.
+            spectral_model.index_transitions()
+
+            # Create a deep, clean copy of the state.
+            state = deepcopy(spectral_model.__getstate__())
+            state["metadata"].pop("fitted_result", None)
+            state["metadata"].pop("is_acceptable", None)
+
+            spectral_model_states.append(state)
+            transition_indices.extend(spectral_model._transition_indices)
+
+        transition_indices = np.array(transition_indices)
+
+        # Get the relevant subset of the line list.
+        line_list_subset = self.session.metadata["line_list"][transition_indices]
+
+        with open(path, "wb") as fp:
+            pickle.dump((line_list_subset, spectral_model_states), fp, -1)
+
+        return None
+
 
 
 
@@ -897,12 +947,8 @@ class TransitionsDialog(QtGui.QDialog):
         # Buttons.
         hbox = QtGui.QHBoxLayout()
         btn_import = QtGui.QPushButton(self)
-        btn_import.setText("Import..")
+        btn_import.setText("Import transitions..")
         hbox.addWidget(btn_import)
-
-        btn_export = QtGui.QPushButton(self)
-        btn_export.setText("Export..")
-        hbox.addWidget(btn_export)
 
         # Spacer with a minimum width.
         hbox.addItem(QtGui.QSpacerItem(40, 20, 
@@ -921,7 +967,6 @@ class TransitionsDialog(QtGui.QDialog):
 
         # Connect the buttons.
         btn_import.clicked.connect(self.import_transitions)
-        btn_export.clicked.connect(self.export_transitions)
         btn_save_as_default.clicked.connect(self.save_as_default)
         btn_ok.clicked.connect(self.close)
 
@@ -945,20 +990,63 @@ class TransitionsDialog(QtGui.QDialog):
 
     def import_transitions(self):
         """ Import transitions (line lists and spectral models) from a file. """
-        raise NotImplementedError
 
+        path, _ = QtGui.QFileDialog.getOpenFileName(self,
+            caption="Select exported transitions file", dir="", filter="*.pkl")
+        if not path: return None
 
-    def export_transitions(self):
-        """ Export transitions (line lists and spectral models) to a file. """
-        raise NotImplementedError
+        N = self.session.load_transitions(path)
+        if N > 0:
+            self.linelist_view.model().reset()
+            self.linelist_view.clearSelection()
+
+            self.models_view.model().reset()
+            self.models_view.clearSelection()
+
+            self.session._spectral_model_conflicts = spectral_model_conflicts(
+                self.session.metadata["spectral_models"],
+                self.session.metadata["line_list"])
+
+        QtGui.QMessageBox.information(self, "Transitions loaded",
+            "There were {} spectral model(s) loaded into this session."\
+                .format(N))
+
+        return None
 
 
     def save_as_default(self):
         """
-        Save the current line list and spectral models as the defaults for
+        Save the current line list and all spectral models as the defaults for
         future SMH sessions.
         """
-        raise NotImplementedError
+
+        # Save the line list as default.
+        path = os.path.expanduser("~/.smh.line_list")
+        self.session.metadata["line_list"].write(
+            path, format="fits", overwrite=True)
+        self.session.update_default_setting(("line_list_filename", ), path)
+
+        # Update the defaults for spectral models.
+        states = []
+        for spectral_model in self.session.metadata.get("spectral_models", []):
+
+            # Re-index this spectral model just in case of weirdness.
+            spectral_model.index_transitions()
+
+            # Create a deep, clean copy of the state.
+            state = deepcopy(spectral_model.__getstate__())
+            state["metadata"].pop("fitted_result", None)
+            state["metadata"].pop("is_acceptable", None)
+
+            # To prevent YAML issues with numpy string ararys.
+            state["transition_hashes"] \
+                = ["{}".format(_) for _ in state["transition_hashes"]]
+            states.append(state)
+
+        # Update the default setting entry.
+        self.session.update_default_setting(("default_spectral_models", ), states)
+
+        return True
 
 
 

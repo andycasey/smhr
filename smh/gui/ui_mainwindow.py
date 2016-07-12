@@ -286,6 +286,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
             defaults = yaml.load(fp)
         self.session.metadata.update(defaults)
 
+        # TODO: WE SHOULD REMOVE THIS: THE GUI SHOULD READ FROM .SETTINGS()
+        
+
         # Disable all tabs except for Summary and RV.
         for i in range(self.tabs.count()):
             self.tabs.setTabEnabled(i, i < 2)
