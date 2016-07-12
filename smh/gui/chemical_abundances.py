@@ -701,7 +701,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def refresh_table(self):
         if self.parent.session is None: return None
-        self._check_for_spectral_models()
+        #self._check_for_spectral_models()
         self.proxy_spectral_models.reset()
         self.populate_filter_combo_box()
         self.calculate_FeH()
