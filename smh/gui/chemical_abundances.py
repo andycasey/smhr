@@ -1913,18 +1913,26 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
                             raise ValueError("{} not in {}".format(current_element, spectral_model.elements))
                         value = "{0:.2f}".format(abundances[i])
         elif column in [3, 4]: #EW, REW
-            try:
-                result = spectral_model.metadata["fitted_result"][2]
-                equivalent_width = result["equivalent_width"][0]
-            except:
-                equivalent_width = np.nan
-
-            if column == 3:
-                value = "{0:.1f}".format(1000 * equivalent_width) \
-                    if np.isfinite(equivalent_width) else ""
-            if column == 4:
-                value = "{:.2f}".format(np.log10(equivalent_width/float(spectral_model._repr_wavelength))) \
-                    if np.isfinite(equivalent_width) else ""
+            if isinstance(spectral_model, ProfileFittingModel):
+                try:
+                    result = spectral_model.metadata["fitted_result"][2]
+                    equivalent_width = result["equivalent_width"][0]
+                except:
+                    equivalent_width = np.nan
+    
+                if column == 3:
+                    value = "{0:.1f}".format(1000 * equivalent_width) \
+                        if np.isfinite(equivalent_width) else ""
+                if column == 4:
+                    value = "{:.2f}".format(np.log10(equivalent_width/float(spectral_model._repr_wavelength))) \
+                        if np.isfinite(equivalent_width) else ""
+            elif isinstance(spectral_model, SpectralSynthesisModel):
+                if column == 3:
+                    value = ""
+                if column == 4:
+                    # HACK
+                    value = "-4.0"
+                
         elif column == 5: #abundance err
             if isinstance(spectral_model, ProfileFittingModel):
                 try:
