@@ -1896,8 +1896,10 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
                     value = "{0:.2f}".format(abundances[0])
                 else:
                     assert isinstance(spectral_model, SpectralSynthesisModel), spectral_model
-                    current_element = self.parent.filter_combo_box.currentText().split()[0]
-                    if current_element=="All":
+                    current_element = self.parent.filter_combo_box.currentText()
+                    if current_element=="":
+                        value = ""
+                    elif current_element=="All":
                         try:
                             value = "; ".join(["{}".format(abund) \
                                                for abund in spectral_model.abundances])
@@ -1906,7 +1908,7 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
                     else:
                         # HACK for molecules
                         if "-" in current_element: _elem = utils.species_to_element(utils.element_to_atomic_number(current_element)).split()[0]
-                        else: _elem = current_element
+                        else: _elem = current_element.split()[0]
                         for i,elem in enumerate(spectral_model.elements):
                             if _elem == elem: break
                         else:
@@ -1942,13 +1944,15 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
                 except:
                     value = ""
             elif isinstance(spectral_model, SpectralSynthesisModel):
-                current_element = self.parent.filter_combo_box.currentText().split()[0]
-                if current_element=="All":
+                current_element = self.parent.filter_combo_box.currentText()
+                if current_element=="":
+                    value = ""
+                elif current_element=="All":
                     value = ""
                 else:
                     # HACK for molecules
                     if "-" in current_element: _elem = utils.species_to_element(utils.element_to_atomic_number(current_element)).split()[0]
-                    else: _elem = current_element
+                    else: _elem = current_element.split()[0]
                     for i,elem in enumerate(spectral_model.elements):
                         if _elem == elem: break
                     else:
