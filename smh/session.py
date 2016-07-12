@@ -1026,7 +1026,7 @@ class Session(BaseSession):
 
         start = time.time()
         if spectral_models is None:
-            spectral_models = self.metadata["spectral_models"]
+            spectral_models = self.metadata.get("spectral_models", [])
 
         all_logeps = {}
         # TODO abundance uncertainties too
