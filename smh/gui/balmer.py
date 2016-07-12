@@ -207,18 +207,18 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         if session is not None:
 
             # Loading default values from session.
-            default_session_settings = session.setting("balmer_line_fitting", {})
-            if default_session_settings:
+            session_settings = session.setting(("balmer_line_fitting", ), {})
+            if session_settings:
                 # Set the balmer line first.
-                index = default_session_settings["balmer_line_index"]
+                index = session_settings["balmer_line_index"]
                 self.combo_balmer_line_selected.setCurrentIndex(index)
 
                 # Set the order index.
-                index = default_session_settings["spectrum_index"]
+                index = session_settings["spectrum_index"]
                 self.combo_spectrum_selected.setCurrentIndex(index)
 
                 # Update the metadata.
-                self.metadata.update(default_session_settings["metadata"])
+                self.metadata.update(session_settings["metadata"])
 
                 # Update the table options.
                 N = self.metadata["continuum_order"]
@@ -228,7 +228,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
                 # Update the masks.
                 self.p1_figure.dragged_masks \
-                    = [] + default_session_settings.get("masks", [])
+                    = [] + session_settings.get("masks", [])
             
                 self.p1_figure._draw_dragged_masks()
 
@@ -525,7 +525,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         #   - Bounds
 
         # Set them to the parent session.
-        self.session.update_default_setting("balmer_line_fitting", {
+        self.session.update_default_setting((("balmer_line_fitting", )), {
             "balmer_line_index": self.combo_balmer_line_selected.currentIndex(),
             "spectrum_index": self.combo_spectrum_selected.currentIndex(),
             "metadata": self.metadata.copy(),
