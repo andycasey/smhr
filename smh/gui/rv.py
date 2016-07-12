@@ -795,11 +795,11 @@ class RVTab(QtGui.QWidget):
         # Update plots.
 
         self.draw_template()
-        self.update_wl_region()
+        self.update_wl_region(verbose=False)
         self.rv_plot.draw()
 
 
-    def update_wl_region(self):
+    def update_wl_region(self, verbose=True):
         """
         Re-draw the order selected and the continuum fit, as well as the preview
         of the normalized spectrum.
@@ -815,8 +815,15 @@ class RVTab(QtGui.QWidget):
         self._cache["input"]["wavelength_region"] = wavelength_region
 
         # Get the right order.
-        self._cache["overlap_order"], _, __ = \
-            self.parent.session._get_overlap_order([wavelength_region])
+        try:
+            self._cache["overlap_order"], _, __ = \
+                self.parent.session._get_overlap_order([wavelength_region])
+
+        except ValueError:
+            if verbose:
+                raise
+
+            self._cache["overlap_order"] = self.parent.session.input_spectra[0]
 
         # Draw this order in the top axes.
         self.ax_order.lines[0].set_data([
