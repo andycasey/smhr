@@ -1904,8 +1904,11 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
                         except TypeError:
                             value = ""
                     else:
+                        # HACK for molecules
+                        if "-" in current_element: _elem = utils.species_to_element(utils.element_to_atomic_number(current_element)).split()[0]
+                        else: _elem = current_element
                         for i,elem in enumerate(spectral_model.elements):
-                            if current_element == elem: break
+                            if _elem == elem: break
                         else:
                             raise ValueError("{} not in {}".format(current_element, spectral_model.elements))
                         value = "{0:.2f}".format(abundances[i])
@@ -1935,8 +1938,11 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
                 if current_element=="All":
                     value = ""
                 else:
+                    # HACK for molecules
+                    if "-" in current_element: _elem = utils.species_to_element(utils.element_to_atomic_number(current_element)).split()[0]
+                    else: _elem = current_element
                     for i,elem in enumerate(spectral_model.elements):
-                        if current_element == elem: break
+                        if _elem == elem: break
                     else:
                         raise ValueError("{} not in {}".format(current_element, spectral_model.elements))
                     try:
