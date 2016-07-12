@@ -95,11 +95,6 @@ class Worker(QtCore.QThread):
 
 class BalmerLineFittingDialog(QtGui.QDialog):
 
-    __INFERENCE = False
-    # 4636 +/ (246, -190)
-    # 4572 
-    # (literature: 4587)
-
     __balmer_line_names = ("H-α", "H-β", "H-γ", "H-δ")
     __balmer_line_wavelengths = (6563, 4861, 4341, 4102)
 
@@ -548,7 +543,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
     def save_to_session(self):
         """ Save the inference results to the session. """
 
-        default_text = window.combo_balmer_line_selected.currentText()
+        default_text = self.combo_balmer_line_selected.currentText()
         self.session.metadata.setdefault("balmer_line_fits", {})
 
         while True:
