@@ -1350,7 +1350,7 @@ class StellarParametersTab(QtGui.QWidget):
         show = (limits[1] >= spectrum.dispersion) \
              * (spectrum.dispersion >= limits[0])
 
-        if self._lines["spectrum"] is not None:
+        if self._lines.get("spectrum", None) is not None:
             for i in range(len(self._lines["spectrum"])):
                 self._lines["spectrum"][i].remove()
             del self._lines["spectrum"]
