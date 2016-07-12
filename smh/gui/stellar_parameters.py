@@ -883,7 +883,8 @@ class StellarParametersTab(QtGui.QWidget):
                 dialog = TransitionsDialog(self.parent.session,
                     callbacks=[
                         self.parent.session.index_spectral_models,
-                        self.proxy_spectral_models.reset
+                        self.proxy_spectral_models.reset,
+                        self.parent.chemical_abundances_tab.refresh_table
                     ])
                 dialog.exec_()
 
@@ -1055,14 +1056,15 @@ class StellarParametersTab(QtGui.QWidget):
         if self.parent.session is None or not self._check_for_spectral_models():
             return None
 
-        # Fit the spectral models if they have not been fit before.
+        # If no acceptable measurements, fit all
         for model in self.parent.session.metadata["spectral_models"]:
-            if model.use_for_stellar_parameter_inference \
-            and "fitted_result" not in model.metadata:
-
+             if model.use_for_stellar_parameter_inference \
+            and "fitted_result" in model.metadata:
+                break # do not fit if any stellar parameter lines are already fit
+        else:
+            for model in self.parent.session.metadata["spectral_models"]:
                 try:
                     model.fit()
-
                 except:
                     logger.exception(
                         "Exception in fitting spectral model {}".format(model))
