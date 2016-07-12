@@ -253,8 +253,8 @@ class MPLWidget(FigureCanvas):
         # Get the first entry from the zoom history.
         for index, limits in self._interactive_zoom_history.items():
             xlim, ylim = limits.pop(0)
-            self.axes[index].set_xlim(xlim)
-            self.axes[index].set_ylim(ylim)
+            self.figure.axes[index].set_xlim(xlim)
+            self.figure.axes[index].set_ylim(ylim)
 
         self._interactive_zoom_history = {}
         self.draw()
