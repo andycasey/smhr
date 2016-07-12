@@ -87,6 +87,9 @@ class MPLWidget(FigureCanvas):
 
         # State for zoom box
         self._right_click_zoom_box = {}
+
+        # State for shift.
+        self.shift_key_pressed = False
         
 
     def _focus(self, event):
@@ -243,6 +246,18 @@ class MPLWidget(FigureCanvas):
 
         del self._interactive_zoom_box_signal
 
+        return None
+
+
+    def reset_zoom_limits(self):
+        # Get the first entry from the zoom history.
+        for index, limits in self._interactive_zoom_history.items():
+            xlim, ylim = limits.pop(0)
+            self.axes[index].set_xlim(xlim)
+            self.axes[index].set_ylim(ylim)
+
+        self._interactive_zoom_history = {}
+        self.draw()
         return None
 
 
@@ -479,3 +494,18 @@ class MPLWidget(FigureCanvas):
         self.draw()
 
         return None
+
+
+    def key_press_flags(self, event):
+        print("key_press_flags",event)
+        print(event.key,"pressed")
+        if event.key == "shift":
+            self.shift_key_pressed = True
+        return None
+        
+    def key_release_flags(self, event):
+        print("key_release_flags",event)
+        print(event.key,"released")
+        if event.key == "shift":
+            self.shift_key_pressed = False
+        return None        

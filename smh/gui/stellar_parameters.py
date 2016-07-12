@@ -449,9 +449,10 @@ class StellarParametersTab(QtGui.QWidget):
         self.figure.mpl_connect("button_press_event", self.figure_mouse_press)
         self.figure.mpl_connect("button_release_event", self.figure_mouse_release)
         # Zoom box
-        self.figure.mpl_connect("button_press_event", self.figure.axis_right_mouse_press)
-        self.figure.mpl_connect("button_release_event", self.figure.axis_right_mouse_release)
-        self.figure.mpl_connect("key_press_event", self.figure.unzoom_on_z_press)
+        self.figure.enable_interactive_zoom()
+        #self.figure.mpl_connect("button_press_event", self.figure.axis_right_mouse_press)
+        #self.figure.mpl_connect("button_release_event", self.figure.axis_right_mouse_release)
+        #self.figure.mpl_connect("key_press_event", self.figure.unzoom_on_z_press)
         self.figure.mpl_connect("key_press_event", self.key_press_zoom)
         self.figure.setFocusPolicy(QtCore.Qt.ClickFocus)
 

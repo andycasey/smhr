@@ -313,12 +313,13 @@ class NormalizationTab(QtGui.QWidget):
             "button_release_event", self.figure_mouse_release)
 
         # Zoom box
-        self.norm_plot.mpl_connect(
-            "button_press_event", self.norm_plot.axis_right_mouse_press)
-        self.norm_plot.mpl_connect(
-            "button_release_event", self.norm_plot.axis_right_mouse_release)
-        self.norm_plot.mpl_connect(
-            "key_press_event", self.norm_plot.unzoom_on_z_press)
+        #self.norm_plot.mpl_connect(
+        #    "button_press_event", self.norm_plot.axis_right_mouse_press)
+        #self.norm_plot.mpl_connect(
+        #    "button_release_event", self.norm_plot.axis_right_mouse_release)
+        #self.norm_plot.mpl_connect(
+        #    "key_press_event", self.norm_plot.unzoom_on_z_press)
+        self.norm_plot.enable_interactive_zoom()
         
         self.function.currentIndexChanged.connect(
             self.update_normalization_function)
