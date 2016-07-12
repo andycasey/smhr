@@ -17,6 +17,7 @@ import numpy as np
 import rv, normalization, summary, stellar_parameters, chemical_abundances
 
 import smh
+from balmer import BalmerLineFittingDialog
 from linelist_manager import TransitionsDialog
 from isotope_manager import IsotopeDialog
 from plotting import SummaryPlotDialog
@@ -115,6 +116,15 @@ class Ui_MainWindow(QtGui.QMainWindow):
         edit_menu = self.menuBar().addMenu("&Edit")
         edit_menu.addAction(self.action_transitions_manager)
         edit_menu.addAction(self.action_isotopes_manager)
+
+        # Advanced menu
+        advanced_menu = self.menuBar().addMenu("&Advanced")
+        self._action_fit_balmer_lines = QtGui.QAction(
+            "Fit Balmer line(s)", self, enabled=False,
+            statusTip="Interactively fit Balmer line wing(s)",
+            triggered=self.show_balmer_line_dialog)
+        advanced_menu.addAction(self._action_fit_balmer_lines)
+
 
         # Plot menu
         plot_menu = self.menuBar().addMenu("&Plot")
@@ -286,16 +296,14 @@ class Ui_MainWindow(QtGui.QMainWindow):
             defaults = yaml.load(fp)
         self.session.metadata.update(defaults)
 
-        # TODO: WE SHOULD REMOVE THIS: THE GUI SHOULD READ FROM .SETTINGS()
-        
-
         # Disable all tabs except for Summary and RV.
         for i in range(self.tabs.count()):
             self.tabs.setTabEnabled(i, i < 2)
 
-        # Enable relevant menu actions.
+        # Enable/disable relevant menu actions.
         self.action_transitions_manager.setEnabled(True)
         self.action_isotopes_manager.setEnabled(True)
+        self._action_fit_balmer_lines.setEnabled(False)
 
         # Re-populate widgets in all tabs.
         self.summary_tab._populate_widgets()
@@ -350,6 +358,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Enable relevant menu actions.
         self.action_transitions_manager.setEnabled(True)
         self.action_isotopes_manager.setEnabled(True)
+        self._action_fit_balmer_lines.setEnabled(False)
+
 
         # Refresh GUI of all tabs 
         # TODO does this all work?
@@ -418,6 +428,35 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         self.session_path = path
         self.save_session()
+        return None
+
+
+    def show_balmer_line_dialog(self):
+        """ Show an interactive dialog for fitting Balmer line profiles. """
+
+        try:
+            v = self.session.metadata["rv"]["rv_applied"]
+        except (KeyError, TypeError):
+            v = 0
+
+        # Create a copy of the input spectra, because we will shift them.
+        spectra = []
+        for spectrum in self.session.input_spectra:
+            s = spectrum.copy()
+            s.redshift(v=v)
+            spectra.append(s)
+
+        labels = ["Order {}".format(i) for i in range(1, 1 + len(spectra))]
+        
+        # Normalized spectrum?
+        if hasattr(self.session, "normalized_spectrum"):
+            spectra += [self.session.normalized_spectrum]
+            labels += ["Normalized rest-frame spectrum"]
+
+        dialog = BalmerLineFittingDialog(spectra,
+            observed_spectra_labels=labels, session=self.session)
+        dialog.exec_()
+
         return None
 
 
