@@ -1,3 +1,6 @@
+cd smh/balmer
+mkdir models
+cd models
 mkdir dwarfs_alpha04_alf
 mkdir dwarfs_alpha04_bet
 mkdir dwarfs_alpha04_del
