@@ -95,7 +95,10 @@ class Worker(QtCore.QThread):
 
 class BalmerLineFittingDialog(QtGui.QDialog):
 
-    __INFERENCE = True
+    __INFERENCE = False
+    # 4636 +/ (246, -190)
+    # 4572 
+    # (literature: 4587)
 
     __balmer_line_names = ("H-α", "H-β", "H-γ", "H-δ")
     __balmer_line_wavelengths = (6563, 4861, 4341, 4102)
@@ -478,6 +481,7 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
         # Save to session
         self.p4_btn_save_to_session = QtGui.QPushButton(self)
+        self.p4_btn_save_to_session.setFocusPolicy(QtCore.Qt.NoFocus)
         self.p4_btn_save_to_session.setText("Save result to session")
         hbox.addWidget(self.p4_btn_save_to_session)
 
@@ -542,10 +546,48 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
 
     def save_to_session(self):
-        """
-        Save the inference results to the session.
-        """
-        raise NotImplementedError
+        """ Save the inference results to the session. """
+
+        default_text = window.combo_balmer_line_selected.currentText()
+        self.session.metadata.setdefault("balmer_line_fits", {})
+
+        while True:
+
+            # Ask for a name for this result.
+            result_name, ok = QtGui.QInputDialog.getText(self, "Result name",
+                "Specify a name for this result:", text=default_text)
+
+            if not ok \
+            or result_name not in self.session.metadata["balmer_line_fits"]:
+                break
+
+            # This result_name already exists in the session.
+            # Ask the user to overwrite.
+            flags = QtGui.QMessageBox.StandardButton.Yes
+            flags |= QtGui.QMessageBox.StandardButton.No
+            response = QtGui.QMessageBox.question(self, "Overwrite",
+                "A result named '{}' already exists. Overwrite?".format(
+                    result_name), flags)
+
+            if response == QtGui.QMessageBox.Yes:
+                break
+
+            else:
+                # Go back and ask again.
+                default_text = result_name
+                continue
+
+        if not ok:
+            return False
+
+        global _BALMER_LINE_MODEL
+        self.session.metadata["balmer_line_fits"][result_name] \
+            = [_BALMER_LINE_MODEL]
+
+        QtGui.QMessageBox.information(self, "Success",
+            "Results saved to session.")
+
+        return True
 
 
     def closeEvent(self, event):
@@ -631,17 +673,8 @@ class BalmerLineFittingDialog(QtGui.QDialog):
             bounds=self.metadata["bounds"])
 
         self.show_pane(1)
-
-        # TODO:
-        if self.__INFERENCE:
-            self.worker.start()
-
-        else:
-            import cPickle as pickle
-            with open("temp_inference.pkl", "rb") as fp:
-                _BALMER_LINE_MODEL._inference_result = pickle.load(fp)
-
-            self.worker.updateProgress.emit(101, 101)
+        
+        self.worker.start()
 
         return None
 
@@ -653,11 +686,8 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         """
 
         global _BALMER_LINE_MODEL
-        # TODO: 
-        if self.__INFERENCE:
-            _BALMER_LINE_MODEL._inference_result = self.worker.result
+        _BALMER_LINE_MODEL._inference_result = self.worker.result
 
-        
         # Show the posterior!
         axes = np.array(self.p4_figure_posterior.figure.axes)
 
@@ -665,10 +695,10 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
         for i, (ax, parameter) in enumerate(zip(axes, parameters)):
 
-            map_value, (x, pdf) \
+            (map_value, u_pos, u_neg), (x, pdf) \
                 = _BALMER_LINE_MODEL.marginalized_posteriors[parameter]
 
-            print(parameter, x, pdf)
+            print(parameter, map_value, u_pos, u_neg)
             if x.size > 1:
 
                 # TODO: Interpolate the PDF.
@@ -677,10 +707,13 @@ class BalmerLineFittingDialog(QtGui.QDialog):
                 ax.set_xlim(x[0], x[-1])
 
             ax.set_xlabel(parameter)
-            ax.set_title(map_value)
 
-            print(i, ax, parameter)
+            if parameter == "TEFF":
+                title = r"${{{0:.0f}}}^{{+{1:.0f}}}_{{{2:.0f}}}$"
+            else:
+                title = r"${{{0:.2f}}}^{{+{1:.2f}}}_{{{2:.2f}}}$"
 
+            ax.set_title(title.format(map_value, u_pos, u_neg))
 
         self.p4_figure_posterior.draw()
 
@@ -742,7 +775,6 @@ class BalmerLineFittingDialog(QtGui.QDialog):
                 offset_x = r_x * np.cos(j * theta/180. * np.pi + np.pi/2)
                 offset_y = r_y * np.sin(j * theta/180. * np.pi + np.pi/2)
 
-                print(j, offset_x, offset_y)
                 xyz[k] = [point[0] + offset_x, point[1] + offset_y, feh]
                 k += 1
 
@@ -1096,7 +1128,7 @@ if __name__ == "__main__":
     for spectrum in spectra[:-1]:
         spectrum._dispersion = (1 + +52.1/299792.458) * spectrum.dispersion
 
-    spectra = [Spectrum1D.read("hd140283.fits")]
+    #spectra = [Spectrum1D.read("hd140283.fits")]
     #spectra = [Spectrum1D.read("/Users/arc/research/fe-rich-stars/sm0342-2842.rest.fits")]
     
     sigma = 0.01 * np.ones_like(spectra[-1].dispersion)

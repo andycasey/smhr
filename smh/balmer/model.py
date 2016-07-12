@@ -86,6 +86,33 @@ class BalmerLineModel(object):
         """
 
         # Check file sizes to verify they are probably usable.
+        self.paths = self._get_usable_paths(paths)
+
+        # Get representative wavelength limits.
+        self.wavelength_limits = self._get_wavelength_limits(self.paths[0])
+
+        # Parse the stellar parameters from the usable paths.
+        self.stellar_parameters = self._get_stellar_parameters(self.paths)
+
+        self.metadata = {}
+        self.metadata.update(self._default_metadata)
+        for key, value in kwargs.items():
+            if key in self.metadata:
+                self.metadata[key] = value
+
+        self._update_parameters()
+
+        return None
+
+
+    def _get_usable_paths(self, paths):
+        """
+        Get usable paths.
+
+        :param paths:
+            A list of Balmer-line model paths.
+        """
+
         usable_paths = []
         for path in paths:
             if not os.path.exists(path):
@@ -105,25 +132,41 @@ class BalmerLineModel(object):
             raise ValueError("insufficient number of grid points ({} < {})"\
                 .format(len(usable_paths), self._minimum_grid_points_required))
 
-        self.paths = usable_paths
+        return usable_paths
 
-        # Get representative wavelength limits.
+
+    def _get_wavelength_limits(self, path):
+
         wavelengths = utils.parse_spectrum(self.paths[0])[:, 0]
-        self.wavelength_limits = (min(wavelengths), max(wavelengths))
+        return (min(wavelengths), max(wavelengths))
 
-        # Parse the stellar parameters from the usable paths.
-        self.stellar_parameters = np.array(
+
+    def _get_stellar_parameters(self, paths):
+        return np.array(
             [utils.parse_stellar_parameters(path) for path in self.paths])
 
-        self.metadata = {}
-        self.metadata.update(self._default_metadata)
-        for key, value in kwargs.items():
-            if key in self.metadata:
-                self.metadata[key] = value
 
+    def __getstate__(self):
+        """ Return the model state for serialization. """
+
+        return (self.paths, self.metadata, self._inference_result)
+
+
+    def __setstate__(self, state):
+
+        paths, metadata, inference_result = state
+
+        self.paths = self._get_usable_paths(paths)
+        self.wavelength_limits = self._get_wavelength_limits(self.paths[0])
+        self.stellar_parameters = self._get_stellar_parameters(self.paths)
+
+        self.metadata = {}
+        self.metadata.update(metadata)
         self._update_parameters()
+        self._inference_result = inference_result
 
         return None
+
 
 
     @property
@@ -266,49 +309,6 @@ class BalmerLineModel(object):
         return tuple(list(result) + [model_disp, model_flux]) \
             if return_model_spectrum else result
 
-
-    def optimize_over_all_models(self, data):
-        """
-        Optimize the (nuisance) model parameters over all grid points.
-
-        :param data:
-            The observed spectrum.
-        """
-
-        self._update_parameters()
-
-        # Slice spectrum.
-        obs_dispersion, obs_flux, obs_ivar = self._slice_spectrum(data)
-        obs_sigma = np.sqrt(1.0/obs_ivar)
-
-        # Apply masks.
-        mask = _generate_mask(obs_dispersion, self.metadata["mask"]) \
-             * np.isfinite(obs_flux * obs_sigma)
-
-        obs_dispersion = obs_dispersion[mask]
-        obs_flux = obs_flux[mask]
-        obs_ivar = obs_ivar[mask]
-        obs_sigma = obs_sigma[mask]
-
-
-        def selector(x, *parameters):
-
-            model_fluxes = self(None, x, *parameters)
-
-            # Get the best point
-            chi_sq = np.sum((model_fluxes - obs_flux)**2 * obs_ivar, axis=1)
-            grid_index = np.argmin(chi_sq)
-
-            print(grid_index, parameters, chi_sq[grid_index])
-            return model_fluxes[grid_index]
-
-        op_parameters, cov = op.curve_fit(selector, 
-            obs_dispersion, obs_flux, sigma=obs_sigma, 
-            absolute_sigma=True, p0=self.initial_guess, maxfev=10000)
-
-        # Stitch with grid parameters?
-
-        raise a
 
 
 
@@ -555,20 +555,20 @@ class BalmerLineModel(object):
                 # Estimate a MAP value and +/- uncertainties.
                 map_value = x_interp[pdf_interp.argmax()]
 
+                cdf = [pdf_interp[:i].sum() for i in range(pdf_interp.size)]
+                cdf = np.array(cdf) / np.max(cdf)
+
+                # Get quartiles.
+                li, ci, ui = cdf.searchsorted([0.16, 0.5, 0.84])
+                neg = x_interp[li] - x_interp[ci]
+                pos = x_interp[ui] - x_interp[ci]
 
             else:
                 map_value = x.flatten()[np.argmax(pdf)]
+                pos, neg = (np.nan, np.nan)
 
-            posteriors[parameter] = (map_value, (x, pdf))
+            posteriors[parameter] = (map_value, pos, neg), (x, pdf)
             continue
-
-            posteriors[parameter] \
-                = (map_value, np.nan, np.nan, )
-
-
-            raise a
-
-
 
         return posteriors
 
@@ -580,6 +580,7 @@ class BalmerLineModel(object):
         Draw samples from the posterior in a very crude way.
         """
 
+        raise a
         x, pdf = model.marginalized_posteriors["TEFF"][4]
 
 
@@ -718,14 +719,24 @@ class BalmerLineModel(object):
 
         #obs_dispersion = obs_dispersion[mask]
         #obs_flux, obs_ivar = obs_flux[mask], obs_ivar[mask]
-        obs_flux[~mask] = np.nan
-        ax.plot(obs_dispersion, obs_flux, c='k', drawstyle="steps-mid")
 
+        _ = np.where(mask)[0]
+        si, ei = _[0], _[-1]
+        
         # Show uncertainties.
         obs_sigma = np.sqrt(1.0/obs_ivar)
         fill_between_steps(ax,
-            obs_dispersion, obs_flux - obs_sigma, obs_flux + obs_sigma,
+            obs_dispersion[si:ei],
+            obs_flux[si:ei] - obs_sigma[si:ei],
+            obs_flux[si:ei] + obs_sigma[si:ei],
             facecolor="#AAAAAA", edgecolor="none", alpha=1)
+
+        # Limit to the edge of what is OK.
+        ax.plot(obs_dispersion[si:ei], obs_flux[si:ei], c="#444444", drawstyle="steps-mid")
+
+        obs_flux[~mask] = np.nan
+        ax.plot(obs_dispersion, obs_flux, c='k', drawstyle="steps-mid")
+
 
         # Get the MAP value.
         if index is None:
@@ -808,8 +819,6 @@ def mask(self, spectrum):
 
 
 
-
-
 def unique_indices(a):
     b = np.ascontiguousarray(a).view(
         np.dtype((np.void, a.dtype.itemsize * a.shape[1])))
@@ -818,121 +827,3 @@ def unique_indices(a):
     return idx
 
 
-if __name__ == "__main__":
-
-
-
-    # Show results from some previous inference.
-
-
-
-    from glob import glob
-
-    """
-    model = BalmerLineModel(
-        glob("smh/balmer/models/metpoor*_bet/*.prf"), 
-        mask=[
-            [1000, 4841],
-            [4859.51, 4859.84],
-            [4860, 4862], # core.
-            [4871, 4873],
-            [4878, 4879],
-            [4846.26, 4852],
-            [4881, 10000]
-        ],
-        redshift=True,
-        smoothing=False,
-        continuum_order=3
-    )
-    """
-
-    """
-    model = BalmerLineModel(glob("smh/balmer/models/metpoor*bet*/*.prf"),
-        mask=[
-            [1000, 4328],
-            [4336.84, 4337.31],
-            [4337.48, 4338.09],
-            [4339.31, 4339.53],
-            [4340.03, 4340.98],
-            [4341.2, 4341.59],
-            [4344.11, 4344.72],
-            [4350, 10000]
-        ],
-        redshift=True,
-        smoothing=False,
-        continuum_order=2)
-
-    #import cPickle as pickle
-    #with open("temp_inference.pkl", "rb") as fp:
-    #    model._inference_result = pickle.load(fp)
-
-    model = BalmerLineModel(glob("smh/balmer/models/*_alpha04_bet/*.prf"),
-        mask=[
-            [1000, 4841],
-            [4859.51, 4859.84],
-            [4860, 4862], # core.
-            [4871, 4873],
-            [4878, 4879],
-            [4881, 10000]
-        ],
-        redshift=True, smoothing=False, continuum_order=2)
-
-    # Get a rest-frame normalized spectrum...
-    from smh.specutils import Spectrum1D
-    hd122563 = Spectrum1D.read("smh/balmer/hd122563.fits")
-    hd140283 = Spectrum1D.read("hd140283.fits")
-    hd140283._ivar = 1e-5 * np.ones(hd140283.dispersion.size)
-    hd122563._ivar = 1e-5 * np.ones(hd122563.dispersion.size)
- 
-    """
-
-    import cPickle as pickle
-    with open("tmp2.pkl", "rb") as fp:
-        spectra = pickle.load(fp)
-
-    with open("tmp.pkl", "rb") as fp:
-        result = pickle.load(fp)
-
-
-    import json
-    a = """{u'bounds': {},
- u'continuum_order': 3,
- u'mask': [[4897.0807173556823, 9290.8011736853732],
-  [3184.7528307346888, 4821.8135575042106],
-  [4876.9743380926166, 4907.2516520972313],
-  [4814.7376370831307, 4842.6600488873864],
-  [4859.3732784937802, 4859.9084192007494],
-  [4860.5030199862713, 4862.0489820286275],
-  [4865.3192863489967, 4865.7355068988618],
-  [4865.9138871345185, 4866.567947998592],
-  [4870.9679938114523, 4871.6220546755267],
-  [4871.8004349111825, 4872.5734159323611],
-  [4854.6164722096064, 4854.973232680919],
-  [4855.2705330736799, 4855.5678334664408],
-  [4855.2110729951282, 4855.3299931522324],
-  [4848.8488445900457, 4849.3839852970159]],
- u'redshift': False,
- u'smoothing': False}"""
-
-    model = BalmerLineModel(glob("smh/balmer/models/*_alpha04_bet/*.prf"),
-        continuum_order=3,
-        mask=[
-            [4897.0807173556823, 9290.8011736853732],
-          [3184.7528307346888, 4821.8135575042106],
-          [4876.9743380926166, 4907.2516520972313],
-          [4814.7376370831307, 4842.6600488873864],
-          [4859.3732784937802, 4859.9084192007494],
-          [4860.5030199862713, 4862.0489820286275],
-          [4865.3192863489967, 4865.7355068988618],
-          [4865.9138871345185, 4866.567947998592],
-          [4870.9679938114523, 4871.6220546755267],
-          [4871.8004349111825, 4872.5734159323611],
-          [4854.6164722096064, 4854.973232680919],
-          [4855.2705330736799, 4855.5678334664408],
-          [4855.2110729951282, 4855.3299931522324],
-          [4848.8488445900457, 4849.3839852970159]],
-        redshift=True,
-        smoothing=False
-        )
-
-    model._inference_result = result
