@@ -492,15 +492,17 @@ class NormalizationTab(QtGui.QWidget):
                       ((points[:, 0] - event.xdata)/xscale)**2 \
                     + (points[:, 1] - event.ydata)**2)
                 
-                index = np.argmin(distance)
-                if distance[index] < PIXEL_PICKER_TOLERANCE:
-                    # Remove that point.
-                    keep = np.ones(points.shape[0], dtype=bool)
-                    keep[index] = False
-                    self.ax_order.collections[0].set_offsets(points[keep])
+                if distance.size > 0:
 
-                else:
-                    print("Closest point {} px away".format(distance[index]))
+                    index = np.argmin(distance)
+                    if distance[index] < PIXEL_PICKER_TOLERANCE:
+                        # Remove that point.
+                        keep = np.ones(points.shape[0], dtype=bool)
+                        keep[index] = False
+                        self.ax_order.collections[0].set_offsets(points[keep])
+
+                    else:
+                        print("Closest point {} px away".format(distance[index]))
 
             # Update the cache.
             idx = self.current_order_index
