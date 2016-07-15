@@ -464,7 +464,10 @@ class LineListTableView(QtGui.QTableView):
                 "fitted_result": [None, None, {
                     # We assume supplied equivalent widths are in milliAngstroms
                     "equivalent_width": \
-                    (1e-3 * line_list["equivalent_width"][idx], np.nan, np.nan)
+                    (1e-3 * line_list["equivalent_width"][idx], 0.0, 0.0),
+                    "reduced_equivalent_width": \
+                    (-3+np.log10(line_list["equivalent_width"][idx]/line_list["wavelength"][idx]),
+                      0.0, 0.0)
                 }]
             })
             spectral_models_to_add.append(model)
