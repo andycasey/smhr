@@ -344,9 +344,21 @@ def corrections(lon, lat, alt, ra, dec, mjd):
     v = 2 * np.pi * r / (23.934469591229 * 3600 * u.second)
 
     # Calculate vdiurnal velocity
-    vdiurnal = v * np.cos(lat) * np.cos(coordinate.dec) \
-      * np.sin(coordinate.ra - time.sidereal_time("mean"))
+    try:
+        vdiurnal = v * np.cos(lat) * np.cos(coordinate.dec) \
+          * np.sin(coordinate.ra - time.sidereal_time("mean"))
 
+    except:
+        logging.exception("exception in calculating vdirunal velocity")
+
+        # Try again with decreased precision.
+        time.delta_ut1_utc = 0.0
+
+        vdiurnal = v * np.cos(lat) * np.cos(coordinate.dec) \
+          * np.sin(coordinate.ra - time.sidereal_time("mean"))
+
+        logging.warn("Explicitly set delta_ut1_utc = 0")
+        
     # Calculate baricentric and heliocentric velocities
     vh, vb = celestial_velocities(time)
 
