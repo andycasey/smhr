@@ -303,7 +303,7 @@ class BaseSpectralModel(object):
         spectrum = spectrum or self.session.normalized_spectrum
 
         # Check the transition is in the spectrum range.
-        wavelength = self.transitions["wavelength"]
+        wavelength = abs(self.transitions["wavelength"])
         try:
             wavelength = wavelength[0]
         except IndexError:
