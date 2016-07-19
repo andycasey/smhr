@@ -998,7 +998,7 @@ class TransitionsDialog(QtGui.QDialog):
             caption="Select exported transitions file", dir="", filter="*.pkl")
         if not path: return None
 
-        N = self.session.load_transitions(path)
+        N = self.session.import_transitions(path)
         if N > 0:
             self.linelist_view.model().reset()
             self.linelist_view.clearSelection()
