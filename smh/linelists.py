@@ -98,10 +98,13 @@ class LineList(Table):
         return False
 
     @staticmethod
-    def identify_conflicts(ll1, ll2, skip_equal_loggf=False,
+    def identify_conflicts(ll1, ll2, 
+                           skip_exactly_equal_lines=False,
+                           skip_equal_loggf=False,
                            dwl_thresh=.001,dEP_thresh=.01,dgf_thresh=.001):
         """
-        skip_equal_loggf: if True, skips single-line conflicts that are identical
+        skip_exactly_equal_lines: if True, skips single-line conflicts that are identical hashes
+        skip_equal_loggf: if True, skips single-line conflicts that are almost identical
         """
         if len(ll1) > len(ll2): #swap
             swap = True
@@ -139,13 +142,16 @@ class LineList(Table):
             this_conflicts = conflicts[eq_class]
             equivalence_lines1.append( ll1[np.unique(this_conflicts[:,0])] )
             equivalence_lines2.append( ll2[np.unique(this_conflicts[:,1])] )
-        if skip_equal_loggf:
+        if skip_exactly_equal_lines or skip_equal_loggf:
+            if skip_equal_loggf: 
+                equal_fn = lambda x,y: LineList.lines_equal(x,y,dwl_thresh=dwl_thresh,
+                                                            dEP_thresh=dEP_thresh,dgf_thresh=dgf_thresh)
+            if skip_exactly_equal_lines: #overwrite skip_equal_loggf
+                equal_fn = lambda x,y: LineList.lines_exactly_equal(x,y)
+
             _drop_indices = []
             for i,(x,y) in enumerate(zip(equivalence_lines1,equivalence_lines2)):
-                if len(x)==1 and len(y)==1 and LineList.lines_equal(x[0],y[0],
-                                                                    dwl_thresh=dwl_thresh,
-                                                                    dEP_thresh=dEP_thresh,
-                                                                    dgf_thresh=dgf_thresh):
+                if len(x)==1 and len(y)==1 and equal_fn(x[0],y[0]):
                     _drop_indices.append(i)
             equivalence_lines1 = [v for i,v in enumerate(equivalence_lines1) if i not in _drop_indices]
             equivalence_lines2 = [v for i,v in enumerate(equivalence_lines2) if i not in _drop_indices]
@@ -153,6 +159,7 @@ class LineList(Table):
         return equivalence_lines1, equivalence_lines2
 
     def merge(self,new_ll,thresh=None,loggf_thresh=None,raise_exception=True,
+              skip_exactly_equal_lines=False,
               skip_equal_loggf=False,
               override_current=False,in_place=True,
               add_new_lines=True):
@@ -173,8 +180,12 @@ class LineList(Table):
               Note: if in_place == True, then it merges new lines BEFORE raising the error
             If False, uses self.pick_best_line() to pick a line to overwrite
 
+        skip_exactly_equal_lines:
+            If True, skips lines that have equal hashes during the merge
+            If False (default), raises exception for duplicate lines
+
         skip_equal_loggf:
-            If True, skips lines that are exactly equal during the merge
+            If True, skips lines that are almost exactly equal during the merge
             If False (default), raises exception for duplicate lines
 
         override_current: 
@@ -241,7 +252,9 @@ class LineList(Table):
         
         # Note: if in_place == True, then it merges new lines BEFORE raising the exception
         if raise_exception:
-            conflicts1,conflicts2 = self.identify_conflicts(self,new_ll,skip_equal_loggf=skip_equal_loggf,
+            conflicts1,conflicts2 = self.identify_conflicts(self,new_ll,
+                                                            skip_exactly_equal_lines=skip_exactly_equal_lines,
+                                                            skip_equal_loggf=skip_equal_loggf,
                                                             dwl_thresh=thresh, dgf_thresh=loggf_thresh)
             if len(conflicts1) > 0:
                 raise LineListConflict(conflicts1, conflicts2)
@@ -342,9 +355,8 @@ class LineList(Table):
 
     @staticmethod
     def hash(line):
-        # I wonder if it may be needed to specify the precision of the floats put into here
-        s = "{}_{}_{}_{}_{}_{}_{}_{}".format(line['wavelength'],line['expot'],line['loggf'],
-                                             line['elem1'],line['elem2'],line['ion'],line['isotope1'],line['isotope2'])
+        s = "{:.3f}_{:.3f}_{:.3f}_{}_{}_{}_{}_{}".format(line['wavelength'],line['expot'],line['loggf'],
+                                                         line['elem1'],line['elem2'],line['ion'],line['isotope1'],line['isotope2'])
         return md5.new(s).hexdigest()
 
     @staticmethod
@@ -353,6 +365,11 @@ class LineList(Table):
         dEP = np.abs(l1['expot']-l2['expot'])
         dgf = np.abs(l1['loggf']-l2['loggf'])
         return dwl < dwl_thresh and dEP < dEP_thresh and dgf < dgf_thresh
+
+    @staticmethod
+    def lines_exactly_equal(l1,l2):
+        #return LineList.lines_equal(l1,l2,dwl_thresh=1e-4,dEP_thresh=1e-4,dgf_thresh=1e-4)
+        return l1['hash']==l2['hash']
 
     @classmethod
     def read(cls,filename,*args,**kwargs):

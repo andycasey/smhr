@@ -406,8 +406,9 @@ class LineListTableView(QtGui.QTableView):
         filename_transitions = [line_list]
         for filename in filenames[1:]:
             new_lines = LineList.read(filename)
+            # Use extremely intolerant to force hashes to be the same
             line_list = line_list.merge(new_lines, in_place=False,
-                                        skip_equal_loggf=True)
+                                        skip_exactly_equal_lines=True)
             filename_transitions.append(new_lines)
 
         # Merge the line list with any existing line list in the session.
@@ -418,7 +419,7 @@ class LineListTableView(QtGui.QTableView):
             N = len(self.session.metadata["line_list"]) - len(line_list)
             self.session.metadata["line_list"] \
                 = self.session.metadata["line_list"].merge(
-                    line_list, in_place=False, skip_equal_loggf=True)
+                    line_list, in_place=False, skip_exactly_equal_lines=True)
 
         self.model().reset()
         print("Time taken: {:.1f}".format(time() - ta))

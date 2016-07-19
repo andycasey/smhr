@@ -204,7 +204,7 @@ class BaseSpectralModel(object):
         for i, each in enumerate(self._transition_hashes):
             index = np.where(
                 self._session.metadata["line_list"]["hash"] == each)[0]
-            assert len(index) == 1
+            assert len(index) == 1, len(index)
             indices[i] = index
 
         self._transition_indices = indices
