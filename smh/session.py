@@ -285,9 +285,7 @@ class Session(BaseSession):
         tarball.close()
 
         # Remove the temporary working directory.
-        # TODO start removing the twd again after session saving bugs are fixed
-        #rmtree(twd)
-        logger.debug("Session saved in {}, not deleting".format(twd))
+        rmtree(twd)
 
         if exception_occurred:
             raise
