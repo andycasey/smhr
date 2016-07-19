@@ -373,8 +373,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         tab_hbox.addLayout(vbox_rhs)
         self.opt_tabs.addTab(self.tab_profile, "Profile")
         
-        # Connect Signals for Profile
-        self._connect_profile_signals()
+        # Connect Signals for Profile: after synthesis
 
         ###################
         ### Synthesis options
@@ -468,57 +467,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         tab_hbox.addLayout(vbox_rhs)
         self.opt_tabs.addTab(self.tab_synthesis, "Synthesis")
 
-        # Connect signals for synthesis
-        self.synthDefaultAction = self.fit_one
-
-        self.edit_view_window_2.textChanged.connect(
-            self.update_edit_view_window_2)
-        self.edit_fit_window_2.textChanged.connect(
-            self.update_edit_fit_window_2)
-        self.checkbox_continuum_2.stateChanged.connect(
-            self.clicked_checkbox_continuum_2)
-        #self.checkbox_continuum_2.stateChanged.connect(
-        #    self.synthDefaultAction)
-        self.combo_continuum_2.currentIndexChanged.connect(
-            self.update_continuum_order_2)
-        #self.combo_continuum_2.currentIndexChanged.connect(
-        #    self.synthDefaultAction)
-        self.edit_manual_continuum.textChanged.connect(
-            self.update_edit_manual_continuum)
-        #self.edit_manual_continuum.returnPressed.connect(
-        #    self.synthDefaultAction)
-        self.checkbox_vrad_tolerance_2.stateChanged.connect(
-            self.clicked_checkbox_vrad_tolerance_2)
-        #self.checkbox_vrad_tolerance_2.stateChanged.connect(
-        #    self.synthDefaultAction)
-        self.edit_vrad_tolerance_2.textChanged.connect(
-            self.update_vrad_tolerance_2)
-        #self.edit_vrad_tolerance_2.returnPressed.connect(
-        #    self.synthDefaultAction)
-        self.edit_manual_rv.textChanged.connect(
-            self.update_manual_rv)
-        #self.edit_manual_rv.returnPressed.connect(
-        #    self.synthDefaultAction)
-        self.checkbox_model_smoothing.stateChanged.connect(
-            self.clicked_checkbox_model_smoothing)
-        #self.checkbox_model_smoothing.stateChanged.connect(
-        #    self.synthDefaultAction)
-        self.edit_manual_smoothing.textChanged.connect(
-            self.update_manual_smoothing)
-        #self.edit_manual_smoothing.returnPressed.connect(
-        #    self.synthDefaultAction)
-        self.edit_initial_abundance_bound.textChanged.connect(
-            self.update_initial_abundance_bound)
-        #self.edit_initial_abundance_bound.returnPressed.connect(
-        #    self.synthDefaultAction)
-        self.btn_synthesize.clicked.connect(
-            self.synthesize_current_model)
-        self.btn_fit_synth.clicked.connect(
-            self.fit_one)
-        self.btn_update_abund_table.clicked.connect(
-            self.clicked_btn_update_abund_table)
-        self.btn_clear_masks_2.clicked.connect(
-            self.clicked_btn_clear_masks)
+        # Connect signals for Profile and Synthesis
+        self._connect_profile_signals()
 
     def new_session_loaded(self):
         """
@@ -533,6 +483,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def _disconnect_profile_signals(self):
         for signal_obj, method in self._profile_signals:
+            signal_obj.disconnect(method)
+        for signal_obj, method in self._synth_signals:
             signal_obj.disconnect(method)
     def _connect_profile_signals(self):
         self.edit_view_window.textChanged.connect(
@@ -615,7 +567,85 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             (self.btn_fit_one.clicked,self.fit_one),
             (self.btn_clear_masks.clicked,self.clicked_btn_clear_masks)
             ]
-            
+
+        #self.synthDefaultAction = self.fit_one
+
+        self.edit_view_window_2.textChanged.connect(
+            self.update_edit_view_window_2)
+        self.edit_fit_window_2.textChanged.connect(
+            self.update_edit_fit_window_2)
+        self.checkbox_continuum_2.stateChanged.connect(
+            self.clicked_checkbox_continuum_2)
+        #self.checkbox_continuum_2.stateChanged.connect(
+        #    self.synthDefaultAction)
+        self.combo_continuum_2.currentIndexChanged.connect(
+            self.update_continuum_order_2)
+        #self.combo_continuum_2.currentIndexChanged.connect(
+        #    self.synthDefaultAction)
+        self.edit_manual_continuum.textChanged.connect(
+            self.update_edit_manual_continuum)
+        #self.edit_manual_continuum.returnPressed.connect(
+        #    self.synthDefaultAction)
+        self.checkbox_vrad_tolerance_2.stateChanged.connect(
+            self.clicked_checkbox_vrad_tolerance_2)
+        #self.checkbox_vrad_tolerance_2.stateChanged.connect(
+        #    self.synthDefaultAction)
+        self.edit_vrad_tolerance_2.textChanged.connect(
+            self.update_vrad_tolerance_2)
+        #self.edit_vrad_tolerance_2.returnPressed.connect(
+        #    self.synthDefaultAction)
+        self.edit_manual_rv.textChanged.connect(
+            self.update_manual_rv)
+        #self.edit_manual_rv.returnPressed.connect(
+        #    self.synthDefaultAction)
+        self.checkbox_model_smoothing.stateChanged.connect(
+            self.clicked_checkbox_model_smoothing)
+        #self.checkbox_model_smoothing.stateChanged.connect(
+        #    self.synthDefaultAction)
+        self.edit_manual_smoothing.textChanged.connect(
+            self.update_manual_smoothing)
+        #self.edit_manual_smoothing.returnPressed.connect(
+        #    self.synthDefaultAction)
+        self.edit_initial_abundance_bound.textChanged.connect(
+            self.update_initial_abundance_bound)
+        #self.edit_initial_abundance_bound.returnPressed.connect(
+        #    self.synthDefaultAction)
+        self.btn_synthesize.clicked.connect(
+            self.synthesize_current_model)
+        self.btn_fit_synth.clicked.connect(
+            self.fit_one)
+        self.btn_update_abund_table.clicked.connect(
+            self.clicked_btn_update_abund_table)
+        self.btn_clear_masks_2.clicked.connect(
+            self.clicked_btn_clear_masks)
+
+        self._synth_signals = [
+            (self.edit_view_window_2.textChanged,self.update_edit_view_window_2),
+            (self.edit_fit_window_2.textChanged,self.update_edit_fit_window_2),
+            (self.checkbox_continuum_2.stateChanged,self.clicked_checkbox_continuum_2),
+            #(self.checkbox_continuum_2.stateChanged,self.synthDefaultAction),
+            (self.combo_continuum_2.currentIndexChanged,self.update_continuum_order_2),
+            #(self.combo_continuum_2.currentIndexChanged,self.synthDefaultAction),
+            (self.edit_manual_continuum.textChanged,self.update_edit_manual_continuum),
+            #(self.edit_manual_continuum.returnPressed,self.synthDefaultAction),
+            (self.checkbox_vrad_tolerance_2.stateChanged,self.clicked_checkbox_vrad_tolerance_2),
+            #(self.checkbox_vrad_tolerance_2.stateChanged,self.synthDefaultAction),
+            (self.edit_vrad_tolerance_2.textChanged,self.update_vrad_tolerance_2),
+            #(self.edit_vrad_tolerance_2.returnPressed,self.synthDefaultAction),
+            (self.edit_manual_rv.textChanged,self.update_manual_rv),
+            #(self.edit_manual_rv.returnPressed,self.synthDefaultAction),
+            (self.checkbox_model_smoothing.stateChanged,self.clicked_checkbox_model_smoothing),
+            #(self.checkbox_model_smoothing.stateChanged,self.synthDefaultAction),
+            (self.edit_manual_smoothing.textChanged,self.update_manual_smoothing),
+            #(self.edit_manual_smoothing.returnPressed,self.synthDefaultAction),
+            (self.edit_initial_abundance_bound.textChanged,self.update_initial_abundance_bound),
+            #(self.edit_initial_abundance_bound.returnPressed,self.synthDefaultAction),
+            (self.btn_synthesize.clicked,self.synthesize_current_model),
+            (self.btn_fit_synth.clicked,self.fit_one),
+            (self.btn_update_abund_table.clicked,self.clicked_btn_update_abund_table),
+            (self.btn_clear_masks_2.clicked,self.clicked_btn_clear_masks)
+            ]
+
     def populate_filter_combo_box(self):
         if self.parent.session is None: return None
         box = self.filter_combo_box
@@ -1439,6 +1469,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         # Synthesis options.
         if isinstance(selected_model, SpectralSynthesisModel):
+            # Disconnect signals so it doesn't automatically fit
+            self._disconnect_profile_signals()
+
             self.opt_tabs.setTabEnabled(1, True)
             self.opt_tabs.setCurrentIndex(1)
 
@@ -1486,6 +1519,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
             # sigma smooth tolerance needs implementing.
             self.synth_abund_table_model.load_new_model(selected_model)
+
+            # Reconnect signals
+            self._connect_profile_signals()
         else:
             self.opt_tabs.setTabEnabled(1, False)
 
