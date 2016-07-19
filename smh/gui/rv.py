@@ -772,6 +772,9 @@ class RVTab(QtGui.QWidget):
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 1, True)
         self.parent.normalization_tab.update_rv_applied()
 
+        # Enable relevant menu actions.
+        self.parent._action_fit_balmer_lines.setEnabled(True)
+
         return None
 
 

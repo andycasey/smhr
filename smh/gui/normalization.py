@@ -313,12 +313,13 @@ class NormalizationTab(QtGui.QWidget):
             "button_release_event", self.figure_mouse_release)
 
         # Zoom box
-        self.norm_plot.mpl_connect(
-            "button_press_event", self.norm_plot.axis_right_mouse_press)
-        self.norm_plot.mpl_connect(
-            "button_release_event", self.norm_plot.axis_right_mouse_release)
-        self.norm_plot.mpl_connect(
-            "key_press_event", self.norm_plot.unzoom_on_z_press)
+        #self.norm_plot.mpl_connect(
+        #    "button_press_event", self.norm_plot.axis_right_mouse_press)
+        #self.norm_plot.mpl_connect(
+        #    "button_release_event", self.norm_plot.axis_right_mouse_release)
+        #self.norm_plot.mpl_connect(
+        #    "key_press_event", self.norm_plot.unzoom_on_z_press)
+        self.norm_plot.enable_interactive_zoom()
         
         self.function.currentIndexChanged.connect(
             self.update_normalization_function)
@@ -491,15 +492,17 @@ class NormalizationTab(QtGui.QWidget):
                       ((points[:, 0] - event.xdata)/xscale)**2 \
                     + (points[:, 1] - event.ydata)**2)
                 
-                index = np.argmin(distance)
-                if distance[index] < PIXEL_PICKER_TOLERANCE:
-                    # Remove that point.
-                    keep = np.ones(points.shape[0], dtype=bool)
-                    keep[index] = False
-                    self.ax_order.collections[0].set_offsets(points[keep])
+                if distance.size > 0:
 
-                else:
-                    print("Closest point {} px away".format(distance[index]))
+                    index = np.argmin(distance)
+                    if distance[index] < PIXEL_PICKER_TOLERANCE:
+                        # Remove that point.
+                        keep = np.ones(points.shape[0], dtype=bool)
+                        keep[index] = False
+                        self.ax_order.collections[0].set_offsets(points[keep])
+
+                    else:
+                        print("Closest point {} px away".format(distance[index]))
 
             # Update the cache.
             idx = self.current_order_index

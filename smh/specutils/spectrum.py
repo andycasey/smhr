@@ -202,10 +202,11 @@ class Spectrum1D(object):
         #       Magellan/MIKE, and reduced with CarPy.
         md5_hash = md5(";".join([v for k, v in metadata.items() \
             if k.startswith("BANDID")])).hexdigest()
-        is_carpy_product = (md5_hash == "0da149208a3c8ba608226544605ed600")
+        is_carpy_mike_product = (md5_hash == "0da149208a3c8ba608226544605ed600")
+        is_carpy_mage_product = (md5_hash == "6b2c2ec1c4e1b122ccab15eb9bd305bc")
         is_apo_product = (image[0].header.get("OBSERVAT", None) == "APO")
 
-        if is_carpy_product:
+        if is_carpy_mike_product or is_carpy_mage_product:
             # CarPy gives a 'noise' spectrum, which we must convert to an
             # inverse variance array
             flux_ext = flux_ext or 1
