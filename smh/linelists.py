@@ -70,8 +70,37 @@ class LineList(Table):
             else:
                 hashes = [self.hash(line) for line in self]
                 self.add_column(Column(hashes,name='hash'))
+
+        self.check_for_duplicates()
         #self.validate_colnames(False)
 
+    def check_for_duplicates(self):
+        """
+        Check for exactly duplicated lines. This has to fail because hashes
+        are assumed to be unique in a LineList.
+        Exactly duplicated lines may occur for real reasons, e.g. if there is
+        insufficient precision to distinguish two HFS lines in the line list.
+        In these cases, it may be okay to combine the two lines into one 
+        total line with a combined loggf.
+        """
+        if len(self) != len(np.unique(self['hash'])):
+            error_msg = \
+                "This LineList contains lines with identical hashes.\n" \
+                "The problem is most likely due to completely identical lines\n" \
+                "(e.g., because of insufficient precision in HFS).\n" \
+                "If that is the case, it may be reasonable to combine the\n" \
+                "loggf for the two lines into a single line.\n" \
+                "We now print the duplicated lines:\n"
+            fmt = "{:.3f} {:.3f} {:.3f} {:5} {}\n"
+            total_duplicates = 0
+            for i,hash in enumerate(self['hash']):
+                N = np.sum(self['hash']==hash)
+                if N > 1: 
+                    line = self[i]
+                    total_duplicates += 1
+                    error_msg += fmt.format(line['wavelength'],line['expot'],line['loggf'],line['element'],line['hash'])
+            raise ValueError(error_msg)
+        return None
     def validate_colnames(self,error=False):
         """
         error: if True, raise error when validating.
