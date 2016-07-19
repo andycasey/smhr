@@ -71,7 +71,8 @@ class LineList(Table):
                 hashes = [self.hash(line) for line in self]
                 self.add_column(Column(hashes,name='hash'))
 
-        self.check_for_duplicates()
+        if 'hash' in self.columns:
+            self.check_for_duplicates()
         #self.validate_colnames(False)
 
     def check_for_duplicates(self):
