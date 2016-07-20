@@ -58,6 +58,12 @@ class LineList(Table):
             self.default_expot_thresh = kwargs.pop('default_expot_thresh')
         else:
             self.default_expot_thresh = 0.01
+        if "check_for_duplicates" in kwargs:
+            # If you check for duplicates, you do not have duplicates
+            self.has_duplicates = ~kwargs.pop("check_for_duplicates")
+        else:
+            # By default, check for duplicates
+            self.has_duplicates = False
 
         super(LineList, self).__init__(*args,**kwargs)
 
@@ -71,7 +77,7 @@ class LineList(Table):
                 hashes = [self.hash(line) for line in self]
                 self.add_column(Column(hashes,name='hash'))
 
-        if 'hash' in self.columns:
+        if 'hash' in self.columns and ~self.has_duplicates:
             self.check_for_duplicates()
         #self.validate_colnames(False)
 
@@ -183,6 +189,11 @@ class LineList(Table):
             for i,(x,y) in enumerate(zip(equivalence_lines1,equivalence_lines2)):
                 if len(x)==1 and len(y)==1 and equal_fn(x[0],y[0]):
                     _drop_indices.append(i)
+                elif len(x)==len(y): # check for identical HFS/molecule blocks
+                    for _x, _y in zip(x,y):
+                        if not equal_fn(_x, _y): break
+                    else: #all equal
+                        _drop_indices.append(i)
             equivalence_lines1 = [v for i,v in enumerate(equivalence_lines1) if i not in _drop_indices]
             equivalence_lines2 = [v for i,v in enumerate(equivalence_lines2) if i not in _drop_indices]
         if swap: return equivalence_lines2, equivalence_lines1
@@ -416,7 +427,7 @@ class LineList(Table):
             raise IOError("No such file or directory: {}".format(filename))
         for reader in [cls.read_moog, cls.read_GES]:
             try:
-                return reader(filename)
+                return reader(filename,**kwargs)
             except (IOError, KeyError, UnicodeDecodeError) as e:
                 # KeyError: Issue #87
                 # UnicodeDecodeError: read_moog fails this way for fits
@@ -424,7 +435,7 @@ class LineList(Table):
         raise IOError("Cannot identify linelist format (specify format if possible)")
 
     @classmethod
-    def read_moog(cls,filename,moog_columns=False):
+    def read_moog(cls,filename,moog_columns=False,**kwargs):
         if moog_columns:
             colnames = cls.moog_colnames
             dtypes = cls.moog_dtypes
@@ -528,10 +539,10 @@ class LineList(Table):
         dtypes = dtypes + [np.float]
         data = data + [ew]
         
-        return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns)
+        return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns,**kwargs)
 
     @classmethod
-    def read_GES(cls,filename,moog_columns=False):
+    def read_GES(cls,filename,moog_columns=False,**kwargs):
         if moog_columns:
             colnames = cls.moog_colnames
             dtypes = cls.moog_dtypes
@@ -600,7 +611,7 @@ class LineList(Table):
                     numelems,elem1,isotope1,elem2,isotope2,ion,
                     E_hi,lande_hi,lande_lo,damp_stark,damp_rad,refs,elements]
         print('Constructing line list')
-        return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns)
+        return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns,**kwargs)
 
     def write_moog(self,filename):
         fmt = "{:10.3f}{:10.5f}{:10.3f}{:10.3f}{}{}{}{}"
