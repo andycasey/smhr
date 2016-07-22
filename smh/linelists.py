@@ -37,7 +37,6 @@ class LineList(Table):
                    str,str]
 
     def __init__(self,*args,**kwargs):
-        print(kwargs)
         # Pull out some default kwargs
         if 'verbose' in kwargs: 
             self.verbose = kwargs.pop('verbose')
@@ -66,7 +65,6 @@ class LineList(Table):
         else:
             # By default, do NOT check for duplicates
             self.has_duplicates = True
-        print("Has duplicates?",self.has_duplicates)
 
         super(LineList, self).__init__(*args,**kwargs)
 
