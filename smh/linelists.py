@@ -37,6 +37,7 @@ class LineList(Table):
                    str,str]
 
     def __init__(self,*args,**kwargs):
+        print(kwargs)
         # Pull out some default kwargs
         if 'verbose' in kwargs: 
             self.verbose = kwargs.pop('verbose')
@@ -60,10 +61,12 @@ class LineList(Table):
             self.default_expot_thresh = 0.01
         if "check_for_duplicates" in kwargs:
             # If you check for duplicates, you do not have duplicates
+            # (because a ValueError is thrown otherwise)
             self.has_duplicates = ~kwargs.pop("check_for_duplicates")
         else:
-            # By default, check for duplicates
-            self.has_duplicates = False
+            # By default, do NOT check for duplicates
+            self.has_duplicates = True
+        print("Has duplicates?",self.has_duplicates)
 
         super(LineList, self).__init__(*args,**kwargs)
 
@@ -77,7 +80,7 @@ class LineList(Table):
                 hashes = [self.hash(line) for line in self]
                 self.add_column(Column(hashes,name='hash'))
 
-        if 'hash' in self.columns and ~self.has_duplicates:
+        if 'hash' in self.columns and (not self.has_duplicates):
             self.check_for_duplicates()
         #self.validate_colnames(False)
 
@@ -107,6 +110,7 @@ class LineList(Table):
                     total_duplicates += 1
                     error_msg += fmt.format(line['wavelength'],line['expot'],line['loggf'],line['element'],line['hash'])
             raise ValueError(error_msg)
+        self.has_duplicates = False
         return None
     def validate_colnames(self,error=False):
         """
