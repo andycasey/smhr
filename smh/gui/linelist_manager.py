@@ -191,11 +191,11 @@ class LineListTableView(QtGui.QTableView):
         return None
 
 
-    def add_imported_lines_as_profile_models(self):
+    def add_imported_lines_as_profile_models(self, filenames=None):
         """ Import line list data from a file and create profile models. """
 
         spectral_models_to_add = []
-        transitions = self.import_from_filename()
+        transitions = self.import_from_filename(filenames=filenames)
         if transitions is None: return None
 
         ta = time()
@@ -217,12 +217,12 @@ class LineListTableView(QtGui.QTableView):
         return None
 
 
-    def add_imported_lines_as_synthesis_model(self):
+    def add_imported_lines_as_synthesis_model(self, filenames=None):
         """
         Import line list data from a file and create a single synthesis model.
         """
 
-        selected = self.import_from_filename(full_output=True)
+        selected = self.import_from_filename(filenames=filenames,full_output=True)
         if selected is None: return None
 
         ta = time()
@@ -391,11 +391,15 @@ class LineListTableView(QtGui.QTableView):
         return None
     
 
-    def import_from_filename(self, full_output=False):
+    def import_from_filename(self, filenames=None, full_output=False):
         """ Import atomic physics data from a line list file. """
 
-        filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(self,
-            caption="Select files", dir="")
+        if filenames is None:
+            filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(self,
+                caption="Select files", dir="")
+        else:
+            if isinstance(filenames, string_types):
+                filenames = [filenames]
         if not filenames:
             return None
 
