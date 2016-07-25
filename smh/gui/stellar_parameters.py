@@ -454,6 +454,12 @@ class StellarParametersTab(QtGui.QWidget):
         #self.figure.mpl_connect("button_release_event", self.figure.axis_right_mouse_release)
         #self.figure.mpl_connect("key_press_event", self.figure.unzoom_on_z_press)
         self.figure.mpl_connect("key_press_event", self.key_press_zoom)
+        # Check and uncheck
+        self.figure.mpl_connect("key_press_event", self.key_press_check_uncheck)
+        # Antimasks
+        self.figure.mpl_connect("key_press_event", self.figure.key_press_flags)
+        self.figure.mpl_connect("key_release_event", self.figure.key_release_flags)
+        # Allow focusing figure for keyboard shortcuts
         self.figure.setFocusPolicy(QtCore.Qt.ClickFocus)
 
         return None
@@ -630,6 +636,16 @@ class StellarParametersTab(QtGui.QWidget):
         return None
 
 
+    def key_press_check_uncheck(self, event):
+        if event.key not in ["u", "U", "a", "A"]: return None
+        proxy_indices = self.table_view.selectionModel().selectedRows()
+        if event.key in ["u", "U"]:
+            self.table_view.mark_selected_models_as_unacceptable(proxy_indices)
+        elif event.key in ["a", "A"]:
+            self.table_view.mark_selected_models_as_acceptable(proxy_indices)
+        return None
+            
+
     def spectrum_axis_mouse_press(self, event):
         """
         The mouse button was pressed in the spectrum axis.
@@ -703,6 +719,17 @@ class StellarParametersTab(QtGui.QWidget):
                 return None
 
         else:
+            selected_model = self._get_selected_model()
+            # HACK
+            if "antimask_flag" not in selected_model.metadata:
+                selected_model.metadata["antimask_flag"] = False
+            # Clear all masks if shift key state is not same as antimask_flag
+            # Also change the antimask state
+            if selected_model.metadata["antimask_flag"] != self.figure.shift_key_pressed:
+                selected_model.metadata["mask"] = []
+                selected_model.metadata["antimask_flag"] = not selected_model.metadata["antimask_flag"]
+                print("Switching antimask flag to",selected_model.metadata["antimask_flag"])
+
             # Single click.
             xmin, xmax, ymin, ymax = (event.xdata, np.nan, -1e8, +1e8)
             for patch in self._lines["interactive_mask"]:
@@ -713,6 +740,7 @@ class StellarParametersTab(QtGui.QWidget):
                     [xmax, ymin],
                     [xmin, ymin]
                 ])
+                patch.set_facecolor("g" if selected_model.metadata["antimask_flag"] else "r")
 
             # Set the signal and the time.
             self._interactive_mask_region_signal = (
@@ -1064,6 +1092,8 @@ class StellarParametersTab(QtGui.QWidget):
                 break # do not fit if any stellar parameter lines are already fit
         else:
             for model in self.parent.session.metadata["spectral_models"]:
+                # Only fit things needed for stellar parameter inference
+                if not model.use_for_stellar_parameter_inference: continue
                 try:
                     model.fit()
                 except:
@@ -1394,6 +1424,9 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Model masks specified by the user.
         # (These should be shown regardless of whether there is a fit or not.)
+        # HACK
+        mask_color = "g" if "antimask_flag" in selected_model.metadata and \
+            selected_model.metadata["antimask_flag"] else "r"
         for i, (start, end) in enumerate(selected_model.metadata["mask"]):
             try:
                 patches = self._lines["model_masks"][i]
@@ -1401,9 +1434,9 @@ class StellarParametersTab(QtGui.QWidget):
             except IndexError:
                 self._lines["model_masks"].append([
                     self.ax_spectrum.axvspan(np.nan, np.nan,
-                        facecolor="r", edgecolor="none", alpha=0.25),
+                        facecolor=mask_color, edgecolor="none", alpha=0.25),
                     self.ax_residual.axvspan(np.nan, np.nan,
-                        facecolor="r", edgecolor="none", alpha=0.25)
+                        facecolor=mask_color, edgecolor="none", alpha=0.25)
                 ])
                 patches = self._lines["model_masks"][-1]
 
@@ -1415,6 +1448,7 @@ class StellarParametersTab(QtGui.QWidget):
                     [end,   -1e8],
                     [start, -1e8]
                 ])
+                patch.set_facecolor(mask_color)
                 patch.set_visible(True)
 
         # Hide unnecessary ones.
