@@ -217,7 +217,7 @@ class LineListTableView(QtGui.QTableView):
         return None
 
 
-    def add_imported_lines_as_synthesis_model(self, filenames=None):
+    def add_imported_lines_as_synthesis_model(self, filenames=None, input_elements = None):
         """
         Import line list data from a file and create a single synthesis model.
         """
@@ -231,38 +231,47 @@ class LineListTableView(QtGui.QTableView):
         
         full_line_list, filenames, filename_transitions = selected
 
-        # Check each filename for things...
-        for filename, transitions in zip(filenames, filename_transitions):
-
-            if len(transitions.unique_elements) == 1:
+        if input_elements is not None and len(filenames)==len(input_elements): 
+            for elements_to_measure in input_elements:
+                assert len(elements_to_measure) >= 1
+                # TODO verify they are elements in the list
+            for filename, transitions, elements_to_measure in zip(filenames, filename_transitions, input_elements):
                 self.session.metadata["spectral_models"].append(
                     SpectralSynthesisModel(self.session, transitions["hash"], 
-                        transitions.unique_elements))
-
-            else:
-                # Need to know which element(s) should be fit by this model.
-                selectable_elements \
-                    = list(set(transitions.unique_elements).difference(["H"]))
-
-                dialog = PeriodicTableDialog(
-                    selectable_elements=selectable_elements,
-                    explanation="Please select which element(s) will be measured"
-                        " by synthesizing the transitions in {}:".format(
-                            os.path.basename(filename)),
-                    multiple_select=True)
-                dialog.exec_()
-
-                if len(dialog.selected_elements) == 0:
-                    # Nothing selected. Skip this filename.
-                    continue
-
-                self.session.metadata["spectral_models"].append(
-                    SpectralSynthesisModel(self.session, transitions["hash"],
-                        dialog.selected_elements))
-
-
-        spectral_model = SpectralSynthesisModel(self.session, 
-            transitions["hash"], transitions.unique_elements)
+                                           elements_to_measure))
+        else: # Interactively ask for elements to measure
+            # Check each filename for things...
+            for filename, transitions in zip(filenames, filename_transitions):
+    
+                if len(transitions.unique_elements) == 1:
+                    self.session.metadata["spectral_models"].append(
+                        SpectralSynthesisModel(self.session, transitions["hash"], 
+                            transitions.unique_elements))
+    
+                else:
+                    # Need to know which element(s) should be fit by this model.
+                    selectable_elements \
+                        = list(set(transitions.unique_elements).difference(["H"]))
+    
+                    dialog = PeriodicTableDialog(
+                        selectable_elements=selectable_elements,
+                        explanation="Please select which element(s) will be measured"
+                            " by synthesizing the transitions in {}:".format(
+                                os.path.basename(filename)),
+                        multiple_select=True)
+                    dialog.exec_()
+    
+                    if len(dialog.selected_elements) == 0:
+                        # Nothing selected. Skip this filename.
+                        continue
+    
+                    self.session.metadata["spectral_models"].append(
+                        SpectralSynthesisModel(self.session, transitions["hash"],
+                            dialog.selected_elements))
+    
+        ## I don't think these lines did anything
+        #spectral_model = SpectralSynthesisModel(self.session, 
+        #    transitions["hash"], transitions.unique_elements)
 
         # Update the spectral model conflicts.
         self.session._spectral_model_conflicts = spectral_model_conflicts(
