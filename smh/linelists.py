@@ -205,7 +205,8 @@ class LineList(Table):
               skip_exactly_equal_lines=False,
               skip_equal_loggf=False,
               override_current=False,in_place=True,
-              add_new_lines=True):
+              add_new_lines=True,
+              ignore_conflicts=False):
         """
         new_ll: 
             new LineList object to merge into this one
@@ -244,19 +245,36 @@ class LineList(Table):
             If True (default), add new lines when merging.
             If False, do not add new lines. This is to replace lines from a list without adding them.
 
+        ignore_conflicts:
+            If True, merge the linelists without checking for conflicts
+            If False (default), check for conflicts during merge
+
         """
         if thresh==None: thresh = self.default_thresh
         if loggf_thresh==None: loggf_thresh = self.default_loggf_thresh
         if len(self)==0: 
             if not in_place:
-                return new_ll
+                return new_ll.copy()
             else:
                 n_cols = len(new_ll.colnames)
                 names = new_ll.colnames
                 dtype = [None] * n_cols
                 self._init_indices = self._init_indices and new_ll._copy_indices
                 self._init_from_table(new_ll, names, dtype, n_cols, True)
+                return None
 
+        if ignore_conflicts:
+            if self.verbose:
+                print("Ignoring conflicts: adding {} lines".format(len(new_ll)))
+            if not in_place:
+                return table.vstack([self, new_ll])
+            else:
+                combined = table.vstack([self, new_ll])
+                names = combined.colnames
+                dtype = [None] * n_cols
+                self._init_indices = self._init_indices and combined._copy_indices
+                self._init_from_table(combined, names, dtype, n_cols, True)
+                return None
         num_in_list = 0
         num_with_multiple_conflicts = 0
         lines_to_add = []

@@ -414,14 +414,15 @@ class LineListTableView(QtGui.QTableView):
 
         # Load from files.
         ta = time()
-        line_list = LineList.read(filenames[0])
+        line_list = LineList.read(filenames[0], verbose=True)
 
         filename_transitions = [line_list]
         for filename in filenames[1:]:
             new_lines = LineList.read(filename)
             # Use extremely intolerant to force hashes to be the same
             line_list = line_list.merge(new_lines, in_place=False,
-                                        skip_exactly_equal_lines=True)
+                                        skip_exactly_equal_lines=True,
+                                        ignore_conflicts=self._parent.checkbox_merge_without_conflicts.isChecked())
             filename_transitions.append(new_lines)
 
         # Merge the line list with any existing line list in the session.
@@ -432,7 +433,8 @@ class LineListTableView(QtGui.QTableView):
             N = len(self.session.metadata["line_list"]) - len(line_list)
             self.session.metadata["line_list"] \
                 = self.session.metadata["line_list"].merge(
-                    line_list, in_place=False, skip_exactly_equal_lines=True)
+                    line_list, in_place=False, skip_exactly_equal_lines=True,
+                    ignore_conflicts=self._parent.checkbox_merge_without_conflicts.isChecked())
 
         self.model().reset()
         print("Time taken: {:.1f}".format(time() - ta))
@@ -966,6 +968,9 @@ class TransitionsDialog(QtGui.QDialog):
         btn_import = QtGui.QPushButton(self)
         btn_import.setText("Import transitions..")
         hbox.addWidget(btn_import)
+        self.checkbox_merge_without_conflicts = QtGui.QCheckBox(self)
+        self.checkbox_merge_without_conflicts.setText("Ignore conflicts when merging")
+        hbox.addWidget(self.checkbox_merge_without_conflicts)
 
         # Spacer with a minimum width.
         hbox.addItem(QtGui.QSpacerItem(40, 20, 
