@@ -269,12 +269,13 @@ class LineList(Table):
             if not in_place:
                 return table.vstack([self, new_ll])
             else:
-                combined = table.vstack([self, new_ll])
-                names = combined.colnames
-                dtype = [None] * n_cols
-                self._init_indices = self._init_indices and combined._copy_indices
-                self._init_from_table(combined, names, dtype, n_cols, True)
-                return None
+                #combined = table.vstack([self, new_ll])
+                #names = combined.colnames
+                #dtype = [None] * n_cols
+                #self._init_indices = self._init_indices and combined._copy_indices
+                #self._init_from_table(combined, names, dtype, n_cols, True)
+                #return None
+                raise NotImplementedError
         num_in_list = 0
         num_with_multiple_conflicts = 0
         lines_to_add = []
