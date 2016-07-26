@@ -104,9 +104,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # Buttons
         hbox = QtGui.QHBoxLayout()
         self.btn_fit_all = QtGui.QPushButton(self)
-        self.btn_fit_all.setText("Fit all acceptable")
+        self.btn_fit_all.setText("Fit all EW")
         self.btn_measure_all = QtGui.QPushButton(self)
-        self.btn_measure_all.setText("Measure all acceptable")
+        self.btn_measure_all.setText("Measure all acceptable EW")
         hbox.addWidget(self.btn_fit_all)
         hbox.addWidget(self.btn_measure_all)
         lhs_layout.addLayout(hbox)
@@ -195,7 +195,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         _.selectionChanged.connect(self.selected_model_changed)
 
         # Connect buttons
-        self.btn_fit_all.clicked.connect(self.fit_all)
+        self.btn_fit_all.clicked.connect(self.fit_all_profiles)
         self.btn_measure_all.clicked.connect(self.measure_all)
 
         # Connect matplotlib.
@@ -746,7 +746,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         #print("Time to refresh plots: {:.1f}s".format(time.time()-start))
         return None
 
-    def fit_all(self):
+    def fit_all_profiles(self):
         self._check_for_spectral_models()
         current_element_index = self.filter_combo_box.currentIndex()
 
@@ -757,11 +757,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 num_unacceptable += 1
                 continue
             if isinstance(spectral_model, SpectralSynthesisModel):
-                try:
-                    res = spectral_model.fit()
-                except (ValueError, RuntimeError, TypeError) as e:
-                    logger.debug("Fitting error",spectral_model)
-                    logger.debug(e)
+                num_unacceptable += 1
+                continue
+                #try:
+                #    res = spectral_model.fit()
+                #except (ValueError, RuntimeError, TypeError) as e:
+                #    logger.debug("Fitting error",spectral_model)
+                #    logger.debug(e)
             elif isinstance(spectral_model, ProfileFittingModel):
                 try:
                     res = spectral_model.fit()
@@ -773,11 +775,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             print("Found no acceptable spectral models, fitting all!")
             for i,spectral_model in enumerate(self.all_spectral_models.spectral_models):
                 if isinstance(spectral_model, SpectralSynthesisModel):
-                    try:
-                        res = spectral_model.fit()
-                    except (ValueError, RuntimeError, TypeError) as e:
-                        logger.debug("Fitting error",spectral_model)
-                        logger.debug(e)
+                    continue
+                    #try:
+                    #    res = spectral_model.fit()
+                    #except (ValueError, RuntimeError, TypeError) as e:
+                    #    logger.debug("Fitting error",spectral_model)
+                    #    logger.debug(e)
                 elif isinstance(spectral_model, ProfileFittingModel):
                     try:
                         res = spectral_model.fit()
