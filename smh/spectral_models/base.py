@@ -204,7 +204,10 @@ class BaseSpectralModel(object):
         for i, each in enumerate(self._transition_hashes):
             index = np.where(
                 self._session.metadata["line_list"]["hash"] == each)[0]
-            assert len(index) == 1, len(index)
+            #assert len(index) == 1, len(index)
+            if len(index) != 1: 
+                print("WARNING: hash {} appears {} times in session linelist".format(each,len(index)))
+                index = index[0]
             indices[i] = index
 
         self._transition_indices = indices
