@@ -191,11 +191,11 @@ class LineListTableView(QtGui.QTableView):
         return None
 
 
-    def add_imported_lines_as_profile_models(self):
+    def add_imported_lines_as_profile_models(self, filenames=None):
         """ Import line list data from a file and create profile models. """
 
         spectral_models_to_add = []
-        transitions = self.import_from_filename()
+        transitions = self.import_from_filename(filenames=filenames)
         if transitions is None: return None
 
         ta = time()
@@ -217,12 +217,12 @@ class LineListTableView(QtGui.QTableView):
         return None
 
 
-    def add_imported_lines_as_synthesis_model(self):
+    def add_imported_lines_as_synthesis_model(self, filenames=None, input_elements = None):
         """
         Import line list data from a file and create a single synthesis model.
         """
 
-        selected = self.import_from_filename(full_output=True)
+        selected = self.import_from_filename(filenames=filenames,full_output=True)
         if selected is None: return None
 
         ta = time()
@@ -231,38 +231,47 @@ class LineListTableView(QtGui.QTableView):
         
         full_line_list, filenames, filename_transitions = selected
 
-        # Check each filename for things...
-        for filename, transitions in zip(filenames, filename_transitions):
-
-            if len(transitions.unique_elements) == 1:
+        if input_elements is not None and len(filenames)==len(input_elements): 
+            for elements_to_measure in input_elements:
+                assert len(elements_to_measure) >= 1
+                # TODO verify they are elements in the list
+            for filename, transitions, elements_to_measure in zip(filenames, filename_transitions, input_elements):
                 self.session.metadata["spectral_models"].append(
                     SpectralSynthesisModel(self.session, transitions["hash"], 
-                        transitions.unique_elements))
-
-            else:
-                # Need to know which element(s) should be fit by this model.
-                selectable_elements \
-                    = list(set(transitions.unique_elements).difference(["H"]))
-
-                dialog = PeriodicTableDialog(
-                    selectable_elements=selectable_elements,
-                    explanation="Please select which element(s) will be measured"
-                        " by synthesizing the transitions in {}:".format(
-                            os.path.basename(filename)),
-                    multiple_select=True)
-                dialog.exec_()
-
-                if len(dialog.selected_elements) == 0:
-                    # Nothing selected. Skip this filename.
-                    continue
-
-                self.session.metadata["spectral_models"].append(
-                    SpectralSynthesisModel(self.session, transitions["hash"],
-                        dialog.selected_elements))
-
-
-        spectral_model = SpectralSynthesisModel(self.session, 
-            transitions["hash"], transitions.unique_elements)
+                                           elements_to_measure))
+        else: # Interactively ask for elements to measure
+            # Check each filename for things...
+            for filename, transitions in zip(filenames, filename_transitions):
+    
+                if len(transitions.unique_elements) == 1:
+                    self.session.metadata["spectral_models"].append(
+                        SpectralSynthesisModel(self.session, transitions["hash"], 
+                            transitions.unique_elements))
+    
+                else:
+                    # Need to know which element(s) should be fit by this model.
+                    selectable_elements \
+                        = list(set(transitions.unique_elements).difference(["H"]))
+    
+                    dialog = PeriodicTableDialog(
+                        selectable_elements=selectable_elements,
+                        explanation="Please select which element(s) will be measured"
+                            " by synthesizing the transitions in {}:".format(
+                                os.path.basename(filename)),
+                        multiple_select=True)
+                    dialog.exec_()
+    
+                    if len(dialog.selected_elements) == 0:
+                        # Nothing selected. Skip this filename.
+                        continue
+    
+                    self.session.metadata["spectral_models"].append(
+                        SpectralSynthesisModel(self.session, transitions["hash"],
+                            dialog.selected_elements))
+    
+        ## I don't think these lines did anything
+        #spectral_model = SpectralSynthesisModel(self.session, 
+        #    transitions["hash"], transitions.unique_elements)
 
         # Update the spectral model conflicts.
         self.session._spectral_model_conflicts = spectral_model_conflicts(
@@ -391,23 +400,29 @@ class LineListTableView(QtGui.QTableView):
         return None
     
 
-    def import_from_filename(self, full_output=False):
+    def import_from_filename(self, filenames=None, full_output=False):
         """ Import atomic physics data from a line list file. """
 
-        filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(self,
-            caption="Select files", dir="")
+        if filenames is None:
+            filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(self,
+                caption="Select files", dir="")
+        else:
+            if isinstance(filenames, string_types):
+                filenames = [filenames]
         if not filenames:
             return None
 
         # Load from files.
         ta = time()
-        line_list = LineList.read(filenames[0])
+        line_list = LineList.read(filenames[0], verbose=True)
 
         filename_transitions = [line_list]
         for filename in filenames[1:]:
             new_lines = LineList.read(filename)
+            # Use extremely intolerant to force hashes to be the same
             line_list = line_list.merge(new_lines, in_place=False,
-                                        skip_equal_loggf=True)
+                                        skip_exactly_equal_lines=True,
+                                        ignore_conflicts=self._parent.checkbox_merge_without_conflicts.isChecked())
             filename_transitions.append(new_lines)
 
         # Merge the line list with any existing line list in the session.
@@ -418,7 +433,8 @@ class LineListTableView(QtGui.QTableView):
             N = len(self.session.metadata["line_list"]) - len(line_list)
             self.session.metadata["line_list"] \
                 = self.session.metadata["line_list"].merge(
-                    line_list, in_place=False, skip_equal_loggf=True)
+                    line_list, in_place=False, skip_exactly_equal_lines=True,
+                    ignore_conflicts=self._parent.checkbox_merge_without_conflicts.isChecked())
 
         self.model().reset()
         print("Time taken: {:.1f}".format(time() - ta))
@@ -952,6 +968,9 @@ class TransitionsDialog(QtGui.QDialog):
         btn_import = QtGui.QPushButton(self)
         btn_import.setText("Import transitions..")
         hbox.addWidget(btn_import)
+        self.checkbox_merge_without_conflicts = QtGui.QCheckBox(self)
+        self.checkbox_merge_without_conflicts.setText("Ignore conflicts when merging")
+        hbox.addWidget(self.checkbox_merge_without_conflicts)
 
         # Spacer with a minimum width.
         hbox.addItem(QtGui.QSpacerItem(40, 20, 

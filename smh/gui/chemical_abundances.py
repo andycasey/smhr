@@ -1943,7 +1943,7 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
                         for i,elem in enumerate(spectral_model.elements):
                             if _elem == elem: break
                         else:
-                            raise ValueError("{} not in {}".format(current_element, spectral_model.elements))
+                            raise ValueError("{} ({}) not in {}".format(current_element, _elem, spectral_model.elements))
                         value = "{0:.2f}".format(abundances[i])
         elif column in [3, 4]: #EW, REW
             if isinstance(spectral_model, ProfileFittingModel):

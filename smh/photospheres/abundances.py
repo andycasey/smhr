@@ -124,7 +124,11 @@ def asplund_2009(elements):
                 return (asplund_2009[element(Z)], True)
 
         elif isinstance(x, (int, float)):
-            el = element(x)
+            try:
+                el = element(x)
+            except IndexError: # Molecules
+                el = species_to_element(x).split()[0]
+
             try:
                 return (asplund_2009[el], True)
             except KeyError:

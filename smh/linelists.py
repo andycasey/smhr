@@ -58,6 +58,13 @@ class LineList(Table):
             self.default_expot_thresh = kwargs.pop('default_expot_thresh')
         else:
             self.default_expot_thresh = 0.01
+        if "check_for_duplicates" in kwargs:
+            # If you check for duplicates, you do not have duplicates
+            # (because a ValueError is thrown otherwise)
+            self.has_duplicates = ~kwargs.pop("check_for_duplicates")
+        else:
+            # By default, do NOT check for duplicates
+            self.has_duplicates = True
 
         super(LineList, self).__init__(*args,**kwargs)
 
@@ -70,8 +77,39 @@ class LineList(Table):
             else:
                 hashes = [self.hash(line) for line in self]
                 self.add_column(Column(hashes,name='hash'))
+
+        if 'hash' in self.columns and (not self.has_duplicates):
+            self.check_for_duplicates()
         #self.validate_colnames(False)
 
+    def check_for_duplicates(self):
+        """
+        Check for exactly duplicated lines. This has to fail because hashes
+        are assumed to be unique in a LineList.
+        Exactly duplicated lines may occur for real reasons, e.g. if there is
+        insufficient precision to distinguish two HFS lines in the line list.
+        In these cases, it may be okay to combine the two lines into one 
+        total line with a combined loggf.
+        """
+        if len(self) != len(np.unique(self['hash'])):
+            error_msg = \
+                "This LineList contains lines with identical hashes.\n" \
+                "The problem is most likely due to completely identical lines\n" \
+                "(e.g., because of insufficient precision in HFS).\n" \
+                "If that is the case, it may be reasonable to combine the\n" \
+                "loggf for the two lines into a single line.\n" \
+                "We now print the duplicated lines:\n"
+            fmt = "{:.3f} {:.3f} {:.3f} {:5} {}\n"
+            total_duplicates = 0
+            for i,hash in enumerate(self['hash']):
+                N = np.sum(self['hash']==hash)
+                if N > 1: 
+                    line = self[i]
+                    total_duplicates += 1
+                    error_msg += fmt.format(line['wavelength'],line['expot'],line['loggf'],line['element'],line['hash'])
+            raise ValueError(error_msg)
+        self.has_duplicates = False
+        return None
     def validate_colnames(self,error=False):
         """
         error: if True, raise error when validating.
@@ -98,10 +136,13 @@ class LineList(Table):
         return False
 
     @staticmethod
-    def identify_conflicts(ll1, ll2, skip_equal_loggf=False,
+    def identify_conflicts(ll1, ll2, 
+                           skip_exactly_equal_lines=False,
+                           skip_equal_loggf=False,
                            dwl_thresh=.001,dEP_thresh=.01,dgf_thresh=.001):
         """
-        skip_equal_loggf: if True, skips single-line conflicts that are identical
+        skip_exactly_equal_lines: if True, skips single-line conflicts that are identical hashes
+        skip_equal_loggf: if True, skips single-line conflicts that are almost identical
         """
         if len(ll1) > len(ll2): #swap
             swap = True
@@ -139,23 +180,33 @@ class LineList(Table):
             this_conflicts = conflicts[eq_class]
             equivalence_lines1.append( ll1[np.unique(this_conflicts[:,0])] )
             equivalence_lines2.append( ll2[np.unique(this_conflicts[:,1])] )
-        if skip_equal_loggf:
+        if skip_exactly_equal_lines or skip_equal_loggf:
+            if skip_equal_loggf: 
+                equal_fn = lambda x,y: LineList.lines_equal(x,y,dwl_thresh=dwl_thresh,
+                                                            dEP_thresh=dEP_thresh,dgf_thresh=dgf_thresh)
+            if skip_exactly_equal_lines: #overwrite skip_equal_loggf
+                equal_fn = lambda x,y: LineList.lines_exactly_equal(x,y)
+
             _drop_indices = []
             for i,(x,y) in enumerate(zip(equivalence_lines1,equivalence_lines2)):
-                if len(x)==1 and len(y)==1 and LineList.lines_equal(x[0],y[0],
-                                                                    dwl_thresh=dwl_thresh,
-                                                                    dEP_thresh=dEP_thresh,
-                                                                    dgf_thresh=dgf_thresh):
+                if len(x)==1 and len(y)==1 and equal_fn(x[0],y[0]):
                     _drop_indices.append(i)
+                elif len(x)==len(y): # check for identical HFS/molecule blocks
+                    for _x, _y in zip(x,y):
+                        if not equal_fn(_x, _y): break
+                    else: #all equal
+                        _drop_indices.append(i)
             equivalence_lines1 = [v for i,v in enumerate(equivalence_lines1) if i not in _drop_indices]
             equivalence_lines2 = [v for i,v in enumerate(equivalence_lines2) if i not in _drop_indices]
         if swap: return equivalence_lines2, equivalence_lines1
         return equivalence_lines1, equivalence_lines2
 
     def merge(self,new_ll,thresh=None,loggf_thresh=None,raise_exception=True,
+              skip_exactly_equal_lines=False,
               skip_equal_loggf=False,
               override_current=False,in_place=True,
-              add_new_lines=True):
+              add_new_lines=True,
+              ignore_conflicts=False):
         """
         new_ll: 
             new LineList object to merge into this one
@@ -173,8 +224,12 @@ class LineList(Table):
               Note: if in_place == True, then it merges new lines BEFORE raising the error
             If False, uses self.pick_best_line() to pick a line to overwrite
 
+        skip_exactly_equal_lines:
+            If True, skips lines that have equal hashes during the merge
+            If False (default), raises exception for duplicate lines
+
         skip_equal_loggf:
-            If True, skips lines that are exactly equal during the merge
+            If True, skips lines that are almost exactly equal during the merge
             If False (default), raises exception for duplicate lines
 
         override_current: 
@@ -190,19 +245,37 @@ class LineList(Table):
             If True (default), add new lines when merging.
             If False, do not add new lines. This is to replace lines from a list without adding them.
 
+        ignore_conflicts:
+            If True, merge the linelists without checking for conflicts
+            If False (default), check for conflicts during merge
+
         """
         if thresh==None: thresh = self.default_thresh
         if loggf_thresh==None: loggf_thresh = self.default_loggf_thresh
         if len(self)==0: 
             if not in_place:
-                return new_ll
+                return new_ll.copy()
             else:
                 n_cols = len(new_ll.colnames)
                 names = new_ll.colnames
                 dtype = [None] * n_cols
                 self._init_indices = self._init_indices and new_ll._copy_indices
                 self._init_from_table(new_ll, names, dtype, n_cols, True)
+                return None
 
+        if ignore_conflicts:
+            if self.verbose:
+                print("Ignoring conflicts: adding {} lines".format(len(new_ll)))
+            if not in_place:
+                return table.vstack([self, new_ll])
+            else:
+                #combined = table.vstack([self, new_ll])
+                #names = combined.colnames
+                #dtype = [None] * n_cols
+                #self._init_indices = self._init_indices and combined._copy_indices
+                #self._init_from_table(combined, names, dtype, n_cols, True)
+                #return None
+                raise NotImplementedError
         num_in_list = 0
         num_with_multiple_conflicts = 0
         lines_to_add = []
@@ -241,7 +314,9 @@ class LineList(Table):
         
         # Note: if in_place == True, then it merges new lines BEFORE raising the exception
         if raise_exception:
-            conflicts1,conflicts2 = self.identify_conflicts(self,new_ll,skip_equal_loggf=skip_equal_loggf,
+            conflicts1,conflicts2 = self.identify_conflicts(self,new_ll,
+                                                            skip_exactly_equal_lines=skip_exactly_equal_lines,
+                                                            skip_equal_loggf=skip_equal_loggf,
                                                             dwl_thresh=thresh, dgf_thresh=loggf_thresh)
             if len(conflicts1) > 0:
                 raise LineListConflict(conflicts1, conflicts2)
@@ -342,9 +417,8 @@ class LineList(Table):
 
     @staticmethod
     def hash(line):
-        # I wonder if it may be needed to specify the precision of the floats put into here
-        s = "{}_{}_{}_{}_{}_{}_{}_{}".format(line['wavelength'],line['expot'],line['loggf'],
-                                             line['elem1'],line['elem2'],line['ion'],line['isotope1'],line['isotope2'])
+        s = "{:.3f}_{:.3f}_{:.3f}_{}_{}_{}_{}_{}".format(line['wavelength'],line['expot'],line['loggf'],
+                                                         line['elem1'],line['elem2'],line['ion'],line['isotope1'],line['isotope2'])
         return md5.new(s).hexdigest()
 
     @staticmethod
@@ -353,6 +427,11 @@ class LineList(Table):
         dEP = np.abs(l1['expot']-l2['expot'])
         dgf = np.abs(l1['loggf']-l2['loggf'])
         return dwl < dwl_thresh and dEP < dEP_thresh and dgf < dgf_thresh
+
+    @staticmethod
+    def lines_exactly_equal(l1,l2):
+        #return LineList.lines_equal(l1,l2,dwl_thresh=1e-4,dEP_thresh=1e-4,dgf_thresh=1e-4)
+        return l1['hash']==l2['hash']
 
     @classmethod
     def read(cls,filename,*args,**kwargs):
@@ -369,7 +448,7 @@ class LineList(Table):
             raise IOError("No such file or directory: {}".format(filename))
         for reader in [cls.read_moog, cls.read_GES]:
             try:
-                return reader(filename)
+                return reader(filename,**kwargs)
             except (IOError, KeyError, UnicodeDecodeError) as e:
                 # KeyError: Issue #87
                 # UnicodeDecodeError: read_moog fails this way for fits
@@ -377,7 +456,7 @@ class LineList(Table):
         raise IOError("Cannot identify linelist format (specify format if possible)")
 
     @classmethod
-    def read_moog(cls,filename,moog_columns=False):
+    def read_moog(cls,filename,moog_columns=False,**kwargs):
         if moog_columns:
             colnames = cls.moog_colnames
             dtypes = cls.moog_dtypes
@@ -481,10 +560,10 @@ class LineList(Table):
         dtypes = dtypes + [np.float]
         data = data + [ew]
         
-        return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns)
+        return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns,**kwargs)
 
     @classmethod
-    def read_GES(cls,filename,moog_columns=False):
+    def read_GES(cls,filename,moog_columns=False,**kwargs):
         if moog_columns:
             colnames = cls.moog_colnames
             dtypes = cls.moog_dtypes
@@ -553,7 +632,7 @@ class LineList(Table):
                     numelems,elem1,isotope1,elem2,isotope2,ion,
                     E_hi,lande_hi,lande_lo,damp_stark,damp_rad,refs,elements]
         print('Constructing line list')
-        return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns)
+        return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns,**kwargs)
 
     def write_moog(self,filename):
         fmt = "{:10.3f}{:10.5f}{:10.3f}{:10.3f}{}{}{}{}"
