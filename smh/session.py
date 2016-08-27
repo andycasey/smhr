@@ -1113,5 +1113,5 @@ class Session(BaseSession):
         if not isinstance(self.normalized_spectrum, specutils.Spectrum1D):
             print("Must have normalized spectrum to make summary plot")
             return None
-        smh_plotting.make_summary_plot(defaults["summary_figure"],
+        return smh_plotting.make_summary_plot(defaults["summary_figure"],
                                        self.normalized_spectrum, figure)
