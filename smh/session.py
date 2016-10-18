@@ -695,6 +695,11 @@ class Session(BaseSession):
             "normalization": normalization_kwargs.copy()
         })
 
+        logger.info(
+            "Heliocentric velocity correction: {0:.2f} km/s".format(v_helio))
+        logger.info(
+            "Barycentric velocity correction: {0:.2f} km/s".format(v_bary))
+        
         return (rv, rv_uncertainty)
 
 
