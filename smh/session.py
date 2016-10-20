@@ -1115,3 +1115,14 @@ class Session(BaseSession):
             return None
         return smh_plotting.make_summary_plot(defaults["summary_figure"],
                                        self.normalized_spectrum, figure)
+    def make_ncap_summary_plot(self, figure=None):
+        with open(self._default_settings_path, "rb") as fp:
+            defaults = yaml.load(fp)
+        if "summary_figure_ncap" not in defaults:
+            raise RuntimeError("Defaults file ({}) must have summary_figure".format(\
+                    self._default_settings_path))
+        if not isinstance(self.normalized_spectrum, specutils.Spectrum1D):
+            print("Must have normalized spectrum to make summary plot")
+            return None
+        return smh_plotting.make_summary_plot(defaults["summary_figure_ncap"],
+                                       self.normalized_spectrum, figure)

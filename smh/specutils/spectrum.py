@@ -430,10 +430,11 @@ class Spectrum1D(object):
         # pixel is likely less than an Angstrom, so we must calculate the true
         # smoothing value
         
-        true_profile_sigma = profile_sigma / np.median(np.diff(self.disp))
+        true_profile_sigma = profile_sigma / np.median(np.diff(self.dispersion))
         smoothed_flux = ndimage.gaussian_filter1d(self.flux, true_profile_sigma, **kwargs)
         
-        return self.__class__(self.disp, smoothed_flux)
+        # TODO modify ivar based on smoothing?
+        return self.__class__(self.dispersion, smoothed_flux, self.ivar.copy(), metadata=self.metadata.copy())
         
     
     def smooth(self, window_len=11, window='hanning'):

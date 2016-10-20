@@ -123,7 +123,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         rhs_layout = QtGui.QVBoxLayout()
         self.figure = mpl.MPLWidget(None, tight_layout=True, autofocus=True)
         self.figure.setMinimumSize(QtCore.QSize(300, 300))
-        
+        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
+                               QtGui.QSizePolicy.Expanding)
+        sp.setHorizontalStretch(0)
+        sp.setVerticalStretch(0)
+        sp.setHeightForWidth(self.figure.sizePolicy().hasHeightForWidth())
+        self.figure.setSizePolicy(sp)
         gs_top = matplotlib.gridspec.GridSpec(3,1,height_ratios=[1,2,1])
         gs_top.update(top=.95,bottom=.05,hspace=0)
         gs_bot = matplotlib.gridspec.GridSpec(3,1,height_ratios=[1,2,1])

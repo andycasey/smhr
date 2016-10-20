@@ -1,6 +1,8 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+import os
+import glob
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
@@ -31,12 +33,22 @@ def fit_continuum(session, index):
         session.metadata["normalization"]["normalization_kwargs"][index] = kwds
 
 if __name__=="__main__":
-    prefix="/Users/alexji/MIKE_data/2016aug/10slit"
-    prefixblue = prefix+"/blue/Final-Products"
-    prefixred  = prefix+"/red/Final-Products"
-    outpath = "./n1"
-    specnames = ["retii-{:02}".format(num) for num in range(1,2)]
+    #prefix="/Users/alexji/MIKE_data/2016aug/70slit"
+    #prefix="/Users/alexji/MIKE_data/2016aug/70slit"
+    #prefix="/Users/alexji/MIKE_data/2016aug/35slit"
+    #prefixblue = prefix+"/blue/Final-Products"
+    #prefixred  = prefix+"/red/Final-Products"
+    prefix="/Users/alexji/Dropbox/Observing/2016_8/reduced_data/rproc"
+    prefixblue=prefix
+    prefixred=prefix
+    #outpath = "./n3"
+    outpath = "/Users/alexji/Dropbox/Observing/2016_8/reduced_data/rproc/summaries"
     rv_fix = {} #{"retii-09":60.0}
+    
+    specnames = [x[:-15] for x in glob.glob(prefixblue+"/*blue*")]
+    specnames = [os.path.basename(x) for x in specnames]
+    print(specnames)
+
     for specname in specnames:
         bluespec = prefixblue+"/"+specname+"blue_multi.fits"
         redspec  = prefixred +"/"+specname+"red_multi.fits"
@@ -54,10 +66,12 @@ if __name__=="__main__":
         #session.normalize_input_spectra()
         for index,order in enumerate(session.input_spectra):
             fit_continuum(session,index)
-            
+        
         session.stitch_and_stack()
         #summary_kwds = session.setting(("summary_figure"))
         fig = session.make_summary_plot()
         fig.savefig(outpath+"/"+specname+"_summary.png")
+        fig2 = session.make_ncap_summary_plot()
+        fig2.savefig(outpath+"/"+specname+"_ncap_summary.png")
         session.save(outpath+"/"+specname+".smh",overwrite=True)
         plt.close(fig)
