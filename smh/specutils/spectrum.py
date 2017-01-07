@@ -362,12 +362,39 @@ class Spectrum1D(object):
         return (dispersion, flux, ivar, metadata)
 
 
-    def write(self, filename):
+    def write(self, filename, clobber=True, output_verify="warn"):
         """ Write spectrum to disk. """
 
-        # TODO: only ascii atm.
-        a = np.array([self.dispersion, self.flux, self.ivar]).T
-        np.savetxt(filename, a)
+        if os.path.exists(filename) and not clobber:
+            raise IOError("Filename '%s' already exists and we have been asked not to clobber it." % (filename, ))
+        
+        if not filename.endswith('fits'):
+            # TODO: only ascii atm.
+            a = np.array([self.dispersion, self.flux, self.ivar]).T
+            np.savetxt(filename, a)
+        else:
+            # TODO
+            # FITS linear dispersion map only right now
+            crpix1, crval1 = 1, self.dispersion.min()
+            cdelt1 = np.mean(np.diff(self.dispersion))
+            
+            hdu = fits.PrimaryHDU(np.array(self.flux))
+
+            #headers = self.headers.copy()
+            headers = {}
+            headers.update({
+                'CRVAL1': crval1,
+                'CRPIX1': crpix1,
+                'CDELT1': cdelt1
+            })
+            
+            for key, value in headers.iteritems():
+                try:
+                    hdu.header[key] = value
+                except ValueError:
+                    #logger.warn("Could not save header key/value combination: %s = %s" % (key, value, ))
+                    print("Could not save header key/value combination: %s = %s".format(key, value))
+            hdu.writeto(filename, output_verify=output_verify, clobber=clobber)
 
 
     def redshift(self, v=None, z=None):
