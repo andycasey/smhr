@@ -341,7 +341,7 @@ class Session(BaseSession):
 
 
     @classmethod
-    def load(cls, session_path, **kwargs):
+    def load(cls, session_path, skip_spectral_models=False, **kwargs):
         """
         Create a Session from a path saved to disk.
 
@@ -388,9 +388,14 @@ class Session(BaseSession):
         # Update the new session with the metadata.
         session.metadata = metadata
 
+        if skip_spectral_models:
+            atexit.register(rmtree, twd)
+            return session
+
         # Reconstruct any spectral models.
         reconstructed_spectral_models = []
         for state in session.metadata.get("spectral_models", []):
+            start2 = time.time()
 
             args = [session, state["transition_hashes"]]
             if state["type"] == "SpectralSynthesisModel":
@@ -407,6 +412,7 @@ class Session(BaseSession):
             model = klass(*args)
             model.metadata = state["metadata"]
             reconstructed_spectral_models.append(model)
+            #print("  Loading one model {:.2f} {}".format(time.time()-start2, len(model._transitions)))
 
         # Update the session with the spectral models.
         session.metadata["spectral_models"] = reconstructed_spectral_models
