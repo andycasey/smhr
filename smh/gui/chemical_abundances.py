@@ -459,9 +459,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.btn_update_abund_table.setText("Update Abundance Table")
         vbox_rhs.addWidget(self.btn_update_abund_table)
         
+        
+        hbox = QtGui.QHBoxLayout()
         self.btn_clear_masks_2 = QtGui.QPushButton(self.tab_synthesis)
         self.btn_clear_masks_2.setText("Clear Masks")
-        vbox_rhs.addWidget(self.btn_clear_masks_2)
+        hbox.addWidget(self.btn_clear_masks_2)
+        self.btn_export_synth = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_export_synth.setText("Export")
+        hbox.addWidget(self.btn_export_synth)
+        vbox_rhs.addLayout(hbox)
 
         ### Finish Synthesis Tab
         tab_hbox.addLayout(vbox_lhs)
@@ -619,6 +625,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.clicked_btn_update_abund_table)
         self.btn_clear_masks_2.clicked.connect(
             self.clicked_btn_clear_masks)
+        self.btn_export_synth.clicked.connect(
+            self.clicked_export_synthesis)
 
         self._synth_signals = [
             (self.edit_view_window_2.textChanged,self.update_edit_view_window_2),
@@ -644,7 +652,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             (self.btn_synthesize.clicked,self.synthesize_current_model),
             (self.btn_fit_synth.clicked,self.fit_one),
             (self.btn_update_abund_table.clicked,self.clicked_btn_update_abund_table),
-            (self.btn_clear_masks_2.clicked,self.clicked_btn_clear_masks)
+            (self.btn_clear_masks_2.clicked,self.clicked_btn_clear_masks),
+            (self.btn_export_synth.clicked,self.clicked_export_synthesis)
             ]
 
     def populate_filter_combo_box(self):
@@ -1787,6 +1796,29 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         print(summary_dict)
         return None
+
+    def clicked_export_synthesis(self):
+        ## Get current spectral model, make sure it is a synthesis
+        spectral_model = self._get_selected_model()
+        if not isinstance(spectral_model, SpectralSynthesisModel): 
+            print("Must select a synthesis spectral model to export")
+            return
+        ## ask for synthesis output filename
+        synth_path, _ = QtGui.QFileDialog.getSaveFileName(self,
+                caption="Enter synthesis output filename", dir="") #, filter="*.txt")
+        if not synth_path: return
+        ## Ask for data output filename
+        data_path, _ = QtGui.QFileDialog.getSaveFileName(self,
+                caption="Enter data output filename", dir="") #, filter="*.txt")
+        if not data_path: return
+        ## Ask for parameter output filename
+        param_path, _ = QtGui.QFileDialog.getSaveFileName(self,
+                caption="Enter parameter output filename", dir="") #, filter="*.txt")
+        if not param_path: return
+        ## Export
+        spectral_model.export_fit(synth_path, data_path, param_path)
+        print("Exported to {}, {}, and {}".format(synth_path, data_path, param_path))
+        return
 
 class SpectralModelsTableView(SpectralModelsTableViewBase):
     def sizeHint(self):
