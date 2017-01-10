@@ -220,7 +220,10 @@ class Session(BaseSession):
             
 
         # normalized spectrum.
-        twd_path = safe_path(os.path.join(twd, "normalized_spectrum.fits"),
+        #twd_path = safe_path(os.path.join(twd, "normalized_spectrum.fits"),
+        #    twd, metadata)
+        ## HACK while fits is broken, it should be called .txt
+        twd_path = safe_path(os.path.join(twd, "normalized_spectrum.txt"),
             twd, metadata)
         try:
             self.normalized_spectrum.write(twd_path)
