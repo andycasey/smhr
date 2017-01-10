@@ -372,30 +372,40 @@ class Spectrum1D(object):
             # TODO: only ascii atm.
             a = np.array([self.dispersion, self.flux, self.ivar]).T
             np.savetxt(filename, a)
+            return True
+        
         else:
             # TODO
             # FITS linear dispersion map only right now
+
             crpix1, crval1 = 1, self.dispersion.min()
             cdelt1 = np.mean(np.diff(self.dispersion))
             
-            hdu = fits.PrimaryHDU(np.array(self.flux))
-
-            #headers = self.headers.copy()
-            headers = {}
-            headers.update({
-                'CRVAL1': crval1,
-                'CRPIX1': crpix1,
-                'CDELT1': cdelt1
-            })
-            
-            for key, value in headers.iteritems():
-                try:
-                    hdu.header[key] = value
-                except ValueError:
-                    #logger.warn("Could not save header key/value combination: %s = %s" % (key, value, ))
-                    print("Could not save header key/value combination: %s = %s".format(key, value))
-            hdu.writeto(filename, output_verify=output_verify, clobber=clobber)
-
+            ## Check for linear dispersion map
+            maxdiff = np.max(np.abs(np.diff(self.dispersion)-cdelt1))
+            if maxdiff > cdelt1:
+                raise NotImplementedError("Can only write fits with linear dispersion maps (maxdiff from mean={})".format(maxdiff))
+            else:
+                # We have a linear dispersion!
+                hdu = fits.PrimaryHDU(np.array(self.flux))
+    
+                #headers = self.headers.copy()
+                headers = {}
+                headers.update({
+                    'CRVAL1': crval1,
+                    'CRPIX1': crpix1,
+                    'CDELT1': cdelt1,
+                    'NAXIS1': len(self.dispersion)
+                })
+                
+                for key, value in headers.iteritems():
+                    try:
+                        hdu.header[key] = value
+                    except ValueError:
+                        #logger.warn("Could not save header key/value combination: %s = %s" % (key, value, ))
+                        print("Could not save header key/value combination: %s = %s".format(key, value))
+                hdu.writeto(filename, output_verify=output_verify, clobber=clobber)
+                return True
 
     def redshift(self, v=None, z=None):
         """
