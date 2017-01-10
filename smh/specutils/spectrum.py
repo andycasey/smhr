@@ -383,8 +383,9 @@ class Spectrum1D(object):
             
             ## Check for linear dispersion map
             maxdiff = np.max(np.abs(np.diff(self.dispersion)-cdelt1))
-            if maxdiff > cdelt1:
-                raise NotImplementedError("Can only write fits with linear dispersion maps (maxdiff from mean={})".format(maxdiff))
+            if maxdiff > 1e-10:
+                raise NotImplementedError("Can only write fits with linear dispersion maps"\
+                                              " (maxdiff from mean={})".format(maxdiff))
             else:
                 # We have a linear dispersion!
                 hdu = fits.PrimaryHDU(np.array(self.flux))
