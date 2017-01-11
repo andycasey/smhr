@@ -284,7 +284,7 @@ class Spectrum1D(object):
 
         if len(image) == 2 and hdu_index == 1:
 
-            dispersion_keys = ("dispersion", "disp")
+            dispersion_keys = ("dispersion", "disp", "WAVELENGTH[COORD]")
             for key in dispersion_keys:
                 try:
                     dispersion = image[hdu_index].data[key]
@@ -299,20 +299,29 @@ class Spectrum1D(object):
                 raise KeyError("could not find any dispersion key: {}".format(
                     ", ".join(dispersion_keys)))
 
-            flux = image[hdu_index].data["flux"]
+            flux_keys = ("flux", "SPECTRUM[FLUX]")
+            for key in flux_keys:
+                try:
+                    flux = image[hdu_index].data[key]
+                except KeyError:
+                    continue
+                else:
+                    break
+            else:
+                raise KeyError("could not find any flux key: {}".format(
+                    ", ".join(flux_keys)))
 
-            # Try ivar, then variance.
+            # Try ivar, then error, then variance.
             try:
                 ivar = image[hdu_index].data["ivar"]
-
             except KeyError:
-                variance = image[hdu_index].data["variance"]
-                ivar = 1.0/variance
+                try:
+                    errs = image[hdu_index].data["SPECTRUM[SIGMA]"]
+                    ivar = 1.0/errs**2.
+                except KeyError:
+                    variance = image[hdu_index].data["variance"]
+                    ivar = 1.0/variance
 
-        elif ctype1 == "SMH":
-            dispersion = image[0].data[0,:]
-            flux = image[0].data[1,:]
-            ivar = image[0].data[2,:]
         else:
             # Build a simple linear dispersion map from the headers.
             # See http://iraf.net/irafdocs/specwcs.php
@@ -395,15 +404,42 @@ class Spectrum1D(object):
                 ## way of storing the dispersion data for an arbitrary dispersion sampling.
                 ## The standard way of doing it requires putting every dispersion point in the
                 ## WAT2_xxx header.
-                ## So I am just going to make our own.
-                ## It is just a simple 3xN array of dispersion, flux, ivar
                 
-                hdu = fits.PrimaryHDU(np.array([self.dispersion, self.flux, self.ivar]))
-                hdu.header["CTYPE1"] = "SMH     "
+                ## So just implemented it as a binary table with names according to 
+                ## http://iraf.noao.edu/projects/spectroscopy/formats/sptable.html
+                
+                ## I think some of these links below may provide a better solution though
+                ## http://iraf.noao.edu/projects/spectroscopy/formats/onedspec.html
+                ## http://www.cv.nrao.edu/fits/
+                ## http://stsdas.stsci.edu/cgi-bin/gethelp.cgi?specwcs
+                
+                ## python 2(?) hack needs the b prefix
+                ## https://github.com/numpy/numpy/issues/2407
+                dispcol = fits.Column(name=b"WAVELENGTH[COORD]",
+                                      format="D",
+                                      array=self.dispersion)
+                fluxcol = fits.Column(name=b"SPECTRUM[FLUX]",
+                                      format="D",
+                                      array=self.flux)
+                errscol = fits.Column(name=b"SPECTRUM[SIGMA]",
+                                      format="D",
+                                      array=(self.ivar)**-0.5)
+                
+                #dispcol = fits.Column(name=b"dispersion",
+                #                      format="D",
+                #                      array=self.dispersion)
+                #fluxcol = fits.Column(name=b"flux",
+                #                      format="D",
+                #                      array=self.flux)
+                #errscol = fits.Column(name=b"ivar",
+                #                      format="D",
+                #                      array=self.ivar)
+
+                coldefs = fits.ColDefs([dispcol, fluxcol, errscol])
+                hdu = fits.BinTableHDU.from_columns(coldefs)
                 hdu.writeto(filename, output_verify=output_verify, clobber=clobber)
+
                 return
-                #raise NotImplementedError("Can only write fits with linear dispersion maps"\
-                #                              " (maxdiff from mean={})".format(maxdiff))
 
             else:
                 # We have a linear dispersion!
