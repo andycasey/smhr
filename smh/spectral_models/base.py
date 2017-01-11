@@ -50,6 +50,7 @@ class BaseSpectralModel(object):
         self.index_transitions()
         
         self.metadata = {
+            "is_upper_limit": False,
             "use_for_stellar_composition_inference": True,
             "use_for_stellar_parameter_inference": (
                 "Fe I" in self.transitions["element"] or
@@ -95,6 +96,24 @@ class BaseSpectralModel(object):
         decision = bool(decision)
         if not decision or (decision and "fitted_result" in self.metadata):
             self.metadata["is_acceptable"] = bool(decision)
+        return None
+
+
+    @property
+    def is_upper_limit(self):
+        """ Return whether this spectral model is acceptable. """
+        return self.metadata.get("is_upper_limit", False)
+
+
+    @is_acceptable.setter
+    def is_upper_limit(self, decision):
+        """
+        Mark the spectral model as acceptable or unacceptable.
+
+        :param decision:
+            A boolean flag.
+        """
+        self.metadata["is_upper_limit"] = bool(decision)
         return None
 
 
