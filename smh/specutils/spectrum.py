@@ -407,6 +407,8 @@ class Spectrum1D(object):
                 
                 ## So just implemented it as a binary table with names according to 
                 ## http://iraf.noao.edu/projects/spectroscopy/formats/sptable.html
+                ## It doesn't work because I have not put in WCS headers, but I do not know
+                ## how to tell it to look for those.
                 
                 ## I think some of these links below may provide a better solution though
                 ## http://iraf.noao.edu/projects/spectroscopy/formats/onedspec.html
@@ -415,6 +417,9 @@ class Spectrum1D(object):
                 
                 ## python 2(?) hack needs the b prefix
                 ## https://github.com/numpy/numpy/issues/2407
+                
+                headers = {}
+
                 dispcol = fits.Column(name=b"WAVELENGTH[COORD]",
                                       format="D",
                                       array=self.dispersion)
@@ -425,18 +430,9 @@ class Spectrum1D(object):
                                       format="D",
                                       array=(self.ivar)**-0.5)
                 
-                #dispcol = fits.Column(name=b"dispersion",
-                #                      format="D",
-                #                      array=self.dispersion)
-                #fluxcol = fits.Column(name=b"flux",
-                #                      format="D",
-                #                      array=self.flux)
-                #errscol = fits.Column(name=b"ivar",
-                #                      format="D",
-                #                      array=self.ivar)
-
                 coldefs = fits.ColDefs([dispcol, fluxcol, errscol])
                 hdu = fits.BinTableHDU.from_columns(coldefs)
+                hdu.header.update(headers)
                 hdu.writeto(filename, output_verify=output_verify, clobber=clobber)
 
                 return
