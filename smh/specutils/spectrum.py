@@ -280,6 +280,8 @@ class Spectrum1D(object):
         for hdu_index, hdu in enumerate(image):
             if hdu.data is not None: break
 
+        ctype1 = image[0].header.get("CTYPE1", None)
+
         if len(image) == 2 and hdu_index == 1:
 
             dispersion_keys = ("dispersion", "disp")
@@ -307,6 +309,10 @@ class Spectrum1D(object):
                 variance = image[hdu_index].data["variance"]
                 ivar = 1.0/variance
 
+        elif ctype1 == "SMH":
+            dispersion = image[0].data[0,:]
+            flux = image[0].data[1,:]
+            ivar = image[0].data[2,:]
         else:
             # Build a simple linear dispersion map from the headers.
             # See http://iraf.net/irafdocs/specwcs.php
@@ -369,23 +375,36 @@ class Spectrum1D(object):
             raise IOError("Filename '%s' already exists and we have been asked not to clobber it." % (filename, ))
         
         if not filename.endswith('fits'):
-            # TODO: only ascii atm.
             a = np.array([self.dispersion, self.flux, self.ivar]).T
             np.savetxt(filename, a)
-            return True
+            return
         
         else:
-            # TODO
-            # FITS linear dispersion map only right now
 
             crpix1, crval1 = 1, self.dispersion.min()
             cdelt1 = np.mean(np.diff(self.dispersion))
+            naxis1 = len(self.dispersion)
             
+            linear_dispersion = crval1 + (np.arange(naxis1) - crpix1) * cdelt1
+
             ## Check for linear dispersion map
-            maxdiff = np.max(np.abs(np.diff(self.dispersion)-cdelt1))
-            if maxdiff > 1e-10:
-                raise NotImplementedError("Can only write fits with linear dispersion maps"\
-                                              " (maxdiff from mean={})".format(maxdiff))
+            maxdiff = np.max(np.abs(linear_dispersion - self.dispersion))
+            if maxdiff > 1e-3:
+                ## TODO Come up with something better...
+                ## Frustratingly, it seems like there's no easy way to make an IRAF splot-compatible
+                ## way of storing the dispersion data for an arbitrary dispersion sampling.
+                ## The standard way of doing it requires putting every dispersion point in the
+                ## WAT2_xxx header.
+                ## So I am just going to make our own.
+                ## It is just a simple 3xN array of dispersion, flux, ivar
+                
+                hdu = fits.PrimaryHDU(np.array([self.dispersion, self.flux, self.ivar]))
+                hdu.header["CTYPE1"] = "SMH     "
+                hdu.writeto(filename, output_verify=output_verify, clobber=clobber)
+                return
+                #raise NotImplementedError("Can only write fits with linear dispersion maps"\
+                #                              " (maxdiff from mean={})".format(maxdiff))
+
             else:
                 # We have a linear dispersion!
                 hdu = fits.PrimaryHDU(np.array(self.flux))
@@ -393,10 +412,10 @@ class Spectrum1D(object):
                 #headers = self.headers.copy()
                 headers = {}
                 headers.update({
+                    'CTYPE1': 'LINEAR  ',
                     'CRVAL1': crval1,
                     'CRPIX1': crpix1,
-                    'CDELT1': cdelt1,
-                    'NAXIS1': len(self.dispersion)
+                    'CDELT1': cdelt1
                 })
                 
                 for key, value in headers.iteritems():
@@ -406,7 +425,7 @@ class Spectrum1D(object):
                         #logger.warn("Could not save header key/value combination: %s = %s" % (key, value, ))
                         print("Could not save header key/value combination: %s = %s".format(key, value))
                 hdu.writeto(filename, output_verify=output_verify, clobber=clobber)
-                return True
+                return
 
     def redshift(self, v=None, z=None):
         """
