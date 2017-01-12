@@ -521,10 +521,11 @@ class Spectrum1D(object):
         # pixel is likely less than an Angstrom, so we must calculate the true
         # smoothing value
         
-        true_profile_sigma = profile_sigma / np.median(np.diff(self.disp))
+        true_profile_sigma = profile_sigma / np.median(np.diff(self.dispersion))
         smoothed_flux = ndimage.gaussian_filter1d(self.flux, true_profile_sigma, **kwargs)
         
-        return self.__class__(self.disp, smoothed_flux)
+        # TODO modify ivar based on smoothing?
+        return self.__class__(self.dispersion, smoothed_flux, self.ivar.copy(), metadata=self.metadata.copy())
         
     
     def smooth(self, window_len=11, window='hanning'):
@@ -1055,7 +1056,7 @@ def common_dispersion_map(spectra, full_output=True):
 
     return common
 
-def stitch(spectra, linearize_dispersion = False):
+def stitch(spectra, linearize_dispersion = False, min_disp_step = 0.001):
     """
     Stitch spectra together, some of which may have overlapping dispersion
     ranges. This is a crude (knowingly incorrect) approximation: we interpolate
@@ -1066,16 +1067,22 @@ def stitch(spectra, linearize_dispersion = False):
     
     :param linearize_dispersion:
         If True, return a linear dispersion spectrum
+    :param min_disp_step:
+        The minimum linear dispersion step (to avoid super huge files)
     """
 
     # Create common mapping.
     if linearize_dispersion:
+        
         min_disp, max_disp = np.inf, -np.inf
+        default_min_disp_step = min_disp_step
         min_disp_step = 999
         for spectrum in spectra:
             min_disp_step = min(min_disp_step, np.min(np.diff(spectrum.dispersion)))
             min_disp = min(min_disp, np.min(spectrum.dispersion))
             max_disp = max(max_disp, np.max(spectrum.dispersion))
+        if min_disp_step < default_min_disp_step:
+            min_disp_step = default_min_disp_step
         linear_dispersion = np.arange(min_disp, max_disp+min_disp_step, min_disp_step)
     
     N = len(spectra)
