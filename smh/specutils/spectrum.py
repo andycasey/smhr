@@ -390,7 +390,7 @@ class Spectrum1D(object):
         
         else:
 
-            crpix1, crval1 = 1, self.dispersion.min()
+            crpix1, crval1 = 0, self.dispersion.min()
             cdelt1 = np.mean(np.diff(self.dispersion))
             naxis1 = len(self.dispersion)
             
@@ -1104,10 +1104,12 @@ def stitch(spectra, linearize_dispersion = False):
 
     :param spectra:
         A list of potentially overlapping spectra.
+    
+    :param linearize_dispersion:
+        If True, return a linear dispersion spectrum
     """
 
     # Create common mapping.
-    N = len(spectra)
     if linearize_dispersion:
         min_disp, max_disp = np.inf, -np.inf
         min_disp_step = 999
@@ -1116,8 +1118,9 @@ def stitch(spectra, linearize_dispersion = False):
             min_disp = min(min_disp, np.min(spectrum.dispersion))
             max_disp = max(max_disp, np.max(spectrum.dispersion))
         linear_dispersion = np.arange(min_disp, max_disp+min_disp_step, min_disp_step)
-    else:
-        dispersion, indices, spectra = common_dispersion_map(spectra, True)
+    
+    N = len(spectra)
+    dispersion, indices, spectra = common_dispersion_map(spectra, True)
     common_flux = np.zeros((N, dispersion.size))
     common_ivar = np.zeros_like(common_flux)
 
@@ -1136,10 +1139,10 @@ def stitch(spectra, linearize_dispersion = False):
 
     flux, ivar = (numerator/denominator, denominator)
     
-    if linear_dispersion:
+    if linearize_dispersion:
         new_flux = np.interp(linear_dispersion, dispersion, flux, left=0, right=0)
         new_ivar = np.interp(linear_dispersion, dispersion, ivar, left=0, right=0)
-        return Spectrum(linear_dispersion, new_flux, new_ivar)
+        return Spectrum1D(linear_dispersion, new_flux, new_ivar)
 
     # Create a spectrum with no header provenance.
     return Spectrum1D(dispersion, flux, ivar)
