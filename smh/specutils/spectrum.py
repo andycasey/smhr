@@ -440,6 +440,7 @@ class Spectrum1D(object):
             else:
                 # We have a linear dispersion!
                 hdu = fits.PrimaryHDU(np.array(self.flux))
+                hdu2 = fits.ImageHDU(np.array(self.ivar))
     
                 #headers = self.headers.copy()
                 headers = {}
@@ -456,7 +457,8 @@ class Spectrum1D(object):
                     except ValueError:
                         #logger.warn("Could not save header key/value combination: %s = %s" % (key, value, ))
                         print("Could not save header key/value combination: %s = %s".format(key, value))
-                hdu.writeto(filename, output_verify=output_verify, clobber=clobber)
+                hdulist = fits.HDUList([hdu,hdu2])
+                hdulist.writeto(filename, output_verify=output_verify, clobber=clobber)
                 return
 
     def redshift(self, v=None, z=None):
@@ -1053,8 +1055,7 @@ def common_dispersion_map(spectra, full_output=True):
 
     return common
 
-
-def stitch(spectra):
+def stitch(spectra, linearize_dispersion = False):
     """
     Stitch spectra together, some of which may have overlapping dispersion
     ranges. This is a crude (knowingly incorrect) approximation: we interpolate
@@ -1066,7 +1067,16 @@ def stitch(spectra):
 
     # Create common mapping.
     N = len(spectra)
-    dispersion, indices, spectra = common_dispersion_map(spectra, True)
+    if linearize_dispersion:
+        min_disp, max_disp = np.inf, -np.inf
+        min_disp_step = 999
+        for spectrum in spectra:
+            min_disp_step = min(min_disp_step, np.min(np.diff(spectrum.dispersion)))
+            min_disp = min(min_disp, np.min(spectrum.dispersion))
+            max_disp = max(max_disp, np.max(spectrum.dispersion))
+        linear_dispersion = np.arange(min_disp, max_disp+min_disp_step, min_disp_step)
+    else:
+        dispersion, indices, spectra = common_dispersion_map(spectra, True)
     common_flux = np.zeros((N, dispersion.size))
     common_ivar = np.zeros_like(common_flux)
 
@@ -1084,6 +1094,11 @@ def stitch(spectra):
     denominator = np.sum(common_ivar, axis=0)
 
     flux, ivar = (numerator/denominator, denominator)
+    
+    if linear_dispersion:
+        new_flux = np.interp(linear_dispersion, dispersion, flux, left=0, right=0)
+        new_ivar = np.interp(linear_dispersion, dispersion, ivar, left=0, right=0)
+        return Spectrum(linear_dispersion, new_flux, new_ivar)
 
     # Create a spectrum with no header provenance.
     return Spectrum1D(dispersion, flux, ivar)
