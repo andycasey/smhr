@@ -15,11 +15,12 @@ import numpy as np
 import scipy.optimize as op
 import scipy.interpolate
 from collections import OrderedDict
-from six import string_types
+from six import string_types, iteritems
 from scipy.ndimage import gaussian_filter
 
 from .base import BaseSpectralModel
 from smh import utils
+from smh.specutils import Spectrum1D
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 # HACK TODO REVISIT SOLAR SCALE: Read from session defaults?
 
@@ -430,6 +431,58 @@ class SpectralSynthesisModel(BaseSpectralModel):
         return self.metadata["fitted_result"]
 
 
+    def export_fit(self, synth_fname, data_fname, parameters_fname):
+        self._update_parameter_names()
+        spectrum = self._verify_spectrum(None)
+        try:
+            (named_p_opt, cov, meta) = self.metadata["fitted_result"]
+        except KeyError:
+            print("Please run a fit first!")
+            return None
+        ## Write synthetic spectrum
+        # take the mean of the two errors for simplicity
+        if len(meta["model_yerr"].shape) == 1:
+            ivar = (meta["model_yerr"])**-2.
+        elif len(meta["model_yerr"].shape) == 2:
+            assert meta["model_yerr"].shape[0] == 2, meta["model_yerr"].shape
+            ivar = (np.nanmean(meta["model_yerr"], axis=0))**-2.
+        synth_spec = Spectrum1D(meta["model_x"], meta["model_y"], ivar)
+        synth_spec.write(synth_fname)
+        
+        ## Write data only in the mask range
+        mask = self.mask(spectrum)
+        x, y, ivar = spectrum.dispersion[mask], spectrum.flux[mask], spectrum.ivar[mask]
+        data_spec = Spectrum1D(x, y, ivar)
+        data_spec.write(data_fname)
+        
+        ## Write out all fitting parameters
+        with open(parameters_fname, "w") as fp:
+            ## Fitted abundances
+            fp.write("----------Fit Abundances----------\n")
+            for elem, abund in zip(self.elements, meta["abundances"]):
+                fp.write("{} {:.3f}\n".format(elem, abund))
+            fp.write("\n")
+            fp.write("----------Fixed Abundances----------\n")
+            for elem, abund in iteritems(self.metadata["rt_abundances"]):
+                fp.write("{} {:.3f}\n".format(elem, abund))
+            fp.write("\n")
+            fp.write("p_opt: {}\n".format(named_p_opt))
+            fp.write("cov: {}\n".format(cov))
+            fp.write("\n")
+            fp.write("----------Parameters----------\n")
+            for key, value in iteritems(self.metadata):
+                if key=="rt_abundances": continue
+                if key=="fitted_result": continue
+                fp.write("{}: {}\n".format(key, value))
+            for key, value in iteritems(meta):
+                if key in ['chi_sq','dof']:
+                    fp.write("{}: {}\n".format(key, value))
+            fp.write("\n")
+            fp.write("----------Isotopes----------\n")
+            fp.write(str(self.session.metadata["isotopes"]))
+            fp.write("\n")
+        return None
+    
     def update_fit_after_parameter_change(self, synthesize=False):
         """
         After manual parameter change, update fitting metadata 

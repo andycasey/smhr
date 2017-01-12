@@ -475,9 +475,10 @@ class Ui_MainWindow(QtGui.QMainWindow):
         summary_dict = self.session.summarize_spectral_models()
         keys = summary_dict.keys()
         keys = np.sort(keys)
+        print("species   N logeps  err [X/H] [X/Fe]")
         for key in keys:
             num_models, logeps, stdev, stderr, XH, XFe = summary_dict[key]
-            print("{} {} {} {} {} {}".format(key,num_models,logeps,stdev,XH,XFe))
+            print("{:7.1f} {:3} {:6.2f} {:4.2f} {:5.2f} {:6.2f}".format(key,num_models,logeps,stdev,XH,XFe))
 
     def transitions_manager(self):
         """

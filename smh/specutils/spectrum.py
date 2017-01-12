@@ -280,9 +280,11 @@ class Spectrum1D(object):
         for hdu_index, hdu in enumerate(image):
             if hdu.data is not None: break
 
+        ctype1 = image[0].header.get("CTYPE1", None)
+
         if len(image) == 2 and hdu_index == 1:
 
-            dispersion_keys = ("dispersion", "disp")
+            dispersion_keys = ("dispersion", "disp", "WAVELENGTH[COORD]")
             for key in dispersion_keys:
                 try:
                     dispersion = image[hdu_index].data[key]
@@ -297,15 +299,28 @@ class Spectrum1D(object):
                 raise KeyError("could not find any dispersion key: {}".format(
                     ", ".join(dispersion_keys)))
 
-            flux = image[hdu_index].data["flux"]
+            flux_keys = ("flux", "SPECTRUM[FLUX]")
+            for key in flux_keys:
+                try:
+                    flux = image[hdu_index].data[key]
+                except KeyError:
+                    continue
+                else:
+                    break
+            else:
+                raise KeyError("could not find any flux key: {}".format(
+                    ", ".join(flux_keys)))
 
-            # Try ivar, then variance.
+            # Try ivar, then error, then variance.
             try:
                 ivar = image[hdu_index].data["ivar"]
-
             except KeyError:
-                variance = image[hdu_index].data["variance"]
-                ivar = 1.0/variance
+                try:
+                    errs = image[hdu_index].data["SPECTRUM[SIGMA]"]
+                    ivar = 1.0/errs**2.
+                except KeyError:
+                    variance = image[hdu_index].data["variance"]
+                    ivar = 1.0/variance
 
         else:
             # Build a simple linear dispersion map from the headers.
@@ -369,34 +384,82 @@ class Spectrum1D(object):
             raise IOError("Filename '%s' already exists and we have been asked not to clobber it." % (filename, ))
         
         if not filename.endswith('fits'):
-            # TODO: only ascii atm.
             a = np.array([self.dispersion, self.flux, self.ivar]).T
             np.savetxt(filename, a)
+            return
+        
         else:
-            # TODO
-            # FITS linear dispersion map only right now
+
             crpix1, crval1 = 1, self.dispersion.min()
             cdelt1 = np.mean(np.diff(self.dispersion))
+            naxis1 = len(self.dispersion)
             
-            hdu = fits.PrimaryHDU(np.array(self.flux))
+            linear_dispersion = crval1 + (np.arange(naxis1) - crpix1) * cdelt1
 
-            #headers = self.headers.copy()
-            headers = {}
-            headers.update({
-                'CRVAL1': crval1,
-                'CRPIX1': crpix1,
-                'CDELT1': cdelt1,
-                'NAXIS1': len(self.dispersion)
-            })
-            
-            for key, value in headers.iteritems():
-                try:
-                    hdu.header[key] = value
-                except ValueError:
-                    #logger.warn("Could not save header key/value combination: %s = %s" % (key, value, ))
-                    print("Could not save header key/value combination: %s = %s".format(key, value))
-            hdu.writeto(filename, output_verify=output_verify, clobber=clobber)
+            ## Check for linear dispersion map
+            maxdiff = np.max(np.abs(linear_dispersion - self.dispersion))
+            if maxdiff > 1e-3:
+                ## TODO Come up with something better...
+                ## Frustratingly, it seems like there's no easy way to make an IRAF splot-compatible
+                ## way of storing the dispersion data for an arbitrary dispersion sampling.
+                ## The standard way of doing it requires putting every dispersion point in the
+                ## WAT2_xxx header.
+                
+                ## So just implemented it as a binary table with names according to 
+                ## http://iraf.noao.edu/projects/spectroscopy/formats/sptable.html
+                ## It doesn't work because I have not put in WCS headers, but I do not know
+                ## how to tell it to look for those.
+                
+                ## I think some of these links below may provide a better solution though
+                ## http://iraf.noao.edu/projects/spectroscopy/formats/onedspec.html
+                ## http://www.cv.nrao.edu/fits/
+                ## http://stsdas.stsci.edu/cgi-bin/gethelp.cgi?specwcs
+                
+                ## python 2(?) hack needs the b prefix
+                ## https://github.com/numpy/numpy/issues/2407
+                
+                headers = {}
 
+                dispcol = fits.Column(name=b"WAVELENGTH[COORD]",
+                                      format="D",
+                                      array=self.dispersion)
+                fluxcol = fits.Column(name=b"SPECTRUM[FLUX]",
+                                      format="D",
+                                      array=self.flux)
+                errscol = fits.Column(name=b"SPECTRUM[SIGMA]",
+                                      format="D",
+                                      array=(self.ivar)**-0.5)
+                
+                coldefs = fits.ColDefs([dispcol, fluxcol, errscol])
+                hdu = fits.BinTableHDU.from_columns(coldefs)
+                hdu.header.update(headers)
+                hdu.writeto(filename, output_verify=output_verify, clobber=clobber)
+
+                return
+
+            else:
+                # We have a linear dispersion!
+                hdu = fits.PrimaryHDU(np.array(self.flux))
+                hdu2 = fits.ImageHDU(np.array(self.ivar))
+    
+                #headers = self.headers.copy()
+                headers = {}
+                headers.update({
+                    'CTYPE1': 'LINEAR  ',
+                    'CRVAL1': crval1,
+                    'CRPIX1': crpix1,
+                    'CDELT1': cdelt1
+                })
+                
+                for key, value in headers.iteritems():
+                    try:
+                        hdu.header[key] = value
+                    except ValueError:
+                        #logger.warn("Could not save header key/value combination: %s = %s" % (key, value, ))
+                        print("Could not save header key/value combination: %s = %s".format(key, value))
+                hdulist = fits.HDUList([hdu,hdu2])
+                hdulist.writeto(filename, output_verify=output_verify, clobber=clobber)
+                return
 
     def redshift(self, v=None, z=None):
         """
@@ -1033,8 +1096,7 @@ def common_dispersion_map(spectra, full_output=True):
 
     return common
 
-
-def stitch(spectra):
+def stitch(spectra, linearize_dispersion = False):
     """
     Stitch spectra together, some of which may have overlapping dispersion
     ranges. This is a crude (knowingly incorrect) approximation: we interpolate
@@ -1046,7 +1108,16 @@ def stitch(spectra):
 
     # Create common mapping.
     N = len(spectra)
-    dispersion, indices, spectra = common_dispersion_map(spectra, True)
+    if linearize_dispersion:
+        min_disp, max_disp = np.inf, -np.inf
+        min_disp_step = 999
+        for spectrum in spectra:
+            min_disp_step = min(min_disp_step, np.min(np.diff(spectrum.dispersion)))
+            min_disp = min(min_disp, np.min(spectrum.dispersion))
+            max_disp = max(max_disp, np.max(spectrum.dispersion))
+        linear_dispersion = np.arange(min_disp, max_disp+min_disp_step, min_disp_step)
+    else:
+        dispersion, indices, spectra = common_dispersion_map(spectra, True)
     common_flux = np.zeros((N, dispersion.size))
     common_ivar = np.zeros_like(common_flux)
 
@@ -1064,6 +1135,11 @@ def stitch(spectra):
     denominator = np.sum(common_ivar, axis=0)
 
     flux, ivar = (numerator/denominator, denominator)
+    
+    if linear_dispersion:
+        new_flux = np.interp(linear_dispersion, dispersion, flux, left=0, right=0)
+        new_ivar = np.interp(linear_dispersion, dispersion, ivar, left=0, right=0)
+        return Spectrum(linear_dispersion, new_flux, new_ivar)
 
     # Create a spectrum with no header provenance.
     return Spectrum1D(dispersion, flux, ivar)
