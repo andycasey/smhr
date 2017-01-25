@@ -995,46 +995,6 @@ def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
     return dispersion
 
 
-def linear_common_dispersion_map(spectra, full_output=True):
-    """
-    Produce a common dispersion mapping for (potentially overlapping) spectra
-    using the *smallest* dispersion difference as a linear step
-    (requiring a lot of interpolation when determining flux). 
-    Adapted from the old SMH specutils
-    
-    :param spectra:
-        A list of spectra to produce the mapping for.
-
-    :param full_output: [optional]
-        Optinally return the indices, and the sorted spectra.
-
-    :returns:
-        An array of common dispersion values. If `full_output` is set to `True`,
-        then a three-length tuple will be returned, containing the common
-        dispersion pixels, the common dispersion map indices for each spectrum,
-        and a list of the sorted spectra.
-    """
-
-    # Ensure that our spectra go from blue to red
-    wl_starts = []
-    wl_ends = []
-    min_disp_step = 999
-    for spectrum in spectra:
-        wl_starts.append(spectrum.disp[0])
-        wl_ends.append(spectrum.disp[-1])
-
-        if np.min(np.diff(spectrum.disp)) < min_disp_step:
-            min_disp_step = np.min(np.diff(spectrum.disp))
-    
-    sorted_indices = np.argsort(wl_starts)
-    
-    # Let's generate our new dispersion map
-    new_disp = np.arange(spectra[sorted_indices[0]].disp[0], spectra[sorted_indices[-1]].disp[-1], min_disp_step)
-
-    if full_output:
-        indices = [common.searchsorted(s.dispersion) for s in spectra]
-        return (common, indices, spectra)
-
 def common_dispersion_map(spectra, full_output=True):
     """
     Produce a common dispersion mapping for (potentially overlapping) spectra
