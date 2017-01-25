@@ -48,24 +48,20 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.parent = parent
         self.FeH = np.nan
 
-        #self.setStyleSheet("QLabel {font-size: 10px; padding: 1px 1px 1px 1px; margin: 1px}")
-        #self.setStyleSheet("QLineEdit {font-size: 10px; padding: 1px 1px 1px 1px; margin: 1px}")
-        #self.setStyleSheet("QPushButton {font-size: 10px; padding: 1px 1px 1px 1px; margin: 1px}")
-        #self.setStyleSheet("QComboBox {font-size: 10px; padding: 1px 1px 1px 1px; margin: 1px}")
-        #self.setStyleSheet("QCheckBox {padding: 1px 1px 1px 1px; margin: 1px}")
-        #self.setStyleSheet("QLabel {font-size: 10px;}")
-        #self.setStyleSheet("QLineEdit {font-size: 10px;}")
-        #self.setStyleSheet("QPushButton {font-size: 10px;}")
-        #self.setStyleSheet("QComboBox {font-size: 10px;}")
-        #self.setStyleSheet("QCheckBox {padding: 1px 1px 1px 1px; margin: 1px}")
-        
-
+        self.parent_splitter = QtGui.QSplitter(self)
+        self.parent_splitter.setChildrenCollapsible(False)
+        self.lhs_splitter = QtGui.QSplitter(self.parent_splitter)
+        self.lhs_splitter.setOrientation(QtCore.Qt.Vertical)
+        #self.lhs_splitter.setChildrenCollapsible(False)
         self.parent_layout = QtGui.QHBoxLayout(self)
         
         ################
         # LEFT HAND SIDE
         ################
+        #Summary combobox, measurements, buttons
+        lhs_container = QtGui.QWidget() 
         lhs_layout = QtGui.QVBoxLayout()
+        lhs_container.setLayout(lhs_layout)
         
         hbox = QtGui.QHBoxLayout()
         self.filter_combo_box = QtGui.QComboBox(self)
@@ -131,9 +127,17 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         # Model fitting options
         self._create_fitting_options_widget()
-        lhs_layout.addWidget(self.opt_tabs)
         
-        self.parent_layout.addLayout(lhs_layout)
+        ## Layout only
+        #lhs_layout.addWidget(self.opt_tabs)
+        #self.parent_layout.addLayout(lhs_layout)
+        ## No left splitter
+        #lhs_container.setLayout(lhs_layout)
+        #self.parent_splitter.addWidget(lhs_container)
+        ## Left splitter
+        self.lhs_splitter.addWidget(lhs_container)
+        self.lhs_splitter.addWidget(self.opt_tabs)
+        self.parent_splitter.addWidget(self.lhs_splitter)
 
         #############################
         # RIGHT HAND SIDE: MPL WIDGET
@@ -207,8 +211,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             "dotted_line_at_one": self.ax_spectrum.plot([2000,10000],[1,1], 'k:')
         }
         
-        rhs_layout.addWidget(self.figure)
-        self.parent_layout.addLayout(rhs_layout)
+        #rhs_layout.addWidget(self.figure)
+        #self.parent_layout.addLayout(rhs_layout)
+        self.parent_splitter.addWidget(self.figure)
+        self.parent_layout.addWidget(self.parent_splitter)
 
         # Connect filter combo box
         self.filter_combo_box.currentIndexChanged.connect(self.filter_combo_box_changed)
