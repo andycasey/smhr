@@ -344,7 +344,7 @@ class Session(BaseSession):
 
 
     @classmethod
-    def load(cls, session_path, **kwargs):
+    def load(cls, session_path, skip_spectral_models=False, **kwargs):
         """
         Create a Session from a path saved to disk.
 
@@ -391,9 +391,14 @@ class Session(BaseSession):
         # Update the new session with the metadata.
         session.metadata = metadata
 
+        if skip_spectral_models:
+            atexit.register(rmtree, twd)
+            return session
+
         # Reconstruct any spectral models.
         reconstructed_spectral_models = []
         for state in session.metadata.get("spectral_models", []):
+            start2 = time.time()
 
             args = [session, state["transition_hashes"]]
             if state["type"] == "SpectralSynthesisModel":
@@ -410,6 +415,7 @@ class Session(BaseSession):
             model = klass(*args)
             model.metadata = state["metadata"]
             reconstructed_spectral_models.append(model)
+            #print("  Loading one model {:.2f} {}".format(time.time()-start2, len(model._transitions)))
 
         # Update the session with the spectral models.
         session.metadata["spectral_models"] = reconstructed_spectral_models
@@ -699,6 +705,11 @@ class Session(BaseSession):
             "normalization": normalization_kwargs.copy()
         })
 
+        logger.info(
+            "Heliocentric velocity correction: {0:.2f} km/s".format(v_helio))
+        logger.info(
+            "Barycentric velocity correction: {0:.2f} km/s".format(v_bary))
+        
         return (rv, rv_uncertainty)
 
 
@@ -1118,5 +1129,16 @@ class Session(BaseSession):
         if not isinstance(self.normalized_spectrum, specutils.Spectrum1D):
             print("Must have normalized spectrum to make summary plot")
             return None
-        smh_plotting.make_summary_plot(defaults["summary_figure"],
+        return smh_plotting.make_summary_plot(defaults["summary_figure"],
+                                       self.normalized_spectrum, figure)
+    def make_ncap_summary_plot(self, figure=None):
+        with open(self._default_settings_path, "rb") as fp:
+            defaults = yaml.load(fp)
+        if "summary_figure_ncap" not in defaults:
+            raise RuntimeError("Defaults file ({}) must have summary_figure".format(\
+                    self._default_settings_path))
+        if not isinstance(self.normalized_spectrum, specutils.Spectrum1D):
+            print("Must have normalized spectrum to make summary plot")
+            return None
+        return smh_plotting.make_summary_plot(defaults["summary_figure_ncap"],
                                        self.normalized_spectrum, figure)

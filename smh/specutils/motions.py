@@ -432,29 +432,37 @@ def corrections_from_headers(headers):
         ra, dec = (c.ra.degree, c.dec.degree)
 
     # Time of observation.
+    # Try to get the mid-point directly.
     try:
-        utdate_key = [_ for _ in ("UTDATE", "UT-DATE") if _ in headers][0]
-        utstart_key = [_ for _ in ("UTSTART", "UT-START") if _ in headers][0]
-        
+        mjd = Time("{0}T{1}".format(headers["DATE-MID"], headers["UT-MID"])).mjd
+
     except IndexError:
-        raise KeyError("cannot find all time keys: UTSTART/UTDATE")
+        # Try and calculate it from UT-START/UT-DATE keys
+        raise
 
-    ut_start = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
-        headers[utstart_key]), format="isot", scale="utc")
+        try:
+            utdate_key = [_ for _ in ("UTDATE", "UT-DATE") if _ in headers][0]
+            utstart_key = [_ for _ in ("UTSTART", "UT-START") if _ in headers][0]
+            
+        except IndexError:
+            raise KeyError("cannot find all time keys: UTSTART/UTDATE")
 
-    try:
-        utend_key = [_ for _ in ("UTEND", "UT-END") if _ in headers][0]
-    except IndexError:
-        mjd = ut_start.mjd
-        logging.warn(
-            "Calculating celestial corrections based on the UT-START only")
+        ut_start = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
+            headers[utstart_key]), format="isot", scale="utc")
 
-    else:        
-        ut_end = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
-            headers[utend_key]), format="isot", scale="utc")
+        try:
+            utend_key = [_ for _ in ("UTEND", "UT-END") if _ in headers][0]
+        except IndexError:
+            mjd = ut_start.mjd
+            logging.warn(
+                "Calculating celestial corrections based on the UT-START only")
 
-        # Get the MJD of the mid-point of the observation.
-        mjd = (ut_end - ut_start).jd/2 + ut_start.mjd
+        else:        
+            ut_end = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
+                headers[utend_key]), format="isot", scale="utc")
+
+            # Get the MJD of the mid-point of the observation.
+            mjd = (ut_end - ut_start).jd/2 + ut_start.mjd
 
     # Calculate the correction.
     return corrections(long_obs, lat_obs, alt_obs, ra, dec, mjd)

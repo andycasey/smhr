@@ -477,8 +477,14 @@ class RVTab(QtGui.QWidget):
         }
 
         # Wavelength regions should just be a single range.
-        self._cache["input"]["wavelength_region"] \
-            = self._cache["input"]["wavelength_regions"][0]
+        try:
+            self._cache["input"]["wavelength_region"] \
+                = self._cache["input"]["wavelength_regions"][0]
+        except KeyError:
+            self._cache["input"]["wavelength_regions"] = self.parent.session.setting(("rv","wavelength_regions"))
+            rv_dict["wavelength_regions"] = self.parent.session.setting(("rv","wavelength_regions"))
+            self._cache["input"]["wavelength_region"] \
+                = self._cache["input"]["wavelength_regions"][0]
         del self._cache["input"]["wavelength_regions"]
 
         # Sometimes template_spectrum in a specutils.Spectrum1D
