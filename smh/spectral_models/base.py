@@ -198,17 +198,31 @@ class BaseSpectralModel(object):
     def index_transitions(self):
         """
         Index the transitions to the parent session.
+        
+        This step is very slow for large linelists.
         """
 
-        indices = np.zeros(len(self._transition_hashes), dtype=int)
-        for i, each in enumerate(self._transition_hashes):
-            index = np.where(
-                self._session.metadata["line_list"]["hash"] == each)[0]
-            #assert len(index) == 1, len(index)
-            if len(index) != 1: 
-                print("WARNING: hash {} appears {} times in session linelist".format(each,len(index)))
-                index = index[0]
-            indices[i] = index
+        #if len(self._transition_hashes) < 50:
+        if True:
+            ## Brute force loop for small N
+            indices = np.zeros(len(self._transition_hashes), dtype=int)
+            for i, each in enumerate(self._transition_hashes):
+                index = np.where(
+                    self._session.metadata["line_list"]["hash"] == each)[0]
+                #assert len(index) == 1, len(index)
+                if len(index) != 1: 
+                    #print("WARNING: hash {} appears {} times in session linelist".format(each,len(index)))
+                    index = index[0]
+                indices[i] = index
+        else:
+            ## Use searchsorted binary search, speeds up by ~1.85x
+            ## TODO this currently ASSUMES everything is in the session.
+            ## It WILL NOT error if a line is missing, instead using a random line!
+            iisort = np.argsort(self._session.metadata["line_list"]["hash"])
+            sorted = np.searchsorted(self._session.metadata["line_list"]["hash"],
+                                     self._transition_hashes,
+                                     sorter=iisort)
+            indices = iisort[sorted]
 
         self._transition_indices = indices
         self._transitions = self._session.metadata["line_list"][indices]

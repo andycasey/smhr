@@ -435,6 +435,10 @@ def species_to_elems_isotopes_ion(species):
         except ValueError as e:
             if element == 'C':
                 elem1,_ion = 'C','I'
+            elif element == 'H':
+                elem1,_ion = 'H','I'
+            elif element == 'He':
+                elem1,_ion = 'He','I'
             else:
                 print(element)
                 raise e

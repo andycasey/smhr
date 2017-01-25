@@ -104,9 +104,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # Buttons
         hbox = QtGui.QHBoxLayout()
         self.btn_fit_all = QtGui.QPushButton(self)
-        self.btn_fit_all.setText("Fit all acceptable")
+        self.btn_fit_all.setText("Fit all EW")
         self.btn_measure_all = QtGui.QPushButton(self)
-        self.btn_measure_all.setText("Measure all acceptable")
+        self.btn_measure_all.setText("Measure all acceptable EW")
         hbox.addWidget(self.btn_fit_all)
         hbox.addWidget(self.btn_measure_all)
         lhs_layout.addLayout(hbox)
@@ -123,7 +123,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         rhs_layout = QtGui.QVBoxLayout()
         self.figure = mpl.MPLWidget(None, tight_layout=True, autofocus=True)
         self.figure.setMinimumSize(QtCore.QSize(300, 300))
-        
+        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
+                               QtGui.QSizePolicy.Expanding)
+        sp.setHorizontalStretch(0)
+        sp.setVerticalStretch(0)
+        sp.setHeightForWidth(self.figure.sizePolicy().hasHeightForWidth())
+        self.figure.setSizePolicy(sp)
         gs_top = matplotlib.gridspec.GridSpec(3,1,height_ratios=[1,2,1])
         gs_top.update(top=.95,bottom=.05,hspace=0)
         gs_bot = matplotlib.gridspec.GridSpec(3,1,height_ratios=[1,2,1])
@@ -195,7 +200,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         _.selectionChanged.connect(self.selected_model_changed)
 
         # Connect buttons
-        self.btn_fit_all.clicked.connect(self.fit_all)
+        self.btn_fit_all.clicked.connect(self.fit_all_profiles)
         self.btn_measure_all.clicked.connect(self.measure_all)
 
         # Connect matplotlib.
@@ -459,9 +464,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.btn_update_abund_table.setText("Update Abundance Table")
         vbox_rhs.addWidget(self.btn_update_abund_table)
         
+        
+        hbox = QtGui.QHBoxLayout()
         self.btn_clear_masks_2 = QtGui.QPushButton(self.tab_synthesis)
         self.btn_clear_masks_2.setText("Clear Masks")
-        vbox_rhs.addWidget(self.btn_clear_masks_2)
+        hbox.addWidget(self.btn_clear_masks_2)
+        self.btn_export_synth = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_export_synth.setText("Export")
+        hbox.addWidget(self.btn_export_synth)
+        vbox_rhs.addLayout(hbox)
 
         ### Finish Synthesis Tab
         tab_hbox.addLayout(vbox_lhs)
@@ -619,6 +630,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.clicked_btn_update_abund_table)
         self.btn_clear_masks_2.clicked.connect(
             self.clicked_btn_clear_masks)
+        self.btn_export_synth.clicked.connect(
+            self.clicked_export_synthesis)
 
         self._synth_signals = [
             (self.edit_view_window_2.textChanged,self.update_edit_view_window_2),
@@ -644,7 +657,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             (self.btn_synthesize.clicked,self.synthesize_current_model),
             (self.btn_fit_synth.clicked,self.fit_one),
             (self.btn_update_abund_table.clicked,self.clicked_btn_update_abund_table),
-            (self.btn_clear_masks_2.clicked,self.clicked_btn_clear_masks)
+            (self.btn_clear_masks_2.clicked,self.clicked_btn_clear_masks),
+            (self.btn_export_synth.clicked,self.clicked_export_synthesis)
             ]
 
     def populate_filter_combo_box(self):
@@ -746,7 +760,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         #print("Time to refresh plots: {:.1f}s".format(time.time()-start))
         return None
 
-    def fit_all(self):
+    def fit_all_profiles(self):
         self._check_for_spectral_models()
         current_element_index = self.filter_combo_box.currentIndex()
 
@@ -757,11 +771,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 num_unacceptable += 1
                 continue
             if isinstance(spectral_model, SpectralSynthesisModel):
-                try:
-                    res = spectral_model.fit()
-                except (ValueError, RuntimeError, TypeError) as e:
-                    logger.debug("Fitting error",spectral_model)
-                    logger.debug(e)
+                num_unacceptable += 1
+                continue
+                #try:
+                #    res = spectral_model.fit()
+                #except (ValueError, RuntimeError, TypeError) as e:
+                #    logger.debug("Fitting error",spectral_model)
+                #    logger.debug(e)
             elif isinstance(spectral_model, ProfileFittingModel):
                 try:
                     res = spectral_model.fit()
@@ -773,11 +789,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             print("Found no acceptable spectral models, fitting all!")
             for i,spectral_model in enumerate(self.all_spectral_models.spectral_models):
                 if isinstance(spectral_model, SpectralSynthesisModel):
-                    try:
-                        res = spectral_model.fit()
-                    except (ValueError, RuntimeError, TypeError) as e:
-                        logger.debug("Fitting error",spectral_model)
-                        logger.debug(e)
+                    continue
+                    #try:
+                    #    res = spectral_model.fit()
+                    #except (ValueError, RuntimeError, TypeError) as e:
+                    #    logger.debug("Fitting error",spectral_model)
+                    #    logger.debug(e)
                 elif isinstance(spectral_model, ProfileFittingModel):
                     try:
                         res = spectral_model.fit()
@@ -1784,6 +1801,29 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         print(summary_dict)
         return None
+
+    def clicked_export_synthesis(self):
+        ## Get current spectral model, make sure it is a synthesis
+        spectral_model = self._get_selected_model()
+        if not isinstance(spectral_model, SpectralSynthesisModel): 
+            print("Must select a synthesis spectral model to export")
+            return
+        ## ask for synthesis output filename
+        synth_path, _ = QtGui.QFileDialog.getSaveFileName(self,
+                caption="Enter synthesis output filename", dir="") #, filter="*.txt")
+        if not synth_path: return
+        ## Ask for data output filename
+        data_path, _ = QtGui.QFileDialog.getSaveFileName(self,
+                caption="Enter data output filename", dir="") #, filter="*.txt")
+        if not data_path: return
+        ## Ask for parameter output filename
+        param_path, _ = QtGui.QFileDialog.getSaveFileName(self,
+                caption="Enter parameter output filename", dir="") #, filter="*.txt")
+        if not param_path: return
+        ## Export
+        spectral_model.export_fit(synth_path, data_path, param_path)
+        print("Exported to {}, {}, and {}".format(synth_path, data_path, param_path))
+        return
 
 class SpectralModelsTableView(SpectralModelsTableViewBase):
     def sizeHint(self):

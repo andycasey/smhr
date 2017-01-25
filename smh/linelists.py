@@ -415,6 +415,22 @@ class LineList(Table):
         duplicate_lines = self[np.array(duplicate_indices)]
         return duplicate_indices,duplicate_lines
 
+    def remove_exact_duplicates(self, in_place=False):
+        """
+        Returns a linelist with only unique hashes from this linelist
+        """
+        #n_cols = len(new_ll.colnames)
+        #names = new_ll.colnames
+        #dtype = [None] * n_cols
+        #self._init_indices = self._init_indices and new_ll._copy_indices
+        #self._init_from_table(new_ll, names, dtype, n_cols, True)
+        #return None
+        if in_place: raise NotImplementedError
+
+        uniq, ix = np.unique(self["hash"], return_index=True)
+        return self[ix]
+
+
     @staticmethod
     def hash(line):
         s = "{:.3f}_{:.3f}_{:.3f}_{}_{}_{}_{}_{}".format(line['wavelength'],line['expot'],line['loggf'],
