@@ -15,6 +15,7 @@ import sys
 from PySide import QtCore, QtGui
 import time
 
+import smh
 from smh import utils
 import mpl, style_utils
 from matplotlib.ticker import MaxNLocator
@@ -24,6 +25,7 @@ from spectral_models_table import SpectralModelsTableViewBase, SpectralModelsFil
 from linelist_manager import TransitionsDialog
 
 logger = logging.getLogger(__name__)
+logger.addHandler(smh.handler)
 
 if sys.platform == "darwin":
         
@@ -35,7 +37,8 @@ if sys.platform == "darwin":
     for substitute in substitutes:
         QtGui.QFont.insertSubstitution(*substitute)
 
-
+_QFONT = QtGui.QFont("Helvetica Neue", 10)
+_ROWHEIGHT = 20
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 PICKER_TOLERANCE = 10 # MAGIC HACK
 
@@ -44,6 +47,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     
     def __init__(self, parent):
         super(ChemicalAbundancesTab, self).__init__(parent)
+
         self.parent = parent
         self.FeH = np.nan
 
@@ -60,7 +64,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.filter_combo_box.addItem("All")
         self.element_summary_text = QtGui.QLabel(self)
         self.element_summary_text.setText("Please load spectral models (or fit all)")
-        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
+        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.Minimum, 
                                QtGui.QSizePolicy.Minimum)
         self.element_summary_text.setSizePolicy(sp)
         hbox.addWidget(self.filter_combo_box)
@@ -68,6 +72,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         lhs_layout.addLayout(hbox)
 
         self.table_view = SpectralModelsTableView(self)
+        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.Minimum, 
+                               QtGui.QSizePolicy.MinimumExpanding)
+        self.table_view.setSizePolicy(sp)
         # Set up a proxymodel.
         self.proxy_spectral_models = SpectralModelsFilterProxyModel(self)
         self.proxy_spectral_models.add_filter_function(
@@ -75,8 +82,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             lambda model: model.use_for_stellar_composition_inference)
 
         self.proxy_spectral_models.setDynamicSortFilter(True)
-        header = ["", u"λ\n(Å)", "log ε\n(dex)", u"E. W.\n(mÅ)",
-                  "REW", "σ(X)\n(dex)", "σ(E.W.)\n(mÅ)", "loggf","Element\n"]
+        #header = ["", u"λ\n(Å)", "log ε\n(dex)", u"E. W.\n(mÅ)",
+        #          "REW", "σ(X)\n(dex)", "σ(E.W.)\n(mÅ)", "loggf","Element\n"]
+        header = ["", u"λ", "log ε", u"E. W.",
+                  "REW", "σ(X)", "σ(E.W.)", "loggf","Element"]
         #attrs = ("is_acceptable", "_repr_wavelength", "abundance", "equivalent_width", 
         #         "reduced_equivalent_width", "_repr_element")
         self.all_spectral_models = SpectralModelsTableModel(self, header, None)
@@ -88,25 +97,32 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         # TODO: Re-enable sorting.
         self.table_view.setSortingEnabled(False)
-        self.table_view.resizeColumnsToContents()
-        self.table_view.setColumnWidth(0, 30) # MAGIC
-        self.table_view.setColumnWidth(1, 60) # MAGIC
+        #self.table_view.resizeColumnsToContents()
+        #self.table_view.resizeRowsToContents()
+        self.table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
+        self.table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
+        self.table_view.setColumnWidth(0, 25) # MAGIC
+        self.table_view.setColumnWidth(1, 50) # MAGIC
         self.table_view.setColumnWidth(2, 50) # MAGIC
         self.table_view.setColumnWidth(3, 50) # MAGIC
         self.table_view.setColumnWidth(4, 50) # MAGIC
         self.table_view.setColumnWidth(5, 50) # MAGIC
         self.table_view.setColumnWidth(6, 50) # MAGIC
         self.table_view.setColumnWidth(7, 50) # MAGIC
-        self.table_view.setMinimumSize(QtCore.QSize(240, 0))
+        #self.table_view.setMinimumSize(QtCore.QSize(240, 0))
         self.table_view.horizontalHeader().setStretchLastSection(True)
         lhs_layout.addWidget(self.table_view)
 
         # Buttons
         hbox = QtGui.QHBoxLayout()
+        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.Minimum, 
+                               QtGui.QSizePolicy.Minimum)
         self.btn_fit_all = QtGui.QPushButton(self)
         self.btn_fit_all.setText("Fit all EW")
+        self.btn_fit_all.setSizePolicy(sp)
         self.btn_measure_all = QtGui.QPushButton(self)
         self.btn_measure_all.setText("Measure all acceptable EW")
+        self.btn_measure_all.setSizePolicy(sp)
         hbox.addWidget(self.btn_fit_all)
         hbox.addWidget(self.btn_measure_all)
         lhs_layout.addLayout(hbox)
@@ -127,7 +143,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                                QtGui.QSizePolicy.Expanding)
         sp.setHorizontalStretch(0)
         sp.setVerticalStretch(0)
-        sp.setHeightForWidth(self.figure.sizePolicy().hasHeightForWidth())
+        #sp.setHeightForWidth(self.figure.sizePolicy().hasHeightForWidth())
         self.figure.setSizePolicy(sp)
         gs_top = matplotlib.gridspec.GridSpec(3,1,height_ratios=[1,2,1])
         gs_top.update(top=.95,bottom=.05,hspace=0)
@@ -192,6 +208,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         rhs_layout.addWidget(self.figure)
         self.parent_layout.addLayout(rhs_layout)
 
+
         # Connect filter combo box
         self.filter_combo_box.currentIndexChanged.connect(self.filter_combo_box_changed)
         
@@ -231,81 +248,103 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def _create_fitting_options_widget(self):
         self.opt_tabs = QtGui.QTabWidget(self)
         sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Expanding, 
+            QtGui.QSizePolicy.Minimum,
             QtGui.QSizePolicy.MinimumExpanding)
         self.opt_tabs.setSizePolicy(sp)
 
         def _create_line_in_hbox(parent, text, bot, top, dec, validate_int=False):
             hbox = QtGui.QHBoxLayout()
+            hbox.setSpacing(0)
+            hbox.setContentsMargins(0,0,0,0)
             label = QtGui.QLabel(parent)
             label.setText(text)
+            label.setFont(_QFONT)
             line = QtGui.QLineEdit(parent)
             line.setMinimumSize(QtCore.QSize(60, 0))
-            line.setMaximumSize(QtCore.QSize(60, 16777215))
+            line.setMaximumSize(QtCore.QSize(60, _ROWHEIGHT))
+            line.setFont(_QFONT)
             if validate_int:
                 line.setValidator(QtGui.QIntValidator(bot, top, line))
             else:
                 line.setValidator(QtGui.QDoubleValidator(bot, top, dec, line))
             hbox.addWidget(label)
-            hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+            hbox.addItem(QtGui.QSpacerItem(40, _ROWHEIGHT, QtGui.QSizePolicy.Expanding,
                                            QtGui.QSizePolicy.Minimum))
             hbox.addWidget(line)
             return hbox, label, line
 
         def _create_checkline_in_hbox(parent, text, bot, top, dec):
             hbox = QtGui.QHBoxLayout()
+            hbox.setSpacing(0)
+            hbox.setContentsMargins(0,0,0,0)
             checkbox = QtGui.QCheckBox(parent)
-            checkbox.setText("")
             label = QtGui.QLabel(parent)
             label.setText(text)
+            label.setFont(_QFONT)
             line = QtGui.QLineEdit(parent)
             line.setMinimumSize(QtCore.QSize(60, 0))
-            line.setMaximumSize(QtCore.QSize(60, 16777215))
+            line.setMaximumSize(QtCore.QSize(60, _ROWHEIGHT))
+            line.setFont(_QFONT)
             line.setValidator(QtGui.QDoubleValidator(bot, top, dec, line))
             hbox.addWidget(checkbox)
+            hbox.addItem(QtGui.QSpacerItem(10, 10, QtGui.QSizePolicy.Fixed,
+                                           QtGui.QSizePolicy.Minimum))
             hbox.addWidget(label)
-            hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+            hbox.addItem(QtGui.QSpacerItem(20, _ROWHEIGHT, QtGui.QSizePolicy.Expanding,
                                            QtGui.QSizePolicy.Minimum))
             hbox.addWidget(line)
             return hbox, checkbox, label, line
 
         def _create_combo_in_hbox(parent, text):
             hbox = QtGui.QHBoxLayout()
+            hbox.setSpacing(0)
+            hbox.setContentsMargins(0,0,0,0)
             label = QtGui.QLabel(parent)
             label.setText(text)
+            label.setFont(_QFONT)
             combo = QtGui.QComboBox(parent)
-            #combo.setMinimumSize(QtCore.QSize(60, 0))
-            #combo.setMaximumSize(QtCore.QSize(60, 16777215))
+            combo.setFont(_QFONT)
             combo.setSizeAdjustPolicy(QtGui.QComboBox.AdjustToContents)
+            combo.setMinimumSize(QtCore.QSize(60, 0))
+            combo.setMaximumSize(QtCore.QSize(1000, _ROWHEIGHT))
             hbox.addWidget(label)
-            hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+            hbox.addItem(QtGui.QSpacerItem(20, _ROWHEIGHT, QtGui.QSizePolicy.Expanding,
                                            QtGui.QSizePolicy.Minimum))
             hbox.addWidget(combo)
             return hbox, label, combo
 
         def _create_checkcombo_in_hbox(parent, text):
             hbox = QtGui.QHBoxLayout()
+            hbox.setSpacing(0)
+            hbox.setContentsMargins(0,0,0,0)
             checkbox = QtGui.QCheckBox(parent)
-            checkbox.setText("")
             label = QtGui.QLabel(parent)
             label.setText(text)
+            label.setFont(_QFONT)
             combo = QtGui.QComboBox(parent)
+            combo.setFont(_QFONT)
             combo.setMinimumSize(QtCore.QSize(60, 0))
-            combo.setMaximumSize(QtCore.QSize(60, 16777215))
+            combo.setMaximumSize(QtCore.QSize(60, _ROWHEIGHT))
             hbox.addWidget(checkbox)
+            hbox.addItem(QtGui.QSpacerItem(10, 10, QtGui.QSizePolicy.Fixed,
+                                           QtGui.QSizePolicy.Minimum))
             hbox.addWidget(label)
-            hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+            hbox.addItem(QtGui.QSpacerItem(20, _ROWHEIGHT, QtGui.QSizePolicy.Expanding,
                                            QtGui.QSizePolicy.Minimum))
             hbox.addWidget(combo)
             return hbox, checkbox, label, combo
 
         ###################
         ### Profile options
-        self.tab_profile = QtGui.QWidget()
+        self.tab_profile = QtGui.QWidget(self.opt_tabs)
         tab_hbox = QtGui.QHBoxLayout(self.tab_profile)
+        tab_hbox.setSpacing(0)
+        tab_hbox.setContentsMargins(0,0,0,0)
 
         ### LHS
         vbox_lhs = QtGui.QVBoxLayout()
+        vbox_lhs.setSpacing(0)
+        vbox_lhs.setContentsMargins(0,0,0,0)
         hbox, label, line = _create_line_in_hbox(self.tab_profile, "View window",
                                                  0, 1000, 1)
         self.edit_view_window = line
@@ -338,15 +377,19 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         self.checkbox_use_central_weighting = QtGui.QCheckBox(self.tab_profile)
         self.checkbox_use_central_weighting.setText("Central pixel weighting")
+        self.checkbox_use_central_weighting.setFont(_QFONT)
         vbox_lhs.addWidget(self.checkbox_use_central_weighting)
 
         self.checkbox_use_antimasks = QtGui.QCheckBox(self.tab_profile)
         self.checkbox_use_antimasks.setText("Use Antimasks")
         self.checkbox_use_antimasks.setEnabled(False) # Editable by shift clicking only
+        self.checkbox_use_antimasks.setFont(_QFONT)
         vbox_lhs.addWidget(self.checkbox_use_antimasks)
 
         ### RHS
         vbox_rhs = QtGui.QVBoxLayout()
+        vbox_rhs.setSpacing(0)
+        vbox_rhs.setContentsMargins(0,0,0,0)
         hbox, label, combo = _create_combo_in_hbox(self.tab_profile, "Type")
         self.combo_profile = combo
         for each in ("Gaussian", "Lorentzian", "Voigt"):
@@ -366,6 +409,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
                                            QtGui.QSizePolicy.Expanding))
         
+        self.checkbox_upper_limit = QtGui.QCheckBox(self.tab_profile)
+        self.checkbox_upper_limit.setText("Upper Limit")
+        self.checkbox_upper_limit.setFont(_QFONT)
+        vbox_rhs.addWidget(self.checkbox_upper_limit)
+
         self.btn_fit_one = QtGui.QPushButton(self.tab_profile)
         self.btn_fit_one.setText("Fit One")
         vbox_rhs.addWidget(self.btn_fit_one)
@@ -383,11 +431,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         ###################
         ### Synthesis options
-        self.tab_synthesis = QtGui.QWidget()
+        self.tab_synthesis = QtGui.QWidget(self.opt_tabs)
         tab_hbox = QtGui.QHBoxLayout(self.tab_synthesis)
+        tab_hbox.setSpacing(0)
+        tab_hbox.setContentsMargins(0,0,0,0)
 
         ### LHS
         vbox_lhs = QtGui.QVBoxLayout()
+        vbox_lhs.setSpacing(0)
+        vbox_lhs.setContentsMargins(0,0,0,0)
         hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "View window",
                                                  0, 1000, 1)
         self.edit_view_window_2 = line
@@ -435,12 +487,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         ### RHS
         vbox_rhs = QtGui.QVBoxLayout()
+        vbox_rhs.setSpacing(0)
+        vbox_rhs.setContentsMargins(0,0,0,0)
 
         # Element abundance table
         self.synth_abund_table = SynthesisAbundanceTableView(self.tab_synthesis)
         self.synth_abund_table_model = SynthesisAbundanceTableModel(self)
         self.synth_abund_table.setModel(self.synth_abund_table_model)
         self.synth_abund_table.resizeColumnsToContents()
+        self.synth_abund_table.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
+        self.synth_abund_table.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
         self.synth_abund_table.setColumnWidth(0, 40) # MAGIC
         self.synth_abund_table.setColumnWidth(1, 55) # MAGIC
         self.synth_abund_table.horizontalHeader().setStretchLastSection(True)
@@ -453,8 +509,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.btn_synthesize.setText("Synthesize")
         vbox_rhs.addWidget(self.btn_synthesize)
 
-        vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
-                                           QtGui.QSizePolicy.Minimum))
+        self.checkbox_upper_limit_2 = QtGui.QCheckBox(self.tab_synthesis)
+        self.checkbox_upper_limit_2.setText("Upper Limit")
+        self.checkbox_upper_limit_2.setFont(_QFONT)
+        vbox_rhs.addWidget(self.checkbox_upper_limit_2)
+
+        #vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
+        #                                   QtGui.QSizePolicy.Minimum))
 
         self.btn_fit_synth = QtGui.QPushButton(self.tab_synthesis)
         self.btn_fit_synth.setText("Fit Model")
@@ -478,6 +539,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         tab_hbox.addLayout(vbox_lhs)
         tab_hbox.addLayout(vbox_rhs)
         self.opt_tabs.addTab(self.tab_synthesis, "Synthesis")
+
+        ## opt_tabs settings
+        ## TODO: for some reason, the window automatically expands ruthlessly unless I put this in...
+        #self.opt_tabs.setMaximumSize(400,250)
+        #self.opt_tabs.tabBar().setFont(_QFONT)
+        # There's actually no need to show the tabs!
+        self.opt_tabs.tabBar().setMaximumSize(0,0)
 
         # Connect signals for Profile and Synthesis
         self._connect_profile_signals()
@@ -547,6 +615,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.update_wavelength_tolerance)
         self.edit_wavelength_tolerance.returnPressed.connect(
             self.fit_one)
+        self.checkbox_upper_limit.stateChanged.connect(
+            self.clicked_checkbox_upper_limit)
         self.btn_fit_one.clicked.connect(
             self.fit_one)
         self.btn_clear_masks.clicked.connect(
@@ -576,6 +646,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             (self.checkbox_wavelength_tolerance.stateChanged,self.fit_one),
             (self.edit_wavelength_tolerance.textChanged,self.update_wavelength_tolerance),
             (self.edit_wavelength_tolerance.returnPressed,self.fit_one),
+            (self.checkbox_upper_limit.stateChanged,self.clicked_checkbox_upper_limit),
             (self.btn_fit_one.clicked,self.fit_one),
             (self.btn_clear_masks.clicked,self.clicked_btn_clear_masks)
             ]
@@ -624,6 +695,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         #    self.synthDefaultAction)
         self.btn_synthesize.clicked.connect(
             self.synthesize_current_model)
+        self.checkbox_upper_limit_2.stateChanged.connect(
+            self.clicked_checkbox_upper_limit_2)
         self.btn_fit_synth.clicked.connect(
             self.fit_one)
         self.btn_update_abund_table.clicked.connect(
@@ -655,6 +728,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             (self.edit_initial_abundance_bound.textChanged,self.update_initial_abundance_bound),
             #(self.edit_initial_abundance_bound.returnPressed,self.synthDefaultAction),
             (self.btn_synthesize.clicked,self.synthesize_current_model),
+            (self.checkbox_upper_limit_2.stateChanged,self.clicked_checkbox_upper_limit_2),
             (self.btn_fit_synth.clicked,self.fit_one),
             (self.btn_update_abund_table.clicked,self.clicked_btn_update_abund_table),
             (self.btn_clear_masks_2.clicked,self.clicked_btn_clear_masks),
@@ -1315,8 +1389,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         proxy_row = proxy_index.row()
         table_model = self.proxy_spectral_models
         try:
-            if not table_model.data(table_model.createIndex(proxy_row, 0, None), QtCore.Qt.CheckStateRole):
+            if not table_model.data(proxy_index, QtCore.Qt.CheckStateRole):
                 raise ValueError #to put in nan
+            ## HACK for upper limits
+            index = table_model.mapToSource(proxy_index).row()
+            if self.parent.session.metadata["spectral_models"][index].metadata.get("is_upper_limit",False):
+                raise ValueError
+            
             rew = float(table_model.data(table_model.createIndex(proxy_row, 4, None)))
             abund = float(table_model.data(table_model.createIndex(proxy_row, 2, None)))
             err = float(table_model.data(table_model.createIndex(proxy_row, 5, None)))
@@ -1351,8 +1430,14 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         err_list = []
         for row in range(table_model.rowCount()):
             try:
-                if not table_model.data(table_model.createIndex(row, 0, None), QtCore.Qt.CheckStateRole):
+                proxy_index = table_model.createIndex(row, 0, None)
+                if not table_model.data(proxy_index, QtCore.Qt.CheckStateRole):
                     raise ValueError #to put in nan
+                ## HACK for upper limits
+                index = table_model.mapToSource(proxy_index).row()
+                if self.parent.session.metadata["spectral_models"][index].metadata.get("is_upper_limit",False):
+                    raise ValueError
+                
                 rew = float(table_model.data(table_model.createIndex(row, 4, None)))
                 abund = float(table_model.data(table_model.createIndex(row, 2, None)))
                 err = float(table_model.data(table_model.createIndex(row, 5, None)))
@@ -1473,6 +1558,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             except KeyError: # HACK Old SMH sessions will not load with antimask_flag
                 self.checkbox_use_antimasks.setChecked(False)
 
+            try:
+                # HACK
+                self.checkbox_upper_limit.setChecked(
+                    selected_model.metadata["is_upper_limit"])
+            except KeyError: # HACK Old SMH sessions may not have upper limit flag
+                self.checkbox_upper_limit.setChecked(False)
+
             # Reconnect signals
             self._connect_profile_signals()
         else:
@@ -1530,6 +1622,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
             # sigma smooth tolerance needs implementing.
             self.synth_abund_table_model.load_new_model(selected_model)
+
+            try:
+                # HACK
+                self.checkbox_upper_limit_2.setChecked(
+                    selected_model.metadata["is_upper_limit"])
+            except KeyError: # HACK Old SMH sessions may not have upper limit flag
+                self.checkbox_upper_limit_2.setChecked(False)
 
             # Reconnect signals
             self._connect_profile_signals()
@@ -1648,6 +1747,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         except:
             value = None
         self._get_selected_model().metadata["wavelength_tolerance"] = value
+        return None
+    def clicked_checkbox_upper_limit(self):
+        """ The checkbox to set as upper limit has been clicked. """
+        spectral_model, proxy_index, index = self._get_selected_model(True)
+        spectral_model.metadata["is_upper_limit"] \
+            = self.checkbox_upper_limit.isChecked()
+        self.table_view.update_row(proxy_index.row())
+        self.update_cache(proxy_index)
+        self.summarize_current_table()
+        self.refresh_plots()
         return None
     def clicked_btn_clear_masks(self):
         spectral_model = self._get_selected_model()
@@ -1769,6 +1878,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             selected_model.update_fit_after_parameter_change()
             self.update_spectrum_figure(redraw=True)
         return None
+    def clicked_checkbox_upper_limit_2(self):
+        """ The checkbox to set as upper limit has been clicked. """
+        spectral_model, proxy_index, index = self._get_selected_model(True)
+        spectral_model.metadata["is_upper_limit"] \
+            = self.checkbox_upper_limit_2.isChecked()
+        self.table_view.update_row(proxy_index.row())
+        self.update_cache(proxy_index)
+        self.summarize_current_table()
+        self.refresh_plots()
+        return None
     def clicked_btn_update_abund_table(self):
         selected_model = self._get_selected_model()
         if selected_model is None: return None
@@ -1827,10 +1946,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
 class SpectralModelsTableView(SpectralModelsTableViewBase):
     def sizeHint(self):
-        return QtCore.QSize(240,100)
+        #return QtCore.QSize(240,100)
+        return QtCore.QSize(125,100)
 
     def minimumSizeHint(self):
-        return QtCore.QSize(240,0)
+        return QtCore.QSize(125,0)
 
     def refresh_gui(self):
         self.parent.summarize_current_table()
@@ -1940,6 +2060,9 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
 
         if not index.isValid():
             return None
+
+        if role==QtCore.Qt.FontRole:
+            return _QFONT
 
         column = index.column()
         spectral_model = self.spectral_models[index.row()]
@@ -2128,6 +2251,8 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
     def columnCount(self, parent):
         return 3
     def data(self, index, role):
+        if role==QtCore.Qt.FontRole:
+            return _QFONT
         if not index.isValid() or role != QtCore.Qt.DisplayRole:
             return None
         if self.spectral_model is None: return None
@@ -2156,6 +2281,8 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
             if col==0: return "El."
             if col==1: return "A(X)"
             if col==2: return "[X/Fe]"
+        if role==QtCore.Qt.FontRole:
+            return _QFONT
         return None
     def setData(self, index, value, role):
         # [X/Fe] and logeps appear to automatically update each other!
