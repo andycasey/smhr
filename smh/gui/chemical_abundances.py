@@ -409,6 +409,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
                                            QtGui.QSizePolicy.Expanding))
         
+        self.checkbox_upper_limit = QtGui.QCheckBox(self.tab_profile)
+        self.checkbox_upper_limit.setText("Upper Limit")
+        self.checkbox_upper_limit.setFont(_QFONT)
+        vbox_rhs.addWidget(self.checkbox_upper_limit)
+
         self.btn_fit_one = QtGui.QPushButton(self.tab_profile)
         self.btn_fit_one.setText("Fit One")
         vbox_rhs.addWidget(self.btn_fit_one)
@@ -504,8 +509,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.btn_synthesize.setText("Synthesize")
         vbox_rhs.addWidget(self.btn_synthesize)
 
-        vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
-                                           QtGui.QSizePolicy.Minimum))
+        self.checkbox_upper_limit_2 = QtGui.QCheckBox(self.tab_synthesis)
+        self.checkbox_upper_limit_2.setText("Upper Limit")
+        self.checkbox_upper_limit_2.setFont(_QFONT)
+        vbox_rhs.addWidget(self.checkbox_upper_limit_2)
+
+        #vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
+        #                                   QtGui.QSizePolicy.Minimum))
 
         self.btn_fit_synth = QtGui.QPushButton(self.tab_synthesis)
         self.btn_fit_synth.setText("Fit Model")
@@ -605,6 +615,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.update_wavelength_tolerance)
         self.edit_wavelength_tolerance.returnPressed.connect(
             self.fit_one)
+        self.checkbox_upper_limit.stateChanged.connect(
+            self.clicked_checkbox_upper_limit)
         self.btn_fit_one.clicked.connect(
             self.fit_one)
         self.btn_clear_masks.clicked.connect(
@@ -634,6 +646,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             (self.checkbox_wavelength_tolerance.stateChanged,self.fit_one),
             (self.edit_wavelength_tolerance.textChanged,self.update_wavelength_tolerance),
             (self.edit_wavelength_tolerance.returnPressed,self.fit_one),
+            (self.checkbox_upper_limit.stateChanged,self.clicked_checkbox_upper_limit),
             (self.btn_fit_one.clicked,self.fit_one),
             (self.btn_clear_masks.clicked,self.clicked_btn_clear_masks)
             ]
@@ -682,6 +695,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         #    self.synthDefaultAction)
         self.btn_synthesize.clicked.connect(
             self.synthesize_current_model)
+        self.checkbox_upper_limit_2.stateChanged.connect(
+            self.clicked_checkbox_upper_limit_2)
         self.btn_fit_synth.clicked.connect(
             self.fit_one)
         self.btn_update_abund_table.clicked.connect(
@@ -713,6 +728,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             (self.edit_initial_abundance_bound.textChanged,self.update_initial_abundance_bound),
             #(self.edit_initial_abundance_bound.returnPressed,self.synthDefaultAction),
             (self.btn_synthesize.clicked,self.synthesize_current_model),
+            (self.checkbox_upper_limit_2.stateChanged,self.clicked_checkbox_upper_limit_2),
             (self.btn_fit_synth.clicked,self.fit_one),
             (self.btn_update_abund_table.clicked,self.clicked_btn_update_abund_table),
             (self.btn_clear_masks_2.clicked,self.clicked_btn_clear_masks),
@@ -1373,8 +1389,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         proxy_row = proxy_index.row()
         table_model = self.proxy_spectral_models
         try:
-            if not table_model.data(table_model.createIndex(proxy_row, 0, None), QtCore.Qt.CheckStateRole):
+            if not table_model.data(proxy_index, QtCore.Qt.CheckStateRole):
                 raise ValueError #to put in nan
+            ## HACK for upper limits
+            index = table_model.mapToSource(proxy_index).row()
+            if self.parent.session.metadata["spectral_models"][index].metadata.get("is_upper_limit",False):
+                raise ValueError
+            
             rew = float(table_model.data(table_model.createIndex(proxy_row, 4, None)))
             abund = float(table_model.data(table_model.createIndex(proxy_row, 2, None)))
             err = float(table_model.data(table_model.createIndex(proxy_row, 5, None)))
@@ -1409,8 +1430,14 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         err_list = []
         for row in range(table_model.rowCount()):
             try:
-                if not table_model.data(table_model.createIndex(row, 0, None), QtCore.Qt.CheckStateRole):
+                proxy_index = table_model.createIndex(row, 0, None)
+                if not table_model.data(proxy_index, QtCore.Qt.CheckStateRole):
                     raise ValueError #to put in nan
+                ## HACK for upper limits
+                index = table_model.mapToSource(proxy_index).row()
+                if self.parent.session.metadata["spectral_models"][index].metadata.get("is_upper_limit",False):
+                    raise ValueError
+                
                 rew = float(table_model.data(table_model.createIndex(row, 4, None)))
                 abund = float(table_model.data(table_model.createIndex(row, 2, None)))
                 err = float(table_model.data(table_model.createIndex(row, 5, None)))
@@ -1531,6 +1558,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             except KeyError: # HACK Old SMH sessions will not load with antimask_flag
                 self.checkbox_use_antimasks.setChecked(False)
 
+            try:
+                # HACK
+                self.checkbox_upper_limit.setChecked(
+                    selected_model.metadata["is_upper_limit"])
+            except KeyError: # HACK Old SMH sessions may not have upper limit flag
+                self.checkbox_upper_limit.setChecked(False)
+
             # Reconnect signals
             self._connect_profile_signals()
         else:
@@ -1588,6 +1622,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
             # sigma smooth tolerance needs implementing.
             self.synth_abund_table_model.load_new_model(selected_model)
+
+            try:
+                # HACK
+                self.checkbox_upper_limit_2.setChecked(
+                    selected_model.metadata["is_upper_limit"])
+            except KeyError: # HACK Old SMH sessions may not have upper limit flag
+                self.checkbox_upper_limit_2.setChecked(False)
 
             # Reconnect signals
             self._connect_profile_signals()
@@ -1706,6 +1747,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         except:
             value = None
         self._get_selected_model().metadata["wavelength_tolerance"] = value
+        return None
+    def clicked_checkbox_upper_limit(self):
+        """ The checkbox to set as upper limit has been clicked. """
+        spectral_model, proxy_index, index = self._get_selected_model(True)
+        spectral_model.metadata["is_upper_limit"] \
+            = self.checkbox_upper_limit.isChecked()
+        self.table_view.update_row(proxy_index.row())
+        self.update_cache(proxy_index)
+        self.summarize_current_table()
+        self.refresh_plots()
         return None
     def clicked_btn_clear_masks(self):
         spectral_model = self._get_selected_model()
@@ -1826,6 +1877,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             selected_model.metadata["manual_sigma_smooth"] = value
             selected_model.update_fit_after_parameter_change()
             self.update_spectrum_figure(redraw=True)
+        return None
+    def clicked_checkbox_upper_limit_2(self):
+        """ The checkbox to set as upper limit has been clicked. """
+        spectral_model, proxy_index, index = self._get_selected_model(True)
+        spectral_model.metadata["is_upper_limit"] \
+            = self.checkbox_upper_limit_2.isChecked()
+        self.table_view.update_row(proxy_index.row())
+        self.update_cache(proxy_index)
+        self.summarize_current_table()
+        self.refresh_plots()
         return None
     def clicked_btn_update_abund_table(self):
         selected_model = self._get_selected_model()
