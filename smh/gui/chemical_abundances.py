@@ -47,14 +47,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.parent = parent
         self.FeH = np.nan
 
-        self.parent_splitter = QtGui.QSplitter(self)
-        self.parent_splitter.setChildrenCollapsible(False)
         self.parent_layout = QtGui.QHBoxLayout(self)
         
         ################
         # LEFT HAND SIDE
         ################
-        #Summary combobox, measurements, buttons
         lhs_layout = QtGui.QVBoxLayout()
         
         hbox = QtGui.QHBoxLayout()
@@ -121,28 +118,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         # Model fitting options
         self._create_fitting_options_widget()
-        
-        ## Layout only
-        #lhs_layout.addWidget(self.opt_tabs)
-        #self.parent_layout.addLayout(lhs_layout)
-        
-        ## No left splitter
         lhs_layout.addWidget(self.opt_tabs)
-        lhs_container = QtGui.QWidget() 
-        lhs_container.setLayout(lhs_layout)
-        self.parent_splitter.addWidget(lhs_container)
         
-        ## Left splitter
-        ###lhs_container = QtGui.QWidget() 
-        ###lhs_container.setLayout(lhs_layout)
-        ###self.lhs_splitter.addWidget(lhs_container)
-        ###lhs_container2 = QtGui.QWidget() 
-        ###lhs_layout2 = QtGui.QVBoxLayout()
-        ###lhs_layout2.addWidget(self.opt_tabs)
-        ###lhs_container2.setLayout(lhs_layout2)
-        ###self.lhs_splitter.addWidget(lhs_container2)
-        ###self.lhs_splitter.addWidget(self.opt_tabs)
-        ###self.parent_splitter.addWidget(self.lhs_splitter)
+        self.parent_layout.addLayout(lhs_layout)
 
         #############################
         # RIGHT HAND SIDE: MPL WIDGET
@@ -216,10 +194,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             "dotted_line_at_one": self.ax_spectrum.plot([2000,10000],[1,1], 'k:')
         }
         
-        #rhs_layout.addWidget(self.figure)
-        #self.parent_layout.addLayout(rhs_layout)
-        self.parent_splitter.addWidget(self.figure)
-        self.parent_layout.addWidget(self.parent_splitter)
+        rhs_layout.addWidget(self.figure)
+        self.parent_layout.addLayout(rhs_layout)
 
 
         # Connect filter combo box
