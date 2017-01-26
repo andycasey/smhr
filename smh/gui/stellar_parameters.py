@@ -289,9 +289,10 @@ class StellarParametersTab(QtGui.QWidget):
         #header = ["", u"λ\n[Å]", "Element", u"EW\n[mÅ]", u"σ(EW)\n[mÅ]",
         #          "log ε\n[dex]", "σ(log ε)\n[dex]"]
         header = ["", u"λ", "Element", u"EW", u"σ(EW)",
-                  "log ε", "σ(log ε)"]
+                  "log ε", "σ(log ε)", "ul"]
         attrs = ("is_acceptable", "_repr_wavelength", "_repr_element", 
-                 "equivalent_width", "err_equivalent_width", "abundance", "err_abundance")
+                 "equivalent_width", "err_equivalent_width", "abundance", "err_abundance",
+                 "is_upper_limit")
 
         self.table_view = SpectralModelsTableView(self)
         self.table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
@@ -1100,7 +1101,7 @@ class StellarParametersTab(QtGui.QWidget):
                 = self.parent.session.stellar_parameter_state(full_output=True,
                     filtering=filtering)
 
-        except ValueError:
+        except ValueError as e:
             logger.warn("No measured transitions to calculate abundances for.")
             return None
 
@@ -1937,6 +1938,14 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
             except:
                 value = ""
 
+        elif column == 7 \
+        and role in (QtCore.Qt.DisplayRole, QtCore.Qt.CheckStateRole):
+            value = spectral_model.is_upper_limit
+            if role == QtCore.Qt.CheckStateRole:
+                return QtCore.Qt.Checked if value else QtCore.Qt.Unchecked
+            else:
+                return None
+            
         return value if role == QtCore.Qt.DisplayRole else None
     
 

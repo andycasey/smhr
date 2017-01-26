@@ -105,7 +105,7 @@ class BaseSpectralModel(object):
         return self.metadata.get("is_upper_limit", False)
 
 
-    @is_acceptable.setter
+    @is_upper_limit.setter
     def is_upper_limit(self, decision):
         """
         Mark the spectral model as acceptable or unacceptable.
