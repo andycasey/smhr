@@ -202,8 +202,9 @@ class BaseSpectralModel(object):
         This step is very slow for large linelists.
         """
 
-        if len(self._transition_hashes) < 50:
+        #if len(self._transition_hashes) < 50:
         #if True:
+        if False:
             ## Brute force loop for small N
             indices = np.zeros(len(self._transition_hashes), dtype=int)
             for i, each in enumerate(self._transition_hashes):

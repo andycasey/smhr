@@ -399,6 +399,7 @@ class Session(BaseSession):
 
         # Reconstruct any spectral models.
         reconstructed_spectral_models = []
+        start = time.time()
         for state in session.metadata.get("spectral_models", []):
             start2 = time.time()
 
@@ -418,7 +419,8 @@ class Session(BaseSession):
             model.metadata = state["metadata"]
             reconstructed_spectral_models.append(model)
             #print("  Loading one model {:.3f} {} {} {}".format(time.time()-start2, len(model._transitions), model.elements, model.wavelength))
-            #logger.debug("  Loading one model {:.3f} {} {} {}\n".format(time.time()-start2, len(model._transitions), model.elements, model.wavelength))
+            logger.debug("  Loading one model {:.3f} {} {} {}\n".format(time.time()-start2, len(model._transitions), model.elements, model.wavelength))
+        logger.debug("Time to reconstruct spectral models: {:.3f}".format(time.time()-start))
         
         # Update the session with the spectral models.
         session.metadata["spectral_models"] = reconstructed_spectral_models
