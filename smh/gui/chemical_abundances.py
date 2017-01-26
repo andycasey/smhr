@@ -15,6 +15,7 @@ import sys
 from PySide import QtCore, QtGui
 import time
 
+import smh
 from smh import utils
 import mpl, style_utils
 from matplotlib.ticker import MaxNLocator
@@ -24,6 +25,7 @@ from spectral_models_table import SpectralModelsTableViewBase, SpectralModelsFil
 from linelist_manager import TransitionsDialog
 
 logger = logging.getLogger(__name__)
+logger.addHandler(smh.handler)
 
 if sys.platform == "darwin":
         
@@ -44,6 +46,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     
     def __init__(self, parent):
         super(ChemicalAbundancesTab, self).__init__(parent)
+
         self.parent = parent
         self.FeH = np.nan
 
@@ -60,7 +63,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.filter_combo_box.addItem("All")
         self.element_summary_text = QtGui.QLabel(self)
         self.element_summary_text.setText("Please load spectral models (or fit all)")
-        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
+        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.Minimum, 
                                QtGui.QSizePolicy.Minimum)
         self.element_summary_text.setSizePolicy(sp)
         hbox.addWidget(self.filter_combo_box)
@@ -68,6 +71,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         lhs_layout.addLayout(hbox)
 
         self.table_view = SpectralModelsTableView(self)
+        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.Minimum, 
+                               QtGui.QSizePolicy.MinimumExpanding)
+        self.table_view.setSizePolicy(sp)
         # Set up a proxymodel.
         self.proxy_spectral_models = SpectralModelsFilterProxyModel(self)
         self.proxy_spectral_models.add_filter_function(
@@ -108,10 +114,14 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         # Buttons
         hbox = QtGui.QHBoxLayout()
+        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.Minimum, 
+                               QtGui.QSizePolicy.Minimum)
         self.btn_fit_all = QtGui.QPushButton(self)
         self.btn_fit_all.setText("Fit all EW")
+        self.btn_fit_all.setSizePolicy(sp)
         self.btn_measure_all = QtGui.QPushButton(self)
         self.btn_measure_all.setText("Measure all acceptable EW")
+        self.btn_measure_all.setSizePolicy(sp)
         hbox.addWidget(self.btn_fit_all)
         hbox.addWidget(self.btn_measure_all)
         lhs_layout.addLayout(hbox)
@@ -237,13 +247,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def _create_fitting_options_widget(self):
         self.opt_tabs = QtGui.QTabWidget(self)
         sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.MinimumExpanding, 
+            QtGui.QSizePolicy.Minimum,
             QtGui.QSizePolicy.MinimumExpanding)
         self.opt_tabs.setSizePolicy(sp)
-        #self.opt_tabs.setStyleSheet("QPushButton { font-size: 10px; min-width: 0px; min-height: 0px; }")
-        #self.opt_tabs.setStyleSheet("QCheckBox { font-size: 10px; min-width: 0px; min-height: 0px; }")
-        #self.opt_tabs.setStyleSheet("QLabel { font-size: 10px; }")
-        #self.opt_tabs.setStyleSheet("QLineEdit {font-size: 10px; }")
 
         def _create_line_in_hbox(parent, text, bot, top, dec, validate_int=False):
             hbox = QtGui.QHBoxLayout()
@@ -526,7 +532,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         ## opt_tabs settings
         ## TODO: for some reason, the window automatically expands ruthlessly unless I put this in...
         #self.opt_tabs.setMaximumSize(400,250)
-        self.opt_tabs.tabBar().setFont(_QFONT)
+        #self.opt_tabs.tabBar().setFont(_QFONT)
         # There's actually no need to show the tabs!
         self.opt_tabs.tabBar().setMaximumSize(0,0)
 

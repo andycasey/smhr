@@ -18,6 +18,7 @@ from matplotlib.ticker import MaxNLocator
 from time import time
 
 import mpl, style_utils
+import smh
 from smh.photospheres import available as available_photospheres
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
@@ -29,6 +30,7 @@ from quality_control import QualityControlDialog
 from sp_solve_options import SolveOptionsDialog
 
 logger = logging.getLogger(__name__)
+logger.addHandler(smh.handler)
 
 if sys.platform == "darwin":
         
@@ -41,6 +43,7 @@ if sys.platform == "darwin":
         QtGui.QFont.insertSubstitution(*substitute)
 
 
+_QFONT = QtGui.QFont("Helvetica Neue", 10)
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
 class StateTableModel(QtCore.QAbstractTableModel):

@@ -9,6 +9,13 @@ from astropy import table
 from .utils import element_to_species, species_to_element
 from .utils import elems_isotopes_ion_to_species, species_to_elems_isotopes_ion
 
+import logging
+logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter(
+    "%(asctime)s [%(levelname)-8s] %(message)s"))
+logger.addHandler(handler)
+
 import os
 
 import md5
