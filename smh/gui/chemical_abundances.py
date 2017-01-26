@@ -38,6 +38,7 @@ if sys.platform == "darwin":
         QtGui.QFont.insertSubstitution(*substitute)
 
 _QFONT = QtGui.QFont("Helvetica Neue", 10)
+_ROWHEIGHT = 20
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 PICKER_TOLERANCE = 10 # MAGIC HACK
 
@@ -99,7 +100,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         #self.table_view.resizeColumnsToContents()
         #self.table_view.resizeRowsToContents()
         self.table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
-        self.table_view.verticalHeader().setDefaultSectionSize(20)
+        self.table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
         self.table_view.setColumnWidth(0, 25) # MAGIC
         self.table_view.setColumnWidth(1, 50) # MAGIC
         self.table_view.setColumnWidth(2, 50) # MAGIC
@@ -260,14 +261,14 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             label.setFont(_QFONT)
             line = QtGui.QLineEdit(parent)
             line.setMinimumSize(QtCore.QSize(60, 0))
-            line.setMaximumSize(QtCore.QSize(60, 20))
+            line.setMaximumSize(QtCore.QSize(60, _ROWHEIGHT))
             line.setFont(_QFONT)
             if validate_int:
                 line.setValidator(QtGui.QIntValidator(bot, top, line))
             else:
                 line.setValidator(QtGui.QDoubleValidator(bot, top, dec, line))
             hbox.addWidget(label)
-            hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
+            hbox.addItem(QtGui.QSpacerItem(40, _ROWHEIGHT, QtGui.QSizePolicy.Expanding,
                                            QtGui.QSizePolicy.Minimum))
             hbox.addWidget(line)
             return hbox, label, line
@@ -282,14 +283,14 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             label.setFont(_QFONT)
             line = QtGui.QLineEdit(parent)
             line.setMinimumSize(QtCore.QSize(60, 0))
-            line.setMaximumSize(QtCore.QSize(60, 20))
+            line.setMaximumSize(QtCore.QSize(60, _ROWHEIGHT))
             line.setFont(_QFONT)
             line.setValidator(QtGui.QDoubleValidator(bot, top, dec, line))
             hbox.addWidget(checkbox)
             hbox.addItem(QtGui.QSpacerItem(10, 10, QtGui.QSizePolicy.Fixed,
                                            QtGui.QSizePolicy.Minimum))
             hbox.addWidget(label)
-            hbox.addItem(QtGui.QSpacerItem(20, 20, QtGui.QSizePolicy.Expanding,
+            hbox.addItem(QtGui.QSpacerItem(20, _ROWHEIGHT, QtGui.QSizePolicy.Expanding,
                                            QtGui.QSizePolicy.Minimum))
             hbox.addWidget(line)
             return hbox, checkbox, label, line
@@ -305,9 +306,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             combo.setFont(_QFONT)
             combo.setSizeAdjustPolicy(QtGui.QComboBox.AdjustToContents)
             combo.setMinimumSize(QtCore.QSize(60, 0))
-            combo.setMaximumSize(QtCore.QSize(1000, 20))
+            combo.setMaximumSize(QtCore.QSize(1000, _ROWHEIGHT))
             hbox.addWidget(label)
-            hbox.addItem(QtGui.QSpacerItem(20, 20, QtGui.QSizePolicy.Expanding,
+            hbox.addItem(QtGui.QSpacerItem(20, _ROWHEIGHT, QtGui.QSizePolicy.Expanding,
                                            QtGui.QSizePolicy.Minimum))
             hbox.addWidget(combo)
             return hbox, label, combo
@@ -323,12 +324,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             combo = QtGui.QComboBox(parent)
             combo.setFont(_QFONT)
             combo.setMinimumSize(QtCore.QSize(60, 0))
-            combo.setMaximumSize(QtCore.QSize(60, 20))
+            combo.setMaximumSize(QtCore.QSize(60, _ROWHEIGHT))
             hbox.addWidget(checkbox)
             hbox.addItem(QtGui.QSpacerItem(10, 10, QtGui.QSizePolicy.Fixed,
                                            QtGui.QSizePolicy.Minimum))
             hbox.addWidget(label)
-            hbox.addItem(QtGui.QSpacerItem(20, 20, QtGui.QSizePolicy.Expanding,
+            hbox.addItem(QtGui.QSpacerItem(20, _ROWHEIGHT, QtGui.QSizePolicy.Expanding,
                                            QtGui.QSizePolicy.Minimum))
             hbox.addWidget(combo)
             return hbox, checkbox, label, combo
@@ -490,7 +491,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.synth_abund_table.setModel(self.synth_abund_table_model)
         self.synth_abund_table.resizeColumnsToContents()
         self.synth_abund_table.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
-        self.synth_abund_table.verticalHeader().setDefaultSectionSize(20)
+        self.synth_abund_table.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
         self.synth_abund_table.setColumnWidth(0, 40) # MAGIC
         self.synth_abund_table.setColumnWidth(1, 55) # MAGIC
         self.synth_abund_table.horizontalHeader().setStretchLastSection(True)
