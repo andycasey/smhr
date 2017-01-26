@@ -366,6 +366,8 @@ class Session(BaseSession):
         if line_list is not None:
             metadata["line_list"] = LineList.read(
                 os.path.join(twd, line_list), format="fits")
+            metadata["line_list_argsort_hashes"] = np.argsort(
+                metadata["line_list"]["hash"])
 
         # Load in the template spectrum.
         template_spectrum_path \
@@ -415,8 +417,9 @@ class Session(BaseSession):
             model = klass(*args)
             model.metadata = state["metadata"]
             reconstructed_spectral_models.append(model)
-            #print("  Loading one model {:.2f} {}".format(time.time()-start2, len(model._transitions)))
-
+            #print("  Loading one model {:.3f} {} {} {}".format(time.time()-start2, len(model._transitions), model.elements, model.wavelength))
+            #logger.debug("  Loading one model {:.3f} {} {} {}\n".format(time.time()-start2, len(model._transitions), model.elements, model.wavelength))
+        
         # Update the session with the spectral models.
         session.metadata["spectral_models"] = reconstructed_spectral_models
 
@@ -432,6 +435,8 @@ class Session(BaseSession):
         against the session.
         """
 
+        self.metadata["line_list_argsort_hashes"] = np.argsort(
+            metadata["line_list"]["hash"])
         for spectral_model in self.metadata.get("spectral_models", []):
             spectral_model.index_transitions()
         return None

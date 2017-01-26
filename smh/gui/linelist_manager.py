@@ -121,7 +121,10 @@ class LineListTableModel(QtCore.QAbstractTableModel):
         self.dataChanged.emit(self.createIndex(0, 0),
             self.createIndex(self.rowCount(0), self.columnCount(0)))
         self.emit(QtCore.SIGNAL("layoutChanged()"))
-
+        
+        # Must update hash sorting after any modification to line list
+        self.session.metadata["line_list_argsort_hashes"] = np.argsort(
+            self.session.metadata["line_list"]["hash"])
 
     def flags(self, index):
         if not index.isValid():
@@ -393,6 +396,10 @@ class LineListTableView(QtGui.QTableView):
         self.session.metadata["line_list"] \
             = self.session.metadata["line_list"][mask]
 
+        # Must update hash sorting after any modification to line list
+        self.session.metadata["line_list_argsort_hashes"] = np.argsort(
+            self.session.metadata["line_list"]["hash"])
+
         self._parent.models_view.model().reset()
 
         self.clearSelection()
@@ -436,6 +443,10 @@ class LineListTableView(QtGui.QTableView):
                     line_list, in_place=False, skip_exactly_equal_lines=True,
                     ignore_conflicts=self._parent.checkbox_merge_without_conflicts.isChecked())
 
+        # Must update hash sorting after any modification to line list
+        self.session.metadata["line_list_argsort_hashes"] = np.argsort(
+            self.session.metadata["line_list"]["hash"])
+        
         self.model().reset()
         print("Time taken: {:.1f}".format(time() - ta))
 
@@ -463,6 +474,10 @@ class LineListTableView(QtGui.QTableView):
         if self.session.metadata.get("line_list", None) is not None:
             line_list = self.session.metadata["line_list"].merge(
                 line_list, in_place=False)
+
+        # Must update hash sorting after any modification to line list
+        self.session.metadata["line_list_argsort_hashes"] = np.argsort(
+            self.session.metadata["line_list"]["hash"])
 
         try:
             line_list["equivalent_width"]

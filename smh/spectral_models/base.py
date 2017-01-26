@@ -202,8 +202,8 @@ class BaseSpectralModel(object):
         This step is very slow for large linelists.
         """
 
-        #if len(self._transition_hashes) < 50:
-        if True:
+        if len(self._transition_hashes) < 50:
+        #if True:
             ## Brute force loop for small N
             indices = np.zeros(len(self._transition_hashes), dtype=int)
             for i, each in enumerate(self._transition_hashes):
@@ -215,14 +215,15 @@ class BaseSpectralModel(object):
                     index = index[0]
                 indices[i] = index
         else:
-            ## Use searchsorted binary search, speeds up by ~1.85x
-            ## TODO this currently ASSUMES everything is in the session.
-            ## It WILL NOT error if a line is missing, instead using a random line!
-            iisort = np.argsort(self._session.metadata["line_list"]["hash"])
+            ## Use searchsorted binary search, speeds up by ~1.8x
+            #iisort = np.argsort(self._session.metadata["line_list"]["hash"])
+            iisort = self._session.metadata["line_list_argsort_hashes"]
             sorted = np.searchsorted(self._session.metadata["line_list"]["hash"],
                                      self._transition_hashes,
                                      sorter=iisort)
             indices = iisort[sorted]
+            ## Check for correctness, i.e. all hashes are actually in linelist
+            assert np.all(self._transition_hashes == self._session.metadata["line_list"]["hash"][indices])
 
         self._transition_indices = indices
         self._transitions = self._session.metadata["line_list"][indices]
