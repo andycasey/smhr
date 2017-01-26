@@ -18,6 +18,7 @@ from matplotlib.ticker import MaxNLocator
 from time import time
 
 import mpl, style_utils
+import smh
 from smh.photospheres import available as available_photospheres
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
@@ -29,6 +30,7 @@ from quality_control import QualityControlDialog
 from sp_solve_options import SolveOptionsDialog
 
 logger = logging.getLogger(__name__)
+logger.addHandler(smh.handler)
 
 if sys.platform == "darwin":
         
@@ -41,13 +43,17 @@ if sys.platform == "darwin":
         QtGui.QFont.insertSubstitution(*substitute)
 
 
+_QFONT = QtGui.QFont("Helvetica Neue", 10)
+_ROWHEIGHT = 20
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
 class StateTableModel(QtCore.QAbstractTableModel):
 
-    header = ["Species", "N", u"〈[X/H]〉\n[dex]", u"σ\n[dex]", 
-        u"∂A/∂χ\n[dex/eV]", u"∂A/∂REW\n[-]"]
+    #header = ["Species", "N", u"〈[X/H]〉\n[dex]", u"σ\n[dex]", 
+    #    u"∂A/∂χ\n[dex/eV]", u"∂A/∂REW\n[-]"]
 
+    header = ["Species", "N", u"〈[X/H]", u"σ", 
+        u"∂A/∂χ", u"∂A/∂REW"]
 
 
     def __init__(self, parent, *args):
@@ -68,6 +74,9 @@ class StateTableModel(QtCore.QAbstractTableModel):
         return len(self.header)
 
     def data(self, index, role):
+        if role==QtCore.Qt.FontRole:
+            return _QFONT
+
         if not index.isValid() or role != QtCore.Qt.DisplayRole:
             return None
 
@@ -125,6 +134,8 @@ class StateTableModel(QtCore.QAbstractTableModel):
         if orientation == QtCore.Qt.Horizontal \
         and role == QtCore.Qt.DisplayRole:
             return self.header[col]
+        if role==QtCore.Qt.FontRole:
+            return _QFONT
         return None
 
 
@@ -256,7 +267,9 @@ class StellarParametersTab(QtGui.QWidget):
         self.state_table_view = QtGui.QTableView(self)
         self.state_table_view.setModel(StateTableModel(self))
         self.state_table_view.setSortingEnabled(False)
-        self.state_table_view.setMaximumSize(QtCore.QSize(400, 107)) # MAGIC
+        self.state_table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
+        self.state_table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
+        self.state_table_view.setMaximumSize(QtCore.QSize(400, 3*(_ROWHEIGHT+1))) # MAGIC
         self.state_table_view.setSizePolicy(QtGui.QSizePolicy(
             QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
         self.state_table_view.setSelectionBehavior(
@@ -273,12 +286,16 @@ class StellarParametersTab(QtGui.QWidget):
         lhs_layout.addWidget(self.state_table_view)
 
 
-        header = ["", u"λ\n[Å]", "Element", u"EW\n[mÅ]", u"σ(EW)\n[mÅ]",
-                  "log ε\n[dex]", "σ(log ε)\n[dex]"]
+        #header = ["", u"λ\n[Å]", "Element", u"EW\n[mÅ]", u"σ(EW)\n[mÅ]",
+        #          "log ε\n[dex]", "σ(log ε)\n[dex]"]
+        header = ["", u"λ", "Element", u"EW", u"σ(EW)",
+                  "log ε", "σ(log ε)"]
         attrs = ("is_acceptable", "_repr_wavelength", "_repr_element", 
                  "equivalent_width", "err_equivalent_width", "abundance", "err_abundance")
 
         self.table_view = SpectralModelsTableView(self)
+        self.table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
+        self.table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
         
         # Set up a proxymodel.
         self.proxy_spectral_models = SpectralModelsFilterProxyModel(self)
@@ -1852,6 +1869,9 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
 
         if not index.isValid():
             return None
+
+        if role==QtCore.Qt.FontRole:
+            return _QFONT
 
         column = index.column()
         spectral_model = self.spectral_models[index.row()]
