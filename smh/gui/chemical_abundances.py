@@ -35,8 +35,7 @@ if sys.platform == "darwin":
     for substitute in substitutes:
         QtGui.QFont.insertSubstitution(*substitute)
 
-_FONTSIZE = 10
-_QFONT = QtGui.QFont("Helvetica Neue", _FONTSIZE)
+_QFONT = QtGui.QFont("Helvetica Neue", 10)
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 PICKER_TOLERANCE = 10 # MAGIC HACK
 
@@ -50,18 +49,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         self.parent_splitter = QtGui.QSplitter(self)
         self.parent_splitter.setChildrenCollapsible(False)
-        self.lhs_splitter = QtGui.QSplitter(self.parent_splitter)
-        self.lhs_splitter.setOrientation(QtCore.Qt.Vertical)
-        #self.lhs_splitter.setChildrenCollapsible(False)
         self.parent_layout = QtGui.QHBoxLayout(self)
         
         ################
         # LEFT HAND SIDE
         ################
         #Summary combobox, measurements, buttons
-        lhs_container = QtGui.QWidget() 
         lhs_layout = QtGui.QVBoxLayout()
-        lhs_container.setLayout(lhs_layout)
         
         hbox = QtGui.QHBoxLayout()
         self.filter_combo_box = QtGui.QComboBox(self)
@@ -131,13 +125,24 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         ## Layout only
         #lhs_layout.addWidget(self.opt_tabs)
         #self.parent_layout.addLayout(lhs_layout)
+        
         ## No left splitter
-        #lhs_container.setLayout(lhs_layout)
-        #self.parent_splitter.addWidget(lhs_container)
+        lhs_layout.addWidget(self.opt_tabs)
+        lhs_container = QtGui.QWidget() 
+        lhs_container.setLayout(lhs_layout)
+        self.parent_splitter.addWidget(lhs_container)
+        
         ## Left splitter
-        self.lhs_splitter.addWidget(lhs_container)
-        self.lhs_splitter.addWidget(self.opt_tabs)
-        self.parent_splitter.addWidget(self.lhs_splitter)
+        ###lhs_container = QtGui.QWidget() 
+        ###lhs_container.setLayout(lhs_layout)
+        ###self.lhs_splitter.addWidget(lhs_container)
+        ###lhs_container2 = QtGui.QWidget() 
+        ###lhs_layout2 = QtGui.QVBoxLayout()
+        ###lhs_layout2.addWidget(self.opt_tabs)
+        ###lhs_container2.setLayout(lhs_layout2)
+        ###self.lhs_splitter.addWidget(lhs_container2)
+        ###self.lhs_splitter.addWidget(self.opt_tabs)
+        ###self.parent_splitter.addWidget(self.lhs_splitter)
 
         #############################
         # RIGHT HAND SIDE: MPL WIDGET
@@ -216,6 +221,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.parent_splitter.addWidget(self.figure)
         self.parent_layout.addWidget(self.parent_splitter)
 
+
         # Connect filter combo box
         self.filter_combo_box.currentIndexChanged.connect(self.filter_combo_box_changed)
         
@@ -254,12 +260,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def _create_fitting_options_widget(self):
         self.opt_tabs = QtGui.QTabWidget(self)
-        #sp = QtGui.QSizePolicy(
-        #    QtGui.QSizePolicy.MinimumExpanding, 
-        #    QtGui.QSizePolicy.MinimumExpanding)
         sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Minimum, 
-            QtGui.QSizePolicy.Minimum)
+            QtGui.QSizePolicy.MinimumExpanding, 
+            QtGui.QSizePolicy.MinimumExpanding)
         self.opt_tabs.setSizePolicy(sp)
         #self.opt_tabs.setStyleSheet("QPushButton { font-size: 10px; min-width: 0px; min-height: 0px; }")
         #self.opt_tabs.setStyleSheet("QCheckBox { font-size: 10px; min-width: 0px; min-height: 0px; }")
@@ -545,7 +548,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.opt_tabs.addTab(self.tab_synthesis, "Synthesis")
 
         ## opt_tabs settings
-        self.opt_tabs.setMaximumSize(400,250)
+        ## TODO: for some reason, the window automatically expands ruthlessly unless I put this in...
+        #self.opt_tabs.setMaximumSize(400,250)
         self.opt_tabs.tabBar().setFont(_QFONT)
         # There's actually no need to show the tabs!
         self.opt_tabs.tabBar().setMaximumSize(0,0)
