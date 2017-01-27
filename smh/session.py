@@ -472,7 +472,8 @@ class Session(BaseSession):
         self.metadata.setdefault("spectral_models", [])
         for i, spectral_model in enumerate(self.metadata["spectral_models"]):
             if not only(spectral_model) \
-            or not spectral_model.is_acceptable: continue
+            or not spectral_model.is_acceptable \
+            or spectral_model.is_upper_limit: continue
 
             if not spectral_model.apply_quality_constraints(constraints):
                 indices.append(i)
@@ -820,7 +821,7 @@ class Session(BaseSession):
             if filtering(model):
                 spectral_model_indices.append(i)
 
-                if model.is_acceptable:
+                if model.is_acceptable and not model.is_upper_limit:
 
                     meta = model.metadata["fitted_result"][-1]
                     model_ew = meta["equivalent_width"]
@@ -1055,7 +1056,8 @@ class Session(BaseSession):
             all_logeps[key].append(logeps)
             return
         for spectral_model in spectral_models:
-            if not spectral_model.is_acceptable: continue
+            if not spectral_model.is_acceptable or spectral_model.is_upper_limit: continue
+            
             abundances = spectral_model.abundances
             if abundances is None: continue
 
