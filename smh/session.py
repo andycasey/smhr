@@ -438,7 +438,7 @@ class Session(BaseSession):
         """
 
         self.metadata["line_list_argsort_hashes"] = np.argsort(
-            metadata["line_list"]["hash"])
+            self.metadata["line_list"]["hash"])
         for spectral_model in self.metadata.get("spectral_models", []):
             spectral_model.index_transitions()
         return None
