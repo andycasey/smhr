@@ -457,6 +457,54 @@ class LineList(Table):
         return l1['hash']==l2['hash']
 
     @classmethod
+    def create_basic_linelist(cls,wavelength,species,expot,loggf, **kwargs):
+        """
+        Create a minimum LineList for the common case of having only the 
+        4 minimum linelist information:
+        wavelength, species, expot, loggf
+        """
+        assert len(wavelength) == len(species) == len(expot) == len(loggf)
+        N = len(wavelength)
+        nans = np.zeros(N) + np.nan
+        empty = np.array(["" for x in range(N)])
+
+        # check if gf by assuming there is at least one line with loggf < 0
+        if np.all(loggf >= 0): 
+            loggf = np.log10(loggf)
+            # TODO this is the MOOG default, but it may not be a good idea...
+            print("Warning: no lines with loggf < 0 in {}, assuming input is gf".format(filename))
+
+        spec2element = {}
+        spec2elem1= {}
+        spec2elem2= {}
+        spec2iso1 = {}
+        spec2iso2 = {}
+        spec2ion  = {}
+        for this_species in np.unique(species):
+            spec2element[this_species] = species_to_element(this_species)
+            _e1, _e2, _i1, _i2, _ion = species_to_elems_isotopes_ion(this_species)
+            spec2elem1[this_species] = _e1
+            spec2elem2[this_species] = _e2
+            spec2iso1[this_species] = _i1
+            spec2iso2[this_species] = _i2
+            spec2ion[this_species] = _ion
+        numelems = np.array([2 if x >= 100 else 1 for x in species])
+        elements = [spec2element[this_species] for this_species in species]
+        elem1 = [spec2elem1[this_species] for this_species in species]
+        elem2 = [spec2elem2[this_species] for this_species in species]
+        isotope1 = [spec2iso1[this_species] for this_species in species]
+        isotope2 = [spec2iso2[this_species] for this_species in species]
+        ion  = [spec2ion[this_species] for this_species in species]
+
+        # Fill required non-MOOG fields with nan
+        data = [wavelength, species, expot, loggf, nans, nans, empty,
+                numelems, elem1, isotope1, elem2, isotope2, ion, empty, elements, nans]
+        columns = cls.moog_colnames + ['equivalent_width']
+        dtypes = cls.moog_dtypes + [np.float]
+
+        return cls(Table(data, names=columns, dtype=dtypes), moog_columns=True, **kwargs)
+
+    @classmethod
     def read(cls,filename,*args,**kwargs):
         """
         filename: name of the file
