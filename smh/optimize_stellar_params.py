@@ -72,6 +72,8 @@ def optimize_stellar_parameters(initial_guess, transitions, EWs=None,
     Assumes you only want to balance neutral ions against Expot and REW
     
     If specify EWs, all EWs are in same order as transitions
+
+    initial_guess order : [teff, vt, logg, feh]
     """
     
     if EWs is None:
@@ -86,10 +88,10 @@ def optimize_stellar_parameters(initial_guess, transitions, EWs=None,
 
     photosphere_interpolator = photospheres.interpolator()
     parameter_ranges = {
-        "teff": (4000, 7000),
+        "teff": (3500, 7000),
+        "vt": (0.0, 4.0),
         "logg": (0, 5),
-        "vt": (0.5, 2.5),
-        "[Fe/H]": (-3, 0.5)
+        "[Fe/H]": (-5, 0.5)
         }
     
     # Create a mutable copy for the initial guess
@@ -107,6 +109,11 @@ def optimize_stellar_parameters(initial_guess, transitions, EWs=None,
         ## "Global" vars: transitions, idx_I, idx_II, photosphere_interpolator
 
         teff, vt, logg, feh = stellar_parameters
+        #if teff < parameter_ranges["teff"][0] or teff > parameter_ranges["teff"][1] or \
+        #        vt < parameter_ranges["vt"][0] or vt > parameter_ranges["vt"][1] or \
+        #        logg < parameter_ranges["logg"][0] or logg > parameter_ranges["logg"][1] or \
+        #        feh < parameter_ranges["[Fe/H]"][0] or feh > parameter_ranges["[Fe/H]"][1]:
+        #    return np.array([np.nan, np.nan, np.nan, np.nan])
 
         all_sampled_points, total_tolerance, individual_tolerances, use_nlte_grid = args
 
