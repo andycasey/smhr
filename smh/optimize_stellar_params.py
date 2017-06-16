@@ -27,8 +27,14 @@ def stellar_optimization(func):
         if len(previously_sampled_points) > 0:
 
             this_point = np.array(request)
-            sampled_before = (previously_sampled_points[:, :4] == this_point).all(
-                np.arange(previously_sampled_points[:, :4].ndim - this_point.ndim, previously_sampled_points[:, :4].ndim))
+            #import pdb; pdb.set_trace()
+
+            try:
+                sampled_before = (previously_sampled_points[:, :4] == this_point).all(axis=1)
+            except:
+                sampled_before = (previously_sampled_points[:, :4] == this_point).all()
+                #np.arange(previously_sampled_points[:, :4].ndim - this_point.ndim, previously_sampled_points[:, :4].ndim))
+            #print sampled_before
 
             if np.any(sampled_before):
                 index = np.where(sampled_before)[0][0]
@@ -158,7 +164,9 @@ def optimize_stellar_parameters(initial_guess, transitions, EWs=None,
         try:
             results = fsolve(minimisation_function, solver_guess, args=args, fprime=utils.approximate_stellar_jacobian,
                              col_deriv=1, epsfcn=0, xtol=1e-10, full_output=1, maxfev=maxfev)
-        except: #Exception as e:# OptimizationSuccess as e:
+        except OptimizationSuccess as e:#: #Exception as e:# OptimizationSuccess as e:
+            print e
+            
             # Optimization is complete and tolerances have been reached
             t_elapsed = time.time() - start
             #logger.info("Successful after {0:.0f} seconds".format(t_elapsed))
