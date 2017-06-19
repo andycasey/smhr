@@ -117,8 +117,8 @@ def cross_correlate(observed_spectrum, template_spectrum, dispersion_range=None,
     num = len(fft_result) - 1 if len(fft_result) % 2 else len(fft_result)
 
     fft_y = np.zeros(num)
-    fft_y[:num/2] = fft_result[num/2:num]
-    fft_y[num/2:] = fft_result[:num/2]
+    fft_y[:num//2] = fft_result[num//2:num]
+    fft_y[num//2:] = fft_result[:num//2]
 
     fft_x = np.arange(num) - num/2
 

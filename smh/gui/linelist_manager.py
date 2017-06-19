@@ -474,6 +474,8 @@ class LineListTableView(QtGui.QTableView):
         if self.session.metadata.get("line_list", None) is not None:
             line_list = self.session.metadata["line_list"].merge(
                 line_list, in_place=False)
+        else:
+            self.session.metadata["line_list"] = line_list
 
         # Must update hash sorting after any modification to line list
         self.session.metadata["line_list_argsort_hashes"] = np.argsort(
