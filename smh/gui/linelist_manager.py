@@ -457,11 +457,15 @@ class LineListTableView(QtGui.QTableView):
 
 
 
-    def import_transitions_with_measured_equivalent_widths(self):
+    def import_transitions_with_measured_equivalent_widths(self, filenames=None):
         """ Import profile models with pre-measured equivalent widths. """
 
-        filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(self,
-            caption="Select pre-measured transition files", dir="")
+        if filenames is None:
+            filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(self,
+                caption="Select pre-measured transition files", dir="")
+        else:
+            if isinstance(filenames, string_types):
+                filenames = [filenames]
         if not filenames:
             return None
 
