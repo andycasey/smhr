@@ -396,6 +396,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         else:
             p_alt = np.nan * np.ones((draws, p_opt.size))
             model_yerr = np.nan * np.ones((2, x.size))
+        model_yerr = np.max(np.abs(model_yerr), axis=0)
         
         # Calculate chi-square for the points that we modelled.
         ivar = spectrum.ivar[mask]
