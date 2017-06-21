@@ -48,6 +48,10 @@ class Interpolator(BaseInterpolator):
             warnings.warn(
                 "Assuming [alpha/Fe] = 0.4 composition unless "
                 "otherwise specified.", StandardCompositionAssumed)
+        elif len(point) == 4:
+            point = list(point)
+            warnings.warn(
+                "Fourth stellar param is [alpha/Fe] = {}".format(point[3]))
 
         return super(self.__class__, self).interpolate(*point, **kwargs)
 

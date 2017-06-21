@@ -173,7 +173,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Effective temperature.
         label = QtGui.QLabel(self)
-        label.setText("Effective temperature (K)")
+        label.setText("Teff")
         label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
         grid_layout.addWidget(label, 0, 0, 1, 1)
         self.edit_teff = QtGui.QLineEdit(self)
@@ -188,7 +188,7 @@ class StellarParametersTab(QtGui.QWidget):
         
         # Surface gravity.
         label = QtGui.QLabel(self)
-        label.setText("Surface gravity")
+        label.setText("logg")
         label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
 
         grid_layout.addWidget(label, 1, 0, 1, 1)
@@ -205,7 +205,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Metallicity.
         label = QtGui.QLabel(self)
-        label.setText("Metallicity")
+        label.setText("[M/H]")
         label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
 
         grid_layout.addWidget(label, 2, 0, 1, 1)
@@ -223,7 +223,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Microturbulence.
         label = QtGui.QLabel(self)
-        label.setText("Microturbulence (km/s)")
+        label.setText("vt")
         label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
 
         grid_layout.addWidget(label, 3, 0, 1, 1)
@@ -237,7 +237,22 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_xi.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_xi, 3, 1)
 
-        # Optionally TODO: alpha-enhancement.
+        # Alpha-enhancement.
+        label = QtGui.QLabel(self)
+        label.setText("alpha")
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        
+        grid_layout.addWidget(label, 4, 0, 1, 1)
+        self.edit_alpha = QtGui.QLineEdit(self)
+        self.edit_alpha.setMinimumSize(QtCore.QSize(40, 0))
+        self.edit_alpha.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_alpha.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit_alpha.setValidator(QtGui.QDoubleValidator(-1, 1, 3, self.edit_alpha))
+        #self.edit_alpha.setValidator(QtGui.QDoubleValidator(0, 0.4, 3, self.edit_alpha))
+        self.edit_alpha.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
+        self.edit_alpha.textChanged.connect(self._check_lineedit_state)
+        grid_layout.addWidget(self.edit_alpha, 4, 1)
 
         lhs_layout.addLayout(grid_layout)
 
@@ -462,6 +477,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_logg.returnPressed.connect(self.btn_measure.clicked)
         self.edit_metallicity.returnPressed.connect(self.btn_measure.clicked)
         self.edit_xi.returnPressed.connect(self.btn_measure.clicked)
+        self.edit_alpha.returnPressed.connect(self.btn_measure.clicked)
 
         # Connect matplotlib.
         self.figure.mpl_connect("button_press_event", self.figure_mouse_press)
@@ -487,7 +503,8 @@ class StellarParametersTab(QtGui.QWidget):
             (self.edit_teff, "{0:.0f}", "effective_temperature"),
             (self.edit_logg, "{0:.2f}", "surface_gravity"),
             (self.edit_metallicity, "{0:+.2f}", "metallicity"),
-            (self.edit_xi, "{0:.2f}", "microturbulence")
+            (self.edit_xi, "{0:.2f}", "microturbulence"),
+            (self.edit_alpha, "{0:.2f}", "alpha")
         ]
         metadata = self.parent.session.metadata["stellar_parameters"]
 
@@ -873,7 +890,8 @@ class StellarParametersTab(QtGui.QWidget):
             "effective_temperature": float(self.edit_teff.text()),
             "surface_gravity": float(self.edit_logg.text()),
             "metallicity": float(self.edit_metallicity.text()),
-            "microturbulence": float(self.edit_xi.text())
+            "microturbulence": float(self.edit_xi.text()),
+            "alpha": float(self.edit_alpha.text())
         })
         return True
 

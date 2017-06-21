@@ -103,6 +103,7 @@ class Session(BaseSession):
                 "surface_gravity": 4.4,
                 "metallicity": 0.0, # Solar-scaled
                 "microturbulence": 1.06, # km/s
+                "alpha":0.4,
             }
         })
 
@@ -392,6 +393,8 @@ class Session(BaseSession):
 
         # Update the new session with the metadata.
         session.metadata = metadata
+        # A hack to maintain backwards compatibility
+        session.metadata["stellar_parameters"].setdefault("alpha", 0.4)
 
         if skip_spectral_models:
             atexit.register(rmtree, twd)
@@ -787,7 +790,7 @@ class Session(BaseSession):
 
         meta = self.metadata["stellar_parameters"]
         photosphere = self._photosphere_interpolator(*[meta[k] for k in \
-            ("effective_temperature", "surface_gravity", "metallicity")])
+            ("effective_temperature", "surface_gravity", "metallicity", "alpha")])
         # Update other metadata (e.g., microturbulence)
         # TODO: Convert session.metadata to session.meta to be consistent
         photosphere.meta["stellar_parameters"].update(meta)
