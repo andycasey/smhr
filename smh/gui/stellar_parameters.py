@@ -24,6 +24,7 @@ from smh.photospheres.abundances import asplund_2009 as solar_composition
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 from smh import utils
 from linelist_manager import TransitionsDialog
+from smh.optimize_stellar_params import optimize_stellar_parameters
 
 from spectral_models_table import SpectralModelsTableViewBase, SpectralModelsFilterProxyModel, SpectralModelsTableModelBase
 from quality_control import QualityControlDialog
@@ -1548,9 +1549,51 @@ class StellarParametersTab(QtGui.QWidget):
 
     def solve_parameters(self):
         """ Solve the stellar parameters. """
-        raise NotImplementedError
+        if self.parent.session is None or not self._check_for_spectral_models():
+            return None
 
+        ## use current state as initial guess
+        logger.info("Setting [alpha/Fe]=0.4 to solve")
+        self.update_stellar_parameters()
+        sp = self.parent.session.metadata["stellar_parameters"]
+        sp["alpha"] = 0.4
+        initial_guess = [sp["effective_temperature"], sp["microturbulence"],
+                         sp["surface_gravity"], sp["metallicity"]]
 
+        ## grab transitions for stellar parameters
+        transition_indices = []
+        EWs = []
+        for i, model in enumerate(self.parent.session.metadata["spectral_models"]):
+            if model.use_for_stellar_parameter_inference and model.is_acceptable and not model.is_upper_limit:
+                transition_indices.append(model._transition_indices[0])
+                EWs.append(1e3 * model.metadata["fitted_result"][-1]["equivalent_width"][0])
+        transition_indices = np.array(transition_indices)
+        transitions = self.parent.session.metadata["line_list"][transition_indices].copy()
+        transitions["equivalent_width"] = EWs
+        
+        ## TODO the optimization does not use the error weights yet
+        ## TODO allow specification of tolerances and other params in QDialog widget
+        out = optimize_stellar_parameters(initial_guess, transitions, \
+                                              max_attempts=5, total_tolerance=1e-4, \
+                                              individual_tolerances=None, \
+                                              maxfev=30, use_nlte_grid=None)
+        tolerance_achieved, initial_guess, num_moog_iterations, i, \
+            t_elapsed, final_parameters, final_parameters_result, \
+            all_sampled_points = out
+        logger.info("Optimization took {:.1f}s".format(t_elapsed))
+        if not tolerance_achieved:
+            logger.warn("Did not converge in {}/{}!!! {:.5f} > {:.5f}".format( \
+                    num_moog_iterations, i, 
+                    np.sum(np.array(final_parameters_result)**2), 1e-4))
+        
+        ## update stellar params in metadata and gui
+        sp["effective_temperature"] = final_parameters[0]
+        sp["microturbulence"] = final_parameters[1]
+        sp["surface_gravity"] = final_parameters[2]
+        sp["metallicity"] = final_parameters[3]
+        self.populate_widgets()
+        ## refresh plot
+        self.measure_abundances()
 
 class SpectralModelsTableView(SpectralModelsTableViewBase):
 
