@@ -294,6 +294,8 @@ class Session(BaseSession):
         if exception_occurred:
             raise
 
+        logger.info("Saved file to {}".format(session_path))
+
         return True
 
 
@@ -430,6 +432,8 @@ class Session(BaseSession):
 
         # Clean up the TWD when Python exits.
         atexit.register(rmtree, twd)
+
+        logger.info("Loaded file {}".format(session_path))
 
         return session
 
