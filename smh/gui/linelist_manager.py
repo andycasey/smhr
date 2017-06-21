@@ -421,38 +421,16 @@ class LineListTableView(QtGui.QTableView):
 
         # Load from files.
         ta = time()
-        line_list = LineList.read(filenames[0], verbose=True)
-
-        filename_transitions = [line_list]
-        for filename in filenames[1:]:
-            new_lines = LineList.read(filename)
-            # Use extremely intolerant to force hashes to be the same
-            line_list = line_list.merge(new_lines, in_place=False,
-                                        skip_exactly_equal_lines=True,
-                                        ignore_conflicts=self._parent.checkbox_merge_without_conflicts.isChecked())
-            filename_transitions.append(new_lines)
-
-        # Merge the line list with any existing line list in the session.
-        if self.session.metadata.get("line_list", None) is None:
-            self.session.metadata["line_list"] = line_list
-            N = len(line_list)
-        else:
-            N = len(self.session.metadata["line_list"]) - len(line_list)
-            self.session.metadata["line_list"] \
-                = self.session.metadata["line_list"].merge(
-                    line_list, in_place=False, skip_exactly_equal_lines=True,
-                    ignore_conflicts=self._parent.checkbox_merge_without_conflicts.isChecked())
-
-        # Must update hash sorting after any modification to line list
-        self.session.metadata["line_list_argsort_hashes"] = np.argsort(
-            self.session.metadata["line_list"]["hash"])
-        
+        out = self.session.import_linelists(filenames,
+                ignore_conflicts=self._parent.checkbox_merge_without_conflicts.isChecked(),
+                full_output=full_output)
         self.model().reset()
         print("Time taken: {:.1f}".format(time() - ta))
 
         if full_output:
+            line_list, filename_transitions = out
             return (line_list, filenames, filename_transitions)
-
+        line_list = out
         return line_list
 
 
@@ -469,51 +447,8 @@ class LineListTableView(QtGui.QTableView):
         if not filenames:
             return None
 
-        # Load lines.
-        line_list = LineList.read(filenames[0])
-        for filename in filenames[1:]:
-            line_list = line_list.merge(LineList.read(filename), in_place=False)
-
-        # Merge with existing line list.
-        if self.session.metadata.get("line_list", None) is not None:
-            line_list = self.session.metadata["line_list"].merge(
-                line_list, in_place=False)
-        else:
-            self.session.metadata["line_list"] = line_list
-
-        # Must update hash sorting after any modification to line list
-        self.session.metadata["line_list_argsort_hashes"] = np.argsort(
-            self.session.metadata["line_list"]["hash"])
-
-        try:
-            line_list["equivalent_width"]
-        except KeyError:
-            raise KeyError("no equivalent widths found in imported line lists")
-
-        self.session.metadata["line_list"] = line_list
-
-        # Set these lines as profile models.
-        spectral_models_to_add = []
-        for idx in range(len(line_list)):
-            model = ProfileFittingModel(self.session, line_list["hash"][[idx]])
-            model.metadata.update({
-                "is_acceptable": True,
-                "fitted_result": [None, None, {
-                    # We assume supplied equivalent widths are in milliAngstroms
-                    "equivalent_width": \
-                    (1e-3 * line_list["equivalent_width"][idx], 0.0, 0.0),
-                    "reduced_equivalent_width": \
-                    (-3+np.log10(line_list["equivalent_width"][idx]/line_list["wavelength"][idx]),
-                      0.0, 0.0)
-                }]
-            })
-            spectral_models_to_add.append(model)
-
-        self.session.metadata.setdefault("spectral_models", [])
-        self.session.metadata["spectral_models"].extend(spectral_models_to_add)
-        self.session._spectral_model_conflicts = spectral_model_conflicts(
-            self.session.metadata["spectral_models"],
-            self.session.metadata["line_list"])
+        self.session.import_transitions_with_measured_equivalent_widths(
+            filenames, ignore_conflicts=self._parent.checkbox_merge_without_conflicts.isChecked())
 
         # Update the data models.
         self.model().reset()

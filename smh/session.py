@@ -1152,3 +1152,66 @@ class Session(BaseSession):
             return None
         return smh_plotting.make_summary_plot(defaults["summary_figure_ncap"],
                                        self.normalized_spectrum, figure)
+
+    def import_linelists(self, filenames, ignore_conflicts=False, full_output=False):
+        if isinstance(filenames, string_types):
+            filenames = [filenames]
+        
+        line_list = LineList.read(filenames[0], verbose=True)
+
+        filename_transitions = [line_list]
+        for filename in filenames[1:]:
+            new_lines = LineList.read(filename)
+            # Use extremely intolerant to force hashes to be the same
+            line_list = line_list.merge(new_lines, in_place=False,
+                                        skip_exactly_equal_lines=True,
+                                        ignore_conflicts=ignore_conflicts)
+            filename_transitions.append(new_lines)
+
+        # Merge the line list with any existing line list in the session.
+        if self.metadata.get("line_list", None) is None:
+            self.metadata["line_list"] = line_list
+            N = len(line_list)
+        else:
+            N = len(self.metadata["line_list"]) - len(line_list)
+            self.metadata["line_list"] \
+                = self.metadata["line_list"].merge(
+                    line_list, in_place=False, skip_exactly_equal_lines=True,
+                    ignore_conflicts=ignore_conflicts)
+
+        # Must update hash sorting after any modification to line list
+        self.metadata["line_list_argsort_hashes"] = np.argsort(
+            self.metadata["line_list"]["hash"])
+        
+        if full_output:
+            return line_list, filename_transitions
+        return line_list
+    
+    def import_transitions_with_measured_equivalent_widths(self, filenames=None, ignore_conflicts=False):
+        line_list = self.import_linelists(filenames, ignore_conflicts=ignore_conflicts)
+        try:
+            line_list["equivalent_width"]
+        except KeyError:
+            raise KeyError("no equivalent widths found in imported line lists")
+        
+        spectral_models_to_add = []
+        for idx in range(len(line_list)):
+            model = ProfileFittingModel(self, line_list["hash"][[idx]])
+            model.metadata.update({
+                "is_acceptable": True,
+                "fitted_result": [None, None, {
+                    # We assume supplied equivalent widths are in milliAngstroms
+                    "equivalent_width": \
+                    (1e-3 * line_list["equivalent_width"][idx], 0.0, 0.0),
+                    "reduced_equivalent_width": \
+                    (-3+np.log10(line_list["equivalent_width"][idx]/line_list["wavelength"][idx]),
+                      0.0, 0.0)
+                }]
+            })
+            spectral_models_to_add.append(model)
+        self.metadata.setdefault("spectral_models", [])
+        self.metadata["spectral_models"].extend(spectral_models_to_add)
+        self._spectral_model_conflicts = utils.spectral_model_conflicts(
+            self.metadata["spectral_models"],
+            self.metadata["line_list"])
+        
