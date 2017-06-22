@@ -21,6 +21,7 @@ from six.moves import cPickle as pickle
 from shutil import copyfile, rmtree
 from tempfile import mkdtemp
 
+import astropy.table
 from .linelists import LineList
 from . import (photospheres, radiative_transfer, specutils, isoutils, utils)
 from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
@@ -425,8 +426,9 @@ class Session(BaseSession):
             model = klass(*args)
             model.metadata = state["metadata"]
             reconstructed_spectral_models.append(model)
-            #print("  Loading one model {:.3f} {} {} {}".format(time.time()-start2, len(model._transitions), model.elements, model.wavelength))
-            logger.debug("  Loading one model {:.3f} {} {} {}\n".format(time.time()-start2, len(model._transitions), model.elements, model.wavelength))
+            t2 = time.time()-start2
+            if t2 > 1.0:
+                logger.debug("  Long time to load model {:.3f} {} {} {}\n".format(t2, len(model._transitions), model.elements, model.wavelength))
         logger.debug("Time to reconstruct spectral models: {:.3f}".format(time.time()-start))
         
         # Update the session with the spectral models.
@@ -1138,10 +1140,8 @@ class Session(BaseSession):
         return summary_dict
     
     def export_abundance_table(self, filepath):
-        ## TODO: summarize spectral models before writing out
-        ## You can make the format however you like, but look at the method above this one.
-        ## We'll eventually put in upper limits too.
-        summary_dict = {}
+        ## TODO: put in upper limits too.
+        summary_dict = self.summarize_spectral_models()
         if filepath.endswith(".tex"):
             self._export_latex_abundance_table(filepath, summary_dict)
         else:
@@ -1150,23 +1150,66 @@ class Session(BaseSession):
     def _export_latex_abundance_table(self, filepath, summary_dict):
         raise NotImplementedError
     def _export_ascii_abundance_table(self, filepath, summary_dict):
-        raise NotImplementedError
+        out = np.zeros((len(summary_dict), 7))
+        for i,(species, (N, logeps, stdev, stderr, XH, XFe)) in \
+                enumerate(iteritems(summary_dict)):
+            out[i,:] = [species, N, logeps, stdev, stderr, XH, XFe]
+        names = ["species", "N", "logeps", "stdev", "stderr", "[X/H]", "[X/Fe]"]
+        astropy.table.Table(out, names=names).write(filepath, format="ascii.fixed_width_two_line")
+        return True #raise NotImplementedError
 
     def export_spectral_model_measurements(self, filepath):
-        ## TODO: go through the list of self.metadata["spectral_models"]
-        ## and pull out a data structure that makes it easy to write out the measurements.
+        ## TODO: 
         ## Make sure to include synthesis measurements.
         ## We'll eventually put in upper limits too.
-        ## You can make the format however you like.
+        spectral_models = self.metadata.get("spectral_models", [])
+        linedata = np.zeros((len(spectral_models), 6)) + np.nan
+        for i,spectral_model in enumerate(spectral_models):
+            # TODO include upper limits
+            if not spectral_model.is_acceptable or spectral_model.is_upper_limit: continue
+            # TODO make this work with syntheses as well
+            if isinstance(spectral_model, SpectralSynthesisModel):
+                raise NotImplementedError
+            elif isinstance(spectral_model, ProfileFittingModel):
+                line = spectral_model.transitions[0]
+                wavelength = line['wavelength']
+                species = line['species']
+                expot = line['expot']
+                loggf = line['loggf']
+
+                try:
+                    EW = 1000.*spectral_model.metadata["fitted_result"][2]["equivalent_width"][0]
+                    logeps = spectral_model.abundances[0]
+                except Exception as e:
+                    print(e)
+                    EW = np.nan
+                    logeps = np.nan
+                if EW is None: EW = np.nan
+                if logeps is None: logeps = np.nan
+            else:
+                raise NotImplementedError
+            linedata[i,:] = [species, wavelength, expot, loggf, EW, logeps]
+        ii_bad = np.logical_or(np.isnan(linedata[:,5]), np.isnan(linedata[:,4]))
+        linedata = linedata[~ii_bad,:]
+
         if filepath.endswith(".tex"):
-            self._export_latex_measurement_table(filepath)
+            self._export_latex_measurement_table(filepath, linedata)
         else:
-            self._export_ascii_measurement_table(filepath)
+            self._export_ascii_measurement_table(filepath, linedata)
         return None
-    def _export_latex_measurement_table(self, filepath):
+    def _export_latex_measurement_table(self, filepath, linedata):
         raise NotImplementedError
-    def _export_ascii_measurement_table(self, filepath):
-        raise NotImplementedError
+    def _export_ascii_measurement_table(self, filepath, linedata):
+        names = ["species", "wavelength", "expot", "loggf", "EW", "logeps"]
+        tab = astropy.table.Table(linedata, names=names)
+        tab.sort(["species","wavelength","expot"])
+        tab["wavelength"].format = ".3f"
+        tab["expot"].format = "5.3f"
+        tab["loggf"].format = "6.3f"
+        tab["EW"].format = "6.2f"
+        tab["logeps"].format = "6.3f"
+        tab.write(filepath, format="ascii.fixed_width_two_line")
+        return True
 
     def make_summary_plot(self, figure=None):
         with open(self._default_settings_path, "rb") as fp:
