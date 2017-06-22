@@ -16,7 +16,7 @@ import sys
 import tarfile
 import yaml
 import time
-from six import string_types
+from six import string_types, iteritems
 from six.moves import cPickle as pickle
 from shutil import copyfile, rmtree
 from tempfile import mkdtemp
@@ -257,7 +257,7 @@ class Session(BaseSession):
             # Go through the key/value pairs and see what can/cannot be
             # saved.
             failed_on = []
-            for key, value in metadata.iteritems():
+            for key, value in iteritems(metadata):
                 try:
                     with open(os.path.join("twd", ".damaged", "wb")) as dfp:
                         pickle.dump([key, value], dfp, protocol)
@@ -1146,6 +1146,7 @@ class Session(BaseSession):
             self._export_latex_abundance_table(filepath, summary_dict)
         else:
             self._export_ascii_abundance_table(filepath, summary_dict)
+        logger.info("Exported to {}".format(filepath))
         return None
     def _export_latex_abundance_table(self, filepath, summary_dict):
         raise NotImplementedError
@@ -1155,7 +1156,14 @@ class Session(BaseSession):
                 enumerate(iteritems(summary_dict)):
             out[i,:] = [species, N, logeps, stdev, stderr, XH, XFe]
         names = ["species", "N", "logeps", "stdev", "stderr", "[X/H]", "[X/Fe]"]
-        astropy.table.Table(out, names=names).write(filepath, format="ascii.fixed_width_two_line")
+        tab = astropy.table.Table(out, names=names)
+        tab["N"].format = ".0f"
+        tab["logeps"].format = "5.2f"
+        tab["stdev"].format = "5.2f"
+        tab["stderr"].format = "5.2f"
+        tab["[X/H]"].format = "5.2f"
+        tab["[X/Fe]"].format = "5.2f"
+        tab.write(filepath, format="ascii.fixed_width_two_line")
         return True #raise NotImplementedError
 
     def export_spectral_model_measurements(self, filepath):
@@ -1196,6 +1204,7 @@ class Session(BaseSession):
             self._export_latex_measurement_table(filepath, linedata)
         else:
             self._export_ascii_measurement_table(filepath, linedata)
+        logger.info("Exported to {}".format(filepath))
         return None
     def _export_latex_measurement_table(self, filepath, linedata):
         raise NotImplementedError
