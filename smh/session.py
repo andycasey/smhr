@@ -380,9 +380,11 @@ class Session(BaseSession):
                 = os.path.join(twd, template_spectrum_path)
 
         # Create the object using the temporary working directory input spectra.
+        # TODO #225 and other issues have had major saving/loading problems because
+        # the temporary directories get deleted.
         session = cls([os.path.join(twd, basename) \
             for basename in metadata["reconstruct_paths"]["input_spectra"]])
-
+        
         # Load in any normalized spectrum.
         normalized_spectrum \
             = metadata["reconstruct_paths"].get("normalized_spectrum", None)
@@ -434,6 +436,7 @@ class Session(BaseSession):
         atexit.register(rmtree, twd)
 
         logger.info("Loaded file {}".format(session_path))
+        logger.debug("Input spectra paths: {}".format(session._input_spectra_paths))
 
         return session
 
