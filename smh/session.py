@@ -1137,6 +1137,37 @@ class Session(BaseSession):
         #        total_num_models_summarized, what_key_type, time.time()-start))
         return summary_dict
     
+    def export_abundance_table(self, filepath):
+        ## TODO: summarize spectral models before writing out
+        ## You can make the format however you like, but look at the method above this one.
+        ## We'll eventually put in upper limits too.
+        summary_dict = {}
+        if filepath.endswith(".tex"):
+            self._export_latex_abundance_table(filepath, summary_dict)
+        else:
+            self._export_ascii_abundance_table(filepath, summary_dict)
+        return None
+    def _export_latex_abundance_table(self, filepath, summary_dict):
+        raise NotImplementedError
+    def _export_ascii_abundance_table(self, filepath, summary_dict):
+        raise NotImplementedError
+
+    def export_spectral_model_measurements(self, filepath):
+        ## TODO: go through the list of self.metadata["spectral_models"]
+        ## and pull out a data structure that makes it easy to write out the measurements.
+        ## Make sure to include synthesis measurements.
+        ## We'll eventually put in upper limits too.
+        ## You can make the format however you like.
+        if filepath.endswith(".tex"):
+            self._export_latex_measurement_table(filepath)
+        else:
+            self._export_ascii_measurement_table(filepath)
+        return None
+    def _export_latex_measurement_table(self, filepath):
+        raise NotImplementedError
+    def _export_ascii_measurement_table(self, filepath):
+        raise NotImplementedError
+
     def make_summary_plot(self, figure=None):
         with open(self._default_settings_path, "rb") as fp:
             defaults = yaml.load(fp)
