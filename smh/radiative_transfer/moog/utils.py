@@ -11,9 +11,11 @@ import numpy as np
 import os
 import signal
 import subprocess
-import tempfile
+#import tempfile
+
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 from smh.utils import elems_isotopes_ion_to_species, element_to_atomic_number
+from smh.utils import mkdtemp
 from six import iteritems, string_types
 
 logger = logging.getLogger(__name__)
@@ -51,7 +53,7 @@ def twd_path(**kwargs):
     #kwds = kwargs.copy()
     #kwds.setdefault("dir", "/tmp/")
     #kwds.setdefault("prefix", "smh-")
-    twd = tempfile.mkdtemp(**kwds)
+    twd = mkdtemp(**kwds)
     if len(twd) > 30:
         logger.warn(
             "Temporary working directory should be as short as possible to "\

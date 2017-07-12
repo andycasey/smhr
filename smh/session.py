@@ -19,10 +19,11 @@ import time
 from six import string_types, iteritems
 from six.moves import cPickle as pickle
 from shutil import copyfile, rmtree
-from tempfile import mkdtemp
+#from tempfile import mkdtemp
 
 import astropy.table
 from .linelists import LineList
+from .utils import mkdtemp
 from . import (photospheres, radiative_transfer, specutils, isoutils, utils)
 from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
 from smh.photospheres.abundances import asplund_2009 as solar_composition

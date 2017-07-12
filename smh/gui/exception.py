@@ -11,7 +11,8 @@ import os
 import requests
 import sys
 import traceback as tb
-from tempfile import mkstemp
+#from tempfile import mkstemp
+from smh.utils import mkstemp
 from urllib import quote
 from PySide import QtCore, QtGui
 
