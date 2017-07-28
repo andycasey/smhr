@@ -5,6 +5,7 @@ from functools import wraps
 import sys, os, time
 
 from smh.photospheres.abundances import asplund_2009 as solar_composition
+from smh.utils import mkdtemp
 
 import logging
 logger = logging.getLogger(__name__)
@@ -104,6 +105,8 @@ def optimize_stellar_parameters(initial_guess, transitions, EWs=None,
     solver_guess = []
     solver_guess.extend(initial_guess)
 
+    # Create a new temporary working directory for cog
+    twd = mkdtemp()
 
     @stellar_optimization
     def minimisation_function(stellar_parameters, *args):
@@ -130,7 +133,7 @@ def optimize_stellar_parameters(initial_guess, transitions, EWs=None,
         photosphere.meta["stellar_parameters"]["microturbulence"] = vt
         
         ## TODO: ADJUST ABUNDANCES TO ASPLUND?
-        abundances = rt.abundance_cog(photosphere,transitions)
+        abundances = rt.abundance_cog(photosphere,transitions,twd=twd)
         transitions["abundance"] = abundances
         
         ## Calculate slopes and differences that are being minimized

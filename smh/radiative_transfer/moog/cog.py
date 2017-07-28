@@ -26,7 +26,7 @@ with resource_stream(__name__, "defaults.yaml") as fp:
     _moog_defaults = yaml.load(fp)
 
 def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
-    **kwargs):
+    twd=None, **kwargs):
     """
     Calculate atomic line abundances by interpolating the measured 
     equivalent width from the curve-of-growth. 
@@ -43,7 +43,7 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
     """
 
     # Create a temporary directory.
-    path = utils.twd_path(**kwargs)
+    path = utils.twd_path(twd=twd,**kwargs)
 
     # Write out the photosphere.
     moog_in, model_in, lines_in \

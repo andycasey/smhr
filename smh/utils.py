@@ -11,6 +11,7 @@ import platform
 import string
 import sys
 import traceback
+import tempfile
 
 from collections import Counter
 
@@ -70,6 +71,15 @@ __all__ = ["element_to_species", "element_to_atomic_number", "species_to_element
 
 logger = logging.getLogger(__name__)
 
+
+def mkdtemp(**kwargs):
+    if 'dir' not in kwargs:
+        kwargs['dir'] = os.environ["HOME"]+"/.smh"
+    return tempfile.mkdtemp(**kwargs)
+def mkstemp(**kwargs):
+    if 'dir' not in kwargs:
+        kwargs['dir'] = os.environ["HOME"]+"~/.smh"
+    return tempfile.mkstemp(**kwargs)
 
 def random_string(N=10):
     return ''.join(choice(string.ascii_uppercase + string.digits) for _ in range(N))
