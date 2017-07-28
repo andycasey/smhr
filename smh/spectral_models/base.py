@@ -11,44 +11,26 @@ __all__ = ["BaseSpectralModel"]
 import numpy as np
 
 from .quality_constraints import constraints
+from ..linelists import LineList
 
 class BaseSpectralModel(object):
 
-    def __init__(self, session, transition_hashes, **kwargs):
+    def __init__(self, session, transitions, **kwargs):
         """
         Initialize a base class for modelling spectra.
 
         :param session:
             The session that this spectral model will be associated with.
 
-        :param transition_hashes:
-            The hashes of transitions in the parent session that will be
-            associated with this model.
+        :param transitions:
+            A linelist containing atomic data for this model.
         """
 
-        # Here we will have to just assume that the user knows what they are
-        # doing, otherwise to import BaseSession implies that we will (probably)
-        # have a recursive import loop.
-        #if not isinstance(session, BaseSession):
-        #    raise TypeError("session must be a sub-class from BaseSession")
-
-        if len(session.metadata.get("line_list", [])) == 0:
-            raise ValueError("session does not have a line list")
-
-        # Validate the transition_hashes
-        transition_hashes = list(transition_hashes)
-        for transition_hash in transition_hashes:
-            if transition_hash not in session.metadata["line_list"]["hash"]:
-                raise ValueError(
-                    "transition hash '{}' not found in parent session"\
-                    .format(transition_hash))
+        assert isinstance(transitions, LineList)
 
         self._session = session
-        self._transition_hashes = transition_hashes
+        self._transitions = transitions
 
-        # Link the .transitions attribute to the parent session.
-        self.index_transitions()
-        
         self.metadata = {
             "is_upper_limit": False,
             "use_for_stellar_composition_inference": True,
@@ -212,43 +194,6 @@ class BaseSpectralModel(object):
         # This is left as a property to prevent users from arbitrarily setting
         # the .transitions attribute.
         return self._transitions
-
-
-    def index_transitions(self):
-        """
-        Index the transitions to the parent session.
-        
-        This step is very slow for large linelists.
-        """
-
-        #if len(self._transition_hashes) < 50:
-        #if True:
-        if False:
-            ## Brute force loop for small N
-            indices = np.zeros(len(self._transition_hashes), dtype=int)
-            for i, each in enumerate(self._transition_hashes):
-                index = np.where(
-                    self._session.metadata["line_list"]["hash"] == each)[0]
-                #assert len(index) == 1, len(index)
-                if len(index) != 1: 
-                    #print("WARNING: hash {} appears {} times in session linelist".format(each,len(index)))
-                    index = index[0]
-                indices[i] = index
-        else:
-            ## Use searchsorted binary search, speeds up by ~1.8x
-            #iisort = np.argsort(self._session.metadata["line_list"]["hash"])
-            iisort = self._session.metadata["line_list_argsort_hashes"]
-            sorted = np.searchsorted(self._session.metadata["line_list"]["hash"],
-                                     self._transition_hashes,
-                                     sorter=iisort)
-            indices = iisort[sorted]
-            ## Check for correctness, i.e. all hashes are actually in linelist
-            assert np.all(self._transition_hashes == self._session.metadata["line_list"]["hash"][indices])
-
-        self._transition_indices = indices
-        self._transitions = self._session.metadata["line_list"][indices]
-
-        return indices
 
 
     @property

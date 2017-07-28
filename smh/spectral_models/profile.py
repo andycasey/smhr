@@ -87,19 +87,18 @@ class ProfileFittingModel(BaseSpectralModel):
         "voigt": (_voigt, ("mean", "fwhm", "amplitude", "shape"))
     }
 
-    def __init__(self, session, transition_hashes, **kwargs):
+    def __init__(self, session, transitions, **kwargs):
         """
-        Initialize a base class for modelling spectra.
+        Initialize a class for modelling spectra with analytic profile.
 
         :param session:
             The session that this spectral model will be associated with.
 
-        :param transition_hashes:
-            The hashes of transitions in the parent session that will be
-            associated with this model.
+        :param transitions:
+            A linelist containing atomic data for this model.
         """
 
-        super(ProfileFittingModel, self).__init__(session, transition_hashes,
+        super(ProfileFittingModel, self).__init__(session, transitions,
             **kwargs)
 
         # Initialize metadata with default fitting values.
@@ -546,45 +545,6 @@ class ProfileFittingModel(BaseSpectralModel):
         
         return y
 
-    """
-    @property
-    def abundances(self):
-        "
-        Calculate the abundance from the curve-of-growth given the fitted
-        equivalent width and the current stellar parameters in the parent
-        session.
-        "
-
-        # TODO: Create a hash of the stellar parameters, EW, and any relevant
-        #       radiative transfer inputs.
-
-        # Does the hash match the last calculation?
-        # If so, return that value. If not, calculate the new value.
-
-        try:
-            return self.metadata["fitted_result"][2]["abundances"]
-        except KeyError:
-            pass
-
-        logger.info("Fitting COG for "+str(self))
-        # Fixed Issue #38
-        transitions = self.transitions.copy()
-        assert len(transitions)==1,len(transitions)
-        # A to mA
-        transitions['equivalent_width'] = 1000.*self.metadata["fitted_result"][2]["equivalent_width"][0]
-        # Calculate symmetric error
-        transitions = astropy.table.vstack([transitions,transitions])
-        transitions[1]['equivalent_width'] += 1000.*np.nanmax(np.abs(self.metadata["fitted_result"][2]["equivalent_width"][1:3]))
-        abundances = self.session.rt.abundance_cog(
-            self.session.stellar_photosphere,
-            transitions)
-        assert len(abundances)==2,abundances
-        abundances = [abundances[0]]
-        uncertainties = [abundances[1]-abundances[0]]
-        self.metadata["fitted_result"][2]["abundances"] = abundances
-        self.metadata["fitted_result"][2]["abundance_uncertainties"] = uncertainties
-        return abundances
-    """
 
 if __name__ == "__main__":
 

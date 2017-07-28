@@ -97,22 +97,21 @@ def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={},
 
 class SpectralSynthesisModel(BaseSpectralModel):
 
-    def __init__(self, session, transition_hashes, elements, **kwargs):
+    def __init__(self, session, transitions, elements, **kwargs):
         """
-        Initialize a base class for modelling spectra.
+        Initialize a class for modelling spectra with synthesis.
 
         :param session:
             The session that this spectral model will be associated with.
 
-        :param transition_hashes:
-            The hashes of transitions in the parent session that will be
-            associated with this model.
+        :param transitions:
+            A linelist containing atomic data for this model.
         
         :param elements:
             The element(s) to be measured from the data.
         """
         
-        super(SpectralSynthesisModel, self).__init__(session, transition_hashes,
+        super(SpectralSynthesisModel, self).__init__(session, transitions,
             **kwargs)
 
         # Initialize metadata with default fitting values.
