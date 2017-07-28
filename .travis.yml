@@ -1,7 +1,6 @@
 language: python
 python:
   - 2.7
-#  - 3.4
 notifications:
   email: true
 
@@ -13,14 +12,6 @@ before_install:
   - ./miniconda.sh -b
   - export PATH=/home/travis/miniconda2/bin:$PATH
   - conda update --yes conda
-  # The next couple lines fix a crash with multiprocessing on Travis and are not
-  # specific to using Miniconda.
-  # (Note: I have commented these out because this repository is not using 
-  #        multiprocessing in testing at the moment and if we can get away
-  #        without using sudo then we can use Travis containers, which are
-  #        way betterrer)
-  #- sudo rm -rf /dev/shm
-  #- sudo ln -s /run/shm /dev/shm
   
   # So that we can use matplotlib on Travis.
   - "export DISPLAY=:99.0"
@@ -32,16 +23,9 @@ install:
   # See https://groups.google.com/a/continuum.io/forum/#!topic/anaconda/6q1StqOb_Vc
   - if [[ $TRAVIS_PYTHON_VERSION == 2* ]]; then conda install --yes python=$TRAVIS_PYTHON_VERSION pyside; fi
   - if [[ $TRAVIS_PYTHON_VERSION == '3.4' ]]; then pip install pyside; fi
-
-  # Currently we expect MOOGSILENT to be installed separately on the user's computer.
-  # For Travis we will just ask him to install the batch version for now.
   - pip install https://github.com/andycasey/moog/archive/makefile-templates.zip -vvv
-  # Installs to /home/travis/miniconda2/bin/MOOGSILENT, which is already on $PATH
-  - python setup.py install --with-models
+  - python setup.py install 
 script:
   - nosetests --with-coverage --cover-package=smh
 after_success:
   coveralls
-#branches:
-#  only:
-#    - master
