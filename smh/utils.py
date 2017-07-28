@@ -74,11 +74,11 @@ logger = logging.getLogger(__name__)
 
 def mkdtemp(**kwargs):
     if 'dir' not in kwargs:
-        kwargs['dir'] = '~/.smh_temporary'
+        kwargs['dir'] = os.environ["HOME"]+"/.smh"
     return tempfile.mkdtemp(**kwargs)
 def mkstemp(**kwargs):
     if 'dir' not in kwargs:
-        kwargs['dir'] = '~/.smh_temporary'
+        kwargs['dir'] = os.environ["HOME"]+"~/.smh"
     return tempfile.mkstemp(**kwargs)
 
 def random_string(N=10):

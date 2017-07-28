@@ -47,7 +47,7 @@ class Session(BaseSession):
     # The default settings path is only defined (hard-coded) here.
     _default_settings_path = os.path.expanduser("~/.smh_session.defaults")
 
-    def __init__(self, spectrum_paths, **kwargs):
+    def __init__(self, spectrum_paths, twd=None, **kwargs):
         """
         Create a new session from input spectra.
 
@@ -57,6 +57,11 @@ class Session(BaseSession):
 
         if isinstance(spectrum_paths, string_types):
             spectrum_paths = (spectrum_paths, )
+
+        if twd is None:
+            twd = mkdtemp()
+        self.twd = twd
+        logger.info("Working directory: {}".format(twd))
 
         # Load the spectra and flatten all orders into a single list.
         input_spectra = []
@@ -385,7 +390,8 @@ class Session(BaseSession):
         # TODO #225 and other issues have had major saving/loading problems because
         # the temporary directories get deleted.
         session = cls([os.path.join(twd, basename) \
-            for basename in metadata["reconstruct_paths"]["input_spectra"]])
+            for basename in metadata["reconstruct_paths"]["input_spectra"]],
+            twd=twd)
         
         # Load in any normalized spectrum.
         normalized_spectrum \
@@ -875,7 +881,7 @@ class Session(BaseSession):
         # Calculate abundances and put them back into the spectral models stored
         # in the session metadata.
         abundances = self.rt.abundance_cog(
-            self.stellar_photosphere, transitions[finite])
+            self.stellar_photosphere, transitions[finite], twd=self.twd)
 
         for index, abundance in zip(spectral_model_indices[finite], abundances):
             self.metadata["spectral_models"][int(index)]\
@@ -892,7 +898,7 @@ class Session(BaseSession):
         finite = np.isfinite(_transitions["equivalent_width"])
 
         propagated_abundances = self.rt.abundance_cog(
-            self.stellar_photosphere, _transitions[finite])
+            self.stellar_photosphere, _transitions[finite], twd=self.twd)
 
         for index, abundance, propagated_abundance \
         in zip(spectral_model_indices[finite], transitions["abundance"][finite],
@@ -997,7 +1003,7 @@ class Session(BaseSession):
                                 transitions["equivalent_width"] > min_eqw)
         
         abundances = self.rt.abundance_cog(
-            self.stellar_photosphere, transitions[finite])
+            self.stellar_photosphere, transitions[finite], twd=self.twd)
 
         if calculate_uncertainties:
             # Increase EW by uncertainty and measure again
@@ -1010,7 +1016,7 @@ class Session(BaseSession):
             transitions["equivalent_width"][transitions["equivalent_width"] > 9999] = 9999.
 
             uncertainties = self.rt.abundance_cog(
-                self.stellar_photosphere, transitions[finite_uncertainty])
+                self.stellar_photosphere, transitions[finite_uncertainty], twd=self.twd)
             
             # These are not the same size. Make them the same size by filling with nan
             # Inelegant but works...

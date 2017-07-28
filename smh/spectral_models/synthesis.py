@@ -69,7 +69,8 @@ def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={},
         spectra = model.session.rt.synthesize(
             model.session.stellar_photosphere, 
             model.transitions, abundances=abundances,
-            isotopes=isotopes) # TODO other kwargs?
+            isotopes=isotopes,
+            twd=model.session.twd) # TODO other kwargs?
 
         dispersion = spectra[0][0]
         if fluxes is None:
@@ -542,7 +543,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
         synth_dispersion, intensities, meta = self.session.rt.synthesize(
             self.session.stellar_photosphere, self.transitions,
             abundances=abundances, 
-            isotopes=self.session.metadata["isotopes"])[0] # TODO: Other RT kwargs......
+            isotopes=self.session.metadata["isotopes"],
+            twd=self.session.twd)[0] # TODO: Other RT kwargs......
 
         return self._nuisance_methods(
             dispersion, synth_dispersion, intensities, *parameters)
