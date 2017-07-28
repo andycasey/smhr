@@ -3,6 +3,8 @@ from scipy.optimize import fsolve
 from . import (photospheres, radiative_transfer, utils)
 from functools import wraps
 import sys, os, time
+import atexit
+from shutil import rmtree
 
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 from smh.utils import mkdtemp
@@ -107,6 +109,7 @@ def optimize_stellar_parameters(initial_guess, transitions, EWs=None,
 
     # Create a new temporary working directory for cog
     twd = mkdtemp()
+    atexit.register(rmtree, twd)
 
     @stellar_optimization
     def minimisation_function(stellar_parameters, *args):
