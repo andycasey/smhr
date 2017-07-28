@@ -115,35 +115,35 @@ class Session(BaseSession):
         })
 
         # Load any line list?
-        line_list_filename = self.setting(("line_list_filename",))
-        if line_list_filename is not None and os.path.exists(line_list_filename):
-            self.metadata["line_list"] = LineList.read(
-                line_list_filename, format="fits")
+        #line_list_filename = self.setting(("line_list_filename",))
+        #if line_list_filename is not None and os.path.exists(line_list_filename):
+        #    self.metadata["line_list"] = LineList.read(
+        #        line_list_filename, format="fits")
 
         # Construct any default spectral models.
-        deconstructed_spectral_models = self.setting(("default_spectral_models", ))
-        if deconstructed_spectral_models is not None:
-
-            # Reconstruct them.
-            self.metadata.setdefault("spectral_models", [])
-
-            for state in deconstructed_spectral_models:
-
-                args = [self, state["transition_hashes"]]
-                if state["type"] == "SpectralSynthesisModel":
-                    klass = SpectralSynthesisModel
-                    args.append(state["metadata"]["elements"])
-
-                elif state["type"] == "ProfileFittingModel":
-                    klass = ProfileFittingModel
-
-                else:
-                    raise ValueError("unrecognized spectral model class '{}'"\
-                        .format(state["type"]))
-
-                model = klass(*args)
-                model.metadata = state["metadata"]
-                self.metadata["spectral_models"].append(model)
+        #deconstructed_spectral_models = self.setting(("default_spectral_models", ))
+        #if deconstructed_spectral_models is not None:
+        #
+        #    # Reconstruct them.
+        #    self.metadata.setdefault("spectral_models", [])
+        #
+        #    for state in deconstructed_spectral_models:
+        #
+        #        args = [self, state["transition_hashes"]]
+        #        if state["type"] == "SpectralSynthesisModel":
+        #            klass = SpectralSynthesisModel
+        #            args.append(state["metadata"]["elements"])
+        #
+        #        elif state["type"] == "ProfileFittingModel":
+        #            klass = ProfileFittingModel
+        #
+        #        else:
+        #            raise ValueError("unrecognized spectral model class '{}'"\
+        #                .format(state["type"]))
+        #
+        #        model = klass(*args)
+        #        model.metadata = state["metadata"]
+        #        self.metadata["spectral_models"].append(model)
 
         return None
 
@@ -219,12 +219,12 @@ class Session(BaseSession):
                 = os.path.basename(twd_paths[-1])
 
         # Line list.
-        if "line_list" in metadata:
-            twd_paths.append(safe_path(os.path.join(twd, "line_list.fits"),
-                twd, metadata))
-            metadata.pop("line_list").write(twd_paths[-1], format="fits")
-            metadata["reconstruct_paths"]["line_list"] \
-                = os.path.basename(twd_paths[-1])
+        #if "line_list" in metadata:
+        #    twd_paths.append(safe_path(os.path.join(twd, "line_list.fits"),
+        #        twd, metadata))
+        #    metadata.pop("line_list").write(twd_paths[-1], format="fits")
+        #    metadata["reconstruct_paths"]["line_list"] \
+        #        = os.path.basename(twd_paths[-1])
             
 
         # normalized spectrum.
@@ -372,12 +372,12 @@ class Session(BaseSession):
             metadata = pickle.load(fp)
 
         # Load in the line list.
-        line_list = metadata["reconstruct_paths"].get("line_list", None)
-        if line_list is not None:
-            metadata["line_list"] = LineList.read(
-                os.path.join(twd, line_list), format="fits")
-            metadata["line_list_argsort_hashes"] = np.argsort(
-                metadata["line_list"]["hash"])
+        #line_list = metadata["reconstruct_paths"].get("line_list", None)
+        #if line_list is not None:
+        #    metadata["line_list"] = LineList.read(
+        #        os.path.join(twd, line_list), format="fits")
+        #    metadata["line_list_argsort_hashes"] = np.argsort(
+        #        metadata["line_list"]["hash"])
 
         # Load in the template spectrum.
         template_spectrum_path \

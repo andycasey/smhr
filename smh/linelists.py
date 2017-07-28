@@ -139,7 +139,7 @@ class LineList(Table):
         if error:
             raise IOError(error_msg)
         else:
-            print(error_msg)
+            logger.warn(error_msg)
         return False
 
     @staticmethod
@@ -272,7 +272,7 @@ class LineList(Table):
 
         if ignore_conflicts:
             if self.verbose:
-                print("Ignoring conflicts: adding {} lines".format(len(new_ll)))
+                logger.warn("Ignoring conflicts: adding {} lines".format(len(new_ll)))
             if not in_place:
                 return table.vstack([self, new_ll])
             else:
@@ -328,9 +328,9 @@ class LineList(Table):
             if len(conflicts1) > 0:
                 raise LineListConflict(conflicts1, conflicts2)
         if self.verbose:
-            print("Num lines added: {}".format(num_lines_added))
-            print("Num lines {}: {}".format('replaced' if override_current else 'ignored', num_in_list))
-            print("Num lines with multiple matches: {}".format(num_with_multiple_conflicts))
+            logger.info("Num lines added: {}".format(num_lines_added))
+            logger.info("Num lines {}: {}".format('replaced' if override_current else 'ignored', num_in_list))
+            logger.info("Num lines with multiple matches: {}".format(num_with_multiple_conflicts))
 
         if not in_place:
             return LineList(new_data)
@@ -354,13 +354,13 @@ class LineList(Table):
         for line in matches:
             if self.lines_equal(new_line,line):
                 if self.verbose:
-                    print("Found identical match: {:8.3f} {:4.1f} {:5.2f} {:6.3f}".format(new_line['wavelength'],new_line['species'],new_line['expot'],new_line['loggf']))
+                    logger.info("Found identical match: {:8.3f} {:4.1f} {:5.2f} {:6.3f}".format(new_line['wavelength'],new_line['species'],new_line['expot'],new_line['loggf']))
                 return -1
 
         if self.verbose:
-            print("----{} Matches----".format(len(matches)))
-            print(new_line)
-            print(matches)
+            logger.info("----{} Matches----".format(len(matches)))
+            logger.info(new_line)
+            logger.info(matches)
         
         # Pick the line that is closest in wavelength
         best = np.argmin(np.abs(new_line['wavelength']-matches['wavelength']))
@@ -472,7 +472,7 @@ class LineList(Table):
         if np.all(loggf >= 0): 
             loggf = np.log10(loggf)
             # TODO this is the MOOG default, but it may not be a good idea...
-            print("Warning: no lines with loggf < 0 in {}, assuming input is gf".format(filename))
+            logger.warn("MOOG: no lines with loggf < 0 in {}, assuming input is gf".format(filename))
 
         spec2element = {}
         spec2elem1= {}
@@ -584,7 +584,7 @@ class LineList(Table):
         if np.all(loggf >= 0): 
             loggf = np.log10(loggf)
             # TODO this is the MOOG default, but it may not be a good idea...
-            print("Warning: no lines with loggf < 0 in {}, assuming input is gf".format(filename))
+            logger.warn("MOOG: no lines with loggf < 0 in {}, assuming input is gf".format(filename))
         
         # TODO
         # Cite the filename as the reference for now

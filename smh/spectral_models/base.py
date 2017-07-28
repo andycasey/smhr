@@ -12,6 +12,7 @@ import numpy as np
 
 from .quality_constraints import constraints
 from ..linelists import LineList
+from astropy.table import Row
 
 class BaseSpectralModel(object):
 
@@ -26,7 +27,10 @@ class BaseSpectralModel(object):
             A linelist containing atomic data for this model.
         """
 
-        assert isinstance(transitions, LineList)
+        if isinstance(transitions, Row):
+            transitions = LineList(transitions)
+        assert isinstance(transitions, LineList), type(transitions)
+        
 
         self._session = session
         self._transitions = transitions
