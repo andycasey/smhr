@@ -257,6 +257,7 @@ class BaseSpectralModel(object):
     def __getstate__(self):
         """ Return a serializable state of this spectral model. """
 
+        # APJ TODO this is related to pickling and saving
         state = {
             "type": self.__class__.__name__,
             "transition_hashes": self._transition_hashes,

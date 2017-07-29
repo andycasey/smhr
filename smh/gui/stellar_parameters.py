@@ -1139,10 +1139,10 @@ class StellarParametersTab(QtGui.QWidget):
         """
 
         # Otherwise we're fucked:
-        expected_hashes = np.array([each.transitions["hash"][0] for each in \
+        expected_hashes = np.array([LineList.hash(each.transitions[0]) for each in \
             self.parent.session.metadata["spectral_models"]]) 
 
-        assert np.all(expected_hashes == self._state_transitions["hash"])
+        assert np.all(expected_hashes == self._state_transitions.compute_hashes())
 
         self.update_scatter_plots()
 

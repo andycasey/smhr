@@ -75,20 +75,11 @@ class LineList(Table):
 
         super(LineList, self).__init__(*args,**kwargs)
 
-        if 'hash' not in self.columns and len(self) > 0:
-            # When sorting, it creates a LineList with just a column subset
-            try: 
-                self.validate_colnames(True)
-            except IOError:
-                pass
-            else:
-                hashes = [self.hash(line) for line in self]
-                self.add_column(Column(hashes,name='hash'))
-
-        if 'hash' in self.columns and (not self.has_duplicates):
-            self.check_for_duplicates()
         #self.validate_colnames(False)
 
+    def compute_hashes(self):
+        return np.array([self.hash(line) for line in self])
+    
     def check_for_duplicates(self):
         """
         Check for exactly duplicated lines. This has to fail because hashes
@@ -98,7 +89,9 @@ class LineList(Table):
         In these cases, it may be okay to combine the two lines into one 
         total line with a combined loggf.
         """
-        if len(self) != len(np.unique(self['hash'])):
+        hashes = self.compute_hashes()
+
+        if len(self) != len(np.unique(hashes)):
             error_msg = \
                 "This LineList contains lines with identical hashes.\n" \
                 "The problem is most likely due to completely identical lines\n" \
@@ -108,12 +101,12 @@ class LineList(Table):
                 "We now print the duplicated lines:\n"
             fmt = "{:.3f} {:.3f} {:.3f} {:5} {}\n"
             total_duplicates = 0
-            for i,hash in enumerate(self['hash']):
-                N = np.sum(self['hash']==hash)
+            for i,hash in enumerate(hashes):
+                N = np.sum(hashes==hash)
                 if N > 1: 
                     line = self[i]
                     total_duplicates += 1
-                    error_msg += fmt.format(line['wavelength'],line['expot'],line['loggf'],line['element'],line['hash'])
+                    error_msg += fmt.format(line['wavelength'],line['expot'],line['loggf'],line['element'],hashes[i])
             raise ValueError(error_msg)
         self.has_duplicates = False
         return None
@@ -434,7 +427,7 @@ class LineList(Table):
         #return None
         if in_place: raise NotImplementedError
 
-        uniq, ix = np.unique(self["hash"], return_index=True)
+        uniq, ix = np.unique(self.compute_hashes(), return_index=True)
         return self[ix]
 
 
@@ -454,7 +447,7 @@ class LineList(Table):
     @staticmethod
     def lines_exactly_equal(l1,l2):
         #return LineList.lines_equal(l1,l2,dwl_thresh=1e-4,dEP_thresh=1e-4,dgf_thresh=1e-4)
-        return l1['hash']==l2['hash']
+        return LineList.hash(l1)==LineList.hash(l2)
 
     @classmethod
     def create_basic_linelist(cls,wavelength,species,expot,loggf, **kwargs):
