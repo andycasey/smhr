@@ -802,14 +802,14 @@ class Session(BaseSession):
         rews = []
         ew_uncertainties = []
 
-        transition_indices = []
+        transitions = []
         spectral_model_indices = []
 
         filtering = kwargs.pop("filtering",
             lambda model: model.use_for_stellar_parameter_inference)
         for i, model in enumerate(self.metadata["spectral_models"]):
 
-            transition_indices.append(model._transition_indices[0])
+            transitions.append(model.transitions[0])
             
             # TODO assert it is a profile model.
             if filtering(model):
@@ -843,9 +843,8 @@ class Session(BaseSession):
 
 
         # Construct a copy of the line list table.
-        transition_indices = np.array(transition_indices)
+        transitions = LineList(rows=transitions)
         spectral_model_indices = np.array(spectral_model_indices)
-        transitions = self.metadata["line_list"][transition_indices].copy()
         transitions["equivalent_width"] = ews
         transitions["reduced_equivalent_width"] = rews
 
@@ -940,7 +939,7 @@ class Session(BaseSession):
 
         equivalent_widths = []
         equivalent_width_errs = []
-        transition_indices = []
+        transitions = []
         spectral_model_indices = []
         
         num_profile = 0
@@ -948,7 +947,7 @@ class Session(BaseSession):
         for i,spectral_model in enumerate(spectral_models):
             if isinstance(spectral_model, ProfileFittingModel):
                 spectral_model_indices.append(i)
-                transition_indices.extend(spectral_model._transition_indices)
+                transitions.append(spectral_model.transitions)
                 if spectral_model.is_acceptable:
                     equivalent_widths.append(1000.* \
                         spectral_model.metadata["fitted_result"][-1]["equivalent_width"][0])
@@ -969,9 +968,8 @@ class Session(BaseSession):
         or np.isfinite(equivalent_widths).sum() == 0):
             raise ValueError("no measured transitions to calculate abundances")
         
-        transition_indices = np.array(transition_indices)
+        transitions = LineList(rows=transitions)
         spectral_model_indices = np.array(spectral_model_indices)
-        transitions = self.metadata["line_list"][transition_indices].copy()
         transitions["equivalent_width"] = equivalent_widths
         min_eqw = .01
         finite = np.logical_and(np.isfinite(transitions["equivalent_width"]),

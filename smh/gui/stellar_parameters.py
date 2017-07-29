@@ -1561,14 +1561,13 @@ class StellarParametersTab(QtGui.QWidget):
                          sp["surface_gravity"], sp["metallicity"]]
 
         ## grab transitions for stellar parameters
-        transition_indices = []
+        transitions = []
         EWs = []
         for i, model in enumerate(self.parent.session.metadata["spectral_models"]):
             if model.use_for_stellar_parameter_inference and model.is_acceptable and not model.is_upper_limit:
-                transition_indices.append(model._transition_indices[0])
+                transitions.append(model.transitions[0])
                 EWs.append(1e3 * model.metadata["fitted_result"][-1]["equivalent_width"][0])
-        transition_indices = np.array(transition_indices)
-        transitions = self.parent.session.metadata["line_list"][transition_indices].copy()
+        transitions = smh.LineList(rows=transitions)
         transitions["equivalent_width"] = EWs
         
         ## TODO the optimization does not use the error weights yet
