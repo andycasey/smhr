@@ -106,44 +106,31 @@ class Session(BaseSession):
             },
             "isotopes": {},
             "stellar_parameters": {
-                "effective_temperature": 5777, # K
-                "surface_gravity": 4.4,
-                "metallicity": 0.0, # Solar-scaled
-                "microturbulence": 1.06, # km/s
-                "alpha":0.4,
+                "effective_temperature":
+                    self.setting(("default_Teff",5777)), # K
+                "surface_gravity":
+                    self.setting(("default_logg",4.4)),
+                "metallicity":
+                    self.setting(("default_MH",0.0)), # Solar-scaled
+                "microturbulence":
+                    self.setting(("default_vt",1.06)), # km/s
+                "alpha":
+                    self.setting(("default_aFe",0.4)),
             }
         })
 
-        # Load any line list?
-        #line_list_filename = self.setting(("line_list_filename",))
-        #if line_list_filename is not None and os.path.exists(line_list_filename):
-        #    self.metadata["line_list"] = LineList.read(
-        #        line_list_filename, format="fits")
+        # Set defaults for metadata dictionary
+        self.metadata.setdefault("spectral_models", [])
+
+        # Construct default profile models
+        line_list_filename = self.setting(("line_list_filename",))
+        if line_list_filename is not None and os.path.exists(line_list_filename):
+            self.import_linelist_as_profile_models(line_list_filename)
 
         # Construct any default spectral models.
-        #deconstructed_spectral_models = self.setting(("default_spectral_models", ))
-        #if deconstructed_spectral_models is not None:
-        #
-        #    # Reconstruct them.
-        #    self.metadata.setdefault("spectral_models", [])
-        #
-        #    for state in deconstructed_spectral_models:
-        #
-        #        args = [self, state["transition_hashes"]]
-        #        if state["type"] == "SpectralSynthesisModel":
-        #            klass = SpectralSynthesisModel
-        #            args.append(state["metadata"]["elements"])
-        #
-        #        elif state["type"] == "ProfileFittingModel":
-        #            klass = ProfileFittingModel
-        #
-        #        else:
-        #            raise ValueError("unrecognized spectral model class '{}'"\
-        #                .format(state["type"]))
-        #
-        #        model = klass(*args)
-        #        model.metadata = state["metadata"]
-        #        self.metadata["spectral_models"].append(model)
+        deconstructed_spectral_models = self.setting(("default_spectral_models", ))
+        if deconstructed_spectral_models is not None:
+            logger.warn("default_spectral_models is not implemented (skipping)")
 
         return None
 
@@ -314,41 +301,41 @@ class Session(BaseSession):
             The disk location of the serialized transitions.
         """
 
-        with open(path, "rb") as fp:
-            line_list, spectral_model_states = pickle.load(fp)
-
-        # Integrate line list with the existing list.
-        if "line_list" in self.metadata:
-            self.metadata["line_list"] = self.metadata["line_list"].merge(
-                line_list, in_place=False)
-        else:
-            self.metadata["line_list"] = line_list
-
-        # Add the spectral models.
-        self.metadata.setdefault("spectral_models", [])
-
-        reconstructed_spectral_models = []
-        for state in spectral_model_states:
-
-            args = [self, state["transition_hashes"]]
-            if state["type"] == "SpectralSynthesisModel":
-                klass = SpectralSynthesisModel
-                args.append(state["metadata"]["elements"])
-
-            elif state["type"] == "ProfileFittingModel":
-                klass = ProfileFittingModel
-
-            else:
-                raise ValueError("unrecognized spectral model class '{}'"\
-                    .format(state["type"]))
-
-            model = klass(*args)
-            model.metadata = state["metadata"]
-            reconstructed_spectral_models.append(model)
-
-        self.metadata["spectral_models"].extend(reconstructed_spectral_models)
-        return len(reconstructed_spectral_models)
-
+        raise NotImplementedError
+        #with open(path, "rb") as fp:
+        #    line_list, spectral_model_states = pickle.load(fp)
+        #
+        ## Integrate line list with the existing list.
+        #if "line_list" in self.metadata:
+        #    self.metadata["line_list"] = self.metadata["line_list"].merge(
+        #        line_list, in_place=False)
+        #else:
+        #    self.metadata["line_list"] = line_list
+        #
+        ## Add the spectral models.
+        #self.metadata.setdefault("spectral_models", [])
+        #
+        #reconstructed_spectral_models = []
+        #for state in spectral_model_states:
+        #
+        #    args = [self, state["transition_hashes"]]
+        #    if state["type"] == "SpectralSynthesisModel":
+        #        klass = SpectralSynthesisModel
+        #        args.append(state["metadata"]["elements"])
+        #
+        #    elif state["type"] == "ProfileFittingModel":
+        #        klass = ProfileFittingModel
+        #
+        #    else:
+        #        raise ValueError("unrecognized spectral model class '{}'"\
+        #            .format(state["type"]))
+        #
+        #    model = klass(*args)
+        #    model.metadata = state["metadata"]
+        #    reconstructed_spectral_models.append(model)
+        #
+        #self.metadata["spectral_models"].extend(reconstructed_spectral_models)
+        #return len(reconstructed_spectral_models)
 
     # TODO: put export_transitions here from the spectral model GUI too?
 
@@ -418,6 +405,7 @@ class Session(BaseSession):
         for state in session.metadata.get("spectral_models", []):
             start2 = time.time()
 
+            # APJ TODO 
             args = [session, state["transition_hashes"]]
             if state["type"] == "SpectralSynthesisModel":
                 klass = SpectralSynthesisModel
@@ -448,19 +436,6 @@ class Session(BaseSession):
         logger.debug("Input spectra paths: {}".format(session._input_spectra_paths))
 
         return session
-
-
-    def index_spectral_models(self):
-        """
-        (Re-)Index the spectral models so that they are linked correctly
-        against the session.
-        """
-
-        self.metadata["line_list_argsort_hashes"] = np.argsort(
-            self.metadata["line_list"]["hash"])
-        for spectral_model in self.metadata.get("spectral_models", []):
-            spectral_model.index_transitions()
-        return None
 
 
     def apply_spectral_model_quality_constraints(self, constraints, only=None,
@@ -1250,65 +1225,100 @@ class Session(BaseSession):
         return smh_plotting.make_summary_plot(defaults["summary_figure_ncap"],
                                        self.normalized_spectrum, figure)
 
-    def import_linelists(self, filenames, ignore_conflicts=False, full_output=False):
-        if isinstance(filenames, string_types):
-            filenames = [filenames]
-        
-        line_list = LineList.read(filenames[0], verbose=True)
-
-        filename_transitions = [line_list]
-        for filename in filenames[1:]:
-            new_lines = LineList.read(filename)
-            # Use extremely intolerant to force hashes to be the same
-            line_list = line_list.merge(new_lines, in_place=False,
-                                        skip_exactly_equal_lines=True,
-                                        ignore_conflicts=ignore_conflicts)
-            filename_transitions.append(new_lines)
-
-        # Merge the line list with any existing line list in the session.
-        if self.metadata.get("line_list", None) is None:
-            self.metadata["line_list"] = line_list
-            N = len(line_list)
+    def copy_file_to_working_directory(self, filename, twd=None):
+        """
+        Generic utility to copy files safely to twd
+        :param filename:
+            the file to copy to working directory
+        :param twd:
+            if None (default) use self.twd, otherwise use specified twd
+        """
+        if twd is None:
+            twd = self.twd
         else:
-            N = len(self.metadata["line_list"]) - len(line_list)
-            self.metadata["line_list"] \
-                = self.metadata["line_list"].merge(
-                    line_list, in_place=False, skip_exactly_equal_lines=True,
-                    ignore_conflicts=ignore_conflicts)
+            assert os.path.isdir(twd)
+        basename = os.path.basename(filename)
+        path_to_copy = os.path.join(twd, basename)
+        while os.path.exists(path_to_copy):
+            new_basename = ".".join([
+                    utils.random_string(), basename])
+            path_to_copy = os.path.join(twd, new_basename)
+        copyfile(filename, path_to_copy)
+        logger.info("Made copy of {} in {}".format(filename, path_to_copy))
 
-        # Must update hash sorting after any modification to line list
-        self.metadata["line_list_argsort_hashes"] = np.argsort(
-            self.metadata["line_list"]["hash"])
+    def import_linelist_as_profile_models(self, filename, import_equivalent_widths=False,
+                                          copy_to_working_dir=True):
+        """
+        :param filename:
+            path to a valid line list to be converted into (many) profile models
+        :param import_equivalent_widths:
+            (default False)
+            if True, add equivalent width in line list to the profile model 
+            and mark as acceptable (used for importing literature values)
+        :param copy_to_working_dir:
+            if True [default], copy the linelist to the session's working directory
+        """
+        assert os.path.exists(filename), filename
+
+        if copy_to_working_dir:
+            self.copy_file_to_working_directory(filename)
+
+        start = time.time()
+        line_list = LineList.read(filename, verbose=True)
+        logger.debug("Time to load linelist {:.1f}".format(time.time()-start))
         
-        if full_output:
-            return line_list, filename_transitions
-        return line_list
-    
-    def import_transitions_with_measured_equivalent_widths(self, filenames=None, ignore_conflicts=False):
-        line_list = self.import_linelists(filenames, ignore_conflicts=ignore_conflicts)
-        try:
-            line_list["equivalent_width"]
-        except KeyError:
-            raise KeyError("no equivalent widths found in imported line lists")
+        if import_equivalent_widths:
+            try:
+                assert np.any(np.isfinite(line_list["equivalent_width"]))
+            except:
+                raise KeyError("no equivalent widths found in imported line list")
         
+        start = time.time()
         spectral_models_to_add = []
-        for idx in range(len(line_list)):
-            model = ProfileFittingModel(self, line_list["hash"][[idx]])
-            model.metadata.update({
-                "is_acceptable": True,
-                "fitted_result": [None, None, {
-                    # We assume supplied equivalent widths are in milliAngstroms
-                    "equivalent_width": \
-                    (1e-3 * line_list["equivalent_width"][idx], 0.0, 0.0),
-                    "reduced_equivalent_width": \
-                    (-3+np.log10(line_list["equivalent_width"][idx]/line_list["wavelength"][idx]),
-                      0.0, 0.0)
-                }]
-            })
+        for i in range(len(line_list)):
+            line = line_list[i]
+            model = ProfileFittingModel(self, line)
+            if import_equivalent_widths and np.isfinite(line["equivalent_width"]):
+                model.metadata.update({
+                        "is_acceptable": True,
+                        "fitted_result": [None, None, {
+                                # We assume supplied equivalent widths are in milliAngstroms
+                                "equivalent_width": \
+                                    (1e-3 * line["equivalent_width"], 0.0, 0.0),
+                                "reduced_equivalent_width": \
+                                    (-3+np.log10(line["equivalent_width"]/line["wavelength"]),
+                                      0.0, 0.0)
+                        }]
+                })
             spectral_models_to_add.append(model)
-        self.metadata.setdefault("spectral_models", [])
         self.metadata["spectral_models"].extend(spectral_models_to_add)
-        self._spectral_model_conflicts = utils.spectral_model_conflicts(
-            self.metadata["spectral_models"],
-            self.metadata["line_list"])
+        logger.debug("Created {} profile models in {:.1f}s".format(len(line_list),
+                                                                   time.time()-start))
+        return
         
+    def import_linelist_as_synthesis_model(self, filename, elements,
+                                           copy_to_working_dir=True, **kwargs):
+        """
+        :param filename:
+            path to a valid line list to be converted into one synthesis model
+        :param elements:
+            elements to measure in this synthesis model
+        :param copy_to_working_dir:
+            if True [default], copy the linelist to the session's working directory
+        kwargs are passed to SpectralSynthesisModel.__init__
+        """
+        assert os.path.exists(filename), filename
+
+        if copy_to_working_dir:
+            self.copy_file_to_working_directory(filename)
+
+        start = time.time()
+        line_list = LineList.read(filename, verbose=True)
+        logger.debug("Time to load linelist {:.1f}".format(time.time()-start))
+        
+        start = time.time()
+        spectral_model = SpectralSynthesisModel(self, line_list, elements, **kwargs)
+        self.metadata["spectral_models"].append(spectral_model)
+        logger.debug("Created synthesis model with {} lines in {:.1f}s".format(len(line_list),
+                                                                               time.time()-start))
+        return
