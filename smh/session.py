@@ -206,12 +206,8 @@ class Session(BaseSession):
                 = os.path.basename(twd_paths[-1])
 
         # Line list.
-        #if "line_list" in metadata:
-        #    twd_paths.append(safe_path(os.path.join(twd, "line_list.fits"),
-        #        twd, metadata))
-        #    metadata.pop("line_list").write(twd_paths[-1], format="fits")
-        #    metadata["reconstruct_paths"]["line_list"] \
-        #        = os.path.basename(twd_paths[-1])
+        if "line_list" in metadata:
+            raise IOError("This is an old session with line_list (NOT SAVING)! Run a conversion before saving.")
             
 
         # normalized spectrum.
@@ -293,9 +289,9 @@ class Session(BaseSession):
         return True
 
 
-    def import_transitions(self, path):
+    def import_spectral_models(self, path):
         """
-        Import transitions (line list data and spectral models) from disk.
+        Import list of spectral models from disk.
 
         :param path:
             The disk location of the serialized transitions.
@@ -358,14 +354,6 @@ class Session(BaseSession):
         with open(os.path.join(twd, "session.pkl"), "rb") as fp:
             metadata = pickle.load(fp)
 
-        # Load in the line list.
-        #line_list = metadata["reconstruct_paths"].get("line_list", None)
-        #if line_list is not None:
-        #    metadata["line_list"] = LineList.read(
-        #        os.path.join(twd, line_list), format="fits")
-        #    metadata["line_list_argsort_hashes"] = np.argsort(
-        #        metadata["line_list"]["hash"])
-
         # Load in the template spectrum.
         template_spectrum_path \
             = metadata["reconstruct_paths"].get("template_spectrum_path", None)
@@ -374,8 +362,6 @@ class Session(BaseSession):
                 = os.path.join(twd, template_spectrum_path)
 
         # Create the object using the temporary working directory input spectra.
-        # TODO #225 and other issues have had major saving/loading problems because
-        # the temporary directories get deleted.
         session = cls([os.path.join(twd, basename) \
             for basename in metadata["reconstruct_paths"]["input_spectra"]],
             twd=twd)
@@ -405,8 +391,11 @@ class Session(BaseSession):
         for state in session.metadata.get("spectral_models", []):
             start2 = time.time()
 
-            # APJ TODO 
-            args = [session, state["transition_hashes"]]
+            if "transitions" in state.keys():
+                args = [session, state["transitions"]]
+            else:
+                assert "transition_hashes" in state.keys()
+                raise IOError("Old spectral model format! (hashes instead of linelist) Cannot load")
             if state["type"] == "SpectralSynthesisModel":
                 klass = SpectralSynthesisModel
                 args.append(state["metadata"]["elements"])
