@@ -257,10 +257,11 @@ class BaseSpectralModel(object):
     def __getstate__(self):
         """ Return a serializable state of this spectral model. """
 
-        # APJ TODO this is related to pickling and saving
+        # LineList is a superclass of astropy.table.Table so it serializes
+        # This could be a problem if e.g. astropy version changes
         state = {
             "type": self.__class__.__name__,
-            "transition_hashes": self._transition_hashes,
+            "transitions": self.transitions,
             "metadata": self.metadata
         }
         return state
