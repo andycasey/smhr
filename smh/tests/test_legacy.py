@@ -15,3 +15,5 @@ def test_convert_v01():
     legacy.convert_v0_1_to_v0_2(fname_in, fname_out, overwrite=True)
     session = Session.load(fname_out)
     
+    session.measure_abundances()
+    
