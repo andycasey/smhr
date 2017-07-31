@@ -121,6 +121,7 @@ class Session(BaseSession):
 
         # Set defaults for metadata dictionary
         self.metadata.setdefault("spectral_models", [])
+        self.metadata.setdefault("reconstruct_copied_paths", [])
 
         # Construct default profile models
         line_list_filename = self.setting(("line_list_filename",))
@@ -152,6 +153,14 @@ class Session(BaseSession):
             If the `session_path` already exists and `overwrite` was set to
             `False`.
         """
+
+        ### Some comments for clarity
+        ## twd: a scratch directory for creatintg files that will be tar'd as the smh save file
+        ## twd_paths: paths of files to save in tarball. Does not have to be actually point to twd.
+        ## metadata["reconstruct_paths"]: names of files in twd needed to load the .smh file
+        ## metadata["reconstruct_copied_paths"]: names of files kept with .smh file but not needed to load
+
+        start = time.time()
 
         if not session_path.lower().endswith(".smh"):
             session_path = "{}.smh".format(session_path)
@@ -207,9 +216,8 @@ class Session(BaseSession):
 
         # Line list.
         if "line_list" in metadata:
-            raise IOError("This is an old session with line_list (NOT SAVING)! Run a conversion before saving.")
-            
-
+            raise IOError("This is an old session with line_list (NOT SAVING)! Running a conversion is required to save.")
+        
         # normalized spectrum.
         #twd_path = safe_path(os.path.join(twd, "normalized_spectrum.fits"),
         #    twd, metadata)
@@ -231,6 +239,9 @@ class Session(BaseSession):
         metadata["spectral_models"] \
             = [_.__getstate__() for _ in metadata.get("spectral_models", [])]
 
+        # Keep files copied to the temporary working directory (e.g. original linelists).
+        twd_paths.extend(self.metadata["reconstruct_copied_paths"])
+        
         # Pickle the metadata.
         twd_paths.append(os.path.join(twd, "session.pkl"))
         try:
@@ -277,6 +288,7 @@ class Session(BaseSession):
                 continue
 
         tarball.close()
+        logger.info("Saved file to {} ({:.1f}s)".format(session_path, time.time()-start))
 
         # Remove the temporary working directory.
         rmtree(twd)
@@ -284,58 +296,75 @@ class Session(BaseSession):
         if exception_occurred:
             raise
 
-        logger.info("Saved file to {}".format(session_path))
 
         return True
 
 
     def import_spectral_models(self, path):
         """
-        Import list of spectral models from disk.
+        Import list of spectral models from disk and append to current spectral models
 
         :param path:
             The disk location of the serialized transitions.
         """
 
+        with open(path, 'rb') as fp:
+            spectral_model_states = pickle.load(fp)
+        spectral_models = self.reconstruct_spectral_models(spectral_model_states)
+        self.metadata["spectral_models"].extend(spectral_models)
+        return len(spectral_models)
+
+    def reconstruct_spectral_models(self, spectral_model_states):
+        """
+        When saving an SMH file or exporting its spectral models, we serialize 
+        the spectral model classes into a state. 
+        This function reconstructs the spectral models from that serialized state.
+        """
+        reconstructed_spectral_models = []
+        for state in spectral_model_states:
+            start = time.time()
+            if "transitions" in state.keys():
+                args = [self, state["transitions"]]
+            else:
+                assert "transition_hashes" in state.keys()
+                raise IOError("Old spectral model format! "
+                              "(hashes instead of linelist) Cannot load")
+            
+            if state["type"] == "SpectralSynthesisModel":
+                klass = SpectralSynthesisModel
+                args.append(state["metadata"]["elements"])
+            elif state["type"] == "ProfileFittingModel":
+                klass = ProfileFittingModel
+            else:
+                raise ValueError("unrecognized spectral model class '{}'"\
+                                     .format(state["type"]))
+            model = klass(*args)
+            model.metadata = state["metadata"]
+            reconstructed_spectral_models.append(model)
+            t2 = time.time()-start
+            if t2 > 1.0:
+                logger.debug("  Long time to load model {:.3f} {} {} {}\n".format(t2, len(model.transitions), model.elements, model.wavelength))
+            
+        return reconstructed_spectral_models
+
+    def export_spectral_models(self, path, overwrite=False, keep_measurements=True):
+        """
+        Export list of spectral models to disk.
+        
+        :param path:
+            The disk location to serialize transitions.
+        :param overwrite:
+            (default False) If True, overwrite path if it exists
+        :param keep_measurements:
+            (default True)
+            If True, keep measurements specific to this star (equivalent widths, abundances).
+            If False, remove that information and only keep atomic data, masks,
+              fitting parameters, etc. [TODO make sure to include automasks]
+        """
+        if os.path.exists(path) and not overwrite:
+            raise IOError("path '{}' already exists".format(path))
         raise NotImplementedError
-        #with open(path, "rb") as fp:
-        #    line_list, spectral_model_states = pickle.load(fp)
-        #
-        ## Integrate line list with the existing list.
-        #if "line_list" in self.metadata:
-        #    self.metadata["line_list"] = self.metadata["line_list"].merge(
-        #        line_list, in_place=False)
-        #else:
-        #    self.metadata["line_list"] = line_list
-        #
-        ## Add the spectral models.
-        #self.metadata.setdefault("spectral_models", [])
-        #
-        #reconstructed_spectral_models = []
-        #for state in spectral_model_states:
-        #
-        #    args = [self, state["transition_hashes"]]
-        #    if state["type"] == "SpectralSynthesisModel":
-        #        klass = SpectralSynthesisModel
-        #        args.append(state["metadata"]["elements"])
-        #
-        #    elif state["type"] == "ProfileFittingModel":
-        #        klass = ProfileFittingModel
-        #
-        #    else:
-        #        raise ValueError("unrecognized spectral model class '{}'"\
-        #            .format(state["type"]))
-        #
-        #    model = klass(*args)
-        #    model.metadata = state["metadata"]
-        #    reconstructed_spectral_models.append(model)
-        #
-        #self.metadata["spectral_models"].extend(reconstructed_spectral_models)
-        #return len(reconstructed_spectral_models)
-
-    # TODO: put export_transitions here from the spectral model GUI too?
-
-
+        
     @classmethod
     def load(cls, session_path, skip_spectral_models=False, **kwargs):
         """
@@ -344,6 +373,8 @@ class Session(BaseSession):
         :param session_path:
             The disk location where to load the session from.
         """
+
+        start = time.time()
 
         # Extract all.
         tarball = tarfile.open(name=session_path, mode="r:gz")
@@ -386,42 +417,19 @@ class Session(BaseSession):
             return session
 
         # Reconstruct any spectral models.
-        reconstructed_spectral_models = []
+        # Note that to serialize metadata, we converted the spectral models
+        # into a serializable state
         start = time.time()
-        for state in session.metadata.get("spectral_models", []):
-            start2 = time.time()
-
-            if "transitions" in state.keys():
-                args = [session, state["transitions"]]
-            else:
-                assert "transition_hashes" in state.keys()
-                raise IOError("Old spectral model format! (hashes instead of linelist) Cannot load")
-            if state["type"] == "SpectralSynthesisModel":
-                klass = SpectralSynthesisModel
-                args.append(state["metadata"]["elements"])
-
-            elif state["type"] == "ProfileFittingModel":
-                klass = ProfileFittingModel
-
-            else:
-                raise ValueError("unrecognized spectral model class '{}'"\
-                    .format(state["type"]))
-
-            model = klass(*args)
-            model.metadata = state["metadata"]
-            reconstructed_spectral_models.append(model)
-            t2 = time.time()-start2
-            if t2 > 1.0:
-                logger.debug("  Long time to load model {:.3f} {} {} {}\n".format(t2, len(model._transitions), model.elements, model.wavelength))
-        logger.debug("Time to reconstruct spectral models: {:.3f}".format(time.time()-start))
-        
-        # Update the session with the spectral models.
+        spectral_model_states = session.metadata.get("spectral_models", [])
+        reconstructed_spectral_models = session.reconstruct_spectral_models(spectral_model_states)
+        logger.debug("Time to reconstruct {} spectral models: {:.3f}".format(
+                len(reconstructed_spectral_models), time.time()-start))
         session.metadata["spectral_models"] = reconstructed_spectral_models
 
         # Clean up the TWD when Python exits.
         atexit.register(rmtree, twd)
 
-        logger.info("Loaded file {}".format(session_path))
+        logger.info("Loaded file {} ({:.1f}s)".format(session_path, time.time()-start))
         logger.debug("Input spectra paths: {}".format(session._input_spectra_paths))
 
         return session
@@ -464,6 +472,13 @@ class Session(BaseSession):
         N = len(indices)
         return N if not full_output else (N, indices)
 
+
+    @property
+    def spectral_models(self):
+        """
+        Shortcut for accessing spectral models
+        """
+        return self.metadata.get("spectral_models", [])
 
     @property
     def rt(self):
@@ -1231,6 +1246,7 @@ class Session(BaseSession):
                     utils.random_string(), basename])
             path_to_copy = os.path.join(twd, new_basename)
         copyfile(filename, path_to_copy)
+        self.metadata["reconstruct_copied_paths"].append(path_to_copy)
         logger.info("Made copy of {} in {}".format(filename, path_to_copy))
 
     def import_linelist_as_profile_models(self, filename, import_equivalent_widths=False,
