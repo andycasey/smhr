@@ -9,7 +9,7 @@ import smh.spectral_models as sm
 
 datadir = os.path.dirname(os.path.abspath(__file__))+'/test_data'
 
-if __name__=="__main__":
+def test_create_session_and_analyze():
     file_to_write_to = datadir+"/.test_create_session.smh" 
 
     session = Session([datadir+'/spectra/hd122563.fits'])
@@ -45,3 +45,5 @@ if __name__=="__main__":
     session2 = Session.load(file_to_write_to)
     print("Time to load session: {:.1f}".format(time.time()-start))
     
+if __name__=="__main__":
+    test_create_session_and_analyze()
