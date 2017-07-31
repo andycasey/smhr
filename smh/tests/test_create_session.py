@@ -11,6 +11,7 @@ datadir = os.path.dirname(os.path.abspath(__file__))+'/test_data'
 
 def test_create_session_and_analyze():
     file_to_write_to = datadir+"/.test_create_session.smh" 
+    #file_to_write_to = datadir+"/test_create_session.smh" 
 
     session = Session([datadir+'/spectra/hd122563.fits'])
     session.import_linelist_as_profile_models(datadir+'/linelists/complete.list')
@@ -37,13 +38,15 @@ def test_create_session_and_analyze():
             num_fit += 1
     print("Time to fit {}/{} models: {:.1f}".format(num_fit, len(session.spectral_models), time.time()-start))
     
-    start = time.time()
-    session.save(file_to_write_to, overwrite=True)
-    print("Time to save session: {:.1f} (file is {}M)".format(time.time()-start, os.path.getsize(file_to_write_to)/1.e6))
+    session.measure_abundances()
 
-    start = time.time()
-    session2 = Session.load(file_to_write_to)
-    print("Time to load session: {:.1f}".format(time.time()-start))
-    
+    session.save(file_to_write_to, overwrite=True)
+
+def test_load_session():
+    file_to_load = datadir+"/test_create_session.smh" 
+    session = Session.load(file_to_load)
+
 if __name__=="__main__":
     test_create_session_and_analyze()
+    test_load_session()
+    

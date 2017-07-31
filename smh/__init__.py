@@ -11,7 +11,7 @@ from shutil import copyfile
 from subprocess import check_output
 
 # Software version.
-__version__ = "0.1"
+__version__ = "0.2"
 
 # Python 2/3 compatibility:
 safe_check_output = lambda x, shell=True: check_output(x, shell=shell).decode(

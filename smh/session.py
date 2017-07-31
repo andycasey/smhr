@@ -27,7 +27,7 @@ from .utils import mkdtemp
 from . import (photospheres, radiative_transfer, specutils, isoutils, utils)
 from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
 from smh.photospheres.abundances import asplund_2009 as solar_composition
-from . import (smh_plotting)
+from . import (smh_plotting, __version__)
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,10 @@ class Session(BaseSession):
         # Extract basic metadata information from the spectrum headers if
         # possible: RA, DEC, OBJECT
         # TODO: Include UTDATE, etc to calculate helio/bary-centric corrections.
-        self.metadata = { "NOTES": ""}
+        self.metadata = {
+            "VERSION": __version__,
+            "NOTES": ""
+        }
         common_metadata_keys = ["RA", "DEC", "OBJECT"] \
             + kwargs.pop("common_metadata_keys", [])
 
@@ -107,15 +110,15 @@ class Session(BaseSession):
             "isotopes": {},
             "stellar_parameters": {
                 "effective_temperature":
-                    self.setting(("default_Teff",5777)), # K
+                    self.setting("default_Teff",5777), # K
                 "surface_gravity":
-                    self.setting(("default_logg",4.4)),
+                    self.setting("default_logg",4.4),
                 "metallicity":
-                    self.setting(("default_MH",0.0)), # Solar-scaled
+                    self.setting("default_MH",0.0), # Solar-scaled
                 "microturbulence":
-                    self.setting(("default_vt",1.06)), # km/s
+                    self.setting("default_vt",1.06), # km/s
                 "alpha":
-                    self.setting(("default_aFe",0.4)),
+                    self.setting("default_aFe",0.4),
             }
         })
 
@@ -160,7 +163,7 @@ class Session(BaseSession):
         ## metadata["reconstruct_paths"]: names of files in twd needed to load the .smh file
         ## metadata["reconstruct_copied_paths"]: names of files kept with .smh file but not needed to load
 
-        start = time.time()
+        start0 = time.time()
 
         if not session_path.lower().endswith(".smh"):
             session_path = "{}.smh".format(session_path)
@@ -216,7 +219,8 @@ class Session(BaseSession):
 
         # Line list.
         if "line_list" in metadata:
-            raise IOError("This is an old session with line_list (NOT SAVING)! Running a conversion is required to save.")
+            raise IOError("This is an old session (version<0.2) with line_list (NOT SAVING)!"
+                          "Running a conversion is required to save..")
         
         # normalized spectrum.
         #twd_path = safe_path(os.path.join(twd, "normalized_spectrum.fits"),
@@ -288,7 +292,7 @@ class Session(BaseSession):
                 continue
 
         tarball.close()
-        logger.info("Saved file to {} ({:.1f}s)".format(session_path, time.time()-start))
+        logger.info("Saved file to {} ({:.1f}s)".format(session_path, time.time()-start0))
 
         # Remove the temporary working directory.
         rmtree(twd)
@@ -327,7 +331,7 @@ class Session(BaseSession):
                 args = [self, state["transitions"]]
             else:
                 assert "transition_hashes" in state.keys()
-                raise IOError("Old spectral model format! "
+                raise IOError("Old spectral model format! (v<0.2)"
                               "(hashes instead of linelist) Cannot load")
             
             if state["type"] == "SpectralSynthesisModel":
@@ -374,7 +378,7 @@ class Session(BaseSession):
             The disk location where to load the session from.
         """
 
-        start = time.time()
+        start0 = time.time()
 
         # Extract all.
         tarball = tarfile.open(name=session_path, mode="r:gz")
@@ -429,7 +433,7 @@ class Session(BaseSession):
         # Clean up the TWD when Python exits.
         atexit.register(rmtree, twd)
 
-        logger.info("Loaded file {} ({:.1f}s)".format(session_path, time.time()-start))
+        logger.info("Loaded file {} ({:.1f}s)".format(session_path, time.time()-start0))
         logger.debug("Input spectra paths: {}".format(session._input_spectra_paths))
 
         return session
@@ -847,7 +851,7 @@ class Session(BaseSession):
 
 
         # Construct a copy of the line list table.
-        transitions = LineList(rows=transitions)
+        transitions = LineList.vstack(transitions)
         spectral_model_indices = np.array(spectral_model_indices)
         transitions["equivalent_width"] = ews
         transitions["reduced_equivalent_width"] = rews
@@ -951,7 +955,7 @@ class Session(BaseSession):
         for i,spectral_model in enumerate(spectral_models):
             if isinstance(spectral_model, ProfileFittingModel):
                 spectral_model_indices.append(i)
-                transitions.append(spectral_model.transitions)
+                transitions.append(spectral_model.transitions[0])
                 if spectral_model.is_acceptable:
                     equivalent_widths.append(1000.* \
                         spectral_model.metadata["fitted_result"][-1]["equivalent_width"][0])
@@ -972,7 +976,7 @@ class Session(BaseSession):
         or np.isfinite(equivalent_widths).sum() == 0):
             raise ValueError("no measured transitions to calculate abundances")
         
-        transitions = LineList(rows=transitions)
+        transitions = LineList.vstack(transitions)
         spectral_model_indices = np.array(spectral_model_indices)
         transitions["equivalent_width"] = equivalent_widths
         min_eqw = .01
