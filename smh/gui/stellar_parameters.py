@@ -18,6 +18,7 @@ from matplotlib.ticker import MaxNLocator
 from time import time
 
 import mpl, style_utils
+import astropy.table
 import smh
 from smh.photospheres import available as available_photospheres
 from smh.photospheres.abundances import asplund_2009 as solar_composition
@@ -1139,7 +1140,7 @@ class StellarParametersTab(QtGui.QWidget):
         """
 
         # Otherwise we're fucked:
-        expected_hashes = np.array([LineList.hash(each.transitions[0]) for each in \
+        expected_hashes = np.array([smh.LineList.hash(each.transitions[0]) for each in \
             self.parent.session.metadata["spectral_models"]]) 
 
         assert np.all(expected_hashes == self._state_transitions.compute_hashes())
@@ -1567,7 +1568,7 @@ class StellarParametersTab(QtGui.QWidget):
             if model.use_for_stellar_parameter_inference and model.is_acceptable and not model.is_upper_limit:
                 transitions.append(model.transitions[0])
                 EWs.append(1e3 * model.metadata["fitted_result"][-1]["equivalent_width"][0])
-        transitions = smh.LineList(rows=transitions)
+        transitions = smh.LineList.vstack(transitions)
         transitions["equivalent_width"] = EWs
         
         ## TODO the optimization does not use the error weights yet

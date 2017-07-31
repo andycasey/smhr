@@ -136,6 +136,13 @@ class LineList(Table):
         return False
 
     @staticmethod
+    def vstack(tables, **kwargs):
+        """
+        Wraps astropy.table.vstack and returns a LineList
+        """
+        return LineList(table.vstack(tables, **kwargs))
+
+    @staticmethod
     def identify_conflicts(ll1, ll2, 
                            skip_exactly_equal_lines=False,
                            skip_equal_loggf=False,
