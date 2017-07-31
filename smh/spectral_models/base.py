@@ -261,7 +261,7 @@ class BaseSpectralModel(object):
         # This could be a problem if e.g. astropy version changes
         state = {
             "type": self.__class__.__name__,
-            "transitions": self.transitions,
+            "transitions": self.transitions.as_array(),
             "metadata": self.metadata
         }
         return state

@@ -328,7 +328,7 @@ class Session(BaseSession):
         for state in spectral_model_states:
             start = time.time()
             if "transitions" in state.keys():
-                args = [self, state["transitions"]]
+                args = [self, LineList(state["transitions"])]
             else:
                 assert "transition_hashes" in state.keys()
                 raise IOError("Old spectral model format! (v<0.2)"
