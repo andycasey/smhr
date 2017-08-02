@@ -10,22 +10,35 @@ import mpl
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 PICKER_TOLERANCE = 10 # MAGIC HACK
 
-_values = ["wavelength","expot","species","element","loggf",
-           "equivalent_width","equivalent_width_error",
+## These are valid attrs of a spectral model
+_allattrs = ["wavelength","expot","species","elements","loggf",
+           "equivalent_width","equivalent_width_uncertainty",
            "reduced_equivalent_width",
-           "abundance", "abundance_to_solar", "abundance_error",
-           "is_upper_limit"]
+           "abundances", "abundances_to_solar", "abundance_uncertainties",
+           "is_acceptable", "is_upper_limit", "user_flag",
+           "use_for_stellar_parameter_inference", "use_for_stellar_composition_inference"]
 _labels = ["Wavelength $\lambda$","Excitation potential","Species","Element","log gf",
            "Equivalent width", "Equivalent width error",
            "$\log{\rm EW}/\lambda$",
            u"log ε","[X/H]", u"σ(log ε)",
-           "Upper Limit"]
+           "Acceptable", "Upper Limit", "User Flag",
+           "Use for Spectroscopic Stellar Parameters", "Use for Stellar Abundances"]
 _short_labels = [u"λ","$\chi$","species","El.","loggf",
                  "EW", u"σ(EW)",
                  "REW",
                  "A(X)","[X/H]",u"σ(X)",
-                 "ul"]
-_val2label = dict(zip(values,labels))
+                 "", "ul", "flag",
+                 "spflag", "abundflag"]
+_formats = [":.1f",":.2f",":.1f","",":.2f",
+            ":.1f",":.1f",
+            ":.2f",
+            ":.2f",":.2f",":.2f",
+            "","","","",
+            "",""]
+_formats = ["{"+fmt+"}" for fmt in _formats]
+_attr2label = dict(zip(_allattrs,_labels))
+_attr2slabel = dict(zip(_allattrs,_short_labels))
+_attr2format = dict(zip(_allattrs,_formats))
 
 class SMHWidgetBase(QtGui.QWidget):
     """
@@ -473,14 +486,14 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
     Refactored class to display a single scatterplot of measurements 
     and selected points.
     """
-    values = _values
+    allattrs = _allattrs
     labels = _labels
-    val2label = _val2label
-              
+    attr2label = _attr2label
+    
     def __init__(self, parent, xval, yval, session=None, widgets_to_update = [], **kwargs):
         # These are columns that you can plot
-        assert xval in self.values, xval
-        assert yval in self.values, yval
+        assert xval in self.allattrs, xval
+        assert yval in self.allattrs, yval
 
         mpl.MPLWidget.__init__(self, parent=parent, **kwargs)
         SMHWidgetBase.__init__(self, parent, session, widgets_to_update)
@@ -493,8 +506,8 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
         self.xval = xval
         self.yval = yval
 
-        self.ax.set_xlabel(self.val2label[xval])
-        self.ax.set_ylabel(self.val2label[yval])
+        self.ax.set_xlabel(self.attr2label[xval])
+        self.ax.set_ylabel(self.attr2label[yval])
 
         self._lines = {
             "selected_point": [
@@ -538,38 +551,80 @@ class SMHMeasurementList(SMHWidgetBase):
         raise NotImplementedError
     
 
-class MeasurementListModelBase(QtCore.QAbstractTableModel):
-    values = _values
-    labels = _labels
-    val2label = _val2label
-
-    def __init__(self, parent, session, header, attrs, *args):
+class MeasurementTableModelBase(QtCore.QAbstractTableModel):
+    """
+    A table model that accesses the properties of a list of spectral models
+    (calling them "measurements" here to avoid ambiguity)
+    """
+    allattrs = _allattrs
+    attr2slabel = _attr2slabel
+    attr2format = _attr2format
+    
+    def __init__(self, parent, session, columns, *args):
         """
-        An abstract table model for spectral models.
-        Need to subclass and specify .data() method function!
-        Column 0 must always be is_acceptable
-
+        An abstract table model for accessing spectral models from the session.
+        
         :param parent:
-            The parent.
         :param session:
+        :param columns:
+            List of attributes in order of columns in the table.
         """
-
+        
         super(SpectralModelsTableModelBase, self).__init__(parent, *args)
-
+        self.verify_columns(columns)
+        self.attrs = columns
+        self.header = [self.attr2label[attr] for attr in self.attrs]
+        
         # Normally you should never do this, but here I know "better". See:
         #http://stackoverflow.com/questions/867938/qabstractitemmodel-parent-why
         self.parent = parent 
         self.session = session
-        self.header = header
-        self.attrs = attrs
         return None
+    
+    def verify_columns(self, columns):
+        for col in columns:
+            assert col in self.allattrs
+        assert len(columns) = len(np.unique(columns))
+        return True
+
+    def data(self, index, role):
+        if not index.isValid():
+            return None
+        if role==QtCore.Qt.FontRole:
+            return _QFONT
+        attr = self.attrs[index.column()]
+        spectral_model = self.spectral_models[index.row()]
+        
+        if role != QtCore.Qt.DisplayRole: return None
+        
+        value = getattr(spectral_model, attr, None)
+        if value is None: return ""
+
+        ## Deal with checkboxies
+        if attr in ["is_acceptable","is_upper_limit","user_flag",
+                    "use_for_stellar_parameter_inference",
+                    "use_for_stellar_composition_inference"] \
+        and role in (QtCore.Qt.DisplayRole, QtCore.Qt.CheckStateRole):
+            if role == QtCore.Qt.CheckStateRole:
+                return QtCore.Qt.Checked if value else QtCore.Qt.Unchecked
+            else:
+                return None
+        
+        # any specific hacks to display attrs are put in here
+        # TODO the spectral model itself should decide how its own information is displayed.
+        # Make a _repr_attr for every attr?
+        if attr == "wavelength":
+            return spectral_model._repr_wavelength
+        if attr == "elements":
+            return spectral_model._repr_element
+
+        fmt = attr2format[attr]
+        mystr = fmt.format(value)
+        return mystr
+
     @property
     def spectral_models(self):
-        try:
-            return self.session.metadata.get("spectral_models", [])
-        except AttributeError:
-            # session is None
-            return []
+        return self.session.metadata.get("spectral_models", [])
     
     def rowCount(self, parent):
         """ Return the number of rows in the table. """
@@ -579,9 +634,6 @@ class MeasurementListModelBase(QtCore.QAbstractTableModel):
         """ Return the number of columns in the table. """
         return len(self.header)
 
-    def data(self, index, role):
-        raise NotImplementedError("Must subclass this model")
-    
     def headerData(self, col, orientation, role):
         if orientation == QtCore.Qt.Horizontal \
         and role == QtCore.Qt.DisplayRole:
@@ -589,22 +641,19 @@ class MeasurementListModelBase(QtCore.QAbstractTableModel):
         return None
 
     def setData(self, index, value, role=QtCore.Qt.DisplayRole):
-        if index.column() != 0:
+        """
+        Only allow checking/unchecking of is_acceptable and user_flag
+        """
+        attr = self.attrs[index.column()]
+        if attr not in ["is_acceptable", "user_flag"]:
             return False
         else:
-            # value appears to be 0 or 2. Set it to True or False
             row = index.row()
-            value = (value != 0)
             model = self.spectral_models[row]
-            model.metadata["is_acceptable"] = value
+            # value appears to be 0 or 2. Set it to True or False
+            value = (value != 0)
+            setattr(model, attr, value)
             
-            # Emit data change for this row.
-            # TODO this is slow.
-            #_start = time.time()
-            #self.dataChanged.emit(self.createIndex(row, 0),
-            #                      self.createIndex(row, 
-            #                      self.columnCount(None)))
-            #print("Time to emit setData: {:.1f}s".format(time.time()-_start))
             return value
 
     def flags(self, index):

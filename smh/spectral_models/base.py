@@ -264,6 +264,11 @@ class BaseSpectralModel(object):
 
 
     @property
+    def num_elems(self):
+        return len(self.elements)
+
+
+    @property
     def species(self):
         """ Return the species to be measured from this class. """
         return self.metadata["species"]
@@ -317,6 +322,11 @@ class BaseSpectralModel(object):
     @property
     def user_flag(self):
         return self.metadata["user_flag"]
+
+    @user_flag.setter
+    def user_flag(self, flag):
+        self.metadata["user_flag"] = flag
+        return None
 
     @property
     def parameters(self):
