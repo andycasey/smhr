@@ -54,7 +54,8 @@ class BaseSpectralModel(object):
             "use_for_stellar_composition_inference": True,
             "use_for_stellar_parameter_inference": (
                 "Fe I" in self.transitions["element"] or
-                "Fe II" in self.transitions["element"])
+                "Fe II" in self.transitions["element"]),
+            "antimask_flag": False
         }
 
         # Create a _repr_wavelength property.
@@ -364,9 +365,6 @@ class BaseSpectralModel(object):
             A spectrum to generate a mask for.
         """
 
-        # HACK
-        if "antimask_flag" not in self.metadata:
-            self.metadata["antimask_flag"] = False
         if self.metadata["antimask_flag"]:
             antimask = np.ones_like(spectrum.dispersion,dtype=bool)
             for start, end in self.metadata["mask"]:
