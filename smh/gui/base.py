@@ -6,6 +6,7 @@ import os
 from PySide import QtCore, QtGui
 
 import mpl
+from six import iteritems
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 PICKER_TOLERANCE = 10 # MAGIC HACK
@@ -104,10 +105,8 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
     def __init__(self, parent, session=None, widgets_to_update = [], **kwargs):
         mpl.MPLWidget.__init__(self, parent=parent, **kwargs)
         SMHWidgetBase.__init__(self, parent, session, widgets_to_update)
-        self.selected_model = None
         
         gs = matplotlib.gridspec.GridSpec(2, 1, height_ratios[1,2])
-        #gs_top.update(hspace=0.40)
 
         self.ax_residual = self.figure.add_subplot(gs[0])
         self.ax_residual.axhline(0, c="#666666")
@@ -125,7 +124,29 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         self.ax_spectrum.set_ylim(0, 1.2)
         self.ax_spectrum.set_yticks([0, 0.5, 1])
         
-        ## MPL objects to keep track of
+        # Internal state variables
+        self.session = None
+        self.selected_models = None
+        self._interactive_mask_region_signal = None
+        self._lines = None
+        
+        self.reset()
+
+    def reset(self):
+        """
+        Clear all internal variables
+        """
+        self.session = None
+        self.selected_model = None
+        
+        ## Delete MPL objects if you can
+        if hasattr(self, "_lines"):
+            for key, val in iteritems(self._lines):
+                try:
+                    del val
+                except:
+                    pass
+        ## Reinstantiate MPL objects to keep track of
         self._interactive_mask_region_signal = None
         drawstyle = self.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
         self._lines = {
@@ -150,20 +171,31 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
                                          zorder=-5)
             ]
         }
+
+    def new_session(self, session):
+        self.reset()
+        self.session = session
+        return None
+
     def update_after_selection(self, selected_models):
+        if self.session is None: return None
         ## Use the last selected model as current model
         self.set_selected_model(selected_models[-1])
     def update_after_measurement_change(self, changed_model):
+        if self.session is None: return None
         ## Only do something if the changed model is the current model
         if changed_model == self.selected_model:
             raise NotImplementedError
         return None
     
     def update_selected_model(self):
+        if self.session is None: return None
         self.selected_model = self.parent._get_selected_model()
     def set_selected_model(self, model):
+        if self.session is None: return None
         self.selected_model = model
     def update_spectrum_figure(self, redraw=False):
+        if self.session is None: return None
         self.update_selected_model()
         if self.selected_model is None: return None
         
@@ -205,6 +237,8 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         
         Masking and mask removal 
         """
+        if self.session is None: return None
+
         if event.button != 1: return None
         if event.inaxes not in (self.ax_residual, self.ax_spectrum):
             return None
@@ -262,6 +296,8 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         :param event:
             The matplotlib motion event to show the current mouse position.
         """
+        if self.session is None: return None
+
         if event.xdata is None: return
 
         signal_time, signal_cid = self._interactive_mask_region_signal
@@ -275,6 +311,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         return None
 
     def spectrum_left_mouse_release(self, event):
+        if self.session is None: return None
         try:
             signal_time, signal_cid = self._interactive_mask_region_signal
         except AttributeError:
@@ -318,6 +355,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         return None
 
     def _remove_mask(self, selected_model, event):
+        if self.session is None: return None
         # Called upon doubleclick
         for i, (s, e) in enumerate(spectral_model.metadata["mask"][::-1]):
             if e >= event.xdata >= s:
@@ -373,6 +411,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         return True
     
     def _plot_masks(self):
+        if self.session is None: return False
         selected_model = self.selected_model
         mask_color = "g" if "antimask_flag" in selected_model.metadata and \
             selected_model.metadata["antimask_flag"] else "r"
@@ -409,6 +448,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         return True
         
     def _plot_model(self):
+        if self.session is None: return False
         # Hide previous model_errs
         try:
             # Note: leaks memory, but too hard to fix
@@ -483,17 +523,17 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
 
 class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
     """
-    Refactored class to display a single scatterplot of measurements 
-    and selected points.
+    Displays a scatterplot of spectral model attributes.
+    Some points can be selected.
     """
     allattrs = _allattrs
     labels = _labels
     attr2label = _attr2label
     
-    def __init__(self, parent, xval, yval, session=None, widgets_to_update = [], **kwargs):
+    def __init__(self, parent, xattr, yattr, session=None, widgets_to_update = [], **kwargs):
         # These are columns that you can plot
-        assert xval in self.allattrs, xval
-        assert yval in self.allattrs, yval
+        assert xattr in self.allattrs, xattr
+        assert yattr in self.allattrs, yattr
 
         mpl.MPLWidget.__init__(self, parent=parent, **kwargs)
         SMHWidgetBase.__init__(self, parent, session, widgets_to_update)
@@ -503,11 +543,11 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
         self.ax.yaxis.set_major_locator(MaxNLocator(5))
         self.ax.yaxis.set_major_locator(MaxNLocator(4))
 
-        self.xval = xval
-        self.yval = yval
+        self.xattr = xattr
+        self.yattr = yattr
 
-        self.ax.set_xlabel(self.attr2label[xval])
-        self.ax.set_ylabel(self.attr2label[yval])
+        self.ax.set_xlabel(self.attr2label[xattr])
+        self.ax.set_ylabel(self.attr2label[yattr])
 
         self._lines = {
             "selected_point": [
@@ -524,8 +564,8 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
 
 
         self.selected_models = None
-        self._xval_cache = []
-        self._yval_cache = []
+        self._xattr_cache = []
+        self._yattr_cache = []
 
     def update_after_selection(self, selected_models):
         raise NotImplementedError
