@@ -1,12 +1,34 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 import sys
-import logging
 import os
 from PySide import QtCore, QtGui
-
-import mpl
+import time
 from six import iteritems
+import numpy as np
+
+import matplotlib
+from matplotlib.ticker import MaxNLocator
+
+import smh
+from smh.gui import mpl, style_utils
+from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
+
+import logging
+logger = logging.getLogger(__name__)
+logger.addHandler(smh.handler)
+
+if sys.platform == "darwin":
+    # See http://successfulsoftware.net/2013/10/23/fixing-qt-4-for-mac-os-x-10-9-mavericks/
+    substitutes = [
+        (".Lucida Grande UI", "Lucida Grande"),
+        (".Helvetica Neue DeskInterface", "Helvetica Neue")
+    ]
+    for substitute in substitutes:
+        QtGui.QFont.insertSubstitution(*substitute)
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 PICKER_TOLERANCE = 10 # MAGIC HACK
@@ -50,7 +72,6 @@ class SMHWidgetBase(QtGui.QWidget):
         self.parent = parent
         self.widgets_to_update = widgets_to_update
         self.session = session
-        ## TODO set style options here
     def reload_from_session(self):
         """
         Rewrite any internal information with session data.
@@ -102,11 +123,19 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         TODO used to update just the mask
 
     """
-    def __init__(self, parent, session=None, widgets_to_update = [], **kwargs):
-        mpl.MPLWidget.__init__(self, parent=parent, **kwargs)
-        SMHWidgetBase.__init__(self, parent, session, widgets_to_update)
+    def __init__(self, parent, session=None, widgets_to_update = [],
+                 enable_zoom=True, enable_masks=False,
+                 **kwargs):
+        # I don't know why this doesn't use the SMHWidgetBase?
+        super(SMHSpecDisplay, self).__init__(parent=parent, session=session, 
+                                             widgets_to_update=widgets_to_update,
+                                             **kwargs)
+        self.parent = parent
+        self.widgets_to_update = widgets_to_update
+        self.session = session
         
-        gs = matplotlib.gridspec.GridSpec(2, 1, height_ratios[1,2])
+        gs = matplotlib.gridspec.GridSpec(2, 1, height_ratios=[1,2])
+        gs.update(top=.95, bottom=.05, hspace=0)
 
         self.ax_residual = self.figure.add_subplot(gs[0])
         self.ax_residual.axhline(0, c="#666666")
@@ -124,8 +153,20 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         self.ax_spectrum.set_ylim(0, 1.2)
         self.ax_spectrum.set_yticks([0, 0.5, 1])
         
+        if enable_zoom:
+            self.enable_interactive_zoom()
+            self.mpl_connect("key_press_event", self.key_press_zoom)
+        if enable_masks:
+            ## TODO this is not currently compatible but would be nice if it was
+            #self.enable_drag_to_mask([self.ax_residual, self.ax_spectrum])
+            self.mpl_connect("button_press_event", self.spectrum_left_mouse_press)
+            self.mpl_connect("button_release_event", self.spectrum_left_mouse_release)
+            ## Connect shift and space keys
+            self.mpl_connect("key_press_event", self.key_press_flags)
+            self.mpl_connect("key_release_event", self.key_release_flags)
+        self.setFocusPolicy(QtCore.Qt.ClickFocus)
+
         # Internal state variables
-        self.session = None
         self.selected_models = None
         self._interactive_mask_region_signal = None
         self._lines = None
@@ -134,13 +175,12 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
 
     def reset(self):
         """
-        Clear all internal variables
+        Clear all internal variables (except session)
         """
-        self.session = None
         self.selected_model = None
         
         ## Delete MPL objects if you can
-        if hasattr(self, "_lines"):
+        if hasattr(self, "_lines") and self._lines is not None:
             for key, val in iteritems(self._lines):
                 try:
                     del val
@@ -148,7 +188,10 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
                     pass
         ## Reinstantiate MPL objects to keep track of
         self._interactive_mask_region_signal = None
-        drawstyle = self.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
+        if self.session is None:
+            drawstyle = "steps-mid"
+        else:
+            drawstyle = self.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
         self._lines = {
             "spectrum": self.ax_spectrum.plot([], [], c="k", drawstyle=drawstyle)[0], #None,
             "spectrum_fill": None,
@@ -194,10 +237,11 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
     def set_selected_model(self, model):
         if self.session is None: return None
         self.selected_model = model
-    def update_spectrum_figure(self, redraw=False):
+    def update_spectrum_figure(self, redraw=True):
         if self.session is None: return None
-        self.update_selected_model()
+        #self.update_selected_model()
         if self.selected_model is None: return None
+        selected_model = self.selected_model
         
         transitions = selected_model.transitions
         window = selected_model.metadata["window"]
@@ -209,18 +253,15 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         ## Set axis limits, including for panning
         self.ax_spectrum.set_xlim(limits)
         self.ax_residual.set_xlim(limits)
-        self.figure.reset_zoom_limits()
+        self.reset_zoom_limits()
 
         ## Plot spectrum and error bars
         success = self._plot_normalized_spectrum(limits)
         if not success: return None
         
-        # If this is a profile fitting line, show where the centroid is.
-        x = transitions["wavelength"][0] \
-            if isinstance(selected_model, ProfileFittingModel) else np.nan
-        self._lines["transitions_center_main"].set_data([x, x], [0, 1.2])
-        self._lines["transitions_center_residual"].set_data([x, x], [0, 1.2])
-        
+        ## Plot indication of current lines
+        self._plot_current_lines(selected_model)
+
         ## Plot masks
         success = self._plot_masks()
         
@@ -231,6 +272,15 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         
         return None
         
+    def key_press_zoom(self, event):
+        if event.key not in "1234": return None
+        if self.session is None: return None
+        ylim = self.session.setting(["zoom_shortcuts",int(event.key)],
+                                    default_return_value=[0.0,1.2])
+        self.ax_spectrum.set_ylim(ylim)
+        self.draw()
+        return None
+
     def spectrum_left_mouse_press(self, event):
         """
         Listener for if mouse button pressed in spectrum or residual axis
@@ -243,7 +293,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         if event.inaxes not in (self.ax_residual, self.ax_spectrum):
             return None
         
-        self.update_selected_model()
+        #self.update_selected_model()
         selected_model = self.selected_model
         
         ## Doubleclick: remove mask, and if so refit/redraw
@@ -259,10 +309,11 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         ## Normal click: start drawing mask
         # Clear all masks if shift key state is not same as antimask_flag
         # Also change the antimask state
+        ## TODO this is very sensitive, only want to do this if you click and drag. But hard to do.
         if selected_model.metadata["antimask_flag"] != self.shift_key_pressed:
             selected_model.metadata["mask"] = []
             selected_model.metadata["antimask_flag"] = not selected_model.metadata["antimask_flag"]
-            #print("Switching antimask flag to",selected_model.metadata["antimask_flag"])
+            print("Switching antimask flag to",selected_model.metadata["antimask_flag"])
             # HACK
             #self.update_fitting_options()
 
@@ -351,18 +402,25 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         self.mpl_disconnect(signal_cid)
         del self._interactive_mask_region_signal
         
-        self.update_spectrum_figure()
+        self.update_spectrum_figure(True)
         return None
 
     def _remove_mask(self, selected_model, event):
         if self.session is None: return None
         # Called upon doubleclick
-        for i, (s, e) in enumerate(spectral_model.metadata["mask"][::-1]):
-            if e >= event.xdata >= s:
-                mask = spectral_model.metadata["mask"]
-                index = len(mask) - 1 - i
-                del mask[index]
-                return True
+        print("Removing mask")
+        print( selected_model.metadata["antimask_flag"])
+        if selected_model.metadata["antimask_flag"]:
+            ## Cannot remove antimasks properly
+            print("Cannot remove antimasks right now")
+            return False
+        else:
+            for i, (s, e) in enumerate(selected_model.metadata["mask"][::-1]):
+                if e >= event.xdata >= s:
+                    mask = selected_model.metadata["mask"]
+                    index = len(mask) - 1 - i
+                    del mask[index]
+                    return True
         return False
 
     def _plot_normalized_spectrum(self, limits, extra_disp=10):
@@ -410,6 +468,16 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         
         return True
     
+    def _plot_current_lines(self, selected_model):
+        if isinstance(selected_model, ProfileFittingModel):
+            x = selected_model.wavelength
+        else:
+            # TODO how to deal with syntheses?
+            # TODO need to know 
+            x = np.nan
+        self._lines["transitions_center_main"].set_data([x, x], [0, 1.2])
+        self._lines["transitions_center_residual"].set_data([x, x], [0, 1.2])
+        
     def _plot_masks(self):
         if self.session is None: return False
         selected_model = self.selected_model
@@ -624,7 +692,7 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
     def verify_columns(self, columns):
         for col in columns:
             assert col in self.allattrs
-        assert len(columns) = len(np.unique(columns))
+        assert len(columns) == len(np.unique(columns))
         return True
 
     def data(self, index, role):

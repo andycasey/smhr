@@ -502,9 +502,13 @@ class MPLWidget(FigureCanvas):
     def key_press_flags(self, event):
         if event.key == "shift":
             self.shift_key_pressed = True
+        elif event.key == "space":
+            self.space_key_pressed = True
         return None
         
     def key_release_flags(self, event):
         if event.key == "shift":
             self.shift_key_pressed = False
+        elif event.key == "space":
+            self.space_key_pressed = False
         return None        
