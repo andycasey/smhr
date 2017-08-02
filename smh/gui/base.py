@@ -65,7 +65,7 @@ _attr2label = dict(zip(_allattrs,_labels))
 _attr2slabel = dict(zip(_allattrs,_short_labels))
 _attr2format = dict(zip(_allattrs,_formats))
 
-class SMHWidgetBase(QtGui.QWidget):
+class SMHWidgetBase(object):
     """
     Base class for interactive widgets
     """
