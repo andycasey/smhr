@@ -128,10 +128,12 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
     def __init__(self, parent, session=None, widgets_to_update = [],
                  enable_zoom=True, enable_masks=False,
                  **kwargs):
-        # I don't know why this doesn't use the SMHWidgetBase?
-        super(SMHSpecDisplay, self).__init__(parent=parent, session=session, 
-                                             widgets_to_update=widgets_to_update,
-                                             **kwargs)
+        ## I don't know why this doesn't use the SMHWidgetBase?
+        #super(SMHSpecDisplay, self).__init__(parent=parent, session=session, 
+        #                                     widgets_to_update=widgets_to_update,
+        #                                     **kwargs)
+        mpl.MPLWidget.__init__(self, parent=parent, **kwargs)
+
         self.parent = parent
         self.widgets_to_update = widgets_to_update
         self.session = session
