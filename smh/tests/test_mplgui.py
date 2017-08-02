@@ -97,13 +97,13 @@ def test_MeasurementTableView():
     return window
 
 if __name__=="__main__":
-    #w1 = test_MPLWidget()
-    #w2 = test_SMHSpecDisplay()
+    w1 = test_MPLWidget()
+    w2 = test_SMHSpecDisplay()
     w2b = test_SMHSpecDisplay_new_session()
-    #w3 = test_MeasurementTableView()
+    w3 = test_MeasurementTableView()
 
-    #ws = [w1,w2,w2b,w3]
-    ws = [w2b]
+    ws = [w1,w2,w2b,w3]
+    #ws = [w2b]
 
     for w in ws:
         w.show()

@@ -121,7 +121,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         (Requires parent._get_selected_model())
     set_selected_model(model):
         Force selected model to be model
-    update_spectrum_figure(redraw=True):
+    update_spectrum_figure(redraw=False):
         The main workhorse of this class
         Call when you want to update the spectrum figure
 
@@ -133,11 +133,10 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
                  enable_zoom=True, enable_masks=False,
                  **kwargs):
         ## I don't know why this doesn't use the SMHWidgetBase?
-        #super(SMHSpecDisplay, self).__init__(parent=parent, session=session, 
-        #                                     widgets_to_update=widgets_to_update,
-        #                                     **kwargs)
-        mpl.MPLWidget.__init__(self, parent=parent, **kwargs)
-
+        super(SMHSpecDisplay, self).__init__(parent=parent, session=session, 
+                                             widgets_to_update=widgets_to_update,
+                                             **kwargs)
+        #mpl.MPLWidget.__init__(self, parent=parent, **kwargs)
         self.parent = parent
         self.widgets_to_update = widgets_to_update
         self.session = session
@@ -262,7 +261,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
     def _set_xlimits(self, limits):
         self.ax_spectrum.set_xlim(limits)
         self.ax_residual.set_xlim(limits)
-    def update_spectrum_figure(self, redraw=True, reset_limits=True):
+    def update_spectrum_figure(self, redraw=False, reset_limits=True):
         if self.session is None: return None
         #self.update_selected_model()
         if self.selected_model is None: return None
@@ -621,8 +620,13 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
         assert xattr in self.allattrs, xattr
         assert yattr in self.allattrs, yattr
 
-        mpl.MPLWidget.__init__(self, parent=parent, **kwargs)
-        SMHWidgetBase.__init__(self, parent, session, widgets_to_update)
+        super(SMHScatterplot, self).__init__(parent=parent, session=session,
+                                             widgets_to_update=widgets_to_update,
+                                             **kwargs)
+        #mpl.MPLWidget.__init__(self, parent=parent, **kwargs)
+        self.parent = parent
+        self.widgets_to_update = widgets_to_update
+        self.session = session
 
         self.ax = self.add_subplot(1,1,1)
         self.ax.xaxis.get_major_formatter().set_useOffset(False)
@@ -657,7 +661,10 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
         raise NotImplementedError
     def update_after_measurement_change(self, changed_model):
         raise NotImplementedError
-
+    def update_plot(self, redraw=False):
+        
+        if redraw: self.draw()
+        return None    
 
 class SMHFittingOptions(SMHWidgetBase):
     def __init__(self, parent, session=None, widgets_to_update = []):
