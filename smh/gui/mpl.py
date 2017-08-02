@@ -88,9 +88,12 @@ class MPLWidget(FigureCanvas):
         # State for zoom box
         self._right_click_zoom_box = {}
 
-        # State for shift.
+        # State for shift. (Antimasks)
         self.shift_key_pressed = False
         
+        # State for space. (Pan)
+        self.space_key_pressed = False 
+       
 
     def _focus(self, event):
         """ Set the focus of the canvas. """
