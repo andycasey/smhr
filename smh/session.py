@@ -142,7 +142,7 @@ class Session(BaseSession):
                         .format(state["type"]))
 
                 model = klass(*args)
-                model.metadata = state["metadata"]
+                model.metadata.update(state["metadata"])
                 self.metadata["spectral_models"].append(model)
 
         return None
@@ -343,7 +343,7 @@ class Session(BaseSession):
                     .format(state["type"]))
 
             model = klass(*args)
-            model.metadata = state["metadata"]
+            model.metadata.update(state["metadata"])
             reconstructed_spectral_models.append(model)
 
         self.metadata["spectral_models"].extend(reconstructed_spectral_models)
@@ -431,7 +431,7 @@ class Session(BaseSession):
                     .format(state["type"]))
 
             model = klass(*args)
-            model.metadata = state["metadata"]
+            model.metadata.update(state["metadata"])
             reconstructed_spectral_models.append(model)
             t2 = time.time()-start2
             if t2 > 1.0:
