@@ -58,6 +58,26 @@ def test_SMHSpecDisplay():
     fig.update_spectrum_figure()
     return window
 
+def test_SMHSpecDisplay_new_session():
+    window, cw = create_blank_window()
+    vbox = QtGui.QVBoxLayout(cw)
+    fig = SMHSpecDisplay(None, None,
+                         enable_masks=True)
+    vbox.addWidget(fig)
+    vbox.setSpacing(0)
+    #vbox.setContentsMargins(0,0,0,0)
+
+    session = Session.load(datadir+"/test_G64-12.smh")
+    m = session.metadata["spectral_models"].pop(0)
+    fig.new_session(session)
+
+    models = session.metadata["spectral_models"]
+    model = models[0]
+    model.fit()
+    fig.set_selected_model(model)
+    fig.update_spectrum_figure()
+    return window
+
 def test_MeasurementTableView():
     session = Session.load(datadir+"/test_G64-12.smh")
     session.measure_abundances()
@@ -77,12 +97,13 @@ def test_MeasurementTableView():
     return window
 
 if __name__=="__main__":
-    w1 = test_MPLWidget()
-    w2 = test_SMHSpecDisplay()
-    w3 = test_MeasurementTableView()
+    #w1 = test_MPLWidget()
+    #w2 = test_SMHSpecDisplay()
+    w2b = test_SMHSpecDisplay_new_session()
+    #w3 = test_MeasurementTableView()
 
-    ws = [w1,w2,w3]
-    #ws = [w3]
+    #ws = [w1,w2,w2b,w3]
+    ws = [w2b]
 
     for w in ws:
         w.show()

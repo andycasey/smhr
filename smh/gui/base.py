@@ -108,6 +108,10 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
     * Shift-rightclick to pan [TODO]
     
     METHODS
+    reset():
+        Clear internal variables (besides session)
+    new_session(session)
+        Clear graphics and prepare for new session
     update_after_selection(selected_models):
         Call after a selection is updated (to change 
     update_after_measurement_change(changed_model):
@@ -117,7 +121,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         (Requires parent._get_selected_model())
     set_selected_model(model):
         Force selected model to be model
-    update_spectrum_figure(redraw=False):
+    update_spectrum_figure(redraw=True):
         The main workhorse of this class
         Call when you want to update the spectrum figure
 
@@ -238,27 +242,38 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
     def update_selected_model(self):
         if self.session is None: return None
         self.selected_model = self.parent._get_selected_model()
+        self._set_xlimits(self._get_current_xlimits())
+        self.reset_zoom_limits()
     def set_selected_model(self, model):
         if self.session is None: return None
         self.selected_model = model
-    def update_spectrum_figure(self, redraw=True):
+        self._set_xlimits(self._get_current_xlimits())
+        self.reset_zoom_limits()
+    def _get_current_xlimits(self):
+        if self.session is None: return None
+        if self.selected_model is None: return None
+        transitions = self.selected_model.transitions
+        window = self.selected_model.metadata["window"]
+        limits = [
+            transitions["wavelength"][0] - window,
+            transitions["wavelength"][-1]+ window,
+        ]
+        return limits
+    def _set_xlimits(self, limits):
+        self.ax_spectrum.set_xlim(limits)
+        self.ax_residual.set_xlim(limits)
+    def update_spectrum_figure(self, redraw=True, reset_limits=True):
         if self.session is None: return None
         #self.update_selected_model()
         if self.selected_model is None: return None
         selected_model = self.selected_model
         
-        transitions = selected_model.transitions
-        window = selected_model.metadata["window"]
-        limits = [
-            transitions["wavelength"][0] - window,
-            transitions["wavelength"][-1]+ window,
-        ]
+        limits = self._get_current_xlimits()
+        # Set reset_limits=False
+        if reset_limits:
+            self._set_xlimits(limits)
+            self.reset_zoom_limits()
         
-        ## Set axis limits, including for panning
-        self.ax_spectrum.set_xlim(limits)
-        self.ax_residual.set_xlim(limits)
-        self.reset_zoom_limits()
-
         ## Plot spectrum and error bars
         success = self._plot_normalized_spectrum(limits)
         if not success: return None
@@ -305,10 +320,10 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
             mask_removed = self._remove_mask(selected_model, event)
             if mask_removed:
                 selected_model.fit()
-                self.update_spectrum_figure(True)
+                self.update_spectrum_figure(True,False)
                 ## TODO trigger other widgets
                 self.update_widgets_after_measurement_change(selected_model)
-            return
+            return None
 
         ## Normal click: start drawing mask
         # Clear all masks if shift key state is not same as antimask_flag
@@ -317,7 +332,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         if selected_model.metadata["antimask_flag"] != self.shift_key_pressed:
             selected_model.metadata["mask"] = []
             selected_model.metadata["antimask_flag"] = not selected_model.metadata["antimask_flag"]
-            print("Switching antimask flag to",selected_model.metadata["antimask_flag"])
+            logger.debug("Switching antimask flag to {}".format(selected_model.metadata["antimask_flag"]))
             # HACK
             #self.update_fitting_options()
 
@@ -406,17 +421,16 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         self.mpl_disconnect(signal_cid)
         del self._interactive_mask_region_signal
         
-        self.update_spectrum_figure(True)
+        self.update_spectrum_figure(True,False)
         return None
 
     def _remove_mask(self, selected_model, event):
         if self.session is None: return None
         # Called upon doubleclick
-        print("Removing mask")
-        print( selected_model.metadata["antimask_flag"])
+        logger.debug("Removing mask")
         if selected_model.metadata["antimask_flag"]:
             ## Cannot remove antimasks properly
-            print("Cannot remove antimasks right now")
+            logger.info("Cannot remove antimasks right now")
             return False
         else:
             for i, (s, e) in enumerate(selected_model.metadata["mask"][::-1]):
@@ -790,7 +804,6 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
             # value appears to be 0 or 2. Set it to True or False
             value = (value != 0)
             setattr(model, attr, value)
-            print("Setting {} to {}".format(attr,value))
             self.dataChanged.emit(self.createIndex(row, 0),
                                   self.createIndex(row, 
                                   self.columnCount(None)))
