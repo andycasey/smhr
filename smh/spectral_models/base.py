@@ -56,7 +56,8 @@ class BaseSpectralModel(object):
             "use_for_stellar_parameter_inference": (
                 "Fe I" in self.transitions["element"] or
                 "Fe II" in self.transitions["element"]),
-            "antimask_flag": False
+            "antimask_flag": False,
+            "user_flag": 0
         }
 
         # Create a _repr_wavelength property.
@@ -291,10 +292,8 @@ class BaseSpectralModel(object):
 
     @property
     def abundance_uncertainties(self):
-        """ Return abundance uncertainties """
-        raise NotImplementedError
+        return None
 
-    ## Some more properties to show in tables
     @property
     def expot(self):
         raise NotImplementedError
@@ -303,6 +302,21 @@ class BaseSpectralModel(object):
     def loggf(self):
         raise NotImplementedError
     
+    @property
+    def equivalent_width(self):
+        return None
+
+    @property
+    def equivalent_width_uncertainty(self):
+        return None
+
+    @property
+    def reduced_equivalent_width(self):
+        return None
+
+    @property
+    def user_flag(self):
+        return self.metadata["user_flag"]
 
     @property
     def parameters(self):

@@ -146,6 +146,30 @@ class ProfileFittingModel(BaseSpectralModel):
     def loggf(self):
         return self.transitions[0]["loggf"]
 
+    @property
+    def equivalent_width(self):
+        try:
+            result = spectral_model.metadata["fitted_result"][2]
+            equivalent_width = result["equivalent_width"][0]
+        except KeyError:
+            return None
+        return 1000. * equivalent_width
+
+    @property
+    def equivalent_width_uncertainty(self):
+        try:
+            result = spectral_model.metadata["fitted_result"][2]
+            err = 1000.*np.nanmax(np.abs(result["equivalent_width"][1:3]))
+            return err
+        except:
+            return None
+    
+    @property
+    def reduced_equivalent_width(self):
+        eqw = self.equivalent_width
+        if eqw is None: return None
+        return np.log10(eqw/self.wavelength)
+
     def _verify_transitions(self):
         """
         Verify that the atomic or molecular transitions associated with this
