@@ -76,8 +76,11 @@ class BaseSpectralModel(object):
         occurs.
         """
 
+        if len(self.transitions) == 1: return self.transitions["wavelength"]
+        if hasattr(self,"_wavelength"):
+            return self._wavelength
         wavelength = np.mean(self.transitions["wavelength"])
-        return int(wavelength) if len(self.transitions) > 1 else wavelength
+        return int(wavelength)
 
 
     @property
@@ -277,6 +280,16 @@ class BaseSpectralModel(object):
         except KeyError:
             return None
         
+
+    ## Some more properties to show in tables
+    @property
+    def expot(self):
+        raise NotImplementedError
+    
+    @property
+    def loggf(self):
+        raise NotImplementedError
+    
 
     @property
     def parameters(self):

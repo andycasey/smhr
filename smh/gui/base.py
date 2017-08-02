@@ -8,6 +8,24 @@ from PySide import QtCore, QtGui
 import mpl
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
+PICKER_TOLERANCE = 10 # MAGIC HACK
+
+_values = ["wavelength","expot","species","element","loggf",
+           "equivalent_width","equivalent_width_error",
+           "reduced_equivalent_width",
+           "abundance", "abundance_to_solar", "abundance_error",
+           "is_upper_limit"]
+_labels = ["Wavelength $\lambda$","Excitation potential","Species","Element","log gf",
+           "Equivalent width", "Equivalent width error",
+           "$\log{\rm EW}/\lambda$",
+           u"log ε","[X/H]", u"σ(log ε)",
+           "Upper Limit"]
+_short_labels = [u"λ","$\chi$","species","El.","loggf",
+                 "EW", u"σ(EW)",
+                 "REW",
+                 "A(X)","[X/H]",u"σ(X)",
+                 "ul"]
+_val2label = dict(zip(values,labels))
 
 class SMHWidgetBase(QtGui.QWidget):
     """
@@ -450,6 +468,58 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         
 
 
+class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
+    """
+    Refactored class to display a single scatterplot of measurements 
+    and selected points.
+    """
+    values = _values
+    labels = _labels
+    val2label = _val2label
+              
+    def __init__(self, parent, xval, yval, session=None, widgets_to_update = [], **kwargs):
+        # These are columns that you can plot
+        assert xval in self.values, xval
+        assert yval in self.values, yval
+
+        mpl.MPLWidget.__init__(self, parent=parent, **kwargs)
+        SMHWidgetBase.__init__(self, parent, session, widgets_to_update)
+
+        self.ax = self.add_subplot(1,1,1)
+        self.ax.xaxis.get_major_formatter().set_useOffset(False)
+        self.ax.yaxis.set_major_locator(MaxNLocator(5))
+        self.ax.yaxis.set_major_locator(MaxNLocator(4))
+
+        self.xval = xval
+        self.yval = yval
+
+        self.ax.set_xlabel(self.val2label[xval])
+        self.ax.set_ylabel(self.val2label[yval])
+
+        self._lines = {
+            "selected_point": [
+                self.ax.scatter([], [],
+                    edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=2)
+            ],
+            "points": [
+                self.ax.scatter([], [], s=30, \
+                     facecolor="k", edgecolor="k", picker=PICKER_TOLERANCE, \
+                     alpha=0.5)
+            ],
+            "trend_lines": None
+        }
+
+
+        self.selected_models = None
+        self._xval_cache = []
+        self._yval_cache = []
+
+    def update_after_selection(self, selected_models):
+        raise NotImplementedError
+    def update_after_measurement_change(self, changed_model):
+        raise NotImplementedError
+
+
 class SMHFittingOptions(SMHWidgetBase):
     def __init__(self, parent, session=None, widgets_to_update = []):
         super(SMHFittingOptions, self).__init__(parent, session, widgets_to_update)
@@ -468,10 +538,79 @@ class SMHMeasurementList(SMHWidgetBase):
         raise NotImplementedError
     
 
-class SMHScatterplot(SMHWidgetBase):
-    def __init__(self, parent, session=None, widgets_to_update = []):
-        super(SMHScatterplot, self).__init__(parent, session, widgets_to_update)
-    def update_after_selection(self, selected_models):
-        raise NotImplementedError
-    def update_after_measurement_change(self, changed_model):
-        raise NotImplementedError
+class MeasurementListModelBase(QtCore.QAbstractTableModel):
+    values = _values
+    labels = _labels
+    val2label = _val2label
+
+    def __init__(self, parent, session, header, attrs, *args):
+        """
+        An abstract table model for spectral models.
+        Need to subclass and specify .data() method function!
+        Column 0 must always be is_acceptable
+
+        :param parent:
+            The parent.
+        :param session:
+        """
+
+        super(SpectralModelsTableModelBase, self).__init__(parent, *args)
+
+        # Normally you should never do this, but here I know "better". See:
+        #http://stackoverflow.com/questions/867938/qabstractitemmodel-parent-why
+        self.parent = parent 
+        self.session = session
+        self.header = header
+        self.attrs = attrs
+        return None
+    @property
+    def spectral_models(self):
+        try:
+            return self.session.metadata.get("spectral_models", [])
+        except AttributeError:
+            # session is None
+            return []
+    
+    def rowCount(self, parent):
+        """ Return the number of rows in the table. """
+        return len(self.spectral_models)
+    
+    def columnCount(self, parent):
+        """ Return the number of columns in the table. """
+        return len(self.header)
+
+    def data(self, index, role):
+        raise NotImplementedError("Must subclass this model")
+    
+    def headerData(self, col, orientation, role):
+        if orientation == QtCore.Qt.Horizontal \
+        and role == QtCore.Qt.DisplayRole:
+            return self.header[col]
+        return None
+
+    def setData(self, index, value, role=QtCore.Qt.DisplayRole):
+        if index.column() != 0:
+            return False
+        else:
+            # value appears to be 0 or 2. Set it to True or False
+            row = index.row()
+            value = (value != 0)
+            model = self.spectral_models[row]
+            model.metadata["is_acceptable"] = value
+            
+            # Emit data change for this row.
+            # TODO this is slow.
+            #_start = time.time()
+            #self.dataChanged.emit(self.createIndex(row, 0),
+            #                      self.createIndex(row, 
+            #                      self.columnCount(None)))
+            #print("Time to emit setData: {:.1f}s".format(time.time()-_start))
+            return value
+
+    def flags(self, index):
+        if not index.isValid(): return
+        return  QtCore.Qt.ItemIsSelectable|\
+                QtCore.Qt.ItemIsEnabled|\
+                QtCore.Qt.ItemIsUserCheckable
+    
+    

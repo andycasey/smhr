@@ -97,7 +97,9 @@ def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={},
 
 class SpectralSynthesisModel(BaseSpectralModel):
 
-    def __init__(self, session, transition_hashes, elements, **kwargs):
+    def __init__(self, session, transition_hashes, elements,
+                 what_species=None, what_wavelength=None, what_expot=None, what_loggf=None,
+                 **kwargs):
         """
         Initialize a base class for modelling spectra.
 
@@ -110,6 +112,15 @@ class SpectralSynthesisModel(BaseSpectralModel):
         
         :param elements:
             The element(s) to be measured from the data.
+
+        :param what_species:
+            Specify this synthesis is associated with only some species of its elements
+        :param what_wavelength:
+            Specify this synthesis should be labeled with specific wavelength
+        :param what_expot:
+            Specify this synthesis should be labeled with specific expot
+        :param what_loggf:
+            Specify this synthesis should be labeled with specific loggf
         """
         
         super(SpectralSynthesisModel, self).__init__(session, transition_hashes,
@@ -124,7 +135,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
             "smoothing_kernel": True,
             "initial_abundance_bounds": 1,
             "elements": self._verify_elements(elements),
-            "species": self._verify_species(elements),
+            "species": self._verify_species(elements, what_species),
             "rt_abundances": {},
             "manual_continuum": 1.0,
             "manual_sigma_smooth":0.15,
@@ -167,7 +178,25 @@ class SpectralSynthesisModel(BaseSpectralModel):
         if "Fe" not in elements:
             self.metadata["use_for_stellar_parameter_inference"] = False
 
+        ## Set some display variables
+        if what_wavelength is not None:
+            self._wavelength = what_wavelength
+        if what_expot is None: what_expot = np.nan
+        if what_loggf is None: what_loggf = np.nan
+        self._expot = what_expot
+        self._loggf = what_loggf
+
         return None
+
+    @property
+    def expot(self):
+        ## TODO for most syntheses this is well-defined
+        return self._expot
+    
+    @property
+    def loggf(self):
+        ## TODO for most syntheses the combined loggf is well-defined
+        return self._loggf
 
     def _verify_elements(self, elements):
         """
@@ -200,7 +229,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         return elements
 
 
-    def _verify_species(self, elements):
+    def _verify_species(self, elements, what_species=None):
         # Format the elements and then check that all are real.
         if isinstance(elements, string_types):
             elements = [elements]
@@ -219,6 +248,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
             specie = transitions[ii]["species"]
             specie = (specie*10).astype(int)/10.0
             specie = list(np.unique(specie))
+            if what_species is not None:
+                for s in specie[::-1]: # go backwards to remove properly
+                    if s not in what_species: specie.remove(s)
             species.append(specie)
 
         return species

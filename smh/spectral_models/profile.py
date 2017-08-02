@@ -130,6 +130,14 @@ class ProfileFittingModel(BaseSpectralModel):
         return None
 
 
+    @property
+    def expot(self):
+        return self.transitions[0]["expot"]
+    
+    @property
+    def loggf(self):
+        return self.transitions[0]["loggf"]
+
     def _verify_transitions(self):
         """
         Verify that the atomic or molecular transitions associated with this
@@ -464,28 +472,26 @@ class ProfileFittingModel(BaseSpectralModel):
             [self(x, *_) for _ in p_alt], percentiles, axis=0) - model_y
         model_yerr = np.max(np.abs(model_yerr), axis=0)
 
-        """
-        # DEBUG PLOT
-        fig, ax = plt.subplots()
-        ax.plot(x, y, c='k', drawstyle='steps-mid')
-
-        O = self.metadata["continuum_order"]
-        bg = np.ones_like(x) if 0 > O else np.polyval(p_opt[-(O + 1):], x)    
-        for p, (u, l) in nearby_lines:
-            bg *= self(x, *p)
-
-            m = (u >= x) * (x >= l)
-            ax.scatter(x[m], y[m], facecolor="r")
-
-        ax.plot(x, bg, c='r')
-        ax.plot(x, model_y, c='b')
-
-        model_err = np.percentile(
-            [self(x, *_) for _ in p_alt], percentiles, axis=0)
-
-        ax.fill_between(x, model_err[0] + model_y, model_err[1] + model_y,
-            edgecolor="None", facecolor="b", alpha=0.5)
-        """
+        ### DEBUG PLOT
+        ##fig, ax = plt.subplots()
+        ##ax.plot(x, y, c='k', drawstyle='steps-mid')
+        ##
+        ##O = self.metadata["continuum_order"]
+        ##bg = np.ones_like(x) if 0 > O else np.polyval(p_opt[-(O + 1):], x)    
+        ##for p, (u, l) in nearby_lines:
+        ##    bg *= self(x, *p)
+        ##
+        ##    m = (u >= x) * (x >= l)
+        ##    ax.scatter(x[m], y[m], facecolor="r")
+        ##
+        ##ax.plot(x, bg, c='r')
+        ##ax.plot(x, model_y, c='b')
+        ##
+        ##model_err = np.percentile(
+        ##    [self(x, *_) for _ in p_alt], percentiles, axis=0)
+        ##
+        ##ax.fill_between(x, model_err[0] + model_y, model_err[1] + model_y,
+        ##    edgecolor="None", facecolor="b", alpha=0.5)
         
         # Convert x, model_y, etc back to real-spectrum indices.
         x, model_y, model_yerr, residuals = self._fill_masked_arrays(
