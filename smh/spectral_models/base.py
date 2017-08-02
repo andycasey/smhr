@@ -78,7 +78,7 @@ class BaseSpectralModel(object):
         occurs.
         """
 
-        if len(self.transitions) == 1: return self.transitions["wavelength"]
+        if len(self.transitions) == 1: return float(self.transitions["wavelength"])
         if hasattr(self,"_wavelength"):
             return self._wavelength
         wavelength = np.mean(self.transitions["wavelength"])

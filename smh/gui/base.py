@@ -32,6 +32,8 @@ if sys.platform == "darwin":
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 PICKER_TOLERANCE = 10 # MAGIC HACK
+_QFONT = QtGui.QFont("Helvetica Neue", 10)
+_ROWHEIGHT = 20
 
 ## These are valid attrs of a spectral model
 _allattrs = ["wavelength","expot","species","elements","loggf",
@@ -46,7 +48,7 @@ _labels = ["Wavelength $\lambda$","Excitation potential","Species","Element","lo
            u"log ε","[X/H]", u"σ(log ε)",
            "Acceptable", "Upper Limit", "User Flag",
            "Use for Spectroscopic Stellar Parameters", "Use for Stellar Abundances"]
-_short_labels = [u"λ","$\chi$","species","El.","loggf",
+_short_labels = [u"λ",u"χ","ID","El.","loggf",
                  "EW", u"σ(EW)",
                  "REW",
                  "A(X)","[X/H]",u"σ(X)",
@@ -659,6 +661,23 @@ class SMHMeasurementList(SMHWidgetBase):
         raise NotImplementedError
     
 
+class MeasurementTableView(QtGui.QTableView):
+    def __init__(self, parent, *args):
+        super(MeasurementTableView, self).__init__(parent, *args)
+        self.parent = parent
+        self.setSortingEnabled(False)
+        self.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
+        self.horizontalHeader().setStretchLastSection(True)
+        self.horizontalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
+    def sizeHint(self):
+        return QtCore.QSize(125,100)
+    def minimumSizeHint(self):
+        return QtCore.QSize(125,0)
+    def update_row(self,row):
+        self.rowMoved(row, row, row)
+        return None
+    
+
 class MeasurementTableModelBase(QtCore.QAbstractTableModel):
     """
     A table model that accesses the properties of a list of spectral models
@@ -678,10 +697,10 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
             List of attributes in order of columns in the table.
         """
         
-        super(SpectralModelsTableModelBase, self).__init__(parent, *args)
+        super(MeasurementTableModelBase, self).__init__(parent, *args)
         self.verify_columns(columns)
         self.attrs = columns
-        self.header = [self.attr2label[attr] for attr in self.attrs]
+        self.header = [self.attr2slabel[attr] for attr in self.attrs]
         
         # Normally you should never do this, but here I know "better". See:
         #http://stackoverflow.com/questions/867938/qabstractitemmodel-parent-why
@@ -696,6 +715,9 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
         return True
 
     def data(self, index, role):
+        """
+        Retrieve data from spectral models and turn into string
+        """
         if not index.isValid():
             return None
         if role==QtCore.Qt.FontRole:
@@ -703,11 +725,10 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
         attr = self.attrs[index.column()]
         spectral_model = self.spectral_models[index.row()]
         
-        if role != QtCore.Qt.DisplayRole: return None
         
         value = getattr(spectral_model, attr, None)
         if value is None: return ""
-
+        
         ## Deal with checkboxies
         if attr in ["is_acceptable","is_upper_limit","user_flag",
                     "use_for_stellar_parameter_inference",
@@ -718,6 +739,8 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
             else:
                 return None
         
+        if role != QtCore.Qt.DisplayRole: return None
+        
         # any specific hacks to display attrs are put in here
         # TODO the spectral model itself should decide how its own information is displayed.
         # Make a _repr_attr for every attr?
@@ -726,8 +749,12 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
         if attr == "elements":
             return spectral_model._repr_element
 
-        fmt = attr2format[attr]
-        mystr = fmt.format(value)
+        fmt = self.attr2format[attr]
+        if isinstance(value, list):
+            mystrs = [fmt.format(v) for v in value]
+            mystr = ";".join(mystrs)
+        else:
+            mystr = fmt.format(value)
         return mystr
 
     @property
@@ -753,7 +780,7 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
         Only allow checking/unchecking of is_acceptable and user_flag
         """
         attr = self.attrs[index.column()]
-        if attr not in ["is_acceptable", "user_flag"]:
+        if attr not in ["is_acceptable", "is_upper_limit", "user_flag"]:
             return False
         else:
             row = index.row()
@@ -761,7 +788,10 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
             # value appears to be 0 or 2. Set it to True or False
             value = (value != 0)
             setattr(model, attr, value)
-            
+            print("Setting {} to {}".format(attr,value))
+            self.dataChanged.emit(self.createIndex(row, 0),
+                                  self.createIndex(row, 
+                                  self.columnCount(None)))
             return value
 
     def flags(self, index):

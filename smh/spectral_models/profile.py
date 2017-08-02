@@ -133,7 +133,7 @@ class ProfileFittingModel(BaseSpectralModel):
     @property
     def abundance_uncertainties(self):
         try:
-            result = spectral_model.metadata["fitted_result"][2]
+            result = self.metadata["fitted_result"][2]
             return result["abundance_uncertainties"][0]
         except KeyError:
             return None
@@ -149,7 +149,7 @@ class ProfileFittingModel(BaseSpectralModel):
     @property
     def equivalent_width(self):
         try:
-            result = spectral_model.metadata["fitted_result"][2]
+            result = self.metadata["fitted_result"][2]
             equivalent_width = result["equivalent_width"][0]
         except KeyError:
             return None
@@ -158,7 +158,7 @@ class ProfileFittingModel(BaseSpectralModel):
     @property
     def equivalent_width_uncertainty(self):
         try:
-            result = spectral_model.metadata["fitted_result"][2]
+            result = self.metadata["fitted_result"][2]
             err = 1000.*np.nanmax(np.abs(result["equivalent_width"][1:3]))
             return err
         except:
