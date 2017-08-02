@@ -11,6 +11,7 @@ __all__ = ["BaseSpectralModel"]
 import numpy as np
 
 from .quality_constraints import constraints
+from smh.photospheres.abundances import asplund_2009 as solar_composition
 
 class BaseSpectralModel(object):
 
@@ -280,6 +281,18 @@ class BaseSpectralModel(object):
         except KeyError:
             return None
         
+    @property
+    def abundances_to_solar(self):
+        """ Return [X/H] if fit, else None """
+        abunds = self.abundances
+        if abunds is None: return None
+        elems = self.elements
+        return [AX - solar_composition(X) for AX,X in zip(abunds,elems)]
+
+    @property
+    def abundance_uncertainties(self):
+        """ Return abundance uncertainties """
+        raise NotImplementedError
 
     ## Some more properties to show in tables
     @property

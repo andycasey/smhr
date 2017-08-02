@@ -131,6 +131,14 @@ class ProfileFittingModel(BaseSpectralModel):
 
 
     @property
+    def abundance_uncertainties(self):
+        try:
+            result = spectral_model.metadata["fitted_result"][2]
+            return result["abundance_uncertainties"][0]
+        except KeyError:
+            return None
+
+    @property
     def expot(self):
         return self.transitions[0]["expot"]
     
