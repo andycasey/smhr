@@ -609,16 +609,27 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
 class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
     """
     Displays a scatterplot of spectral model attributes.
-    Some points can be selected.
+    Points can be selected.
+
+    Give it a QTableModel in sourceModel.
+    This is a really bad thing that I'm doing, in the sense that I'm
+     implementing a lot of the Qt View interface without actually subclassing it.
+    So we have to manually call updates to the plot.
+    But I just need a custom thing here...
     """
     allattrs = _allattrs
     labels = _labels
     attr2label = _attr2label
     
-    def __init__(self, parent, xattr, yattr, session=None, widgets_to_update = [], **kwargs):
+    def __init__(self, parent, xattr, yattr, 
+                 sourceModel=None, widgets_to_update = [], **kwargs):
         # These are columns that you can plot
         assert xattr in self.allattrs, xattr
         assert yattr in self.allattrs, yattr
+        self.xattr = xattr
+        self.yattr = yattr
+        self.ax.set_xlabel(self.attr2label[xattr])
+        self.ax.set_ylabel(self.attr2label[yattr])
 
         super(SMHScatterplot, self).__init__(parent=parent, session=session,
                                              widgets_to_update=widgets_to_update,
@@ -626,43 +637,74 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
         #mpl.MPLWidget.__init__(self, parent=parent, **kwargs)
         self.parent = parent
         self.widgets_to_update = widgets_to_update
-        self.session = session
+        self.setSourceModel(sourceModel)
 
         self.ax = self.add_subplot(1,1,1)
         self.ax.xaxis.get_major_formatter().set_useOffset(False)
         self.ax.yaxis.set_major_locator(MaxNLocator(5))
         self.ax.yaxis.set_major_locator(MaxNLocator(4))
 
-        self.xattr = xattr
-        self.yattr = yattr
 
-        self.ax.set_xlabel(self.attr2label[xattr])
-        self.ax.set_ylabel(self.attr2label[yattr])
-
-        self._lines = {
-            "selected_point": [
-                self.ax.scatter([], [],
-                    edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=2)
-            ],
-            "points": [
-                self.ax.scatter([], [], s=30, \
-                     facecolor="k", edgecolor="k", picker=PICKER_TOLERANCE, \
-                     alpha=0.5)
-            ],
-            "trend_lines": None
-        }
-
+        self._selected_points = self.ax.scatter([], [],
+             edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=2)
+        self._points = [
+            self.ax.scatter([], [], s=30, \
+                 facecolor="k", edgecolor="k", picker=PICKER_TOLERANCE, \
+                 alpha=0.5)
+        ]
+        self._trend_lines = None
 
         self.selected_models = None
         self._xattr_cache = []
         self._yattr_cache = []
+        self.refresh_cache()
 
+    def setSourceModel(self, sourceModel):
+        self.sourceModel = sourceModel
+        if sourceModel is None:
+            return None
+        # Check to make sure xattr and yattr are in the model
+        self.allattrs = sourceModel.allattrs
+        self.labels = sourceModel.labels
+        self.attr2label = sourceModel.attr2label
+        assert self.xattr in self.allattrs, self.xattr
+        assert self.yattr in self.allattrs, self.yattr
+        self.ax.set_xlabel(self.attr2label[self.xattr])
+        self.ax.set_ylabel(self.attr2label[self.yattr])
+        return None
+
+    def update_row(self, row):
+        pass
+
+    def reset(self):
+        self.selected_models = None
+        self._selected_points.set_data([],[])
+        for points in self._points:
+            points.set_data([],[])
+        self._trend_lines = None
+        
+    def refresh_cache(self):
+        self._xattr_cache = []
+        self._yattr_cache = []
+        model = self.sourceModel
+        for row in range(self.sourceModel.rowCount()):
+            try:
+                # Check for acceptable models
+                
+
+                index = model.createIndex(row, 0, None)
+                if not model.data(index, QtCore.Qt.CheckStateRole):
+                    raise ValueError # to put in nan
+                if not model.
+        self.xattr
+        self.yattr
+        raise NotImplementedError
     def update_after_selection(self, selected_models):
         raise NotImplementedError
     def update_after_measurement_change(self, changed_model):
         raise NotImplementedError
     def update_plot(self, redraw=False):
-        
+        self._points[0].set_offsets([],[])
         if redraw: self.draw()
         return None    
 
@@ -692,6 +734,7 @@ class MeasurementTableView(QtGui.QTableView):
         self.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
         self.horizontalHeader().setStretchLastSection(True)
         self.horizontalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
+        self.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
     def sizeHint(self):
         return QtCore.QSize(125,100)
     def minimumSizeHint(self):
@@ -699,12 +742,120 @@ class MeasurementTableView(QtGui.QTableView):
     def update_row(self,row):
         self.rowMoved(row, row, row)
         return None
-    
+
+class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
+    """
+    Proxy model allowing for filtering (and eventually sorting) of the full MeasurementTableModelBase
+    Based on the old SpectralModelsFilterProxyModel
+    """
+    def __init__(self, parent=None, views_to_update=[]):
+        """
+        Views to update must implement update_row(proxy_index).
+        """
+        super(MeasurementTableModelProxy, self).__init__(parent)
+        self.filter_functions = {}
+        self.filter_indices = []
+        self.views_to_update = views_to_update
+        return None
+    def add_view_to_update(self, view):
+        self.views_to_update.append(view)
+    def reset_views_to_update(self):
+        self.views_to_update = []
+    def setData(self, proxy_index, value, role=QtCore.Qt.DisplayRole):
+        """
+        Only allow checking/unchecking of is_acceptable and user_flag
+        """
+        attr = self.sourceModel().attrs[proxy_index.column()]
+        if attr not in ["is_acceptable", "is_upper_limit", "user_flag"]:
+            return False
+        else:
+            proxy_row = proxy_index.row()
+            data_row = self.mapToSource(proxy_index).row()
+            model = self.sourceModel().spectral_models[data_row]
+            # value appears to be 0 or 2. Set it to True or False
+            value = (value != 0)
+            setattr(model, attr, value)
+            
+            for view in self.views_to_update:
+                view.update_row(proxy_row)
+            return value
+    def add_filter_function(self, name, filter_function):
+        self.filter_functions[name] = filter_function
+        self.invalidateFilter()
+        self.reindex()
+        return None
+    def delete_filter_function(self, name):
+        try:
+            del self.filter_functions[name]
+            self.invalidateFilter()
+            self.reindex()
+        except KeyError:
+            raise
+        else:
+            return None
+    def delete_all_filter_functions(self):
+        self.filter_functions = {}
+        self.filter_indices = []
+        self.invalidateFilter()
+        self.reindex()
+        return None
+    def reset(self, *args):
+        super(MeasurementTableModelProxy, self).reset(*args)
+        self.reindex()
+        return None
+    def reindex(self):
+        try: 
+            self.sourceModel().spectral_models
+        except AttributeError:
+            return None
+
+        lookup_indices = []
+        for i, model in enumerate(self.sourceModel().spectral_models):
+            for name, filter_function in self.filter_functions.items():
+                if not filter_function(model):
+                    break
+            else:
+                # No problems with any filter functions.
+                lookup_indices.append(i)
+
+        self.lookup_indices = np.array(lookup_indices)
+        return None
+    def filterAcceptsRow(self, row, parent):
+        # Check if we need to update the filter indices for mapping.
+        model = self.sourceModel().spectral_models[row]
+        for filter_name, filter_function in self.filter_functions.items():
+            if not filter_function(model): break
+        else:
+            # No problems.
+            return True
+
+        # We broke out of the for loop.
+        return False
+    def mapFromSource(self, data_index):
+        if not data_index.isValid():
+            return data_index
+        print(self.lookup_indices)
+        print(data_index)
+        print(data_index.row())
+        print(data_index.column())
+        print(np.where(self.lookup_indices == data_index.row())[0])
+        return self.createIndex(
+            np.where(self.lookup_indices == data_index.row())[0],
+            data_index.column())
+    def mapToSource(self, proxy_index):
+        if not proxy_index.isValid():
+            return proxy_index
+        try:
+            return self.createIndex(self.lookup_indices[proxy_index.row()],
+                proxy_index.column())
+        except AttributeError:
+            return proxy_index
 
 class MeasurementTableModelBase(QtCore.QAbstractTableModel):
     """
     A table model that accesses the properties of a list of spectral models
     (calling them "measurements" here to avoid ambiguity)
+    Based on the old SpectralModelsTableModel
     """
     allattrs = _allattrs
     attr2slabel = _attr2slabel
@@ -784,11 +935,11 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
     def spectral_models(self):
         return self.session.metadata.get("spectral_models", [])
     
-    def rowCount(self, parent):
+    def rowCount(self, parent=None):
         """ Return the number of rows in the table. """
         return len(self.spectral_models)
     
-    def columnCount(self, parent):
+    def columnCount(self, parent=None):
         """ Return the number of columns in the table. """
         return len(self.header)
 
@@ -811,6 +962,9 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
             # value appears to be 0 or 2. Set it to True or False
             value = (value != 0)
             setattr(model, attr, value)
+            ## TODO this emit is SUPER slow with proxy models.
+            ## You should overwrite setData for the proxy model
+            ## and explicitly connect it to the view.
             self.dataChanged.emit(self.createIndex(row, 0),
                                   self.createIndex(row, 
                                   self.columnCount(None)))

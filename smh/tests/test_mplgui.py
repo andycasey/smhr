@@ -12,7 +12,7 @@ import matplotlib
 
 from smh.gui import mpl
 from smh.gui.base import SMHSpecDisplay
-from smh.gui.base import MeasurementTableView, MeasurementTableModelBase
+from smh.gui.base import MeasurementTableView, MeasurementTableModelBase, MeasurementTableModelProxy
 from smh import Session
 
 datadir = os.path.dirname(os.path.abspath(__file__))+'/test_data'
@@ -96,14 +96,41 @@ def test_MeasurementTableView():
     vbox.addWidget(view)
     return window
 
-if __name__=="__main__":
-    w1 = test_MPLWidget()
-    w2 = test_SMHSpecDisplay()
-    w2b = test_SMHSpecDisplay_new_session()
-    w3 = test_MeasurementTableView()
+#### The proxy model is super slow if you emit dataChanged.
+#### You can avoid this by explicitly connecting the view to update it.
+#### It also causes segfaults for no apparent reason...
+def test_MeasurementTableView_Sortable():
+    session = Session.load(datadir+"/test_G64-12.smh")
+    session.measure_abundances()
+    window, cw = create_blank_window()
+    vbox = QtGui.QVBoxLayout(cw)
 
-    ws = [w1,w2,w2b,w3]
-    #ws = [w2b]
+    columns = ["is_acceptable","wavelength", "expot", "species", "loggf", "elements",
+               "equivalent_width","equivalent_width_uncertainty",
+               "reduced_equivalent_width",
+               "abundances","abundances_to_solar","abundance_uncertainties",
+               "is_upper_limit","user_flag"]
+    measurement_table = MeasurementTableModelBase(None, session, columns)
+    sort_and_filter = MeasurementTableModelProxy(None)
+    sort_and_filter.setSourceModel(measurement_table)
+    sort_and_filter.add_filter_function("test", lambda x: x.wavelength > 5000)
+    
+    view = MeasurementTableView(None)
+    view.setModel(sort_and_filter)
+    sort_and_filter.add_view_to_update(view)
+
+    vbox.addWidget(view)
+    return window
+
+if __name__=="__main__":
+    #w1 = test_MPLWidget()
+    #w2 = test_SMHSpecDisplay()
+    #w2b = test_SMHSpecDisplay_new_session()
+    w3 = test_MeasurementTableView()
+    w4 = test_MeasurementTableView_Sortable()
+
+    #ws = [w1,w2,w2b,w3]
+    ws = [w3, w4]
 
     for w in ws:
         w.show()
