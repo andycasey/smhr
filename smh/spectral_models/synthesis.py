@@ -147,8 +147,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
         self._verify_transitions()
 
         # Set rt_abundances to have all the elements with nan
-        unique_elements = np.unique(self.transitions["elem1"])
-        unique_elements = np.concatenate([unique_elements,np.unique(self.transitions["elem2"])])
+        unique_elements = np.unique(np.array(self.transitions["elem1"]))
+        unique_elements = np.concatenate([unique_elements,np.array(np.unique(self.transitions["elem2"]))])
+        logger.debug(unique_elements)
+        logger.debug(type(unique_elements))
         unique_elements = np.unique(unique_elements)
         
         rt_abundances = {}
