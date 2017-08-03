@@ -323,6 +323,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.rv_tab.update_from_new_session()
         self.normalization_tab._populate_widgets()
         self.stellar_parameters_tab.populate_widgets()
+        self.chemical_abundances_tab.new_session_loaded()
 
         self._update_window_title()
 
@@ -582,7 +583,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.addTab(self.stellar_parameters_tab, "Stellar parameters")
 
         # Create chemical abundances tab
-        # BUT IT'S XBOX HUGE
         self.chemical_abundances_tab \
             = chemical_abundances.ChemicalAbundancesTab(self)
         self.tabs.addTab(self.chemical_abundances_tab, "Chemical abundances")

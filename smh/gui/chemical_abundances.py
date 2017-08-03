@@ -16,6 +16,7 @@ from PySide import QtCore, QtGui
 import time
 
 import smh
+from smh.gui.base import SMHSpecDisplay
 from smh import utils
 import mpl, style_utils
 from matplotlib.ticker import MaxNLocator
@@ -51,13 +52,73 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.parent = parent
         self.FeH = np.nan
 
-        self.parent_layout = QtGui.QHBoxLayout(self)
+        #############################################################
+        #### Create Layout of main widgets
+        #############################################################
+
+        self.parent_layout = QtGui.QVBoxLayout(self)
+        ################
+        # TOP: Spectrum
+        ################
+        # TODO when refitting, it does not currently update other views
+        self.figure = SMHSpecDisplay(self, self.parent.session, enable_masks=True,
+                                     widgets_to_update=[])
+        self.ax_spectrum = self.figure.ax_spectrum
+        self.ax_residual = self.figure.ax_residual
+        self.parent_layout.addWidget(self.figure)
         
         ################
-        # LEFT HAND SIDE
+        # BOTTOM
         ################
-        lhs_layout = QtGui.QVBoxLayout()
+        bot_layout = QtGui.QHBoxLayout()
+        # Measurement List
+        bot_lhs_layout = self._create_measurement_list()
+        bot_layout.addLayout(bot_lhs_layout)
+        # Model fitting options
+        self._create_fitting_options_widget()
+        bot_layout.addWidget(self.opt_tabs)
         
+        self.parent_layout.addLayout(bot_layout)
+
+        #############################################################
+        #### Connect signals
+        #############################################################
+        # Not: signals for spectrum plot already connected
+
+        # Connect filter combo box
+        self.filter_combo_box.currentIndexChanged.connect(self.filter_combo_box_changed)
+        
+        # Connect selection model
+        _ = self.table_view.selectionModel()
+        _.selectionChanged.connect(self.selected_model_changed)
+
+        # Connect buttons
+        self.btn_fit_all.clicked.connect(self.fit_all_profiles)
+        self.btn_measure_all.clicked.connect(self.measure_all)
+
+        # TODO 
+
+        # Set up things as if a fresh session
+        self._currently_plotted_element = None
+        self.new_session_loaded()
+
+    def new_session_loaded(self):
+        """
+        Call this whenever you have a new session or a new normalized spectrum
+        """
+        session = self.parent.session
+        if session is None: return None
+        logger.debug("LOADING NEW SESSION")
+        self.figure.new_session(session)
+        self.refresh_table()
+        self.summarize_current_table()
+        self.refresh_cache()
+        self.refresh_plots()
+        self.update_fitting_options()
+        return None
+
+    def _create_measurement_list(self):
+        bot_lhs_layout = QtGui.QVBoxLayout()
         hbox = QtGui.QHBoxLayout()
         self.filter_combo_box = QtGui.QComboBox(self)
         self.filter_combo_box.setSizeAdjustPolicy(QtGui.QComboBox.AdjustToContents)
@@ -69,7 +130,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.element_summary_text.setSizePolicy(sp)
         hbox.addWidget(self.filter_combo_box)
         hbox.addWidget(self.element_summary_text)
-        lhs_layout.addLayout(hbox)
+        bot_lhs_layout.addLayout(hbox)
 
         self.table_view = SpectralModelsTableView(self)
         sp = QtGui.QSizePolicy(QtGui.QSizePolicy.Minimum, 
@@ -82,12 +143,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             lambda model: model.use_for_stellar_composition_inference)
 
         self.proxy_spectral_models.setDynamicSortFilter(True)
-        #header = ["", u"λ\n(Å)", "log ε\n(dex)", u"E. W.\n(mÅ)",
-        #          "REW", "σ(X)\n(dex)", "σ(E.W.)\n(mÅ)", "loggf","Element\n"]
         header = ["", u"λ", "log ε", u"E. W.",
                   "REW", "σ(X)", "σ(E.W.)", "loggf","Element"]
-        #attrs = ("is_acceptable", "_repr_wavelength", "abundance", "equivalent_width", 
-        #         "reduced_equivalent_width", "_repr_element")
         self.all_spectral_models = SpectralModelsTableModel(self, header, None)
         self.proxy_spectral_models.setSourceModel(self.all_spectral_models)
 
@@ -111,7 +168,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.table_view.setColumnWidth(7, 50) # MAGIC
         #self.table_view.setMinimumSize(QtCore.QSize(240, 0))
         self.table_view.horizontalHeader().setStretchLastSection(True)
-        lhs_layout.addWidget(self.table_view)
+        bot_lhs_layout.addWidget(self.table_view)
 
         # Buttons
         hbox = QtGui.QHBoxLayout()
@@ -125,125 +182,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.btn_measure_all.setSizePolicy(sp)
         hbox.addWidget(self.btn_fit_all)
         hbox.addWidget(self.btn_measure_all)
-        lhs_layout.addLayout(hbox)
-
-        # Model fitting options
-        self._create_fitting_options_widget()
-        lhs_layout.addWidget(self.opt_tabs)
+        bot_lhs_layout.addLayout(hbox)
         
-        self.parent_layout.addLayout(lhs_layout)
-
-        #############################
-        # RIGHT HAND SIDE: MPL WIDGET
-        #############################
-        rhs_layout = QtGui.QVBoxLayout()
-        self.figure = mpl.MPLWidget(None, tight_layout=True, autofocus=True)
-        self.figure.setMinimumSize(QtCore.QSize(300, 300))
-        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
-                               QtGui.QSizePolicy.Expanding)
-        sp.setHorizontalStretch(0)
-        sp.setVerticalStretch(0)
-        #sp.setHeightForWidth(self.figure.sizePolicy().hasHeightForWidth())
-        self.figure.setSizePolicy(sp)
-        gs_top = matplotlib.gridspec.GridSpec(3,1,height_ratios=[1,2,1])
-        gs_top.update(top=.95,bottom=.05,hspace=0)
-        gs_bot = matplotlib.gridspec.GridSpec(3,1,height_ratios=[1,2,1])
-        gs_bot.update(top=.95,bottom=.05,hspace=.3)
-        
-        self.ax_residual = self.figure.figure.add_subplot(gs_top[0])
-        self.ax_residual.axhline(0, c="#666666")
-        self.ax_residual.xaxis.set_major_locator(MaxNLocator(5))
-        #self.ax_residual.yaxis.set_major_locator(MaxNLocator(2))
-        self.ax_residual.set_xticklabels([])
-        self.ax_residual.set_ylabel("Residual")
-        
-        self.ax_spectrum = self.figure.figure.add_subplot(gs_top[1])
-        self.ax_spectrum.xaxis.get_major_formatter().set_useOffset(False)
-        self.ax_spectrum.xaxis.set_major_locator(MaxNLocator(5))
-        self.ax_spectrum.set_xlabel(u"Wavelength (Å)")
-        self.ax_spectrum.set_ylabel(r"Normalized flux")
-        self.ax_spectrum.set_ylim(0, 1.2)
-        self.ax_spectrum.set_yticks([0, 0.5, 1])
-        
-        self.ax_line_strength = self.figure.figure.add_subplot(gs_bot[2])
-        self.ax_line_strength.xaxis.get_major_formatter().set_useOffset(False)
-        self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(5))
-        self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(4))
-        self.ax_line_strength.set_xlabel(r"$\log({\rm EW}/\lambda)$")
-        self.ax_line_strength.set_ylabel("A(X)")
-        
-        self._points = [self.ax_line_strength.scatter([], [], s=30, \
-             facecolor="k", edgecolor="k", picker=PICKER_TOLERANCE, \
-             alpha=0.5)]
-        self._trend_lines = None
-        
-        # Some empty figure objects that we will use later.
-        self._lines = {
-            "selected_point": [
-                self.ax_line_strength.scatter([], [],
-                    edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=2)
-            ],
-            "spectrum": None,
-            "spectrum_fill": None,
-            "residual_fill": None,
-            "transitions_center_main": self.ax_spectrum.axvline(
-                np.nan, c="#666666", linestyle=":"),
-            "transitions_center_residual": self.ax_residual.axvline(
-                np.nan, c="#666666", linestyle=":"),
-            "model_masks": [],
-            "nearby_lines": [],
-            "model_fit": self.ax_spectrum.plot([], [], c="r")[0],
-            "model_residual": self.ax_residual.plot([], [], c="k")[0],
-            "interactive_mask": [
-                self.ax_spectrum.axvspan(xmin=np.nan, xmax=np.nan, ymin=np.nan,
-                    ymax=np.nan, facecolor="r", edgecolor="none", alpha=0.25,
-                    zorder=-5),
-                self.ax_residual.axvspan(xmin=np.nan, xmax=np.nan, ymin=np.nan,
-                    ymax=np.nan, facecolor="r", edgecolor="none", alpha=0.25,
-                    zorder=-5)
-            ],
-            "dotted_line_at_one": self.ax_spectrum.plot([2000,10000],[1,1], 'k:')
-        }
-        
-        rhs_layout.addWidget(self.figure)
-        self.parent_layout.addLayout(rhs_layout)
-
-
-        # Connect filter combo box
-        self.filter_combo_box.currentIndexChanged.connect(self.filter_combo_box_changed)
-        
-        # Connect selection model
-        _ = self.table_view.selectionModel()
-        _.selectionChanged.connect(self.selected_model_changed)
-
-        # Connect buttons
-        self.btn_fit_all.clicked.connect(self.fit_all_profiles)
-        self.btn_measure_all.clicked.connect(self.measure_all)
-
-        # Connect matplotlib.
-        self.figure.mpl_connect("button_press_event", self.figure_mouse_press)
-        self.figure.mpl_connect("button_release_event", self.figure_mouse_release)
-        self.figure.figure.canvas.callbacks.connect(
-            "pick_event", self.figure_mouse_pick)
-        # Zoom box and keyboard shortcuts
-        self.figure.enable_interactive_zoom()
-        #self.figure.mpl_connect("button_press_event", self.figure.axis_right_mouse_press)
-        #self.figure.mpl_connect("button_release_event", self.figure.axis_right_mouse_release)
-        #self.figure.mpl_connect("key_press_event", self.figure.unzoom_on_z_press)
-        self.figure.mpl_connect("key_press_event", self.key_press_zoom)
-        # Check and uncheck
-        self.figure.mpl_connect("key_press_event", self.key_press_check_uncheck)
-        # Antimasks
-        self.figure.mpl_connect("key_press_event", self.figure.key_press_flags)
-        self.figure.mpl_connect("key_release_event", self.figure.key_release_flags)
-        # Allow focusing figure for keyboard shortcuts
-        self.figure.setFocusPolicy(QtCore.Qt.ClickFocus)
-        
-        self._currently_plotted_element = None
-        self._rew_cache = []
-        self._abund_cache = []
-        self._err_cache = []
-        self.refresh_table()
+        return bot_lhs_layout
 
     def _create_fitting_options_widget(self):
         self.opt_tabs = QtGui.QTabWidget(self)
@@ -550,17 +491,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # Connect signals for Profile and Synthesis
         self._connect_profile_signals()
 
-    def new_session_loaded(self):
-        """
-        Call this whenever a new session is loaded
-        TODO not tested
-        """
-        self.refresh_table()
-        self.refresh_cache()
-        self.summarize_current_table()
-        self.refresh_plots()
-        return None
-
     def _disconnect_profile_signals(self):
         for signal_obj, method in self._profile_signals:
             signal_obj.disconnect(method)
@@ -814,7 +744,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         summary_dict = self.parent.session.summarize_spectral_models(organize_by_element=False)
         species = utils.element_to_species(elem)
         if species in summary_dict:
-            print("From summary instead of cache",summary_dict[species])
+            logger.debug("From summary instead of cache",summary_dict[species])
         
         return None
 
@@ -827,11 +757,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def refresh_plots(self):
-        start = time.time()
-        self.update_spectrum_figure(redraw=False)
-        self.update_selected_points_plot(redraw=False)
-        self.update_line_strength_figure(redraw=True)
-        #print("Time to refresh plots: {:.1f}s".format(time.time()-start))
+        self.update_spectrum_figure(True)
         return None
 
     def fit_all_profiles(self):
@@ -860,7 +786,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     logger.debug(e)
         # If none are acceptable, then fit all
         if num_unacceptable == self.all_spectral_models.rowCount(None):
-            print("Found no acceptable spectral models, fitting all!")
+            logger.info("Found no acceptable spectral models, fitting all!")
             for i,spectral_model in enumerate(self.all_spectral_models.spectral_models):
                 if isinstance(spectral_model, SpectralSynthesisModel):
                     continue
@@ -906,8 +832,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         try:
             res = spectral_model.fit()
         except (ValueError, RuntimeError) as e:
-            print("Fitting error",spectral_model)
-            print(e)
+            logger.info("Fitting error",spectral_model)
+            logger.info(e)
             return None
         self.table_view.update_row(proxy_index.row())
         self.update_cache(proxy_index)
@@ -965,227 +891,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 return False
         return True
 
-    def figure_mouse_pick(self, event):
-        """
-        Trigger for when the mouse is used to select an item in the figure.
-
-        :param event:
-            The matplotlib event.
-        """
-        self.table_view.selectRow(event.ind[0])
-        return None
-
-    def figure_mouse_press(self, event):
-        """
-        Trigger for when the left mouse button is pressed in the figure.
-
-        :param event:
-            The matplotlib event.
-        """
-        if event.button != 1: return None
-        if event.inaxes in (self.ax_residual, self.ax_spectrum):
-            self.spectrum_axis_mouse_press(event)
-        return None
-
-
-    def figure_mouse_release(self, event):
-        """
-        Trigger for when the left mouse button is released in the figure.
-
-        :param event:
-            The matplotlib event.
-        """
-        if event.button != 1: return None
-        if event.inaxes in (self.ax_residual, self.ax_spectrum):
-            self.spectrum_axis_mouse_release(event)
-        return None
-
-
-    def key_press_zoom(self, event):
-        if event.key not in "1234": return None
-        if self.parent.session is None: return None
-        ylim = self.parent.session.setting(["zoom_shortcuts",int(event.key)],
-                                           default_return_value=[0.0,1.2])
-        self.ax_spectrum.set_ylim(ylim)
-        self.figure.draw()
-        return None
-
-    def key_press_check_uncheck(self, event):
-        if event.key not in ["u", "U", "a", "A"]: return None
-        proxy_indices = self.table_view.selectionModel().selectedRows()
-        if event.key in ["u", "U"]:
-            self.table_view.mark_selected_models_as_unacceptable(proxy_indices)
-        elif event.key in ["a", "A"]:
-            self.table_view.mark_selected_models_as_acceptable(proxy_indices)
-        return None
-            
-    def spectrum_axis_mouse_press(self, event):
-        """
-        The mouse button was pressed in the spectrum axis.
-
-        :param event:
-            The matplotlib event.
-        """
-
-        if event.dblclick:
-
-            # Double click.
-            spectral_model, proxy_index, index = self._get_selected_model(True)
-
-            for i, (s, e) in enumerate(spectral_model.metadata["mask"][::-1]):
-                if e >= event.xdata >= s:
-                    # Remove a mask
-                    print("Removing mask")
-                    # TODO this doesn't seem to work?
-                    mask = spectral_model.metadata["mask"]
-                    index = len(mask) - 1 - i
-                    del mask[index]
-
-                    # Re-fit the current spectral_model.
-                    spectral_model.fit()
-
-                    # Update the view for this row.
-                    self.table_view.update_row(proxy_index.row())
-
-                    # Update the view of the current model.
-                    self.update_spectrum_figure(True)
-                    break
-
-            else:
-                # No match with a masked region. 
-                # TODO: Add a point that will be used for the continuum?
-                # For the moment just refit the model.
-                spectral_model.fit()
-
-                # Update the view for this row.
-                self.table_view.update_row(proxy_index.row())
-
-                # Update the view of the current model.
-                self.update_spectrum_figure(True)
-                return None
-
-        else:
-            selected_model = self._get_selected_model()
-            # HACK
-            if "antimask_flag" not in selected_model.metadata:
-                selected_model.metadata["antimask_flag"] = False
-            # Clear all masks if shift key state is not same as antimask_flag
-            # Also change the antimask state
-            if selected_model.metadata["antimask_flag"] != self.figure.shift_key_pressed:
-                selected_model.metadata["mask"] = []
-                selected_model.metadata["antimask_flag"] = not selected_model.metadata["antimask_flag"]
-                print("Switching antimask flag to",selected_model.metadata["antimask_flag"])
-                # HACK
-                self.update_fitting_options()
-
-            # Single click.
-            xmin, xmax, ymin, ymax = (event.xdata, np.nan, -1e8, +1e8)
-            for patch in self._lines["interactive_mask"]:
-                patch.set_xy([
-                    [xmin, ymin],
-                    [xmin, ymax],
-                    [xmax, ymax],
-                    [xmax, ymin],
-                    [xmin, ymin]
-                ])
-                patch.set_facecolor("g" if selected_model.metadata["antimask_flag"] else "r")
-
-            # Set the signal and the time.
-            self._interactive_mask_region_signal = (
-                time.time(),
-                self.figure.mpl_connect(
-                    "motion_notify_event", self.update_mask_region)
-            )
-
-        return None
-
-
-    def update_mask_region(self, event):
-        """
-        Update the visible selected masked region for the selected spectral
-        model. This function is linked to a callback for when the mouse position
-        moves.
-
-        :para event:
-            The matplotlib motion event to show the current mouse position.
-        """
-
-        if event.xdata is None: return
-
-        signal_time, signal_cid = self._interactive_mask_region_signal
-        if time.time() - signal_time > DOUBLE_CLICK_INTERVAL:
-
-            data = self._lines["interactive_mask"][0].get_xy()
-
-            # Update xmax.
-            data[2:4, 0] = event.xdata
-            for patch in self._lines["interactive_mask"]:
-                patch.set_xy(data)
-
-            self.figure.draw()
-
-        return None
-
-
-
-    def spectrum_axis_mouse_release(self, event):
-        """
-        Mouse button was released from the spectrum axis.
-
-        :param event:
-            The matplotlib event.
-        """
-
-        try:
-            signal_time, signal_cid = self._interactive_mask_region_signal
-
-        except AttributeError:
-            return None
-
-        xy = self._lines["interactive_mask"][0].get_xy()
-
-        if event.xdata is None:
-            # Out of axis; exclude based on the closest axis limit
-            xdata = xy[2, 0]
-        else:
-            xdata = event.xdata
-
-
-        # If the two mouse events were within some time interval,
-        # then we should not add a mask because those signals were probably
-        # part of a double-click event.
-        if  time.time() - signal_time > DOUBLE_CLICK_INTERVAL \
-        and np.abs(xy[0,0] - xdata) > 0:
-            
-            # Get current spectral model.
-            spectral_model, proxy_index, index = self._get_selected_model(True)
-            if spectral_model is None: 
-                raise RuntimeError("""Must have a spectral model selected while making mask!
-                                   Must have mouseover bug?""")
-
-            # Add mask metadata.
-            minx = min(xy[0,0],xy[2,0])
-            maxx = max(xy[0,0],xy[2,0])
-            spectral_model.metadata["mask"].append([minx,maxx])
-
-            # Re-fit the spectral model.
-            print("Fitting")
-            spectral_model.fit()
-
-            # Update the table view for this row.
-            self.table_view.update_row(proxy_index.row())
-
-            # Update the view of the spectral model.
-            self.update_spectrum_figure()
-
-        xy[:, 0] = np.nan
-        for patch in self._lines["interactive_mask"]:
-            patch.set_xy(xy)
-
-        self.figure.mpl_disconnect(signal_cid)
-        self.figure.draw()
-        del self._interactive_mask_region_signal
-        return None
 
     def _get_selected_model(self, full_output=False):
         try:
@@ -1198,186 +903,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def selected_model_changed(self):
         self.update_fitting_options()
-        self.refresh_plots()
-        self.figure.reset_zoom_limits()
+        self.update_spectrum_figure(True)
         return None
 
     def update_spectrum_figure(self, redraw=False):
-        """
-        TODO refactor all this plotting?
-        Currently copied straight from stellar_parameters.py with minor changes
-        """
-        selected_model = self._get_selected_model()
-        if selected_model is None:
-            return None
-        transitions = selected_model.transitions
-        try:
-            window = float(self.edit_view_window.text())
-        except:
-            window = selected_model.metadata["window"]
-        limits = [
-            transitions["wavelength"][0] - window,
-            transitions["wavelength"][-1] + window,
-        ]
-
-        if hasattr(self.parent, "session") \
-        and hasattr(self.parent.session, "normalized_spectrum"):
-            try:
-                # Fix the memory leak!
-                self.ax_spectrum.lines.remove(self._lines["spectrum"])
-                self.ax_spectrum.collections.remove(self._lines["spectrum_fill"])
-                self.ax_residual.collections.remove(self._lines["residual_fill"])
-            except Exception as e:
-                # TODO fail in a better way
-                print(e)
-
-            # Draw the spectrum.
-            spectrum = self.parent.session.normalized_spectrum
-            plot_ii = np.logical_and(spectrum.dispersion > limits[0]-10,
-                                     spectrum.dispersion < limits[1]+10)
-            if np.sum(plot_ii)==0: 
-                # Can't plot, no points!
-                return None
-            drawstyle = self.parent.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
-            self._lines["spectrum"] = self.ax_spectrum.plot(spectrum.dispersion[plot_ii],
-                spectrum.flux[plot_ii], c="k", drawstyle=drawstyle)[0]
-
-            sigma = 1.0/np.sqrt(spectrum.ivar[plot_ii])
-            self._lines["spectrum_fill"] = \
-            style_utils.fill_between_steps(self.ax_spectrum, spectrum.dispersion[plot_ii],
-                spectrum.flux[plot_ii] - sigma, spectrum.flux[plot_ii] + sigma, 
-                facecolor="#cccccc", edgecolor="#cccccc", alpha=1)
-
-            self._lines["residual_fill"] = \
-            style_utils.fill_between_steps(self.ax_residual, spectrum.dispersion[plot_ii],
-                -sigma, +sigma, facecolor="#CCCCCC", edgecolor="none", alpha=1)
-
-            #self.ax_spectrum.set_ylim(0, 1.2)
-            #self.ax_spectrum.set_yticks([0, 0.5, 1])
-            #self.ax_spectrum.set_yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2])
-            three_sigma = 3*np.median(sigma[np.isfinite(sigma)])
-            self.ax_residual.set_ylim(-three_sigma, three_sigma)
-        
-        # Zoom to region.
-        self.ax_spectrum.set_xlim(limits)
-        self.ax_residual.set_xlim(limits)
-        self.figure.reset_zoom_limits()
-            
-        # If this is a profile fitting line, show where the centroid is.
-        x = transitions["wavelength"][0] \
-            if isinstance(selected_model, ProfileFittingModel) else np.nan
-        self._lines["transitions_center_main"].set_data([x, x], [0, 1.2])
-        self._lines["transitions_center_residual"].set_data([x, x], [0, 1.2])
-        # Model masks specified by the user.
-        # (These should be shown regardless of whether there is a fit or not.)
-        # HACK
-        mask_color = "g" if "antimask_flag" in selected_model.metadata and \
-            selected_model.metadata["antimask_flag"] else "r"
-        for i, (start, end) in enumerate(selected_model.metadata["mask"]):
-            try:
-                patches = self._lines["model_masks"][i]
-
-            except IndexError:
-                self._lines["model_masks"].append([
-                    self.ax_spectrum.axvspan(np.nan, np.nan,
-                        facecolor=mask_color, edgecolor="none", alpha=0.25),
-                    self.ax_residual.axvspan(np.nan, np.nan,
-                        facecolor=mask_color, edgecolor="none", alpha=0.25)
-                ])
-                patches = self._lines["model_masks"][-1]
-
-            for patch in patches:
-                patch.set_xy([
-                    [start, -1e8],
-                    [start, +1e8],
-                    [end,   +1e8],
-                    [end,   -1e8],
-                    [start, -1e8]
-                ])
-                patch.set_facecolor(mask_color)
-                patch.set_visible(True)
-
-        # Hide unnecessary ones.
-        N = len(selected_model.metadata["mask"])
-        for unused_patches in self._lines["model_masks"][N:]:
-            for unused_patch in unused_patches:
-                unused_patch.set_visible(False)
-
-        # Hide previous model_errs
-        try:
-            self._lines["model_yerr"].set_visible(False)
-            del self._lines["model_yerr"]
-            # TODO: This is wrong. It doesn't actually delete them so if
-            #       you ran this forever then you would get a real bad 
-            #       memory leak in Python. But for now, re-calculating
-            #       the PolyCollection is in the too hard basket.
-
-        except KeyError:
-            None
-
-        # Things to show if there is a fitted result.
-        try:
-            (named_p_opt, cov, meta) = selected_model.metadata["fitted_result"]
-
-            # Test for some requirements.
-            _ = (meta["model_x"], meta["model_y"], meta["residual"])
-
-        except KeyError:
-            meta = {}
-            self._lines["model_fit"].set_data([], [])
-            self._lines["model_residual"].set_data([], [])
-
-        else:
-            assert len(meta["model_x"]) == len(meta["model_y"])
-            assert len(meta["model_x"]) == len(meta["residual"])
-            assert len(meta["model_x"]) == len(meta["model_yerr"])
-
-            self._lines["model_fit"].set_data(meta["model_x"], meta["model_y"])
-            self._lines["model_residual"].set_data(meta["model_x"], 
-                meta["residual"])
-
-            # Model yerr.
-            if np.any(np.isfinite(meta["model_yerr"])):
-                self._lines["model_yerr"] = self.ax_spectrum.fill_between(
-                    meta["model_x"],
-                    meta["model_y"] + meta["model_yerr"],
-                    meta["model_y"] - meta["model_yerr"],
-                    facecolor="r", edgecolor="none", alpha=0.5)
-
-            # Model masks due to nearby lines.
-            if "nearby_lines" in meta:
-                for i, (_, (start, end)) in enumerate(meta["nearby_lines"]):
-                    try:
-                        patches = self._lines["nearby_lines"][i]
-                
-                    except IndexError:
-                        self._lines["nearby_lines"].append([
-                            self.ax_spectrum.axvspan(np.nan, np.nan,
-                                facecolor="b", edgecolor="none", alpha=0.25),
-                            self.ax_residual.axvspan(np.nan, np.nan,
-                                facecolor="b", edgecolor="none", alpha=0.25)
-                        ])
-                        patches = self._lines["nearby_lines"][-1]
-
-                    for patch in patches:                            
-                        patch.set_xy([
-                            [start, -1e8],
-                            [start, +1e8],
-                            [end,   +1e8],
-                            [end,   -1e8],
-                            [start, -1e8]
-                        ])
-                        patch.set_visible(True)
-                    
-        # Hide any masked model regions due to nearby lines.
-        N = len(meta.get("nearby_lines", []))
-        for unused_patches in self._lines["nearby_lines"][N:]:
-            for unused_patch in unused_patches:
-                unused_patch.set_visible(False)
-
-        if redraw: self.figure.draw()
-
-        return None
+        self.figure.update_spectrum_figure(redraw=redraw)
 
     def update_cache(self, proxy_index):
         """
@@ -1418,12 +948,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         current_element =  self.filter_combo_box.currentText()
         self._currently_plotted_element = current_element
         if current_element == "All":
-            print("Resetting cache for All")
+            logger.debug("Resetting cache for All")
             self._rew_cache = np.array([])
             self._abund_cache = np.array([])
             self._err_cache = np.array([])
             return None
-        print("Resetting cache for {}".format(current_element))
+        logger.debug("Resetting cache for {}".format(current_element))
         table_model = self.proxy_spectral_models
         rew_list = []
         abund_list = []
@@ -1449,49 +979,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._abund_cache = np.array(abund_list)
         self._err_cache = np.array(err_list)
         
-    def update_selected_points_plot(self, redraw=False):
-        """
-        Plot selected points
-        """
-        if self.filter_combo_box.currentText() == "All":
-            if redraw: self.figure.draw()
-            return None
-        # These are the proxy model indices
-        indices = np.unique(np.array([index.row() for index in \
-            self.table_view.selectionModel().selectedRows()]))
-        if len(indices) == 0:
-            self._lines["selected_point"][0].set_offsets(np.array([np.nan,np.nan]).T)
-            if redraw: self.figure.draw()
-            return None
-        print("Update selected points plot: {} {} {}".format(indices, \
-              self._rew_cache[indices],self._abund_cache[indices]))
-        
-        self._lines["selected_point"][0].set_offsets(\
-            np.array([self._rew_cache[indices],self._abund_cache[indices]]).T)
-        if redraw: self.figure.draw()
-        return None
-
-    def update_line_strength_figure(self, redraw=False, use_cache=True):
-        current_element =  self.filter_combo_box.currentText()
-        if current_element == "All":
-            # This should remove all points
-            self._points[0].set_offsets(np.array([self._rew_cache, self._abund_cache]).T)
-            if redraw: self.figure.draw()
-            return None
-        # If new element or not using cache, refresh the cache
-        if current_element != self._currently_plotted_element or not use_cache:
-            self.refresh_cache()
-            self.summarize_current_table()
-
-        # Plot
-        self._points[0].set_offsets(np.array([self._rew_cache, self._abund_cache]).T)
-        style_utils.relim_axes(self.ax_line_strength)
-        # TODO trend lines
-        if redraw: self.figure.draw()
-        return None
 
     def update_fitting_options(self):
-        start = time.time()
         try:
             selected_model = self._get_selected_model()
         except IndexError:
@@ -1635,7 +1124,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         else:
             self.opt_tabs.setTabEnabled(1, False)
 
-        print("update_fitting_options: {:.1f}".format(time.time()-start))
         return None
 
     ###############################
@@ -1907,7 +1395,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         try:
             fitted_result = selected_model.metadata["fitted_result"]
         except KeyError:
-            print("Run at least one fit before setting abundances of "
+            logger.info("Run at least one fit before setting abundances of "
                   "fitted element {}!".format(elem))
         else:
             for i,elem in enumerate(selected_model.elements):
@@ -1918,14 +1406,14 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         self.synth_abund_table.model().endResetModel()
 
-        print(summary_dict)
+        logger.debug(summary_dict)
         return None
 
     def clicked_export_synthesis(self):
         ## Get current spectral model, make sure it is a synthesis
         spectral_model = self._get_selected_model()
         if not isinstance(spectral_model, SpectralSynthesisModel): 
-            print("Must select a synthesis spectral model to export")
+            logger.info("Must select a synthesis spectral model to export")
             return
         ## ask for synthesis output filename
         synth_path, _ = QtGui.QFileDialog.getSaveFileName(self,
@@ -1941,7 +1429,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         if not param_path: return
         ## Export
         spectral_model.export_fit(synth_path, data_path, param_path)
-        print("Exported to {}, {}, and {}".format(synth_path, data_path, param_path))
+        logger.info("Exported to {}, {}, and {}".format(synth_path, data_path, param_path))
         return
 
 class SpectralModelsTableView(SpectralModelsTableViewBase):
@@ -1989,7 +1477,7 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
         for proxy_index in proxy_indices:
             self.update_row(proxy_index.row())
             self.parent.update_cache(proxy_index)
-        print("Time to update data model and cache: {:.1f}".format(time.time()-start))
+        logger.debug("Time to update data model and cache: {:.1f}".format(time.time()-start))
 
         self.refresh_gui()
         return None
@@ -2040,7 +1528,7 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
                 spectral_model.fit()
                 self.update_row(proxy_index.row())
                 self.parent.update_cache(proxy_index)
-        print("Changed {0}={1}, fit {2} out of {3} models ({4} profile, {5} synth, skipped {6} unacceptable)".format(\
+        logger.debug("Changed {0}={1}, fit {2} out of {3} models ({4} profile, {5} synth, skipped {6} unacceptable)".format(\
                 key, value, num_fit, len(proxy_indices), num_profile_models, num_synthesis_models, num_unacceptable))
         self.refresh_gui()
         return None
@@ -2246,7 +1734,7 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
             return self.num_fit_elems + \
                    len(self.spectral_model.metadata["rt_abundances"])
         except Exception as e:
-            print(e)
+            logger.info(e)
             return 0
     def columnCount(self, parent):
         return 3
@@ -2314,7 +1802,7 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
             try:
                 fitted_result = self.spectral_model.metadata["fitted_result"]
             except KeyError:
-                print("Run at least one fit before setting abundances!")
+                logger.info("Run at least one fit before setting abundances!")
                 return False
             else:
                 key = "log_eps({})".format(elem)

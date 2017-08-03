@@ -112,6 +112,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         Clear internal variables (besides session)
     new_session(session)
         Clear graphics and prepare for new session
+        Also called if you make changes to the spectrum
     update_after_selection(selected_models):
         Call after a selection is updated (to change 
     update_after_measurement_change(changed_model):
@@ -263,15 +264,12 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         self.ax_residual.set_xlim(limits)
     def update_spectrum_figure(self, redraw=False, reset_limits=True):
         if self.session is None: return None
-        #self.update_selected_model()
+        if reset_limits:
+            self.update_selected_model()
         if self.selected_model is None: return None
         selected_model = self.selected_model
         
         limits = self._get_current_xlimits()
-        # Set reset_limits=False
-        if reset_limits:
-            self._set_xlimits(limits)
-            self.reset_zoom_limits()
         
         ## Plot spectrum and error bars
         success = self._plot_normalized_spectrum(limits)
