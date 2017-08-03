@@ -361,7 +361,7 @@ class NormalizationTab(QtGui.QWidget):
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 1, True)
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 2, True)
 
-        #self.parent.stellar_parameters_tab.new_session_loaded()
+        self.parent.stellar_parameters_tab.populate_widgets()
         self.parent.chemical_abundances_tab.new_session_loaded()
 
         return None

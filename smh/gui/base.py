@@ -119,7 +119,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         Call after a measurement is changed in changed_model
     update_selected_model()
         Retrieve selected model from parent object.
-        (Requires parent._get_selected_model())
+        (Requires parent._get_selected_model() unless you specify get_selected_model kwarg)
     set_selected_model(model):
         Force selected model to be model
     update_spectrum_figure(redraw=False):
@@ -131,6 +131,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
 
     """
     def __init__(self, parent, session=None, widgets_to_update = [],
+                 get_selected_model=None,
                  enable_zoom=True, enable_masks=False,
                  **kwargs):
         ## I don't know why this doesn't use the SMHWidgetBase?
@@ -139,6 +140,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
                                              **kwargs)
         #mpl.MPLWidget.__init__(self, parent=parent, **kwargs)
         self.parent = parent
+        self.get_selected_model = get_selected_model
         self.widgets_to_update = widgets_to_update
         self.session = session
         
@@ -241,7 +243,10 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
     
     def update_selected_model(self):
         if self.session is None: return None
-        self.selected_model = self.parent._get_selected_model()
+        if self.get_selected_model is not None:
+            self.selected_model = self.get_selected_model()
+        else:
+            self.selected_model = self.parent._get_selected_model()
         self._set_xlimits(self._get_current_xlimits())
         self.reset_zoom_limits()
     def set_selected_model(self, model):

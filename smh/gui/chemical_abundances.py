@@ -61,8 +61,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # TOP: Spectrum
         ################
         # TODO when refitting, it does not currently update other views
-        self.figure = SMHSpecDisplay(self, self.parent.session, enable_masks=True,
-                                     widgets_to_update=[])
+        self.figure = SMHSpecDisplay(None, self.parent.session, enable_masks=True,
+                                     widgets_to_update=[],
+                                     get_selected_model=self._get_selected_model)
         self.ax_spectrum = self.figure.ax_spectrum
         self.ax_residual = self.figure.ax_residual
         self.parent_layout.addWidget(self.figure)
