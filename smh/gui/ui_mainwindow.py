@@ -14,7 +14,7 @@ import yaml
 import numpy as np
 
 # Import functionality related to each tab
-import rv, normalization, summary, stellar_parameters, chemical_abundances
+import rv, normalization, summary, stellar_parameters, chemical_abundances, review
 
 import smh
 from balmer import BalmerLineFittingDialog
@@ -324,6 +324,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.normalization_tab._populate_widgets()
         self.stellar_parameters_tab.populate_widgets()
         self.chemical_abundances_tab.new_session_loaded()
+        self.review_tab.new_session_loaded()
 
         self._update_window_title()
 
@@ -404,11 +405,13 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         self.tabs.setTabEnabled(3, True)
         self.tabs.setTabEnabled(4, True)
+        self.tabs.setTabEnabled(5, True)
         #self.stellar_parameters_tab.new_session_loaded()
         # TODO there are likely more things needed here!
         self.stellar_parameters_tab.populate_widgets()
 
         self.chemical_abundances_tab.new_session_loaded()
+        self.review_tab.new_session_loaded()
         
         return None
 
@@ -518,6 +521,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
             self.session.index_spectral_models,
             self.stellar_parameters_tab.proxy_spectral_models.reset,
             self.chemical_abundances_tab.refresh_table,
+            self.review_tab.new_session_loaded
             ])
         window.exec_()
 
@@ -585,7 +589,12 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Create chemical abundances tab
         self.chemical_abundances_tab \
             = chemical_abundances.ChemicalAbundancesTab(self)
-        self.tabs.addTab(self.chemical_abundances_tab, "Chemical abundances")
+        self.tabs.addTab(self.chemical_abundances_tab, "Line Measurements")
+
+        # Create review tab
+        self.review_tab \
+            = review.ReviewTab(self)
+        self.tabs.addTab(self.review_tab, "Review")
 
         # Disable all tabs except the first one.
         for i in range(self.tabs.count()):

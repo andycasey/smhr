@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" The stellar parameters tab in Spectroscopy Made Hard """
+""" The chemical abundances tab in Spectroscopy Made Hard """
 
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
@@ -102,6 +102,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # Set up things as if a fresh session
         self._currently_plotted_element = None
         self.new_session_loaded()
+
+    def init_tab(self):
+        """
+        Call this to update the state of the tab from the session.
+        """
+        
 
     def new_session_loaded(self):
         """

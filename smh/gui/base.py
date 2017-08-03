@@ -210,6 +210,10 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         }
         self.reset()
 
+    def sizeHint(self):
+        return QtCore.QSize(125,100)
+    def minimumSizeHint(self):
+        return QtCore.QSize(10,10)
     def reset(self):
         """
         Clear all internal variables (except session)
@@ -620,6 +624,7 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
                  tableview=None,
                  widgets_to_update = [],
                  enable_zoom=True, enable_pick=True,
+                 enable_keyboard_shortcuts=False,
                  **kwargs):
         assert xattr in self.allattrs, xattr
         assert yattr in self.allattrs, yattr
@@ -656,10 +661,21 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
             self.enable_interactive_zoom()
         if enable_pick:
             self.canvas.callbacks.connect("pick_event", self.figure_mouse_pick)
-            #self.mpl_connect("button_press_event", self.figure_mouse_press)
+        if enable_keyboard_shortcuts:
+            pass
         self.setFocusPolicy(QtCore.Qt.ClickFocus)
 
+        self.reset()
+        self.update_scatterplot()
+        self.update_selected_points(True)
 
+    def sizeHint(self):
+        return QtCore.QSize(125,100)
+    def minimumSizeHint(self):
+        return QtCore.QSize(10,10)
+    def reset(self):
+        for key in ["points", "selected_points"]:
+            self._points[key].set_offsets(np.array([np.nan, np.nan]).T)
     def linkToTable(self, tableview):
         """
         view for selection; model for data
@@ -684,7 +700,7 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
         logger.debug("{}->{}, {}->{}".format(self.xattr, self.xcol, self.yattr, self.ycol))
     def update_scatterplot(self, redraw=False):
         if self.tableview is None or self.tablemodel is None: return None
-        logger.debug("update_scatterplot ({}, {})".format(self, redraw))
+        #logger.debug("update_scatterplot ({}, {})".format(self, redraw))
         #xs = self.tablemodel.get_data_column(self.xcol)
         #ys = self.tablemodel.get_data_column(self.ycol)
         xs = []
@@ -698,6 +714,7 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
             ys.append(y)
         self._points["points"].set_offsets(np.array([xs,ys]).T)
         style_utils.relim_axes(self.ax)
+        self.reset_zoom_limits()
         if redraw: self.draw()
         return None
     def update_selected_points(self, redraw=False):
@@ -723,7 +740,7 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
         return self.tablemodel.createIndex(row,col)
 
     def figure_mouse_pick(self, event):
-        if event.button != 1: return None
+        if event.mouseevent.button != 1: return None
         self.tableview.selectRow(event.ind[0])
         return None
     
@@ -751,6 +768,36 @@ class MeasurementTableView(BaseTableView):
         """ Used for proxy models """
         self.rowMoved(row, row, row)
         return None
+class MeasurementTableDelegate(QtGui.QItemDelegate):
+    ## TODO this doesn't work
+    ## It doesn't paint checkboxes or get the font right anymore
+    COLOR = "#FFFF00" #yellow
+    def __init__(self, parent, view, *args):
+        super(MeasurementTableDelegate, self).__init__(parent, *args)
+        self.view = view
+    def paint(self, painter, option, index):
+        painter.save()
+        painter.setPen(QtGui.QPen(QtCore.Qt.NoPen))
+        if option.state & QtGui.QStyle.State_Selected:
+            painter.setBrush(QtGui.QBrush(
+                self.parent().palette().highlight().color()))
+        else:
+            model = self.view.model()
+            if model is not None and "user_flag" in model.attrs:
+                row = index.row()
+                col = model.attrs.index("user_flag")
+                state = model.data(model.createIndex(row,col))
+                if state == QtCore.Qt.Checked:
+                    painter.setBrush(QtGui.QBrush(QtGui.QColor(self.COLOR)))
+                else:
+                    painter.setBrush(QtGui.QBrush(QtCore.Qt.white))
+            else:
+                painter.setBrush(QtGui.QBrush(QtCore.Qt.white))
+        painter.drawRect(option.rect)
+        painter.setPen(QtGui.QPen(QtCore.Qt.black))
+        painter.drawText(option.rect, QtCore.Qt.AlignLeft|QtCore.Qt.AlignCenter, index.data())
+        painter.restore()
+        
 
 class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
     """
@@ -857,11 +904,7 @@ class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
     def mapFromSource(self, data_index):
         if not data_index.isValid():
             return data_index
-        print(self.lookup_indices)
-        print(data_index)
-        print(data_index.row())
-        print(data_index.column())
-        print(np.where(self.lookup_indices == data_index.row())[0])
+        #self.reindex()
         return self.createIndex(
             np.where(self.lookup_indices == data_index.row())[0],
             data_index.column())
@@ -869,6 +912,7 @@ class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
         if not proxy_index.isValid():
             return proxy_index
         try:
+            #self.reindex()
             return self.createIndex(self.lookup_indices[proxy_index.row()],
                 proxy_index.column())
         except AttributeError:
@@ -973,6 +1017,7 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
 
     @property
     def spectral_models(self):
+        if self.session is None: return []
         return self.session.metadata.get("spectral_models", [])
     
     def rowCount(self, parent=None):

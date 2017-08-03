@@ -1162,12 +1162,12 @@ class StellarParametersTab(QtGui.QWidget):
     def _init_mpl_figure(self, parent):
         # Matplotlib figure.
         self.figure = mpl.MPLWidget(None, tight_layout=True, autofocus=True)
-        self.figure.setMinimumSize(QtCore.QSize(100, 100))
+        self.figure.setMinimumSize(QtCore.QSize(10, 10))
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Expanding)
-        sp.setHorizontalStretch(0)
-        sp.setVerticalStretch(0)
-        sp.setHeightForWidth(self.figure.sizePolicy().hasHeightForWidth())
+        #sp.setHorizontalStretch(0)
+        #sp.setVerticalStretch(0)
+        #sp.setHeightForWidth(self.figure.sizePolicy().hasHeightForWidth())
         self.figure.setSizePolicy(sp)
         #self.figure.setFocusPolicy(QtCore.Qt.StrongFocus)
 
