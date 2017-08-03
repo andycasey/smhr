@@ -841,7 +841,10 @@ class StellarParametersTab(QtGui.QWidget):
     def _get_selected_model(self, full_output=False):
 
         # Map the first selected row back to the source model index.
-        proxy_index = self.table_view.selectionModel().selectedIndexes()[-1]
+        try:
+            proxy_index = self.table_view.selectionModel().selectedIndexes()[-1]
+        except IndexError:
+            return (None, None, None) if full_output else None
         index = self.proxy_spectral_models.mapToSource(proxy_index).row()
         model = self.parent.session.metadata["spectral_models"][index]
         return (model, proxy_index, index) if full_output else model

@@ -181,29 +181,8 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         self._interactive_mask_region_signal = None
         self._lines = None
         
-        self.reset()
-
-    def reset(self):
-        """
-        Clear all internal variables (except session)
-        """
-        self.selected_model = None
-        
-        ## Delete MPL objects if you can
-        if hasattr(self, "_lines") and self._lines is not None:
-            for key, val in iteritems(self._lines):
-                try:
-                    del val
-                except:
-                    pass
-        ## Reinstantiate MPL objects to keep track of
-        self._interactive_mask_region_signal = None
-        if self.session is None:
-            drawstyle = "steps-mid"
-        else:
-            drawstyle = self.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
         self._lines = {
-            "spectrum": self.ax_spectrum.plot([], [], c="k", drawstyle=drawstyle)[0], #None,
+            "spectrum": self.ax_spectrum.plot([], [], c="k", drawstyle="steps-mid")[0], #None,
             "spectrum_fill": None,
             "residual_fill": None,
             "transitions_center_main": self.ax_spectrum.axvline(
@@ -224,10 +203,26 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
                                          zorder=-5)
             ]
         }
+        self._interactive_mask_region_signal = None
+        self.reset()
 
+    def reset(self):
+        """
+        Clear all internal variables (except session)
+        """
+        logger.debug("Resetting Spectrum Figure ({})".format(self))
+        self.selected_model = None
+        
+        if self.session is not None:
+            drawstyle = self.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
+            self._lines["spectrum"].set_drawstyle(drawstyle)
+        for key in ["spectrum", "transitions_center_main", "transitions_center_residual",
+                    "model_fit", "model_residual"]:
+            self._lines[key].set_data([],[])
     def new_session(self, session):
         self.reset()
         self.session = session
+        self.draw() #update_spectrum_figure()
         return None
 
     def update_after_selection(self, selected_models):
@@ -268,9 +263,11 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         self.ax_spectrum.set_xlim(limits)
         self.ax_residual.set_xlim(limits)
     def update_spectrum_figure(self, redraw=False, reset_limits=True):
+        logger.debug("update spectrum figure ({})".format(self))
         if self.session is None: return None
         if reset_limits:
             self.update_selected_model()
+        logger.debug(" selected model: {}".format(self.selected_model))
         if self.selected_model is None: return None
         selected_model = self.selected_model
         

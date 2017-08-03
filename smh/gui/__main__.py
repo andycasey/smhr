@@ -9,6 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 import logging
 from PySide import QtCore, QtGui
 import yaml
+import os
 
 # Functions related to warnings and exceptions.
 import exception
@@ -91,4 +92,10 @@ if __name__ == '__main__':
     app.window = Ui_MainWindow()
     app.window.show()
     app.window.raise_()
+
+    # DEBUG
+    testpath = os.path.dirname(os.path.abspath(__file__))+"/../tests/test_data/test_G64-12_v02.smh"
+    logger.debug("Loading {}".format(testpath))
+    app.window.open_session(path=testpath)
+    
     sys.exit(app.exec_())
