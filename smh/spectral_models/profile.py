@@ -129,6 +129,46 @@ class ProfileFittingModel(BaseSpectralModel):
         return None
 
 
+    @property
+    def abundance_uncertainties(self):
+        try:
+            result = self.metadata["fitted_result"][2]
+            return result["abundance_uncertainties"][0]
+        except KeyError:
+            return None
+
+    @property
+    def expot(self):
+        return self.transitions[0]["expot"]
+    
+    @property
+    def loggf(self):
+        return self.transitions[0]["loggf"]
+
+    @property
+    def equivalent_width(self):
+        try:
+            result = self.metadata["fitted_result"][2]
+            equivalent_width = result["equivalent_width"][0]
+        except KeyError:
+            return None
+        return 1000. * equivalent_width
+
+    @property
+    def equivalent_width_uncertainty(self):
+        try:
+            result = self.metadata["fitted_result"][2]
+            err = 1000.*np.nanmax(np.abs(result["equivalent_width"][1:3]))
+            return err
+        except:
+            return None
+    
+    @property
+    def reduced_equivalent_width(self):
+        eqw = self.equivalent_width
+        if eqw is None: return None
+        return np.log10(eqw/self.wavelength)
+
     def _verify_transitions(self):
         """
         Verify that the atomic or molecular transitions associated with this
@@ -463,28 +503,26 @@ class ProfileFittingModel(BaseSpectralModel):
             [self(x, *_) for _ in p_alt], percentiles, axis=0) - model_y
         model_yerr = np.max(np.abs(model_yerr), axis=0)
 
-        """
-        # DEBUG PLOT
-        fig, ax = plt.subplots()
-        ax.plot(x, y, c='k', drawstyle='steps-mid')
-
-        O = self.metadata["continuum_order"]
-        bg = np.ones_like(x) if 0 > O else np.polyval(p_opt[-(O + 1):], x)    
-        for p, (u, l) in nearby_lines:
-            bg *= self(x, *p)
-
-            m = (u >= x) * (x >= l)
-            ax.scatter(x[m], y[m], facecolor="r")
-
-        ax.plot(x, bg, c='r')
-        ax.plot(x, model_y, c='b')
-
-        model_err = np.percentile(
-            [self(x, *_) for _ in p_alt], percentiles, axis=0)
-
-        ax.fill_between(x, model_err[0] + model_y, model_err[1] + model_y,
-            edgecolor="None", facecolor="b", alpha=0.5)
-        """
+        ### DEBUG PLOT
+        ##fig, ax = plt.subplots()
+        ##ax.plot(x, y, c='k', drawstyle='steps-mid')
+        ##
+        ##O = self.metadata["continuum_order"]
+        ##bg = np.ones_like(x) if 0 > O else np.polyval(p_opt[-(O + 1):], x)    
+        ##for p, (u, l) in nearby_lines:
+        ##    bg *= self(x, *p)
+        ##
+        ##    m = (u >= x) * (x >= l)
+        ##    ax.scatter(x[m], y[m], facecolor="r")
+        ##
+        ##ax.plot(x, bg, c='r')
+        ##ax.plot(x, model_y, c='b')
+        ##
+        ##model_err = np.percentile(
+        ##    [self(x, *_) for _ in p_alt], percentiles, axis=0)
+        ##
+        ##ax.fill_between(x, model_err[0] + model_y, model_err[1] + model_y,
+        ##    edgecolor="None", facecolor="b", alpha=0.5)
         
         # Convert x, model_y, etc back to real-spectrum indices.
         x, model_y, model_yerr, residuals = self._fill_masked_arrays(

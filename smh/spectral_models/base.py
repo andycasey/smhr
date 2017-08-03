@@ -13,6 +13,7 @@ import numpy as np
 from .quality_constraints import constraints
 from ..linelists import LineList
 from astropy.table import Row
+from smh.photospheres.abundances import asplund_2009 as solar_composition
 
 class BaseSpectralModel(object):
 
@@ -40,7 +41,9 @@ class BaseSpectralModel(object):
             "use_for_stellar_composition_inference": True,
             "use_for_stellar_parameter_inference": (
                 "Fe I" in self.transitions["element"] or
-                "Fe II" in self.transitions["element"])
+                "Fe II" in self.transitions["element"]),
+            "antimask_flag": False,
+            "user_flag": 0
         }
 
         # Create a _repr_wavelength property.
@@ -61,8 +64,11 @@ class BaseSpectralModel(object):
         occurs.
         """
 
+        if len(self.transitions) == 1: return float(self.transitions["wavelength"])
+        if hasattr(self,"_wavelength"):
+            return self._wavelength
         wavelength = np.mean(self.transitions["wavelength"])
-        return int(wavelength) if len(self.transitions) > 1 else wavelength
+        return int(wavelength)
 
 
     @property
@@ -207,6 +213,11 @@ class BaseSpectralModel(object):
 
 
     @property
+    def num_elems(self):
+        return len(self.elements)
+
+
+    @property
     def species(self):
         """ Return the species to be measured from this class. """
         return self.metadata["species"]
@@ -225,6 +236,46 @@ class BaseSpectralModel(object):
         except KeyError:
             return None
         
+    @property
+    def abundances_to_solar(self):
+        """ Return [X/H] if fit, else None """
+        abunds = self.abundances
+        if abunds is None: return None
+        elems = self.elements
+        return [AX - solar_composition(X) for AX,X in zip(abunds,elems)]
+
+    @property
+    def abundance_uncertainties(self):
+        return None
+
+    @property
+    def expot(self):
+        raise NotImplementedError
+    
+    @property
+    def loggf(self):
+        raise NotImplementedError
+    
+    @property
+    def equivalent_width(self):
+        return None
+
+    @property
+    def equivalent_width_uncertainty(self):
+        return None
+
+    @property
+    def reduced_equivalent_width(self):
+        return None
+
+    @property
+    def user_flag(self):
+        return self.metadata["user_flag"]
+
+    @user_flag.setter
+    def user_flag(self, flag):
+        self.metadata["user_flag"] = flag
+        return None
 
     @property
     def parameters(self):
@@ -315,9 +366,6 @@ class BaseSpectralModel(object):
             A spectrum to generate a mask for.
         """
 
-        # HACK
-        if "antimask_flag" not in self.metadata:
-            self.metadata["antimask_flag"] = False
         if self.metadata["antimask_flag"]:
             antimask = np.ones_like(spectrum.dispersion,dtype=bool)
             for start, end in self.metadata["mask"]:

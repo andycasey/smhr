@@ -343,7 +343,7 @@ class Session(BaseSession):
                 raise ValueError("unrecognized spectral model class '{}'"\
                                      .format(state["type"]))
             model = klass(*args)
-            model.metadata = state["metadata"]
+            model.metadata.update(state["metadata"])
             reconstructed_spectral_models.append(model)
             t2 = time.time()-start
             if t2 > 1.0:
