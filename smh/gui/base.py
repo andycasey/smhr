@@ -650,7 +650,15 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
                                                edgecolor="b", facecolor="none", 
                                                s=150, linewidth=3, zorder=2)
         }
-        ## TODO CONNECT PICK
+
+        ## Connect Interactivity
+        if enable_zoom:
+            self.enable_interactive_zoom()
+        if enable_pick:
+            self.canvas.callbacks.connect("pick_event", self.figure_mouse_pick)
+            #self.mpl_connect("button_press_event", self.figure_mouse_press)
+        self.setFocusPolicy(QtCore.Qt.ClickFocus)
+
 
     def linkToTable(self, tableview):
         """
@@ -694,7 +702,7 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
         return None
     def update_selected_points(self, redraw=False):
         if self.tableview is None or self.tablemodel is None: return None
-        logger.debug("update_selected_points ({}, {})".format(self, redraw))
+        #logger.debug("update_selected_points ({}, {})".format(self, redraw))
         xs = []
         ys = []
         rows = self.tableview.selectionModel().selectedRows()
@@ -709,9 +717,15 @@ class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
         self._points["selected_points"].set_offsets(np.array([xs,ys]).T)
         if redraw: self.draw()
         return None
+
     def _ix(self,row,col):
         if self.tablemodel is None: return None
         return self.tablemodel.createIndex(row,col)
+
+    def figure_mouse_pick(self, event):
+        if event.button != 1: return None
+        self.tableview.selectRow(event.ind[0])
+        return None
     
 class BaseTableView(QtGui.QTableView):
     """ Basic sizing and options for display table """
