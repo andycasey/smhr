@@ -899,11 +899,15 @@ class StellarParametersTab(QtGui.QWidget):
 
         except IndexError:
             self.update_selected_points(redraw=True)
-            print("Time taken B: {}".format(time() - ta))
+            logger.debug("Time taken B: {}".format(time() - ta))
 
             return None
             
-        print("selected model is at ", selected_model._repr_wavelength)
+        if selected_model is None:
+            logger.debug("No selected model: {}".format(time() - ta))
+            return None
+
+        logger.debug("selected model is at {}".format(selected_model._repr_wavelength))
         
         self.update_selected_points()
 
@@ -911,7 +915,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.update_spectrum_figure(redraw=True)
         self.figure.reset_zoom_limits()
 
-        print("Time taken: {}".format(time() - ta))
+        logger.debug("Time taken: {}".format(time() - ta))
         return None
 
 
@@ -1158,7 +1162,7 @@ class StellarParametersTab(QtGui.QWidget):
     def _init_mpl_figure(self, parent):
         # Matplotlib figure.
         self.figure = mpl.MPLWidget(None, tight_layout=True, autofocus=True)
-        self.figure.setMinimumSize(QtCore.QSize(300, 300))
+        self.figure.setMinimumSize(QtCore.QSize(100, 100))
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Expanding)
         sp.setHorizontalStretch(0)

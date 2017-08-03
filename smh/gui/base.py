@@ -144,6 +144,14 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         self.widgets_to_update = widgets_to_update
         self.session = session
         
+        self.setMinimumSize(QtCore.QSize(100,100))
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Expanding)
+        sp.setHorizontalStretch(0)
+        sp.setVerticalStretch(0)
+        sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
+        self.setSizePolicy(sp)
+
         gs = matplotlib.gridspec.GridSpec(2, 1, height_ratios=[1,2])
         gs.update(top=.95, bottom=.05, hspace=0)
 
@@ -176,11 +184,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
             self.mpl_connect("key_release_event", self.key_release_flags)
         self.setFocusPolicy(QtCore.Qt.ClickFocus)
 
-        # Internal state variables
-        self.selected_models = None
-        self._interactive_mask_region_signal = None
-        self._lines = None
-        
+        # Internal MPL variables
         self._lines = {
             "spectrum": self.ax_spectrum.plot([], [], c="k", drawstyle="steps-mid")[0], #None,
             "spectrum_fill": None,
@@ -203,7 +207,6 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
                                          zorder=-5)
             ]
         }
-        self._interactive_mask_region_signal = None
         self.reset()
 
     def reset(self):
@@ -311,8 +314,8 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         if event.inaxes not in (self.ax_residual, self.ax_spectrum):
             return None
         
-        #self.update_selected_model()
         selected_model = self.selected_model
+        if selected_model is None: return None
         
         ## Doubleclick: remove mask, and if so refit/redraw
         if event.dblclick:
@@ -383,7 +386,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         if self.session is None: return None
         try:
             signal_time, signal_cid = self._interactive_mask_region_signal
-        except AttributeError:
+        except AttributeError, TypeError:
             return None
         xy = self._lines["interactive_mask"][0].get_xy()
         if event.xdata is None:
