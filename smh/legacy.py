@@ -81,6 +81,7 @@ def convert_v0_1_to_v0_2(fname_in, fname_out, overwrite=False):
     # Create the object using the temporary working directory input spectra.
     session = Session([os.path.join(twd, basename) \
         for basename in metadata["reconstruct_paths"]["input_spectra"]])
+    session.metadata.update(metadata)
 
     # Load in the linelist (but not into the session!)
     linelist_path = os.path.join(twd, metadata["reconstruct_paths"].get("line_list", None))
@@ -122,6 +123,6 @@ def convert_v0_1_to_v0_2(fname_in, fname_out, overwrite=False):
     # Then reconstruct as normal
     reconstructed_spectral_models = session.reconstruct_spectral_models(spectral_model_states)
     session.metadata["spectral_models"] = reconstructed_spectral_models
-    
+
     # Create and save a new session
     session.save(fname_out, overwrite=True)
