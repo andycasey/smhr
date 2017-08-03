@@ -66,39 +66,7 @@ _attr2label = dict(zip(_allattrs,_labels))
 _attr2slabel = dict(zip(_allattrs,_short_labels))
 _attr2format = dict(zip(_allattrs,_formats))
 
-class SMHWidgetBase(object):
-    """
-    Base class for interactive widgets
-    """
-    def __init__(self, parent, session=None, widgets_to_update = []):
-        super(SMHWidgetBase, self).__init__(parent)
-        self.parent = parent
-        self.widgets_to_update = widgets_to_update
-        self.session = session
-    def reload_from_session(self):
-        """
-        Rewrite any internal information with session data.
-        """
-        raise NotImplementedError
-    def send_to_session(self):
-        """
-        Save any internal cached information to session (if any).
-        """
-        raise NotImplementedError
-    def update_widgets_after_selection(self, selected_models):
-        """
-        Call update_after_selection for all widgets_to_update
-        """
-        for widget in self.widgets_to_update:
-            widget.update_after_selection(selected_models)
-    def update_widgets_after_measurement_change(self, changed_model):
-        """
-        Call update_after_measurement_change for all widgets_to_update
-        """
-        for widget in self.widgets_to_update:
-            widget.update_after_measurement_change(changed_model)
-
-class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
+class SMHSpecDisplay(mpl.MPLWidget):
     """
     Refactored class to display spectrum and residual plot.
     This holds a single spectral model and draws it.
@@ -135,11 +103,9 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
                  get_selected_model=None,
                  enable_zoom=True, enable_masks=False,
                  **kwargs):
-        ## I don't know why this doesn't use the SMHWidgetBase?
         super(SMHSpecDisplay, self).__init__(parent=parent, session=session, 
                                              widgets_to_update=widgets_to_update,
                                              **kwargs)
-        #mpl.MPLWidget.__init__(self, parent=parent, **kwargs)
         self.parent = parent
         self.get_selected_model = get_selected_model
         self.widgets_to_update = widgets_to_update
@@ -329,7 +295,6 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
                 selected_model.fit()
                 self.update_spectrum_figure(True,False)
                 ## TODO trigger other widgets
-                self.update_widgets_after_measurement_change(selected_model)
             return None
 
         ## Normal click: start drawing mask
@@ -419,7 +384,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
 
             # Re-fit the spectral model and send to other widgets.
             spectral_model.fit()
-            self.update_widgets_after_measurement_change(spectral_model)
+            ## TODO trigger other widgets
 
         # Clean up interactive mask
         xy[:, 0] = np.nan
@@ -612,10 +577,11 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
 
         return True
         
-class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
+class SMHScatterplot(mpl.MPLWidget):
     """
     Scatterplot of things in a spectral model table.
-    Gets all information using self.tablemodel.data()
+    Gets all information using self.tablemodel.data(), so does not see the session.
+    Interfaces with other things only by using the tableview to select or the tablemodel to set.
     """
     allattrs = _allattrs
     labels = _labels
