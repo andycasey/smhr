@@ -14,6 +14,7 @@ import matplotlib
 from matplotlib.ticker import MaxNLocator
 
 import smh
+from smh import utils
 from smh.gui import mpl, style_utils
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 
@@ -42,9 +43,9 @@ _allattrs = ["wavelength","expot","species","elements","loggf",
            "abundances", "abundances_to_solar", "abundance_uncertainties",
            "is_acceptable", "is_upper_limit", "user_flag",
            "use_for_stellar_parameter_inference", "use_for_stellar_composition_inference"]
-_labels = ["Wavelength $\lambda$","Excitation potential","Species","Element","log gf",
+_labels = ["Wavelength $\lambda$",u"Excitation potential","Species","Element","log gf",
            "Equivalent width", "Equivalent width error",
-           "$\log{\rm EW}/\lambda$",
+           r"$\log{EW}/\lambda$",
            u"log ε","[X/H]", u"σ(log ε)",
            "Acceptable", "Upper Limit", "User Flag",
            "Use for Spectroscopic Stellar Parameters", "Use for Stellar Abundances"]
@@ -266,7 +267,7 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
         self.ax_spectrum.set_xlim(limits)
         self.ax_residual.set_xlim(limits)
     def update_spectrum_figure(self, redraw=False, reset_limits=True):
-        logger.debug("update spectrum figure ({})".format(self))
+        logger.debug("update spectrum figure ({}, {}, {})".format(self, redraw, reset_limits))
         if self.session is None: return None
         if reset_limits:
             self.update_selected_model()
@@ -607,11 +608,115 @@ class SMHSpecDisplay(mpl.MPLWidget, SMHWidgetBase):
 
         return True
         
+class SMHScatterplot(mpl.MPLWidget, SMHWidgetBase):
+    """
+    Scatterplot of things in a spectral model table.
+    Gets all information using self.tablemodel.data()
+    """
+    allattrs = _allattrs
+    labels = _labels
+    attr2label = _attr2label
+    def __init__(self, parent, xattr, yattr,
+                 tableview=None,
+                 widgets_to_update = [],
+                 enable_zoom=True, enable_pick=True,
+                 **kwargs):
+        assert xattr in self.allattrs, xattr
+        assert yattr in self.allattrs, yattr
+        self.xattr = xattr
+        self.yattr = yattr
 
+        super(SMHScatterplot, self).__init__(parent=parent,
+                                             widgets_to_update=widgets_to_update,
+                                             **kwargs)
+        
+        self.parent = parent
+        self.widgets_to_update = widgets_to_update
+        self.linkToTable(tableview)
+        
+        self.ax = self.figure.add_subplot(1,1,1)
+        self.ax.xaxis.get_major_formatter().set_useOffset(False)
+        self.ax.yaxis.set_major_locator(MaxNLocator(5))
+        self.ax.yaxis.set_major_locator(MaxNLocator(4))
+        self.ax.set_xlabel(self.attr2label[xattr])
+        self.ax.set_ylabel(self.attr2label[yattr])
 
-class MeasurementTableView(QtGui.QTableView):
+        self._points = {
+            "points": self.ax.scatter([], [], s=30,
+                                      facecolor="k", edgecolor="k", 
+                                      picker=PICKER_TOLERANCE,
+                                      alpha=0.5),
+            "selected_points": self.ax.scatter([], [],
+                                               edgecolor="b", facecolor="none", 
+                                               s=150, linewidth=3, zorder=2)
+        }
+        ## TODO CONNECT PICK
+
+    def linkToTable(self, tableview):
+        """
+        view for selection; model for data
+        """
+        if tableview is None:
+            self.tableview = None
+            self.tablemodel= None
+            self.xcol = None
+            self.ycol = None
+            return
+        tablemodel = tableview.model()
+        assert isinstance(tablemodel, MeasurementTableModelProxy) or \
+               isinstance(tablemodel, MeasurementTableModelBase), \
+               type(tablemodel)
+        self.tableview = tableview
+        self.tablemodel= tablemodel
+        assert self.xattr in self.tablemodel.attrs, (self.xattr, self.tablemodel.attrs)
+        assert self.yattr in self.tablemodel.attrs, (self.yattr, self.tablemodel.attrs)
+        self.xcol = self.tablemodel.attrs.index(self.xattr)
+        self.ycol = self.tablemodel.attrs.index(self.yattr)
+        logger.debug("Linked {} to {}/{}".format(self, self.tableview, self.tablemodel))
+        logger.debug("{}->{}, {}->{}".format(self.xattr, self.xcol, self.yattr, self.ycol))
+    def update_scatterplot(self, redraw=False):
+        if self.tableview is None or self.tablemodel is None: return None
+        logger.debug("update_scatterplot ({}, {})".format(self, redraw))
+        #xs = self.tablemodel.get_data_column(self.xcol)
+        #ys = self.tablemodel.get_data_column(self.ycol)
+        xs = []
+        ys = []
+        for i in range(self.tablemodel.rowCount()):
+            ix = self._ix(i, self.xcol)
+            x = float(self.tablemodel.data(ix, QtCore.Qt.DisplayRole))
+            ix = self._ix(i, self.ycol)
+            y = float(self.tablemodel.data(ix, QtCore.Qt.DisplayRole))
+            xs.append(x)
+            ys.append(y)
+        self._points["points"].set_offsets(np.array([xs,ys]).T)
+        style_utils.relim_axes(self.ax)
+        if redraw: self.draw()
+        return None
+    def update_selected_points(self, redraw=False):
+        if self.tableview is None or self.tablemodel is None: return None
+        logger.debug("update_selected_points ({}, {})".format(self, redraw))
+        xs = []
+        ys = []
+        rows = self.tableview.selectionModel().selectedRows()
+        for row in rows:
+            i = row.row()
+            ix = self._ix(i, self.xcol)
+            x = float(self.tablemodel.data(ix, QtCore.Qt.DisplayRole))
+            ix = self._ix(i, self.ycol)
+            y = float(self.tablemodel.data(ix, QtCore.Qt.DisplayRole))
+            xs.append(x)
+            ys.append(y)
+        self._points["selected_points"].set_offsets(np.array([xs,ys]).T)
+        if redraw: self.draw()
+        return None
+    def _ix(self,row,col):
+        if self.tablemodel is None: return None
+        return self.tablemodel.createIndex(row,col)
+    
+class BaseTableView(QtGui.QTableView):
+    """ Basic sizing and options for display table """
     def __init__(self, parent, *args):
-        super(MeasurementTableView, self).__init__(parent, *args)
+        super(BaseTableView, self).__init__(parent, *args)
         self.parent = parent
         self.setSortingEnabled(False)
         self.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
@@ -621,8 +726,15 @@ class MeasurementTableView(QtGui.QTableView):
     def sizeHint(self):
         return QtCore.QSize(125,100)
     def minimumSizeHint(self):
-        return QtCore.QSize(125,0)
+        return QtCore.QSize(125,100)
+class MeasurementTableView(BaseTableView):
+    """
+    TODO add the rightclick menus to here
+    """
+    def __init__(self, parent, *args):
+        super(MeasurementTableView, self).__init__(parent, *args)
     def update_row(self,row):
+        """ Used for proxy models """
         self.rowMoved(row, row, row)
         return None
 
@@ -640,10 +752,24 @@ class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
         self.filter_indices = []
         self.views_to_update = views_to_update
         return None
+    @property
+    def attrs(self):
+        try:
+            return self.sourceModel().attrs
+        except:
+            return []
     def add_view_to_update(self, view):
         self.views_to_update.append(view)
     def reset_views_to_update(self):
         self.views_to_update = []
+    def get_data_column(self, column, rows=None):
+        """ Function to quickly go under the hood and access one column """
+        if rows is None:
+            rows = self.lookup_indices
+        else:
+            rows = self.lookup_indices[np.array(rows)]
+        data = self.sourceModel().get_data_column(column, rows=rows)
+        return data
     def setData(self, proxy_index, value, role=QtCore.Qt.DisplayRole):
         """
         Only allow checking/unchecking of is_acceptable and user_flag
@@ -765,11 +891,29 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
         self.session = session
         return None
     
+    def new_session(self, session):
+        self.beginResetModel()
+        self.session = session
+        self.verify_columns(self.attrs)
+        self.endResetModel()
+        return None
+
     def verify_columns(self, columns):
         for col in columns:
             assert col in self.allattrs
         assert len(columns) == len(np.unique(columns))
         return True
+
+    def get_data_column(self, column, rows=None):
+        """ Function to quickly go under the hood and access one column """
+        attr = self.attrs[column]
+        models = self.spectral_models
+        if rows is None:
+            rows = np.arange(len(models))
+        # TODO replace np.nan with something else
+        getter = lambda ix: getattr(models[ix], attr, np.nan)
+        data = map(getter, rows)
+        return np.array(data)
 
     def data(self, index, role):
         """
@@ -781,7 +925,6 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
             return _QFONT
         attr = self.attrs[index.column()]
         spectral_model = self.spectral_models[index.row()]
-        
         
         value = getattr(spectral_model, attr, None)
         if value is None: return ""
@@ -860,3 +1003,87 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
                 QtCore.Qt.ItemIsUserCheckable
     
     
+class MeasurementSummaryTableModel(QtCore.QAbstractTableModel):
+    header = ["El.", "Species", "N", "A(X)", "σ(X)", "[X/H]", "[X/Fe]"]
+    def __init__(self, parent, session, *args):
+        super(MeasurementSummaryTableModel, self).__init__(parent, *args)
+        self.parent = parent 
+        self.new_session(session)
+        return None
+    def summarize(self):
+        if self.session is None:
+            self.summary = {}
+        else:
+            self.summary = self.session.summarize_spectral_models(what_fe=self.what_fe)
+    def new_session(self, session):
+        """
+        Reset the table based on the new session
+        """
+        self.beginResetModel()
+        self.session = session
+        if session is None:
+            self.what_fe = 1
+        else:
+            self.what_fe = session.setting("what_fe", 1)
+        self.summarize()
+        self.all_species = np.sort(self.summary.keys())
+        self.endResetModel()
+    def update_summary(self, species=None):
+        """
+        Call this when you update any measurement
+        """
+        if species is None:
+            # Reset the whole model
+            self.new_session(self.session)
+            return None
+        row = np.where(species == self.all_species)[0]
+        if len(row) != 1:
+            logger.debug("Invalid species: {} ({})".format(species, self.all_species))
+            logger.debug("Resetting whole model")
+            self.new_session(self.session)
+            return None
+        # Summarize everything, but only emit that you changed one row
+        row = row[0]
+        self.summarize()
+        self.dataChanged.emit(self.createIndex(row, 0),
+                              self.createIndex(row, self.columnCount()))
+        return None
+    def rowCount(self, parent=None):
+        return len(self.all_species)
+    def columnCount(self, parent=None):
+        return len(self.header)
+    def headerData(self, col, orientation, role):
+        if orientation == QtCore.Qt.Horizontal \
+        and role == QtCore.Qt.DisplayRole:
+            return self.header[col]
+        return None
+    def flags(self, index):
+        if not index.isValid(): return
+        return  QtCore.Qt.ItemIsSelectable|\
+                QtCore.Qt.ItemIsEnabled
+    def data(self, index, role):
+        if not index.isValid(): return None
+        if role==QtCore.Qt.FontRole: return _QFONT
+        if role != QtCore.Qt.DisplayRole: return None
+
+        row = index.row()
+        species = self.all_species[row]
+        vals = self.summary[species]
+        num_models, logeps, stdev, stderr, XH, XFe = vals
+        
+        col = index.column()
+        if col == 0:
+            return utils.species_to_element(species)
+        elif col == 1:
+            return str(species)
+        elif col == 2:
+            return str(num_models)
+        elif col == 3:
+            return "{:.2f}".format(logeps)
+        elif col == 4:
+            return "{:.2f}".format(stdev)
+        elif col == 5:
+            return "{:.2f}".format(XH)
+        elif col == 6:
+            return "{:.2f}".format(XFe)
+        raise ValueError("row={} col={} species={}".format(row, col, species))
