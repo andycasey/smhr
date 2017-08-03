@@ -13,7 +13,7 @@ before_install:
   - export PATH=/home/travis/miniconda2/bin:$PATH
   - conda update --yes conda
   # Fingers crossed..
-  - "export QT_API=PySide"
+  - "export QT_API=pyside"
 
   # So that we can use matplotlib on Travis.
   - "export DISPLAY=:99.0"
