@@ -1020,7 +1020,7 @@ class Session(BaseSession):
         return abundances, uncertainties if calculate_uncertainties else abundances
 
     def summarize_spectral_models(self, spectral_models=None, organize_by_element=False,
-                                  use_weights = None, use_finite = True):
+                                  use_weights = None, use_finite = True, what_fe = 1):
         """
         Loop through all spectral_models and return a summary dict
 
@@ -1041,6 +1041,8 @@ class Session(BaseSession):
             If True (default), only use finite abundances
             If False, use any acceptable abundances
             I cannot imagine why you'd set it to False unless debugging
+        :param what_fe:
+            1 or 2 depending on Fe I or Fe II
         """
         what_key_type = "element" if organize_by_element else "species"
 
@@ -1112,7 +1114,12 @@ class Session(BaseSession):
                 FeH = summary_dict['Fe'][4]
             else:
                 # TODO: using Fe I for now, should make this configurable
-                FeH = summary_dict[26.0][4]
+                if what_fe == 1:
+                    FeH = summary_dict[26.0][4]
+                elif what_fe == 2:
+                    FeH = summary_dict[26.1][4]
+                else:
+                    raise ValueError(str(what_fe))
         except KeyError:
             # Fe not measured yet
             FeH = np.nan
