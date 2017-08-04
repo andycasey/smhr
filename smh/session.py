@@ -304,7 +304,7 @@ class Session(BaseSession):
         return True
 
 
-    def import_spectral_models(self, path):
+    def import_spectral_model_states(self, path):
         """
         Import list of spectral models from disk and append to current spectral models
 
@@ -317,6 +317,13 @@ class Session(BaseSession):
         spectral_models = self.reconstruct_spectral_models(spectral_model_states)
         self.metadata["spectral_models"].extend(spectral_models)
         return len(spectral_models)
+
+    def export_spectral_model_states(self, path):
+        # TODO implement mask saving etc.
+        states = [_.__getstate__() for _ in self.spectral_models]
+        with open(path, 'w') as fp:
+            pickle.dump(states)
+        return True
 
     def reconstruct_spectral_models(self, spectral_model_states):
         """
@@ -1336,3 +1343,59 @@ class Session(BaseSession):
         logger.debug("Created synthesis model with {} lines in {:.1f}s".format(len(line_list),
                                                                                time.time()-start))
         return
+
+    def import_master_list(self, filename,
+                           copy_to_working_dir=True, **kwargs):
+        """
+        Use a "master" list to create a bunch of measurements
+        wavelength, species, expot, loggf, type, filename(for syn)
+        """
+        assert os.path.exists(filename), filename
+
+        if copy_to_working_dir:
+            self.copy_file_to_working_directory(filename)
+            
+        master_list = astropy.table.Table.read(filename, **kwargs)
+        types = map(lambda x: x.lower(), np.array(master_list["type"]))
+        assert np.all(map(lambda x: (x=="eqw") or (x=="syn"), types)), types
+
+        ## Add EQW
+        eqw = master_list[types=="eqw"]
+        ll = LineList.create_basic_linelist(eqw["wavelength"],
+                                            eqw["species"],
+                                            eqw["expot"],
+                                            eqw["loggf"])
+        spectral_models_to_add = []
+        for i in range(len(line_list)):
+            line = line_list[i]
+            model = ProfileFittingModel(self, line)
+            spectral_models_to_add.append(model)
+        self.metadata["spectral_models"].extend(spectral_models_to_add)
+        num_added = len(spectral_models_to_add)
+        
+        ## Add SYN
+        syn = master_list[types=="syn"]
+        for row in syn:
+            element = int(row['species'])
+            _filename = row["filename"]
+            what_wavelength = row['wavelength']
+            what_species = [row['species']]
+            what_expot = row['expot']
+            what_loggf = row['loggf']
+            kwargs = {"what_wavelength":what_wavelength,
+                      "what_species":what_species,
+                      "what_expot":what_expot,
+                      "what_loggf":what_loggf}
+            try:
+                self.import_linelist_as_synthesis_model(_filename, element,
+                                                        copy_to_working_dir=copy_to_working_dir,
+                                                        **kwargs)
+            except Exception as e:
+                logger.warn("Could not import {}".format(_filename))
+            else:
+                num_added += 1
+        
+        if num_added != len(master_list):
+            logger.warn("Created {} models out of {} in the master list".format(
+                    num_added, len(master_list)))
+        return None

@@ -818,8 +818,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def measure_all(self):
+        self._check_for_spectral_models()
         # Save this just to go back 
         current_element_index = self.filter_combo_box.currentIndex()
+        try:
+            current_table_index = self.table_view.selectedIndexes()[-1]
+        except:
+            current_table_index = None
 
         # Gets abundances and uncertainties into session
         self.parent.session.measure_abundances()
@@ -831,6 +836,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.refresh_plots()
 
         self.filter_combo_box.setCurrentIndex(current_element_index)
+        if current_table_index is not None:
+            try:
+                self.table_view.selectRow(current_table_index)
+            except:
+                logger.debug("Could not set index")
+                pass
         return None
 
     def fit_one(self):
@@ -886,7 +897,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 # Load line list manager.
                 # Make sure callbacks are included in ui_mainwindow too!
                 dialog = TransitionsDialog(self.parent.session,
-                    callbacks=[self.refresh_table])
+                    callbacks=[self.parent.transition_dialog_callback])
                 dialog.exec_()
 
                 # Do we even have any spectral models now?

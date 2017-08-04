@@ -199,6 +199,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
         ## TODO for most syntheses the combined loggf is well-defined
         return self._loggf
 
+    @property
+    def measurement_type(self):
+        return "syn"
+
     def _verify_elements(self, elements):
         """
         Verify that the atomic or molecular transitions associated with this

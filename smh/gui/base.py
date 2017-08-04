@@ -38,29 +38,31 @@ _ROWHEIGHT = 20
 
 ## These are valid attrs of a spectral model
 _allattrs = ["wavelength","expot","species","elements","loggf",
-           "equivalent_width","equivalent_width_uncertainty",
-           "reduced_equivalent_width",
-           "abundances", "abundances_to_solar", "abundance_uncertainties",
-           "is_acceptable", "is_upper_limit", "user_flag",
-           "use_for_stellar_parameter_inference", "use_for_stellar_composition_inference"]
+             "equivalent_width","equivalent_width_uncertainty",
+             "reduced_equivalent_width",
+             "abundances", "abundances_to_solar", "abundance_uncertainties",
+             "is_acceptable", "is_upper_limit", "user_flag",
+             "use_for_stellar_parameter_inference", "use_for_stellar_composition_inference",
+             "measurement_type"]
 _labels = ["Wavelength $\lambda$",u"Excitation potential","Species","Element","log gf",
            "Equivalent width", "Equivalent width error",
            r"$\log{EW}/\lambda$",
            u"log ε","[X/H]", u"σ(log ε)",
            "Acceptable", "Upper Limit", "User Flag",
-           "Use for Spectroscopic Stellar Parameters", "Use for Stellar Abundances"]
+           "Use for Spectroscopic Stellar Parameters", "Use for Stellar Abundances",
+           "Measurement Type"]
 _short_labels = [u"λ",u"χ","ID","El.","loggf",
                  "EW", u"σ(EW)",
                  "REW",
                  "A(X)","[X/H]",u"σ(X)",
                  "", "ul", "flag",
-                 "spflag", "abundflag"]
+                 "spflag", "abundflag","type"]
 _formats = [":.1f",":.2f",":.1f","",":.2f",
             ":.1f",":.1f",
             ":.2f",
             ":.2f",":.2f",":.2f",
             "","","","",
-            "",""]
+            "","",""]
 _formats = ["{"+fmt+"}" for fmt in _formats]
 _attr2label = dict(zip(_allattrs,_labels))
 _attr2slabel = dict(zip(_allattrs,_short_labels))

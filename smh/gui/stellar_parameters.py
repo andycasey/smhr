@@ -463,9 +463,7 @@ class StellarParametersTab(QtGui.QWidget):
                 # Load line list manager.
                 dialog = TransitionsDialog(self.parent.session,
                     callbacks=[
-                        self.parent.session.index_spectral_models,
-                        self.proxy_spectral_models.reset,
-                        self.parent.chemical_abundances_tab.refresh_table
+                        self.parent.transition_dialog_callback
                     ])
                 dialog.exec_()
 

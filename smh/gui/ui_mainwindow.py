@@ -606,3 +606,10 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.setCurrentIndex(0)
         self._update_window_title()
 
+    def transition_dialog_callback(self):
+        self.stellar_parameters_tab.proxy_spectral_models.reset()
+        self.chemical_abundances_tab.refresh_table()
+        self.review_tab.new_session_loaded()
+
+    def refresh_all_guis(self):
+        raise NotImplementedError

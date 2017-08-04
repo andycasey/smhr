@@ -169,6 +169,11 @@ class ProfileFittingModel(BaseSpectralModel):
         if eqw is None: return None
         return np.log10(eqw/self.wavelength)
 
+    @property
+    def measurement_type(self):
+        return "eqw"
+
+
     def _verify_transitions(self):
         """
         Verify that the atomic or molecular transitions associated with this
