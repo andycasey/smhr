@@ -1204,7 +1204,6 @@ class StellarParametersTab(QtGui.QWidget):
         self.ax_line_strength_twin.set_ylabel(r"$\log_\epsilon({\rm X})$")
 
         self.specfig = SMHSpecDisplay(None, self.parent.session, enable_masks=True,
-                                      widgets_to_update=[],
                                       get_selected_model=self._get_selected_model)
         self.ax_spectrum = self.specfig.ax_spectrum
         self.ax_residual = self.specfig.ax_residual

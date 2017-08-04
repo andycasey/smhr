@@ -60,13 +60,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         ################
         # TOP: Spectrum
         ################
-        # TODO when refitting, it does not currently update other views
         self.figure = SMHSpecDisplay(None, self.parent.session, enable_masks=True,
-                                     widgets_to_update=[],
                                      get_selected_model=self._get_selected_model)
         self.ax_spectrum = self.figure.ax_spectrum
         self.ax_residual = self.figure.ax_residual
         self.parent_layout.addWidget(self.figure)
+        self.figure.add_callback_after_fit(self.refresh_current_model)
+        self.figure.add_callback_after_fit(self.summarize_current_table)
         
         ################
         # BOTTOM
@@ -1438,6 +1438,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         spectral_model.export_fit(synth_path, data_path, param_path)
         logger.info("Exported to {}, {}, and {}".format(synth_path, data_path, param_path))
         return
+
+    def refresh_current_model(self):
+        spectral_model, proxy_index, index = self._get_selected_model(True)
+        self.table_view.update_row(proxy_index.row())
+        self.update_cache(proxy_index)
+        self.update_fitting_options()
 
 class SpectralModelsTableView(SpectralModelsTableViewBase):
     def sizeHint(self):

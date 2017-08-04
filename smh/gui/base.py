@@ -99,16 +99,16 @@ class SMHSpecDisplay(mpl.MPLWidget):
         TODO used to update just the mask
 
     """
-    def __init__(self, parent, session=None, widgets_to_update = [],
+    def __init__(self, parent, session=None, 
                  get_selected_model=None,
                  enable_zoom=True, enable_masks=False,
+                 callbacks_after_fit=[],
                  **kwargs):
         super(SMHSpecDisplay, self).__init__(parent=parent, session=session, 
-                                             widgets_to_update=widgets_to_update,
                                              **kwargs)
         self.parent = parent
         self.get_selected_model = get_selected_model
-        self.widgets_to_update = widgets_to_update
+        self.callbacks_after_fit = callbacks_after_fit
         self.session = session
         
         self.setMinimumSize(QtCore.QSize(100,100))
@@ -180,6 +180,10 @@ class SMHSpecDisplay(mpl.MPLWidget):
         return QtCore.QSize(125,100)
     def minimumSizeHint(self):
         return QtCore.QSize(10,10)
+    def add_callback_after_fit(self, callback):
+        self.callbacks_after_fit.append(callback)
+    def reset_callback_after_fit(self, callback):
+        self.callbacks_after_fit = []
     def reset(self):
         """
         Clear all internal variables (except session)
@@ -294,7 +298,8 @@ class SMHSpecDisplay(mpl.MPLWidget):
             if mask_removed:
                 selected_model.fit()
                 self.update_spectrum_figure(True,False)
-                ## TODO trigger other widgets
+                for callback in self.callbacks_after_fit:
+                    callback()
             return None
 
         ## Normal click: start drawing mask
@@ -384,7 +389,8 @@ class SMHSpecDisplay(mpl.MPLWidget):
 
             # Re-fit the spectral model and send to other widgets.
             spectral_model.fit()
-            ## TODO trigger other widgets
+            for callback in self.callbacks_after_fit:
+                callback()
 
         # Clean up interactive mask
         xy[:, 0] = np.nan
@@ -588,7 +594,6 @@ class SMHScatterplot(mpl.MPLWidget):
     attr2label = _attr2label
     def __init__(self, parent, xattr, yattr,
                  tableview=None,
-                 widgets_to_update = [],
                  enable_zoom=True, enable_pick=True,
                  enable_keyboard_shortcuts=False,
                  **kwargs):
@@ -598,11 +603,9 @@ class SMHScatterplot(mpl.MPLWidget):
         self.yattr = yattr
 
         super(SMHScatterplot, self).__init__(parent=parent,
-                                             widgets_to_update=widgets_to_update,
                                              **kwargs)
         
         self.parent = parent
-        self.widgets_to_update = widgets_to_update
         self.linkToTable(tableview)
         
         self.ax = self.figure.add_subplot(1,1,1)
