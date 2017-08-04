@@ -50,6 +50,7 @@ class BaseSpectralModel(object):
         self.index_transitions()
         
         self.metadata = {
+            "is_upper_limit": False,
             "use_for_stellar_composition_inference": True,
             "use_for_stellar_parameter_inference": (
                 "Fe I" in self.transitions["element"] or
@@ -95,6 +96,24 @@ class BaseSpectralModel(object):
         decision = bool(decision)
         if not decision or (decision and "fitted_result" in self.metadata):
             self.metadata["is_acceptable"] = bool(decision)
+        return None
+
+
+    @property
+    def is_upper_limit(self):
+        """ Return whether this spectral model is acceptable. """
+        return self.metadata.get("is_upper_limit", False)
+
+
+    @is_upper_limit.setter
+    def is_upper_limit(self, decision):
+        """
+        Mark the spectral model as acceptable or unacceptable.
+
+        :param decision:
+            A boolean flag.
+        """
+        self.metadata["is_upper_limit"] = bool(decision)
         return None
 
 
@@ -203,7 +222,8 @@ class BaseSpectralModel(object):
         """
 
         #if len(self._transition_hashes) < 50:
-        if True:
+        #if True:
+        if False:
             ## Brute force loop for small N
             indices = np.zeros(len(self._transition_hashes), dtype=int)
             for i, each in enumerate(self._transition_hashes):
@@ -215,14 +235,15 @@ class BaseSpectralModel(object):
                     index = index[0]
                 indices[i] = index
         else:
-            ## Use searchsorted binary search, speeds up by ~1.85x
-            ## TODO this currently ASSUMES everything is in the session.
-            ## It WILL NOT error if a line is missing, instead using a random line!
-            iisort = np.argsort(self._session.metadata["line_list"]["hash"])
+            ## Use searchsorted binary search, speeds up by ~1.8x
+            #iisort = np.argsort(self._session.metadata["line_list"]["hash"])
+            iisort = self._session.metadata["line_list_argsort_hashes"]
             sorted = np.searchsorted(self._session.metadata["line_list"]["hash"],
                                      self._transition_hashes,
                                      sorter=iisort)
             indices = iisort[sorted]
+            ## Check for correctness, i.e. all hashes are actually in linelist
+            assert np.all(self._transition_hashes == self._session.metadata["line_list"]["hash"][indices])
 
         self._transition_indices = indices
         self._transitions = self._session.metadata["line_list"][indices]

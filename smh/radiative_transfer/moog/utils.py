@@ -11,9 +11,11 @@ import numpy as np
 import os
 import signal
 import subprocess
-import tempfile
+#import tempfile
+
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 from smh.utils import elems_isotopes_ion_to_species, element_to_atomic_number
+from smh.utils import mkdtemp
 from six import iteritems, string_types
 
 logger = logging.getLogger(__name__)
@@ -38,16 +40,21 @@ except NameError:
 class RTError(BaseException):
     pass
 
-def twd_path(**kwargs):
+def twd_path(twd=None,**kwargs):
     """
     Create a temporary working directory and return a function that will format
     basenames from that temporary working directory.
     """
 
-    kwds = kwargs.copy()
-    kwds.setdefault("dir", "/tmp/")
-    kwds.setdefault("prefix", "smh-")
-    twd = tempfile.mkdtemp(**kwds)
+    if twd is None:
+        kwds = {}
+        kwds["dir"] = kwargs.get("dir", "/tmp/")
+        kwds["prefix"] = kwargs.get("prefix", "smh-")
+        kwds["suffix"] = kwargs.get("suffix", "")
+        #kwds = kwargs.copy()
+        #kwds.setdefault("dir", "/tmp/")
+        #kwds.setdefault("prefix", "smh-")
+        twd = mkdtemp(**kwds)
     if len(twd) > 30:
         logger.warn(
             "Temporary working directory should be as short as possible to "\

@@ -22,7 +22,7 @@ with resource_stream(__name__, "defaults.yaml") as fp:
 
 
 def synthesize(photosphere, transitions, abundances=None, isotopes=None,
-    verbose=False, **kwargs):
+    verbose=False, twd=None, **kwargs):
     """
     Sythesize a stellar spectrum given the model photosphere and list of
     transitions provided. This wraps the MOOG `synth` driver.
@@ -44,7 +44,7 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
     """
 
     # Create a temporary directory and write out the photoshere and transitions.
-    path = utils.twd_path(**kwargs)
+    path = utils.twd_path(twd=twd,**kwargs)
     model_in, lines_in = path("model.in"), path("lines.in")
     photosphere.write(model_in, format="moog")
     transitions.write(lines_in, format="moog")

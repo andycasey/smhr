@@ -11,6 +11,7 @@ import platform
 import string
 import sys
 import traceback
+import tempfile
 
 from collections import Counter
 
@@ -70,6 +71,21 @@ __all__ = ["element_to_species", "element_to_atomic_number", "species_to_element
 
 logger = logging.getLogger(__name__)
 
+
+def mkdtemp(**kwargs):
+    if not os.path.exists(os.environ["HOME"]+"/.smh"):
+        logger.info("Making "+os.environ["HOME"]+"/.smh")
+        os.mkdir(os.environ["HOME"]+"/.smh")
+    if 'dir' not in kwargs:
+        kwargs['dir'] = os.environ["HOME"]+"/.smh"
+    return tempfile.mkdtemp(**kwargs)
+def mkstemp(**kwargs):
+    if not os.path.exists(os.environ["HOME"]+"/.smh"):
+        logger.info("Making "+os.environ["HOME"]+"/.smh")
+        os.mkdir(os.environ["HOME"]+"/.smh")
+    if 'dir' not in kwargs:
+        kwargs['dir'] = os.environ["HOME"]+"/.smh"
+    return tempfile.mkstemp(**kwargs)
 
 def random_string(N=10):
     return ''.join(choice(string.ascii_uppercase + string.digits) for _ in range(N))
@@ -259,16 +275,16 @@ def approximate_sun_hermes_jacobian(stellar_parameters, *args):
     were carefully inspected.
     """
 
-    logger.info("Updated approximation of the Jacobian")
+#    logger.info("Updated approximation of the Jacobian")
 
     teff, vt, logg, feh = stellar_parameters[:4]
 
-    full_jacobian = np.array([
-        [ 4.4973e-08*teff - 4.2747e-04, -1.2404e-03*vt + 2.4748e-02,  1.6481e-02*logg - 5.1979e-02,  1.0470e-02*feh - 8.5645e-03],
-        [-9.3371e-08*teff + 6.9953e-04,  5.0115e-02*vt - 3.0106e-01, -6.0800e-02*logg + 6.7056e-02, -4.1281e-02*feh - 6.2085e-02],
-        [-2.1326e-08*teff + 1.9121e-04,  1.0508e-03*vt + 1.1099e-03, -6.1479e-03*logg - 1.7401e-02,  3.4172e-03*feh + 3.7851e-03],
-        [-9.4547e-09*teff + 1.1280e-04,  1.0033e-02*vt - 3.6439e-02, -9.5015e-03*logg + 3.2700e-02, -1.7947e-02*feh - 1.0383e-01]
-    ])
+#    full_jacobian = np.array([
+#        [ 4.4973e-08*teff - 4.2747e-04, -1.2404e-03*vt + 2.4748e-02,  1.6481e-02*logg - 5.1979e-02,  1.0470e-02*feh - 8.5645e-03],
+#        [-9.3371e-08*teff + 6.9953e-04,  5.0115e-02*vt - 3.0106e-01, -6.0800e-02*logg + 6.7056e-02, -4.1281e-02*feh - 6.2085e-02],
+#        [-2.1326e-08*teff + 1.9121e-04,  1.0508e-03*vt + 1.1099e-03, -6.1479e-03*logg - 1.7401e-02,  3.4172e-03*feh + 3.7851e-03],
+#        [-9.4547e-09*teff + 1.1280e-04,  1.0033e-02*vt - 3.6439e-02, -9.5015e-03*logg + 3.2700e-02, -1.7947e-02*feh - 1.0383e-01]
+#    ])
 
     # After culling abundance outliers,..
     full_jacobian = np.array([

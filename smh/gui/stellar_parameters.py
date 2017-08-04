@@ -18,17 +18,20 @@ from matplotlib.ticker import MaxNLocator
 from time import time
 
 import mpl, style_utils
+import smh
 from smh.photospheres import available as available_photospheres
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 from smh import utils
 from linelist_manager import TransitionsDialog
+from smh.optimize_stellar_params import optimize_stellar_parameters
 
 from spectral_models_table import SpectralModelsTableViewBase, SpectralModelsFilterProxyModel, SpectralModelsTableModelBase
 from quality_control import QualityControlDialog
 from sp_solve_options import SolveOptionsDialog
 
 logger = logging.getLogger(__name__)
+logger.addHandler(smh.handler)
 
 if sys.platform == "darwin":
         
@@ -41,13 +44,17 @@ if sys.platform == "darwin":
         QtGui.QFont.insertSubstitution(*substitute)
 
 
+_QFONT = QtGui.QFont("Helvetica Neue", 10)
+_ROWHEIGHT = 20
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
 class StateTableModel(QtCore.QAbstractTableModel):
 
-    header = ["Species", "N", u"〈[X/H]〉\n[dex]", u"σ\n[dex]", 
-        u"∂A/∂χ\n[dex/eV]", u"∂A/∂REW\n[-]"]
+    #header = ["Species", "N", u"〈[X/H]〉\n[dex]", u"σ\n[dex]", 
+    #    u"∂A/∂χ\n[dex/eV]", u"∂A/∂REW\n[-]"]
 
+    header = ["Species", "N", u"〈[X/H]", u"σ", 
+        u"∂A/∂χ", u"∂A/∂REW"]
 
 
     def __init__(self, parent, *args):
@@ -68,6 +75,9 @@ class StateTableModel(QtCore.QAbstractTableModel):
         return len(self.header)
 
     def data(self, index, role):
+        if role==QtCore.Qt.FontRole:
+            return _QFONT
+
         if not index.isValid() or role != QtCore.Qt.DisplayRole:
             return None
 
@@ -125,6 +135,8 @@ class StateTableModel(QtCore.QAbstractTableModel):
         if orientation == QtCore.Qt.Horizontal \
         and role == QtCore.Qt.DisplayRole:
             return self.header[col]
+        if role==QtCore.Qt.FontRole:
+            return _QFONT
         return None
 
 
@@ -162,7 +174,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Effective temperature.
         label = QtGui.QLabel(self)
-        label.setText("Effective temperature (K)")
+        label.setText("Teff")
         label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
         grid_layout.addWidget(label, 0, 0, 1, 1)
         self.edit_teff = QtGui.QLineEdit(self)
@@ -177,7 +189,7 @@ class StellarParametersTab(QtGui.QWidget):
         
         # Surface gravity.
         label = QtGui.QLabel(self)
-        label.setText("Surface gravity")
+        label.setText("logg")
         label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
 
         grid_layout.addWidget(label, 1, 0, 1, 1)
@@ -194,7 +206,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Metallicity.
         label = QtGui.QLabel(self)
-        label.setText("Metallicity")
+        label.setText("[M/H]")
         label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
 
         grid_layout.addWidget(label, 2, 0, 1, 1)
@@ -212,7 +224,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Microturbulence.
         label = QtGui.QLabel(self)
-        label.setText("Microturbulence (km/s)")
+        label.setText("vt")
         label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
 
         grid_layout.addWidget(label, 3, 0, 1, 1)
@@ -226,7 +238,22 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_xi.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_xi, 3, 1)
 
-        # Optionally TODO: alpha-enhancement.
+        # Alpha-enhancement.
+        label = QtGui.QLabel(self)
+        label.setText("alpha")
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        
+        grid_layout.addWidget(label, 4, 0, 1, 1)
+        self.edit_alpha = QtGui.QLineEdit(self)
+        self.edit_alpha.setMinimumSize(QtCore.QSize(40, 0))
+        self.edit_alpha.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_alpha.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit_alpha.setValidator(QtGui.QDoubleValidator(-1, 1, 3, self.edit_alpha))
+        #self.edit_alpha.setValidator(QtGui.QDoubleValidator(0, 0.4, 3, self.edit_alpha))
+        self.edit_alpha.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
+        self.edit_alpha.textChanged.connect(self._check_lineedit_state)
+        grid_layout.addWidget(self.edit_alpha, 4, 1)
 
         lhs_layout.addLayout(grid_layout)
 
@@ -256,7 +283,9 @@ class StellarParametersTab(QtGui.QWidget):
         self.state_table_view = QtGui.QTableView(self)
         self.state_table_view.setModel(StateTableModel(self))
         self.state_table_view.setSortingEnabled(False)
-        self.state_table_view.setMaximumSize(QtCore.QSize(400, 107)) # MAGIC
+        self.state_table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
+        self.state_table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
+        self.state_table_view.setMaximumSize(QtCore.QSize(400, 3*(_ROWHEIGHT+1))) # MAGIC
         self.state_table_view.setSizePolicy(QtGui.QSizePolicy(
             QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
         self.state_table_view.setSelectionBehavior(
@@ -273,12 +302,17 @@ class StellarParametersTab(QtGui.QWidget):
         lhs_layout.addWidget(self.state_table_view)
 
 
-        header = ["", u"λ\n[Å]", "Element", u"EW\n[mÅ]", u"σ(EW)\n[mÅ]",
-                  "log ε\n[dex]", "σ(log ε)\n[dex]"]
+        #header = ["", u"λ\n[Å]", "Element", u"EW\n[mÅ]", u"σ(EW)\n[mÅ]",
+        #          "log ε\n[dex]", "σ(log ε)\n[dex]"]
+        header = ["", u"λ", "Element", u"EW", u"σ(EW)",
+                  "log ε", "σ(log ε)", "ul"]
         attrs = ("is_acceptable", "_repr_wavelength", "_repr_element", 
-                 "equivalent_width", "err_equivalent_width", "abundance", "err_abundance")
+                 "equivalent_width", "err_equivalent_width", "abundance", "err_abundance",
+                 "is_upper_limit")
 
         self.table_view = SpectralModelsTableView(self)
+        self.table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
+        self.table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
         
         # Set up a proxymodel.
         self.proxy_spectral_models = SpectralModelsFilterProxyModel(self)
@@ -444,6 +478,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_logg.returnPressed.connect(self.btn_measure.clicked)
         self.edit_metallicity.returnPressed.connect(self.btn_measure.clicked)
         self.edit_xi.returnPressed.connect(self.btn_measure.clicked)
+        self.edit_alpha.returnPressed.connect(self.btn_measure.clicked)
 
         # Connect matplotlib.
         self.figure.mpl_connect("button_press_event", self.figure_mouse_press)
@@ -469,7 +504,8 @@ class StellarParametersTab(QtGui.QWidget):
             (self.edit_teff, "{0:.0f}", "effective_temperature"),
             (self.edit_logg, "{0:.2f}", "surface_gravity"),
             (self.edit_metallicity, "{0:+.2f}", "metallicity"),
-            (self.edit_xi, "{0:.2f}", "microturbulence")
+            (self.edit_xi, "{0:.2f}", "microturbulence"),
+            (self.edit_alpha, "{0:.2f}", "alpha")
         ]
         metadata = self.parent.session.metadata["stellar_parameters"]
 
@@ -855,7 +891,8 @@ class StellarParametersTab(QtGui.QWidget):
             "effective_temperature": float(self.edit_teff.text()),
             "surface_gravity": float(self.edit_logg.text()),
             "metallicity": float(self.edit_metallicity.text()),
-            "microturbulence": float(self.edit_xi.text())
+            "microturbulence": float(self.edit_xi.text()),
+            "alpha": float(self.edit_alpha.text())
         })
         return True
 
@@ -1083,7 +1120,7 @@ class StellarParametersTab(QtGui.QWidget):
                 = self.parent.session.stellar_parameter_state(full_output=True,
                     filtering=filtering)
 
-        except ValueError:
+        except ValueError as e:
             logger.warn("No measured transitions to calculate abundances for.")
             return None
 
@@ -1512,9 +1549,51 @@ class StellarParametersTab(QtGui.QWidget):
 
     def solve_parameters(self):
         """ Solve the stellar parameters. """
-        raise NotImplementedError
+        if self.parent.session is None or not self._check_for_spectral_models():
+            return None
 
+        ## use current state as initial guess
+        logger.info("Setting [alpha/Fe]=0.4 to solve")
+        self.update_stellar_parameters()
+        sp = self.parent.session.metadata["stellar_parameters"]
+        sp["alpha"] = 0.4
+        initial_guess = [sp["effective_temperature"], sp["microturbulence"],
+                         sp["surface_gravity"], sp["metallicity"]]
 
+        ## grab transitions for stellar parameters
+        transition_indices = []
+        EWs = []
+        for i, model in enumerate(self.parent.session.metadata["spectral_models"]):
+            if model.use_for_stellar_parameter_inference and model.is_acceptable and not model.is_upper_limit:
+                transition_indices.append(model._transition_indices[0])
+                EWs.append(1e3 * model.metadata["fitted_result"][-1]["equivalent_width"][0])
+        transition_indices = np.array(transition_indices)
+        transitions = self.parent.session.metadata["line_list"][transition_indices].copy()
+        transitions["equivalent_width"] = EWs
+        
+        ## TODO the optimization does not use the error weights yet
+        ## TODO allow specification of tolerances and other params in QDialog widget
+        out = optimize_stellar_parameters(initial_guess, transitions, \
+                                              max_attempts=5, total_tolerance=1e-4, \
+                                              individual_tolerances=None, \
+                                              maxfev=30, use_nlte_grid=None)
+        tolerance_achieved, initial_guess, num_moog_iterations, i, \
+            t_elapsed, final_parameters, final_parameters_result, \
+            all_sampled_points = out
+        logger.info("Optimization took {:.1f}s".format(t_elapsed))
+        if not tolerance_achieved:
+            logger.warn("Did not converge in {}/{}!!! {:.5f} > {:.5f}".format( \
+                    num_moog_iterations, i, 
+                    np.sum(np.array(final_parameters_result)**2), 1e-4))
+        
+        ## update stellar params in metadata and gui
+        sp["effective_temperature"] = final_parameters[0]
+        sp["microturbulence"] = final_parameters[1]
+        sp["surface_gravity"] = final_parameters[2]
+        sp["metallicity"] = final_parameters[3]
+        self.populate_widgets()
+        ## refresh plot
+        self.measure_abundances()
 
 class SpectralModelsTableView(SpectralModelsTableViewBase):
 
@@ -1853,6 +1932,9 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
         if not index.isValid():
             return None
 
+        if role==QtCore.Qt.FontRole:
+            return _QFONT
+
         column = index.column()
         spectral_model = self.spectral_models[index.row()]
 
@@ -1917,6 +1999,14 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
             except:
                 value = ""
 
+        elif column == 7 \
+        and role in (QtCore.Qt.DisplayRole, QtCore.Qt.CheckStateRole):
+            value = spectral_model.is_upper_limit
+            if role == QtCore.Qt.CheckStateRole:
+                return QtCore.Qt.Checked if value else QtCore.Qt.Unchecked
+            else:
+                return None
+            
         return value if role == QtCore.Qt.DisplayRole else None
     
 

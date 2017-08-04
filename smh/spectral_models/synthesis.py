@@ -69,7 +69,8 @@ def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={},
         spectra = model.session.rt.synthesize(
             model.session.stellar_photosphere, 
             model.transitions, abundances=abundances,
-            isotopes=isotopes) # TODO other kwargs?
+            isotopes=isotopes,
+            twd=model.session.twd) # TODO other kwargs?
 
         dispersion = spectra[0][0]
         if fluxes is None:
@@ -396,6 +397,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         else:
             p_alt = np.nan * np.ones((draws, p_opt.size))
             model_yerr = np.nan * np.ones((2, x.size))
+        model_yerr = np.max(np.abs(model_yerr), axis=0)
         
         # Calculate chi-square for the points that we modelled.
         ivar = spectrum.ivar[mask]
@@ -541,7 +543,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
         synth_dispersion, intensities, meta = self.session.rt.synthesize(
             self.session.stellar_photosphere, self.transitions,
             abundances=abundances, 
-            isotopes=self.session.metadata["isotopes"])[0] # TODO: Other RT kwargs......
+            isotopes=self.session.metadata["isotopes"],
+            twd=self.session.twd)[0] # TODO: Other RT kwargs......
 
         return self._nuisance_methods(
             dispersion, synth_dispersion, intensities, *parameters)

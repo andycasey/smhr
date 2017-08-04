@@ -462,6 +462,7 @@ class ProfileFittingModel(BaseSpectralModel):
         model_y = self(x, *p_opt)
         model_yerr = np.percentile(
             [self(x, *_) for _ in p_alt], percentiles, axis=0) - model_y
+        model_yerr = np.max(np.abs(model_yerr), axis=0)
 
         """
         # DEBUG PLOT

@@ -144,9 +144,19 @@ class Ui_MainWindow(QtGui.QMainWindow):
             = QtGui.QAction("Print abundance table", self,
                 statusTip="",
                 triggered=self.print_abundance_table)
+        self._menu_export_abundance_table \
+            = QtGui.QAction("Export abundance table", self,
+                statusTip="",
+                triggered=self.export_abundance_table)
+        self._menu_export_spectral_model_measurements \
+            = QtGui.QAction("Export spectral model measurements", self,
+                statusTip="",
+                triggered=self.export_spectral_model_measurements)
         export_menu = self.menuBar().addMenu("&Export")
         export_menu.addAction(self._menu_export_normalized_spectrum)
         export_menu.addAction(self._menu_print_abundance_table)
+        export_menu.addAction(self._menu_export_abundance_table)
+        export_menu.addAction(self._menu_export_spectral_model_measurements)
 
         self.statusbar = QtGui.QStatusBar(self)
         self._default_statusbar_message = "Spectroscopy Made Harder v{} ({})"\
@@ -480,6 +490,21 @@ class Ui_MainWindow(QtGui.QMainWindow):
             num_models, logeps, stdev, stderr, XH, XFe = summary_dict[key]
             print("{:7.1f} {:3} {:6.2f} {:4.2f} {:5.2f} {:6.2f}".format(key,num_models,logeps,stdev,XH,XFe))
 
+    
+    def export_abundance_table(self):
+        if self.session is None: return
+        path, _ = QtGui.QFileDialog.getSaveFileName(self,
+            caption="Enter abundance table filename", dir="", filter="")
+        if not path: return
+        self.session.export_abundance_table(path)
+    
+    def export_spectral_model_measurements(self):
+        if self.session is None: return
+        path, _ = QtGui.QFileDialog.getSaveFileName(self,
+            caption="Enter spectral model measurements filename", dir="", filter="")
+        if not path: return
+        self.session.export_spectral_model_measurements(path)
+    
     def transitions_manager(self):
         """
         Open the transitions manager dialog to edit line lists and spectral

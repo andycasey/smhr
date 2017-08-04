@@ -16,12 +16,14 @@ import sys
 import tarfile
 import yaml
 import time
-from six import string_types
+from six import string_types, iteritems
 from six.moves import cPickle as pickle
 from shutil import copyfile, rmtree
-from tempfile import mkdtemp
+#from tempfile import mkdtemp
 
+import astropy.table
 from .linelists import LineList
+from .utils import mkdtemp
 from . import (photospheres, radiative_transfer, specutils, isoutils, utils)
 from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
 from smh.photospheres.abundances import asplund_2009 as solar_composition
@@ -45,7 +47,7 @@ class Session(BaseSession):
     # The default settings path is only defined (hard-coded) here.
     _default_settings_path = os.path.expanduser("~/.smh_session.defaults")
 
-    def __init__(self, spectrum_paths, **kwargs):
+    def __init__(self, spectrum_paths, twd=None, **kwargs):
         """
         Create a new session from input spectra.
 
@@ -55,6 +57,11 @@ class Session(BaseSession):
 
         if isinstance(spectrum_paths, string_types):
             spectrum_paths = (spectrum_paths, )
+
+        if twd is None:
+            twd = mkdtemp()
+        self.twd = twd
+        logger.info("Working directory: {}".format(twd))
 
         # Load the spectra and flatten all orders into a single list.
         input_spectra = []
@@ -103,6 +110,7 @@ class Session(BaseSession):
                 "surface_gravity": 4.4,
                 "metallicity": 0.0, # Solar-scaled
                 "microturbulence": 1.06, # km/s
+                "alpha":0.4,
             }
         })
 
@@ -255,7 +263,7 @@ class Session(BaseSession):
             # Go through the key/value pairs and see what can/cannot be
             # saved.
             failed_on = []
-            for key, value in metadata.iteritems():
+            for key, value in iteritems(metadata):
                 try:
                     with open(os.path.join("twd", ".damaged", "wb")) as dfp:
                         pickle.dump([key, value], dfp, protocol)
@@ -292,6 +300,8 @@ class Session(BaseSession):
 
         if exception_occurred:
             raise
+
+        logger.info("Saved file to {}".format(session_path))
 
         return True
 
@@ -366,6 +376,8 @@ class Session(BaseSession):
         if line_list is not None:
             metadata["line_list"] = LineList.read(
                 os.path.join(twd, line_list), format="fits")
+            metadata["line_list_argsort_hashes"] = np.argsort(
+                metadata["line_list"]["hash"])
 
         # Load in the template spectrum.
         template_spectrum_path \
@@ -375,9 +387,12 @@ class Session(BaseSession):
                 = os.path.join(twd, template_spectrum_path)
 
         # Create the object using the temporary working directory input spectra.
+        # TODO #225 and other issues have had major saving/loading problems because
+        # the temporary directories get deleted.
         session = cls([os.path.join(twd, basename) \
-            for basename in metadata["reconstruct_paths"]["input_spectra"]])
-
+            for basename in metadata["reconstruct_paths"]["input_spectra"]],
+            twd=twd)
+        
         # Load in any normalized spectrum.
         normalized_spectrum \
             = metadata["reconstruct_paths"].get("normalized_spectrum", None)
@@ -390,6 +405,8 @@ class Session(BaseSession):
 
         # Update the new session with the metadata.
         session.metadata = metadata
+        # A hack to maintain backwards compatibility
+        session.metadata["stellar_parameters"].setdefault("alpha", 0.4)
 
         if skip_spectral_models:
             atexit.register(rmtree, twd)
@@ -397,6 +414,7 @@ class Session(BaseSession):
 
         # Reconstruct any spectral models.
         reconstructed_spectral_models = []
+        start = time.time()
         for state in session.metadata.get("spectral_models", []):
             start2 = time.time()
 
@@ -415,13 +433,19 @@ class Session(BaseSession):
             model = klass(*args)
             model.metadata = state["metadata"]
             reconstructed_spectral_models.append(model)
-            #print("  Loading one model {:.2f} {}".format(time.time()-start2, len(model._transitions)))
-
+            t2 = time.time()-start2
+            if t2 > 1.0:
+                logger.debug("  Long time to load model {:.3f} {} {} {}\n".format(t2, len(model._transitions), model.elements, model.wavelength))
+        logger.debug("Time to reconstruct spectral models: {:.3f}".format(time.time()-start))
+        
         # Update the session with the spectral models.
         session.metadata["spectral_models"] = reconstructed_spectral_models
 
         # Clean up the TWD when Python exits.
         atexit.register(rmtree, twd)
+
+        logger.info("Loaded file {}".format(session_path))
+        logger.debug("Input spectra paths: {}".format(session._input_spectra_paths))
 
         return session
 
@@ -432,6 +456,8 @@ class Session(BaseSession):
         against the session.
         """
 
+        self.metadata["line_list_argsort_hashes"] = np.argsort(
+            self.metadata["line_list"]["hash"])
         for spectral_model in self.metadata.get("spectral_models", []):
             spectral_model.index_transitions()
         return None
@@ -465,7 +491,8 @@ class Session(BaseSession):
         self.metadata.setdefault("spectral_models", [])
         for i, spectral_model in enumerate(self.metadata["spectral_models"]):
             if not only(spectral_model) \
-            or not spectral_model.is_acceptable: continue
+            or not spectral_model.is_acceptable \
+            or spectral_model.is_upper_limit: continue
 
             if not spectral_model.apply_quality_constraints(constraints):
                 indices.append(i)
@@ -779,7 +806,7 @@ class Session(BaseSession):
 
         meta = self.metadata["stellar_parameters"]
         photosphere = self._photosphere_interpolator(*[meta[k] for k in \
-            ("effective_temperature", "surface_gravity", "metallicity")])
+            ("effective_temperature", "surface_gravity", "metallicity", "alpha")])
         # Update other metadata (e.g., microturbulence)
         # TODO: Convert session.metadata to session.meta to be consistent
         photosphere.meta["stellar_parameters"].update(meta)
@@ -813,7 +840,7 @@ class Session(BaseSession):
             if filtering(model):
                 spectral_model_indices.append(i)
 
-                if model.is_acceptable:
+                if model.is_acceptable and not model.is_upper_limit:
 
                     meta = model.metadata["fitted_result"][-1]
                     model_ew = meta["equivalent_width"]
@@ -854,7 +881,7 @@ class Session(BaseSession):
         # Calculate abundances and put them back into the spectral models stored
         # in the session metadata.
         abundances = self.rt.abundance_cog(
-            self.stellar_photosphere, transitions[finite])
+            self.stellar_photosphere, transitions[finite], twd=self.twd)
 
         for index, abundance in zip(spectral_model_indices[finite], abundances):
             self.metadata["spectral_models"][int(index)]\
@@ -871,7 +898,7 @@ class Session(BaseSession):
         finite = np.isfinite(_transitions["equivalent_width"])
 
         propagated_abundances = self.rt.abundance_cog(
-            self.stellar_photosphere, _transitions[finite])
+            self.stellar_photosphere, _transitions[finite], twd=self.twd)
 
         for index, abundance, propagated_abundance \
         in zip(spectral_model_indices[finite], transitions["abundance"][finite],
@@ -976,7 +1003,7 @@ class Session(BaseSession):
                                 transitions["equivalent_width"] > min_eqw)
         
         abundances = self.rt.abundance_cog(
-            self.stellar_photosphere, transitions[finite])
+            self.stellar_photosphere, transitions[finite], twd=self.twd)
 
         if calculate_uncertainties:
             # Increase EW by uncertainty and measure again
@@ -989,7 +1016,7 @@ class Session(BaseSession):
             transitions["equivalent_width"][transitions["equivalent_width"] > 9999] = 9999.
 
             uncertainties = self.rt.abundance_cog(
-                self.stellar_photosphere, transitions[finite_uncertainty])
+                self.stellar_photosphere, transitions[finite_uncertainty], twd=self.twd)
             
             # These are not the same size. Make them the same size by filling with nan
             # Inelegant but works...
@@ -1048,7 +1075,8 @@ class Session(BaseSession):
             all_logeps[key].append(logeps)
             return
         for spectral_model in spectral_models:
-            if not spectral_model.is_acceptable: continue
+            if not spectral_model.is_acceptable or spectral_model.is_upper_limit: continue
+            
             abundances = spectral_model.abundances
             if abundances is None: continue
 
@@ -1118,6 +1146,87 @@ class Session(BaseSession):
         #        total_num_models_summarized, what_key_type, time.time()-start))
         return summary_dict
     
+    def export_abundance_table(self, filepath):
+        ## TODO: put in upper limits too.
+        summary_dict = self.summarize_spectral_models()
+        if filepath.endswith(".tex"):
+            self._export_latex_abundance_table(filepath, summary_dict)
+        else:
+            self._export_ascii_abundance_table(filepath, summary_dict)
+        logger.info("Exported to {}".format(filepath))
+        return None
+    def _export_latex_abundance_table(self, filepath, summary_dict):
+        raise NotImplementedError
+    def _export_ascii_abundance_table(self, filepath, summary_dict):
+        out = np.zeros((len(summary_dict), 7))
+        for i,(species, (N, logeps, stdev, stderr, XH, XFe)) in \
+                enumerate(iteritems(summary_dict)):
+            out[i,:] = [species, N, logeps, stdev, stderr, XH, XFe]
+        names = ["species", "N", "logeps", "stdev", "stderr", "[X/H]", "[X/Fe]"]
+        tab = astropy.table.Table(out, names=names)
+        tab["N"].format = ".0f"
+        tab["logeps"].format = "5.2f"
+        tab["stdev"].format = "5.2f"
+        tab["stderr"].format = "5.2f"
+        tab["[X/H]"].format = "5.2f"
+        tab["[X/Fe]"].format = "5.2f"
+        tab.write(filepath, format="ascii.fixed_width_two_line")
+        return True #raise NotImplementedError
+
+    def export_spectral_model_measurements(self, filepath):
+        ## TODO: 
+        ## Make sure to include synthesis measurements.
+        ## We'll eventually put in upper limits too.
+        spectral_models = self.metadata.get("spectral_models", [])
+        linedata = np.zeros((len(spectral_models), 6)) + np.nan
+        for i,spectral_model in enumerate(spectral_models):
+            # TODO include upper limits
+            if not spectral_model.is_acceptable or spectral_model.is_upper_limit: continue
+            # TODO make this work with syntheses as well
+            if isinstance(spectral_model, SpectralSynthesisModel):
+                raise NotImplementedError
+            elif isinstance(spectral_model, ProfileFittingModel):
+                line = spectral_model.transitions[0]
+                wavelength = line['wavelength']
+                species = line['species']
+                expot = line['expot']
+                loggf = line['loggf']
+
+                try:
+                    EW = 1000.*spectral_model.metadata["fitted_result"][2]["equivalent_width"][0]
+                    logeps = spectral_model.abundances[0]
+                except Exception as e:
+                    print(e)
+                    EW = np.nan
+                    logeps = np.nan
+                if EW is None: EW = np.nan
+                if logeps is None: logeps = np.nan
+            else:
+                raise NotImplementedError
+            linedata[i,:] = [species, wavelength, expot, loggf, EW, logeps]
+        ii_bad = np.logical_or(np.isnan(linedata[:,5]), np.isnan(linedata[:,4]))
+        linedata = linedata[~ii_bad,:]
+
+        if filepath.endswith(".tex"):
+            self._export_latex_measurement_table(filepath, linedata)
+        else:
+            self._export_ascii_measurement_table(filepath, linedata)
+        logger.info("Exported to {}".format(filepath))
+        return None
+    def _export_latex_measurement_table(self, filepath, linedata):
+        raise NotImplementedError
+    def _export_ascii_measurement_table(self, filepath, linedata):
+        names = ["species", "wavelength", "expot", "loggf", "EW", "logeps"]
+        tab = astropy.table.Table(linedata, names=names)
+        tab.sort(["species","wavelength","expot"])
+        tab["wavelength"].format = ".3f"
+        tab["expot"].format = "5.3f"
+        tab["loggf"].format = "6.3f"
+        tab["EW"].format = "6.2f"
+        tab["logeps"].format = "6.3f"
+        tab.write(filepath, format="ascii.fixed_width_two_line")
+        return True
+
     def make_summary_plot(self, figure=None):
         with open(self._default_settings_path, "rb") as fp:
             defaults = yaml.load(fp)
@@ -1140,3 +1249,66 @@ class Session(BaseSession):
             return None
         return smh_plotting.make_summary_plot(defaults["summary_figure_ncap"],
                                        self.normalized_spectrum, figure)
+
+    def import_linelists(self, filenames, ignore_conflicts=False, full_output=False):
+        if isinstance(filenames, string_types):
+            filenames = [filenames]
+        
+        line_list = LineList.read(filenames[0], verbose=True)
+
+        filename_transitions = [line_list]
+        for filename in filenames[1:]:
+            new_lines = LineList.read(filename)
+            # Use extremely intolerant to force hashes to be the same
+            line_list = line_list.merge(new_lines, in_place=False,
+                                        skip_exactly_equal_lines=True,
+                                        ignore_conflicts=ignore_conflicts)
+            filename_transitions.append(new_lines)
+
+        # Merge the line list with any existing line list in the session.
+        if self.metadata.get("line_list", None) is None:
+            self.metadata["line_list"] = line_list
+            N = len(line_list)
+        else:
+            N = len(self.metadata["line_list"]) - len(line_list)
+            self.metadata["line_list"] \
+                = self.metadata["line_list"].merge(
+                    line_list, in_place=False, skip_exactly_equal_lines=True,
+                    ignore_conflicts=ignore_conflicts)
+
+        # Must update hash sorting after any modification to line list
+        self.metadata["line_list_argsort_hashes"] = np.argsort(
+            self.metadata["line_list"]["hash"])
+        
+        if full_output:
+            return line_list, filename_transitions
+        return line_list
+    
+    def import_transitions_with_measured_equivalent_widths(self, filenames=None, ignore_conflicts=False):
+        line_list = self.import_linelists(filenames, ignore_conflicts=ignore_conflicts)
+        try:
+            line_list["equivalent_width"]
+        except KeyError:
+            raise KeyError("no equivalent widths found in imported line lists")
+        
+        spectral_models_to_add = []
+        for idx in range(len(line_list)):
+            model = ProfileFittingModel(self, line_list["hash"][[idx]])
+            model.metadata.update({
+                "is_acceptable": True,
+                "fitted_result": [None, None, {
+                    # We assume supplied equivalent widths are in milliAngstroms
+                    "equivalent_width": \
+                    (1e-3 * line_list["equivalent_width"][idx], 0.0, 0.0),
+                    "reduced_equivalent_width": \
+                    (-3+np.log10(line_list["equivalent_width"][idx]/line_list["wavelength"][idx]),
+                      0.0, 0.0)
+                }]
+            })
+            spectral_models_to_add.append(model)
+        self.metadata.setdefault("spectral_models", [])
+        self.metadata["spectral_models"].extend(spectral_models_to_add)
+        self._spectral_model_conflicts = utils.spectral_model_conflicts(
+            self.metadata["spectral_models"],
+            self.metadata["line_list"])
+        

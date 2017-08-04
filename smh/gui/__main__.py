@@ -16,6 +16,7 @@ import exception
 import smh
 
 logger = logging.getLogger(__name__)
+logger.addHandler(smh.handler)
 
 from ui_mainwindow import *
 
