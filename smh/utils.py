@@ -73,12 +73,18 @@ logger = logging.getLogger(__name__)
 
 
 def mkdtemp(**kwargs):
+    if not os.path.exists(os.environ["HOME"]+"/.smh"):
+        logger.info("Making "+os.environ["HOME"]+"/.smh")
+        os.mkdir(os.environ["HOME"]+"/.smh")
     if 'dir' not in kwargs:
         kwargs['dir'] = os.environ["HOME"]+"/.smh"
     return tempfile.mkdtemp(**kwargs)
 def mkstemp(**kwargs):
+    if not os.path.exists(os.environ["HOME"]+"/.smh"):
+        logger.info("Making "+os.environ["HOME"]+"/.smh")
+        os.mkdir(os.environ["HOME"]+"/.smh")
     if 'dir' not in kwargs:
-        kwargs['dir'] = os.environ["HOME"]+"~/.smh"
+        kwargs['dir'] = os.environ["HOME"]+"/.smh"
     return tempfile.mkstemp(**kwargs)
 
 def random_string(N=10):
