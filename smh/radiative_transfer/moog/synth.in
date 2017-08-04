@@ -18,6 +18,7 @@ plot 0
 opacit 0
 freeform 0
 strong 0
+scat 1
 abundances {abundances_formatted}
 isotopes {isotopes_formatted}
 synlimits
