@@ -385,7 +385,7 @@ class Spectrum1D(object):
         
         if not filename.endswith('fits'):
             a = np.array([self.dispersion, self.flux, self.ivar]).T
-            np.savetxt(filename, a, fmt="%0.4f".encode('ascii'))
+            np.savetxt(filename, a, fmt="%.4e".encode('ascii'))
             return
         
         else:
