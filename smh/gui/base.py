@@ -597,7 +597,7 @@ class SMHScatterplot(mpl.MPLWidget):
     def __init__(self, parent, xattr, yattr,
                  tableview=None,
                  enable_zoom=True, enable_pick=True,
-                 enable_keyboard_shortcuts=False,
+                 enable_keyboard_shortcuts=True,
                  **kwargs):
         assert xattr in self.allattrs, xattr
         assert yattr in self.allattrs, yattr
@@ -633,7 +633,7 @@ class SMHScatterplot(mpl.MPLWidget):
         if enable_pick:
             self.canvas.callbacks.connect("pick_event", self.figure_mouse_pick)
         if enable_keyboard_shortcuts:
-            pass
+            self.mpl_connect("key_press_event", self.key_press_event)
         self.setFocusPolicy(QtCore.Qt.ClickFocus)
 
         self.reset()
@@ -669,6 +669,14 @@ class SMHScatterplot(mpl.MPLWidget):
         self.ycol = self.tablemodel.attrs.index(self.yattr)
         logger.debug("Linked {} to {}/{}".format(self, self.tableview, self.tablemodel))
         logger.debug("{}->{}, {}->{}".format(self.xattr, self.xcol, self.yattr, self.ycol))
+    def _load_value_from_table(self, index):
+        val = self.tablemodel.data(index, QtCore.Qt.DisplayRole)
+        try:
+            val = float(val)
+        except ValueError as e:
+            if val != "": logger.debug(e)
+            val = np.nan
+        return val
     def update_scatterplot(self, redraw=False):
         if self.tableview is None or self.tablemodel is None: return None
         #logger.debug("update_scatterplot ({}, {})".format(self, redraw))
@@ -678,9 +686,9 @@ class SMHScatterplot(mpl.MPLWidget):
         ys = []
         for i in range(self.tablemodel.rowCount()):
             ix = self._ix(i, self.xcol)
-            x = float(self.tablemodel.data(ix, QtCore.Qt.DisplayRole))
+            x = self._load_value_from_table(ix)
             ix = self._ix(i, self.ycol)
-            y = float(self.tablemodel.data(ix, QtCore.Qt.DisplayRole))
+            y = self._load_value_from_table(ix)
             xs.append(x)
             ys.append(y)
         self._points["points"].set_offsets(np.array([xs,ys]).T)
@@ -697,9 +705,9 @@ class SMHScatterplot(mpl.MPLWidget):
         for row in rows:
             i = row.row()
             ix = self._ix(i, self.xcol)
-            x = float(self.tablemodel.data(ix, QtCore.Qt.DisplayRole))
+            x = self._load_value_from_table(ix)
             ix = self._ix(i, self.ycol)
-            y = float(self.tablemodel.data(ix, QtCore.Qt.DisplayRole))
+            y = self._load_value_from_table(ix)
             xs.append(x)
             ys.append(y)
         self._points["selected_points"].set_offsets(np.array([xs,ys]).T)
@@ -714,6 +722,30 @@ class SMHScatterplot(mpl.MPLWidget):
         if event.mouseevent.button != 1: return None
         self.tableview.selectRow(event.ind[0])
         return None
+    
+    def key_press_event(self, event):
+        if event.key not in "uUaA": return None
+        if self.tableview is None or self.tablemodel is None: return None
+        if event.key in "uU":
+            self.mark_selected_models_as_unacceptable()
+        elif event.key in "aA":
+            self.mark_selected_models_as_acceptable()
+    def mark_selected_models_as_unacceptable(self):
+        col = self.tablemodel.attrs.index("is_acceptable")
+        rows = self.tableview.selectionModel().selectedRows()
+        for row in rows:
+            i = row.row()
+            ix = self._ix(i, col)
+            self.tablemodel.setData(ix, False)
+            self.tableview.update_row(i)
+    def mark_selected_models_as_acceptable(self):
+        col = self.tablemodel.attrs.index("is_acceptable")
+        rows = self.tableview.selectionModel().selectedRows()
+        for row in rows:
+            i = row.row()
+            ix = self._ix(i, col)
+            self.tablemodel.setData(ix, True)
+            self.tableview.update_row(i)
     
 class BaseTableView(QtGui.QTableView):
     """ Basic sizing and options for display table """
@@ -739,6 +771,17 @@ class MeasurementTableView(BaseTableView):
         """ Used for proxy models """
         self.rowMoved(row, row, row)
         return None
+def create_measurement_table_with_filter_button(parent, filtermodel):
+    vbox = QtGui.QVBoxLayout()
+    tableview = MeasurementTableView(parent)
+    tableview.setModel(filtermodel)
+    btn_filter = QtGui.QPushButton(parent)
+    btn_filter.setText("Hide unacceptable")
+    show_or_hide_unacceptable = lambda: filtermodel.show_or_hide_unacceptable(btn_filter)
+    btn_filter.clicked.connect(show_or_hide_unacceptable)
+    vbox.addWidget(tableview)
+    vbox.addWidget(btn_filter)
+    return vbox, tableview, btn_filter
 class MeasurementTableDelegate(QtGui.QItemDelegate):
     ## TODO this doesn't work
     ## It doesn't paint checkboxes or get the font right anymore
@@ -781,7 +824,6 @@ class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
         """
         super(MeasurementTableModelProxy, self).__init__(parent)
         self.filter_functions = {}
-        self.filter_indices = []
         self.views_to_update = views_to_update
         return None
     @property
@@ -790,6 +832,17 @@ class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
             return self.sourceModel().attrs
         except:
             return []
+    def show_or_hide_unacceptable(self, btn):
+        hide = btn.text().startswith("Hide")
+        logger.debug("Hide: {}".format(hide))
+        if hide:
+            self.add_filter_function(
+                "is_acceptable", lambda model: model.is_acceptable)
+        else:
+            self.delete_filter_function("is_acceptable")
+        text = "{} unacceptable".format(("Hide","Show")[hide])
+        btn.setText(text)
+        return None
     def add_view_to_update(self, view):
         self.views_to_update.append(view)
     def reset_views_to_update(self):
@@ -836,7 +889,6 @@ class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
             return None
     def delete_all_filter_functions(self):
         self.filter_functions = {}
-        self.filter_indices = []
         self.invalidateFilter()
         self.reindex()
         return None
