@@ -94,47 +94,47 @@ class TransitionsDialog(QtGui.QDialog):
         hbox = QtGui.QHBoxLayout()
         
         # Import from raw line lists
-        btn_add_profile_list = QtGui.QPushButton(self)
-        btn_add_profile_list.setText("Add EQW List")
-        btn_add_profile_list.clicked.connect(self.add_profile_list)
-        hbox.addWidget(btn_add_profile_list)
+        self.btn_add_profile_list = QtGui.QPushButton(self)
+        self.btn_add_profile_list.setText("Add EQW List")
+        self.btn_add_profile_list.clicked.connect(self.add_profile_list)
+        hbox.addWidget(self.btn_add_profile_list)
         
-        btn_add_synth_list = QtGui.QPushButton(self)
-        btn_add_synth_list.setText("Add Synth List")
-        btn_add_synth_list.clicked.connect(self.add_synth_list)
-        hbox.addWidget(btn_add_synth_list)
+        self.btn_add_synth_list = QtGui.QPushButton(self)
+        self.btn_add_synth_list.setText("Add Synth List")
+        self.btn_add_synth_list.clicked.connect(self.add_synth_list)
+        hbox.addWidget(self.btn_add_synth_list)
         
         hbox.addItem(QtGui.QSpacerItem(40, 20, 
             QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
 
         # Import and export pickled spectral models
-        btn_import_spec_models = QtGui.QPushButton(self)
-        btn_import_spec_models.setText("Import Spectral Models")
-        btn_import_master_list.clicked.connect(self.import_spectral_model_states)
-        hbox.addWidget(btn_add_spec_models)
+        self.btn_import_spec_models = QtGui.QPushButton(self)
+        self.btn_import_spec_models.setText("Import Spectral Models")
+        self.btn_import_spec_models.clicked.connect(self.import_spectral_model_states)
+        hbox.addWidget(self.btn_import_spec_models)
 
-        btn_export_spec_models = QtGui.QPushButton(self)
-        btn_export_spec_models.setText("Export Spectral Models")
-        btn_import_master_list.clicked.connect(self.export_spectral_model_states)
-        hbox.addWidget(btn_export_spec_models)
+        self.btn_export_spec_models = QtGui.QPushButton(self)
+        self.btn_export_spec_models.setText("Export Spectral Models")
+        self.btn_export_spec_models.clicked.connect(self.export_spectral_model_states)
+        hbox.addWidget(self.btn_export_spec_models)
         
         hbox.addItem(QtGui.QSpacerItem(40, 20, 
             QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
 
         # Import a master line list
-        btn_import_master_list = QtGui.QPushButton(self)
-        btn_import_master_list.setText("Import Master List")
-        btn_import_master_list.clicked.connect(self.import_master_list)
-        hbox.addWidget(btn_import_master_list)
+        self.btn_import_master_list = QtGui.QPushButton(self)
+        self.btn_import_master_list.setText("Import Master List")
+        self.btn_import_master_list.clicked.connect(self.import_master_list)
+        hbox.addWidget(self.btn_import_master_list)
         
         hbox.addItem(QtGui.QSpacerItem(40, 20, 
             QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
 
-        btn_ok = QtGui.QPushButton(self)
-        btn_ok.setText("OK")
-        btn_ok.setFocus()
-        btn_ok.clicked.connect(self.close)
-        hbox.addWidget(btn_ok)
+        self.btn_ok = QtGui.QPushButton(self)
+        self.btn_ok.setText("OK")
+        self.btn_ok.setFocus()
+        self.btn_ok.clicked.connect(self.close)
+        hbox.addWidget(self.btn_ok)
         return hbox
 
 
@@ -153,10 +153,17 @@ class TransitionsDialog(QtGui.QDialog):
         return None
 
 
+    def open_file(self, caption="", dir="", filter=""):
+        paths, _ = QtGui.QFileDialog.getOpenFileName(self,
+            caption=caption, dir=dir, filter=filter)
+        if paths is None: return None
+        if isinstance(paths, string_types):
+            paths = [paths]
+        return paths
+
     def add_profile_list(self):
         if self.session is None: return None
-        paths, _ = QtGui.QFileDialog.getOpenFileName(self,
-            caption="Select linelists for profiles", dir="", filter="")
+        paths = self.open_file(caption="Select linelists for profiles", dir="", filter="")
         if not paths: return None
         for path in paths:
             self.session.import_linelist_as_profile_models(path)
@@ -166,8 +173,7 @@ class TransitionsDialog(QtGui.QDialog):
 
     def add_synth_list(self):
         if self.session is None: return None
-        paths, _ = QtGui.QFileDialog.getOpenFileName(self,
-            caption="Select linelists for synths", dir="", filter="")
+        paths = self.open_file(caption="Select linelists for synths", dir="", filter="")
         if not paths: return None
         for path in paths:
             self.session.import_linelist_as_synthesis_model(path)
@@ -177,8 +183,7 @@ class TransitionsDialog(QtGui.QDialog):
 
     def import_spectral_model_states(self):
         if self.session is None: return None
-        paths, _ = QtGui.QFileDialog.getOpenFileName(self,
-            caption="Select spectral model state file", dir="", filter="*.pkl")
+        paths = self.open_file(caption="Select spectral model state file", dir="", filter="*.pkl")
         for path in paths:
             self.session.import_spectral_model_states(path)
         self.tableview.model().reset()
@@ -187,8 +192,7 @@ class TransitionsDialog(QtGui.QDialog):
 
     def import_master_list(self):
         if self.session is None: return None
-        paths, _ = QtGui.QFileDialog.getOpenFileName(self,
-            caption="Select master lists", dir="", filter="")
+        paths = self.open_file(caption="Select master lists", dir="", filter="")
         for path in paths:
             self.session.import_master_list(path)
         self.tableview.model().reset()

@@ -771,17 +771,29 @@ class MeasurementTableView(BaseTableView):
         """ Used for proxy models """
         self.rowMoved(row, row, row)
         return None
-def create_measurement_table_with_filter_button(parent, filtermodel):
+def create_measurement_table_with_buttons(parent, filtermodel):
+    """
+    """
     vbox = QtGui.QVBoxLayout()
     tableview = MeasurementTableView(parent)
     tableview.setModel(filtermodel)
+    vbox.addWidget(tableview)
+    
+    hbox = QtGui.QHBoxLayout()
+
     btn_filter = QtGui.QPushButton(parent)
     btn_filter.setText("Hide unacceptable")
     show_or_hide_unacceptable = lambda: filtermodel.show_or_hide_unacceptable(btn_filter)
     btn_filter.clicked.connect(show_or_hide_unacceptable)
-    vbox.addWidget(tableview)
-    vbox.addWidget(btn_filter)
-    return vbox, tableview, btn_filter
+    
+    btn_refresh = QtGui.QPushButton(parent)
+    btn_refresh.setText("Refresh")
+
+    hbox.addWidget(btn_filter)
+    hbox.addWidget(btn_refresh)
+    
+    vbox.addLayout(hbox)
+    return vbox, tableview, btn_filter, btn_refresh
 class MeasurementTableDelegate(QtGui.QItemDelegate):
     ## TODO this doesn't work
     ## It doesn't paint checkboxes or get the font right anymore

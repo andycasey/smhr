@@ -22,6 +22,7 @@ from shutil import copyfile, rmtree
 #from tempfile import mkdtemp
 
 import astropy.table
+from astropy.io import ascii
 from .linelists import LineList
 from .utils import mkdtemp
 from . import (photospheres, radiative_transfer, specutils, isoutils, utils)
@@ -176,7 +177,7 @@ class Session(BaseSession):
 
         # Create a temporary working directory and copy files over.
         twd = mkdtemp(**kwargs)
-        twd_paths = [] + self._input_spectra_paths
+        twd_paths = [] + list(self._input_spectra_paths)
 
         # Input spectra.
         metadata["reconstruct_paths"] = {
@@ -1348,31 +1349,55 @@ class Session(BaseSession):
                            copy_to_working_dir=True, **kwargs):
         """
         Use a "master" list to create a bunch of measurements
-        wavelength, species, expot, loggf, type, filename(for syn)
+        wavelength, species, expot, loggf, type, filename(for syn or list)
         """
         assert os.path.exists(filename), filename
 
         if copy_to_working_dir:
             self.copy_file_to_working_directory(filename)
             
-        master_list = astropy.table.Table.read(filename, **kwargs)
-        types = map(lambda x: x.lower(), np.array(master_list["type"]))
-        assert np.all(map(lambda x: (x=="eqw") or (x=="syn"), types)), types
+        master_list = ascii.read(filename, **kwargs)
+        types = np.array(map(lambda x: x.lower(), np.array(master_list["type"])))
+        assert np.all(map(lambda x: (x=="eqw") or (x=="syn") or (x=="list"), types)), types
+
+        num_added = 0
 
         ## Add EQW
         eqw = master_list[types=="eqw"]
-        ll = LineList.create_basic_linelist(eqw["wavelength"],
-                                            eqw["species"],
-                                            eqw["expot"],
-                                            eqw["loggf"])
-        spectral_models_to_add = []
-        for i in range(len(line_list)):
-            line = line_list[i]
-            model = ProfileFittingModel(self, line)
-            spectral_models_to_add.append(model)
-        self.metadata["spectral_models"].extend(spectral_models_to_add)
-        num_added = len(spectral_models_to_add)
+        if len(eqw) > 0:
+            ll = LineList.create_basic_linelist(eqw["wavelength"],
+                                                eqw["species"],
+                                                eqw["expot"],
+                                                eqw["loggf"])
+            spectral_models_to_add = []
+            for i in range(len(line_list)):
+                line = line_list[i]
+                model = ProfileFittingModel(self, line)
+                spectral_models_to_add.append(model)
+            self.metadata["spectral_models"].extend(spectral_models_to_add)
+            num_added += len(spectral_models_to_add)
         
+        ## Add LIST
+        lists = master_list[types=="list"]
+        for row in lists:
+            _filename = row["filename"]
+            try:
+                if _filename.endswith(".fits"):
+                    ll = LineList.read(_filename, format='fits')
+                else:
+                    ll = LineList.read(_filename)
+            except Exception as e:
+                logger.warn("Could not import {}".format(_filename))
+                logger.warn(e)
+            else:
+                spectral_models_to_add = []
+                for i in range(len(ll)):
+                    line = ll[i]
+                    model = ProfileFittingModel(self, line)
+                    spectral_models_to_add.append(model)
+                self.metadata["spectral_models"].extend(spectral_models_to_add)
+                num_added += len(ll)
+
         ## Add SYN
         syn = master_list[types=="syn"]
         for row in syn:
@@ -1392,6 +1417,7 @@ class Session(BaseSession):
                                                         **kwargs)
             except Exception as e:
                 logger.warn("Could not import {}".format(_filename))
+                logger.warn(e)
             else:
                 num_added += 1
         

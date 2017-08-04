@@ -167,7 +167,7 @@ class ProfileFittingModel(BaseSpectralModel):
     def reduced_equivalent_width(self):
         eqw = self.equivalent_width
         if eqw is None: return None
-        return np.log10(eqw/self.wavelength)
+        return np.log10(eqw/self.wavelength) - 3.
 
     @property
     def measurement_type(self):

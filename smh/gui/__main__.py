@@ -94,8 +94,21 @@ if __name__ == '__main__':
     app.window.raise_()
 
     # DEBUG
-    testpath = os.path.dirname(os.path.abspath(__file__))+"/../tests/test_data/test_G64-12_v02.smh"
+    #testpath = os.path.dirname(os.path.abspath(__file__))+"/../tests/test_data/test_G64-12_v02.smh"
+    #logger.debug("Loading {}".format(testpath))
+    #app.window.open_session(path=testpath)
+    
+    # DEBUG
+    testpath = os.path.dirname(os.path.abspath(__file__))+"/../tests/test_data/spectra/hd122563.fits"
     logger.debug("Loading {}".format(testpath))
-    app.window.open_session(path=testpath)
+    app.window.new_session(testpath)
+    app.window.rv_tab.cross_correlate_and_correct()
+    app.window.session.metadata["normalization"]["continuum"] = [1]
+    app.window.session.metadata["normalization"]["normalization_kwargs"] = [{}]
+    app.window.normalization_tab.normalize_and_stitch()
+    app.window.tabs.setCurrentIndex(3)
+    app.window.session.import_master_list(os.path.dirname(os.path.abspath(__file__))+"/../tests/test_data/my_master_list.txt")
+    
+    session = app.window.session
     
     sys.exit(app.exec_())
