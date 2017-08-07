@@ -17,11 +17,14 @@ import time
 
 import smh
 from smh.gui.base import SMHSpecDisplay
+from smh.gui.base import MeasurementTableModelBase, MeasurementTableModelProxy, MeasurementTableView
+from smh.gui import base
 from smh import utils
 import mpl, style_utils
 from matplotlib.ticker import MaxNLocator
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
+
 from spectral_models_table import SpectralModelsTableViewBase, SpectralModelsFilterProxyModel, SpectralModelsTableModelBase
 from linelist_manager import TransitionsDialog
 
@@ -90,8 +93,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.filter_combo_box.currentIndexChanged.connect(self.filter_combo_box_changed)
         
         # Connect selection model
-        _ = self.table_view.selectionModel()
-        _.selectionChanged.connect(self.selected_model_changed)
+        #_ = self.table_view.selectionModel()
+        #_.selectionChanged.connect(self.selected_model_changed)
 
         # Connect buttons
         self.btn_fit_all.clicked.connect(self.fit_all_profiles)
@@ -100,7 +103,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # TODO 
 
         # Set up things as if a fresh session
-        self._currently_plotted_element = None
+        self._currently_plotted_element = "All"
         self.new_session_loaded()
 
     def init_tab(self):
@@ -115,11 +118,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         """
         session = self.parent.session
         if session is None: return None
-        logger.debug("LOADING NEW SESSION")
+        #logger.debug("LOADING NEW SESSION")
         self.figure.new_session(session)
         self.refresh_table()
         self.summarize_current_table()
-        self.refresh_cache()
         self.refresh_plots()
         self.update_fitting_options()
         return None
@@ -139,43 +141,64 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         hbox.addWidget(self.element_summary_text)
         bot_lhs_layout.addLayout(hbox)
 
-        self.table_view = SpectralModelsTableView(self)
-        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.Minimum, 
-                               QtGui.QSizePolicy.MinimumExpanding)
-        self.table_view.setSizePolicy(sp)
-        # Set up a proxymodel.
-        self.proxy_spectral_models = SpectralModelsFilterProxyModel(self)
-        self.proxy_spectral_models.add_filter_function(
-            "use_for_stellar_composition_inference",
-            lambda model: model.use_for_stellar_composition_inference)
+        self.full_measurement_model = MeasurementTableModelBase(self, self.parent.session, 
+                                                    ["is_acceptable",
+                                                     "species","wavelength",
+                                                     "abundances",
+                                                     "equivalent_width","reduced_equivalent_width",
+                                                     "expot","loggf",
+                                                     "is_upper_limit","user_flag"])
+        self.measurement_model = MeasurementTableModelProxy(self)
+        self.measurement_model.setSourceModel(self.full_measurement_model)
+        vbox, measurement_view, btn_filter, btn_refresh = base.create_measurement_table_with_buttons(
+            self, self.measurement_model)
+        self.measurement_view = measurement_view
+        self.measurement_model.add_view_to_update(self.measurement_view)
+        _ = self.measurement_view.selectionModel()
+        _.selectionChanged.connect(self.selected_model_changed)
+        self.measurement_view.setSizePolicy(QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.MinimumExpanding))
+        self.btn_filter_acceptable = btn_filter
+        self.btn_filter_acceptable.clicked.connect(self.refresh_plots)
+        self.btn_refresh = btn_refresh
+        self.btn_refresh.clicked.connect(self.new_session_loaded)
+        bot_lhs_layout.addLayout(vbox)
 
-        self.proxy_spectral_models.setDynamicSortFilter(True)
-        header = ["", u"λ", "log ε", u"E. W.",
-                  "REW", "σ(X)", "σ(E.W.)", "loggf","Element"]
-        self.all_spectral_models = SpectralModelsTableModel(self, header, None)
-        self.proxy_spectral_models.setSourceModel(self.all_spectral_models)
-
-        self.table_view.setModel(self.proxy_spectral_models)
-        self.table_view.setSelectionBehavior(
-            QtGui.QAbstractItemView.SelectRows)
+        #self.table_view = SpectralModelsTableView(self)
+        #sp = QtGui.QSizePolicy(QtGui.QSizePolicy.Minimum, 
+        #                       QtGui.QSizePolicy.MinimumExpanding)
+        #self.table_view.setSizePolicy(sp)
+        ## Set up a proxymodel.
+        #self.proxy_spectral_models = SpectralModelsFilterProxyModel(self)
+        #self.proxy_spectral_models.add_filter_function(
+        #    "use_for_stellar_composition_inference",
+        #    lambda model: model.use_for_stellar_composition_inference)
+        #self.proxy_spectral_models.setDynamicSortFilter(True)
+        #header = ["", u"λ", "log ε", u"E. W.",
+        #          "REW", "σ(X)", "σ(E.W.)", "loggf","Element"]
+        #self.all_spectral_models = SpectralModelsTableModel(self, header, None)
+        #self.proxy_spectral_models.setSourceModel(self.all_spectral_models)
+        #self.table_view.setModel(self.proxy_spectral_models)
+        #self.table_view.setSelectionBehavior(
+        #    QtGui.QAbstractItemView.SelectRows)
 
         # TODO: Re-enable sorting.
-        self.table_view.setSortingEnabled(False)
+        #self.table_view.setSortingEnabled(False)
         #self.table_view.resizeColumnsToContents()
         #self.table_view.resizeRowsToContents()
-        self.table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
-        self.table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
-        self.table_view.setColumnWidth(0, 25) # MAGIC
-        self.table_view.setColumnWidth(1, 50) # MAGIC
-        self.table_view.setColumnWidth(2, 50) # MAGIC
-        self.table_view.setColumnWidth(3, 50) # MAGIC
-        self.table_view.setColumnWidth(4, 50) # MAGIC
-        self.table_view.setColumnWidth(5, 50) # MAGIC
-        self.table_view.setColumnWidth(6, 50) # MAGIC
-        self.table_view.setColumnWidth(7, 50) # MAGIC
+        #self.table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
+        #self.table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
+        #self.table_view.setColumnWidth(0, 25) # MAGIC
+        #self.table_view.setColumnWidth(1, 50) # MAGIC
+        #self.table_view.setColumnWidth(2, 50) # MAGIC
+        #self.table_view.setColumnWidth(3, 50) # MAGIC
+        #self.table_view.setColumnWidth(4, 50) # MAGIC
+        #self.table_view.setColumnWidth(5, 50) # MAGIC
+        #self.table_view.setColumnWidth(6, 50) # MAGIC
+        #self.table_view.setColumnWidth(7, 50) # MAGIC
         #self.table_view.setMinimumSize(QtCore.QSize(240, 0))
-        self.table_view.horizontalHeader().setStretchLastSection(True)
-        bot_lhs_layout.addWidget(self.table_view)
+        #self.table_view.horizontalHeader().setStretchLastSection(True)
+        #bot_lhs_layout.addWidget(self.table_view)
 
         # Buttons
         hbox = QtGui.QHBoxLayout()
@@ -679,7 +702,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         box.addItem("All")
 
         all_species = set([])
-        for spectral_model in self.all_spectral_models.spectral_models:
+        for spectral_model in self.full_measurement_model.spectral_models:
             if isinstance(spectral_model, ProfileFittingModel):
                 all_species.update(set(spectral_model.species))
             elif isinstance(spectral_model, SpectralSynthesisModel):
@@ -694,10 +717,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def filter_combo_box_changed(self):
         elem = self.filter_combo_box.currentText()
-        table_model = self.proxy_spectral_models
-        table_model.delete_all_filter_functions()
-        table_model.reset()
-        if elem is None or elem == "" or elem == "All":
+        # Update the filter
+        if self._currently_plotted_element not in ["All", "", "None"]:
+            try:
+                self.measurement_model.delete_filter_function(self._currently_plotted_element)
+            except KeyError as e:
+                logger.debug(self._currently_plotted_element)
+                logger.debug(e)
+                logger.debug(self.measurement_model.filter_functions)
+                raise            
+        if elem in [None, "", "All"]:
             self.element_summary_text.setText("")
         else:
             species = utils.element_to_species(elem)
@@ -706,13 +735,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     return species in model.species
                 elif isinstance(model, SpectralSynthesisModel):
                     return np.any([species in specie for specie in model.species])
-            table_model.beginResetModel()
-            table_model.add_filter_function(elem, filter_function)
-            table_model.endResetModel()
-        self.refresh_cache()
+            self.measurement_model.add_filter_function(elem, filter_function)
+        self._currently_plotted_element = elem
+        self.measurement_model.reset()
         self.summarize_current_table()
         self.refresh_plots()
-        self.table_view.selectRow(0)
+        self.measurement_view.selectRow(0)
         return None
 
     def calculate_FeH(self):
@@ -727,38 +755,28 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def summarize_current_table(self):
         elem = self.filter_combo_box.currentText()
         if elem is None or elem == "" or elem == "All":
-            N = self.proxy_spectral_models.rowCount()
+            N = self.measurement_model.rowCount()
             self.element_summary_text.setText("N={} lines".format(N))
             return None
-        # Use cache to get abundance and avoid looping through proxy table
-        ii = np.isfinite(self._abund_cache)
-        N = np.sum(ii)
-        _abund = self._abund_cache[ii]
-        _errs = self._err_cache[ii]
-        weights = 1/_errs**2
-        total_weights = np.sum(weights)
-        # TODO weights needed
-        abund = np.mean(_abund)#np.sum(_abund*weights)/total_weights
-        stdev = np.std(_abund)#np.sum(_errs*weights**2)/(total_weights**2)
-        XH = abund - solar_composition(elem.split()[0])
-        self.calculate_FeH()
-        XFe = XH - self.FeH
-        text = "N={1} A({0})={2:5.2f} σ({0})={5:4.2f} [{0}/H]={3:5.2f} [{0}/Fe I]={4:5.2f}"
-        text = text.format(elem,N,abund,XH,XFe,stdev)
-        self.element_summary_text.setText(text)
-
-        # TODO debug, checking against session.summarize_spectral_models()
         summary_dict = self.parent.session.summarize_spectral_models(organize_by_element=False)
         species = utils.element_to_species(elem)
-        if species in summary_dict:
-            logger.debug("From summary instead of cache",summary_dict[species])
+        if species not in summary_dict:
+            logger.debug("Cannot find species {} in summary_dict (keys={})".format(
+                    species, summary_dict.keys()))
+            self.element_summary_text.setText("ERROR {}".format(species))
+        else:
+            N, abund, stdev, stderr, XH, XFe = summary_dict[species]
+            text = "N={1} A({0})={2:5.2f} σ({0})={5:4.2f} [{0}/H]={3:5.2f} [{0}/Fe I]={4:5.2f}"
+            text = text.format(elem,N,abund,XH,XFe,stdev)
+            self.element_summary_text.setText(text)
         
         return None
 
     def refresh_table(self):
         if self.parent.session is None: return None
         #self._check_for_spectral_models()
-        self.proxy_spectral_models.reset()
+        self.full_measurement_model.new_session(self.parent.session)
+        self.measurement_model.reset()
         self.populate_filter_combo_box()
         self.calculate_FeH()
         return None
@@ -773,7 +791,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         # Fit all acceptable
         num_unacceptable = 0
-        for i,spectral_model in enumerate(self.all_spectral_models.spectral_models):
+        for i,spectral_model in enumerate(self.full_measurement_model.spectral_models):
             if not spectral_model.is_acceptable:
                 num_unacceptable += 1
                 continue
@@ -792,9 +810,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     logger.debug("Fitting error",spectral_model)
                     logger.debug(e)
         # If none are acceptable, then fit all
-        if num_unacceptable == self.all_spectral_models.rowCount(None):
+        if num_unacceptable == self.full_measurement_model.rowCount(None):
             logger.info("Found no acceptable spectral models, fitting all!")
-            for i,spectral_model in enumerate(self.all_spectral_models.spectral_models):
+            for i,spectral_model in enumerate(self.full_measurement_model.spectral_models):
                 if isinstance(spectral_model, SpectralSynthesisModel):
                     continue
                     #try:
@@ -809,9 +827,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                         logger.debug("Fitting error",spectral_model)
                         logger.debug(e)
 
-        self.proxy_spectral_models.reset()
+        self.measurement_model.reset()
         self.populate_filter_combo_box()
-        self.refresh_cache()
         self.summarize_current_table()
         self.refresh_plots()
         self.filter_combo_box.setCurrentIndex(current_element_index)
@@ -822,23 +839,24 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # Save this just to go back 
         current_element_index = self.filter_combo_box.currentIndex()
         try:
-            current_table_index = self.table_view.selectedIndexes()[-1]
+            #current_table_index = self.table_view.selectedIndexes()[-1]
+            current_table_index = self.measurement_view.selectedIndexes()[-1]
         except:
             current_table_index = None
 
         # Gets abundances and uncertainties into session
         self.parent.session.measure_abundances()
 
-        self.proxy_spectral_models.reset()
+        self.measurement_model.reset()
         self.populate_filter_combo_box()
-        self.refresh_cache()
         self.summarize_current_table()
         self.refresh_plots()
 
         self.filter_combo_box.setCurrentIndex(current_element_index)
         if current_table_index is not None:
             try:
-                self.table_view.selectRow(current_table_index)
+                #self.table_view.selectRow(current_table_index)
+                self.measurement_view.selectRow(current_table_index)
             except:
                 logger.debug("Could not set index")
                 pass
@@ -853,8 +871,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             logger.info("Fitting error",spectral_model)
             logger.info(e)
             return None
-        self.table_view.update_row(proxy_index.row())
-        self.update_cache(proxy_index)
+        #self.table_view.update_row(proxy_index.row())
+        self.measurement_view.update_row(proxy_index.row())
         self.summarize_current_table()
         self.update_fitting_options()
         self.refresh_plots()
@@ -866,8 +884,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
         self.parent.session.measure_abundances([spectral_model])
 
-        self.table_view.update_row(proxy_index.row())
-        self.update_cache(proxy_index)
+        #self.table_view.update_row(proxy_index.row())
+        self.measurement_view.update_row(proxy_index.row())
         self.summarize_current_table()
         self.update_fitting_options()
         self.refresh_plots()
@@ -877,8 +895,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         spectral_model, proxy_index, index = self._get_selected_model(True)
         if spectral_model is None: return None
         spectral_model.update_fit_after_parameter_change()
-        self.table_view.update_row(proxy_index.row())
-        self.update_cache(proxy_index)
+        #self.table_view.update_row(proxy_index.row())
+        self.measurement_view.update_row(proxy_index.row())
         self.summarize_current_table()
         self.update_fitting_options()
         self.refresh_plots()
@@ -912,10 +930,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def _get_selected_model(self, full_output=False):
         try:
-            proxy_index = self.table_view.selectionModel().selectedRows()[-1]
+            #proxy_index = self.table_view.selectionModel().selectedRows()[-1]
+            proxy_index = self.measurement_view.selectionModel().selectedRows()[-1]
         except IndexError:
             return (None, None, None) if full_output else None
-        index = self.proxy_spectral_models.mapToSource(proxy_index).row()
+        index = self.measurement_model.mapToSource(proxy_index).row()
         model = self.parent.session.metadata["spectral_models"][index]
         return (model, proxy_index, index) if full_output else model
 
@@ -927,76 +946,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def update_spectrum_figure(self, redraw=False):
         self.figure.update_spectrum_figure(redraw=redraw)
 
-    def update_cache(self, proxy_index):
-        """
-        Update the point plotting cache at a single proxy table index.
-        This is also used to compute the combo box summary.
-        """
-        if self.filter_combo_box.currentText() == "All":
-            return None
-        proxy_row = proxy_index.row()
-        table_model = self.proxy_spectral_models
-        try:
-            if not table_model.data(proxy_index, QtCore.Qt.CheckStateRole):
-                raise ValueError #to put in nan
-            ## HACK for upper limits
-            index = table_model.mapToSource(proxy_index).row()
-            if self.parent.session.metadata["spectral_models"][index].metadata.get("is_upper_limit",False):
-                raise ValueError
-            
-            rew = float(table_model.data(table_model.createIndex(proxy_row, 4, None)))
-            abund = float(table_model.data(table_model.createIndex(proxy_row, 2, None)))
-            err = float(table_model.data(table_model.createIndex(proxy_row, 5, None)))
-        except ValueError:
-            self._rew_cache[proxy_row] = np.nan
-            self._abund_cache[proxy_row] = np.nan
-            self._err_cache[proxy_row] = np.nan
-        else:
-            self._rew_cache[proxy_row] = rew
-            self._abund_cache[proxy_row] = abund
-            self._err_cache[proxy_row] = err
-        
-    def refresh_cache(self):
-        """
-        Compute cache of REW and abundance from spectral model table model
-        Wow this is the worst naming ever
-        Note that we should use np.nan for REW for synthesis models to keep indices ok
-        I believe that is correctly done in the table model
-        """
-        current_element =  self.filter_combo_box.currentText()
-        self._currently_plotted_element = current_element
-        if current_element == "All":
-            logger.debug("Resetting cache for All")
-            self._rew_cache = np.array([])
-            self._abund_cache = np.array([])
-            self._err_cache = np.array([])
-            return None
-        logger.debug("Resetting cache for {}".format(current_element))
-        table_model = self.proxy_spectral_models
-        rew_list = []
-        abund_list = []
-        err_list = []
-        for row in range(table_model.rowCount()):
-            try:
-                proxy_index = table_model.createIndex(row, 0, None)
-                if not table_model.data(proxy_index, QtCore.Qt.CheckStateRole):
-                    raise ValueError #to put in nan
-                ## HACK for upper limits
-                index = table_model.mapToSource(proxy_index).row()
-                if self.parent.session.metadata["spectral_models"][index].metadata.get("is_upper_limit",False):
-                    raise ValueError
-                
-                rew = float(table_model.data(table_model.createIndex(row, 4, None)))
-                abund = float(table_model.data(table_model.createIndex(row, 2, None)))
-                err = float(table_model.data(table_model.createIndex(row, 5, None)))
-            except ValueError:
-                rew_list.append(np.nan); abund_list.append(np.nan); err_list.append(np.nan)
-            else:
-                rew_list.append(rew); abund_list.append(abund); err_list.append(err)
-        self._rew_cache = np.array(rew_list)
-        self._abund_cache = np.array(abund_list)
-        self._err_cache = np.array(err_list)
-        
 
     def update_fitting_options(self):
         try:
@@ -1259,8 +1208,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         spectral_model, proxy_index, index = self._get_selected_model(True)
         spectral_model.metadata["is_upper_limit"] \
             = self.checkbox_upper_limit.isChecked()
-        self.table_view.update_row(proxy_index.row())
-        self.update_cache(proxy_index)
+        #self.table_view.update_row(proxy_index.row())
+        self.measurement_view.update_row(proxy_index.row())
         self.summarize_current_table()
         self.refresh_plots()
         return None
@@ -1389,8 +1338,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         spectral_model, proxy_index, index = self._get_selected_model(True)
         spectral_model.metadata["is_upper_limit"] \
             = self.checkbox_upper_limit_2.isChecked()
-        self.table_view.update_row(proxy_index.row())
-        self.update_cache(proxy_index)
+        #self.table_view.update_row(proxy_index.row())
+        self.measurement_view.update_row(proxy_index.row())
         self.summarize_current_table()
         self.refresh_plots()
         return None
@@ -1452,260 +1401,256 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def refresh_current_model(self):
         spectral_model, proxy_index, index = self._get_selected_model(True)
-        self.table_view.update_row(proxy_index.row())
-        self.update_cache(proxy_index)
+        #self.table_view.update_row(proxy_index.row())
+        self.measurement_view.update_row(proxy_index.row())
         self.update_fitting_options()
 
-class SpectralModelsTableView(SpectralModelsTableViewBase):
-    def sizeHint(self):
-        #return QtCore.QSize(240,100)
-        return QtCore.QSize(125,100)
-
-    def minimumSizeHint(self):
-        return QtCore.QSize(125,0)
-
-    def refresh_gui(self):
-        self.parent.summarize_current_table()
-        self.parent.update_fitting_options()
-        self.parent.refresh_plots()
-        return None
-
-    def fit_selected_models(self, proxy_indices):
-        """ Fit the selected spectral models. """
-        # Fit the models one by one
-        for proxy_index in proxy_indices:
-            index = self.model().mapToSource(proxy_index).row()
-            self.parent.parent.session.metadata["spectral_models"][index].fit()
-
-            # Update the data model, view, and cache
-            self.update_row(proxy_index.row())
-            self.parent.update_cache(proxy_index)
-
-        self.refresh_gui()
-        return None
-    
-    def measure_selected_models(self, proxy_indices):
-        """ Fit the selected spectral models. """
-
-        # Get list of selected spectral models
-        spectral_models = []
-        for proxy_index in proxy_indices:
-            index = self.model().mapToSource(proxy_index).row()
-            spectral_models.append(self.parent.parent.session.metadata["spectral_models"][index])
-
-        # Fit abundances
-        self.parent.parent.session.measure_abundances(spectral_models)
-
-        # Update the data model and cache
-        start = time.time()
-        for proxy_index in proxy_indices:
-            self.update_row(proxy_index.row())
-            self.parent.update_cache(proxy_index)
-        logger.debug("Time to update data model and cache: {:.1f}".format(time.time()-start))
-
-        self.refresh_gui()
-        return None
-
-    def mark_selected_models_as_acceptable(self, proxy_indices):
-        proxy_model = self.parent.proxy_spectral_models
-        full_model = proxy_model.sourceModel()
-        for proxy_index in proxy_indices:
-            full_index = proxy_model.mapToSource(proxy_index)
-            full_model.setData(full_index, 2, refresh_view=False)
-        self.refresh_gui()
-        return None
-    def mark_selected_models_as_unacceptable(self, proxy_indices):
-        proxy_model = self.parent.proxy_spectral_models
-        full_model = proxy_model.sourceModel()
-        for proxy_index in proxy_indices:
-            full_index = proxy_model.mapToSource(proxy_index)
-            full_model.setData(full_index, 0, refresh_view=False)
-        self.refresh_gui()
-        return None
-
-    def set_fitting_option_value(self, proxy_indices, key, value,
-                                 valid_for_profile=False,
-                                 valid_for_synth=False):
-        num_fit = 0
-        num_unacceptable = 0
-        num_profile_models = 0
-        num_synthesis_models = 0
-        for proxy_index in proxy_indices:
-            idx = self.model().mapToSource(proxy_index).row()
-            spectral_model \
-                = self.parent.parent.session.metadata["spectral_models"][idx]
-            run_fit = False
-            if not spectral_model.is_acceptable: 
-                num_unacceptable += 1
-                continue
-            if valid_for_profile and isinstance(spectral_model,ProfileFittingModel):
-                num_profile_models += 1
-                spectral_model.metadata[key] = value
-                run_fit = True
-            if valid_for_synth and isinstance(spectral_model,SpectralSynthesisModel):
-                num_synthesis_models += 1
-                spectral_model.metadata[key] = value
-                run_fit = True
-                
-            if run_fit and "fitted_result" in spectral_model.metadata:
-                num_fit += 1
-                spectral_model.fit()
-                self.update_row(proxy_index.row())
-                self.parent.update_cache(proxy_index)
-        logger.debug("Changed {0}={1}, fit {2} out of {3} models ({4} profile, {5} synth, skipped {6} unacceptable)".format(\
-                key, value, num_fit, len(proxy_indices), num_profile_models, num_synthesis_models, num_unacceptable))
-        self.refresh_gui()
-        return None
-
-
-class SpectralModelsTableModel(SpectralModelsTableModelBase):
-    def data(self, index, role):
-        """
-        Display the data.
-
-        :param index:
-            The table index.
-
-        :param role:
-            The display role.
-        """
-
-        if not index.isValid():
-            return None
-
-        if role==QtCore.Qt.FontRole:
-            return _QFONT
-
-        column = index.column()
-        spectral_model = self.spectral_models[index.row()]
-
-        if  column == 0 \
-        and role in (QtCore.Qt.DisplayRole, QtCore.Qt.CheckStateRole):
-            value = spectral_model.is_acceptable
-            if role == QtCore.Qt.CheckStateRole:
-                return QtCore.Qt.Checked if value else QtCore.Qt.Unchecked
-            else:
-                return None
-        elif column == 1:
-            value = spectral_model._repr_wavelength
-
-        elif column == 2: #abundance
-            try:
-                abundances \
-                    = spectral_model.metadata["fitted_result"][2]["abundances"]
-
-            except (IndexError, KeyError):
-                value = ""
-
-            else:
-                if len(abundances) == 1:
-                    value = "{0:.2f}".format(abundances[0])
-                else:
-                    assert isinstance(spectral_model, SpectralSynthesisModel), spectral_model
-                    current_element = self.parent.filter_combo_box.currentText()
-                    if current_element=="":
-                        value = ""
-                    elif current_element=="All":
-                        try:
-                            value = "; ".join(["{}".format(abund) \
-                                               for abund in spectral_model.abundances])
-                        except TypeError:
-                            value = ""
-                    else:
-                        # HACK for molecules
-                        if "-" in current_element: _elem = utils.species_to_element(utils.element_to_atomic_number(current_element)).split()[0]
-                        else: _elem = current_element.split()[0]
-                        for i,elem in enumerate(spectral_model.elements):
-                            if _elem == elem: break
-                        else:
-                            raise ValueError("{} ({}) not in {}".format(current_element, _elem, spectral_model.elements))
-                        value = "{0:.2f}".format(abundances[i])
-        elif column in [3, 4]: #EW, REW
-            if isinstance(spectral_model, ProfileFittingModel):
-                try:
-                    result = spectral_model.metadata["fitted_result"][2]
-                    equivalent_width = result["equivalent_width"][0]
-                except:
-                    equivalent_width = np.nan
-    
-                if column == 3:
-                    value = "{0:.1f}".format(1000 * equivalent_width) \
-                        if np.isfinite(equivalent_width) else ""
-                if column == 4:
-                    value = "{:.2f}".format(np.log10(equivalent_width/float(spectral_model._repr_wavelength))) \
-                        if np.isfinite(equivalent_width) else ""
-            elif isinstance(spectral_model, SpectralSynthesisModel):
-                if column == 3:
-                    value = ""
-                if column == 4:
-                    # HACK
-                    value = "-4.0"
-                
-        elif column == 5: #abundance err
-            if isinstance(spectral_model, ProfileFittingModel):
-                try:
-                    result = spectral_model.metadata["fitted_result"][2]
-                    err = result["abundance_uncertainties"][0]
-                    value = "{:.2f}".format(err)
-                except:
-                    value = ""
-            elif isinstance(spectral_model, SpectralSynthesisModel):
-                current_element = self.parent.filter_combo_box.currentText()
-                if current_element=="":
-                    value = ""
-                elif current_element=="All":
-                    value = ""
-                else:
-                    # HACK for molecules
-                    if "-" in current_element: _elem = utils.species_to_element(utils.element_to_atomic_number(current_element)).split()[0]
-                    else: _elem = current_element.split()[0]
-                    for i,elem in enumerate(spectral_model.elements):
-                        if _elem == elem: break
-                    else:
-                        raise ValueError("{} not in {}".format(current_element, spectral_model.elements))
-                    try:
-                        covar = spectral_model.metadata["fitted_result"][1]
-                    except:
-                        value = ""
-                    else:
-                        err = np.sqrt(covar[i,i])
-                        value = "{:.2f}".format(err)
-        elif column == 6: #EW err
-            try:
-                result = spectral_model.metadata["fitted_result"][2]
-                err = 1000.*np.nanmax(np.abs(result["equivalent_width"][1:3]))
-                value = "{:.2f}".format(err)
-            except:
-                value = ""
-        elif column == 7:
-            if isinstance(spectral_model, SpectralSynthesisModel):
-                value = ""
-            else:
-                try:
-                    loggf = spectral_model.transitions[0]['loggf']
-                    value = "{:6.3f}".format(loggf)
-                except:
-                    value = ""
-        elif column == 8:
-            value = "; ".join(["{}".format(element) \
-                      for element in spectral_model.elements])
-
-        return value if role == QtCore.Qt.DisplayRole else None
-
-    def setData(self, index, value, role=QtCore.Qt.DisplayRole, refresh_view=True):
-        value = super(SpectralModelsTableModel, self).setData(index, value, role)
-        if index.column() != 0: return False
-        
-        proxy_index = self.parent.table_view.model().mapFromSource(index)
-        proxy_row = proxy_index.row()
-        self.parent.table_view.rowMoved(proxy_row, proxy_row, proxy_row)
-
-        self.parent.update_cache(proxy_index)
-        if refresh_view:
-            self.parent.summarize_current_table()
-            self.parent.refresh_plots()
-
-        return value
+#class SpectralModelsTableView(SpectralModelsTableViewBase):
+#    def sizeHint(self):
+#        #return QtCore.QSize(240,100)
+#        return QtCore.QSize(125,100)
+#
+#    def minimumSizeHint(self):
+#        return QtCore.QSize(125,0)
+#
+#    def refresh_gui(self):
+#        self.parent.summarize_current_table()
+#        self.parent.update_fitting_options()
+#        self.parent.refresh_plots()
+#        return None
+#
+#    def fit_selected_models(self, proxy_indices):
+#        """ Fit the selected spectral models. """
+#        # Fit the models one by one
+#        for proxy_index in proxy_indices:
+#            index = self.model().mapToSource(proxy_index).row()
+#            self.parent.parent.session.metadata["spectral_models"][index].fit()
+#
+#            # Update the data model, view
+#            self.update_row(proxy_index.row())
+#
+#        self.refresh_gui()
+#        return None
+#    
+#    def measure_selected_models(self, proxy_indices):
+#        """ Fit the selected spectral models. """
+#
+#        # Get list of selected spectral models
+#        spectral_models = []
+#        for proxy_index in proxy_indices:
+#            index = self.model().mapToSource(proxy_index).row()
+#            spectral_models.append(self.parent.parent.session.metadata["spectral_models"][index])
+#
+#        # Fit abundances
+#        self.parent.parent.session.measure_abundances(spectral_models)
+#
+#        # Update the data model
+#        start = time.time()
+#        for proxy_index in proxy_indices:
+#            self.update_row(proxy_index.row())
+#        logger.debug("Time to update data model: {:.1f}".format(time.time()-start))
+#
+#        self.refresh_gui()
+#        return None
+#
+#    def mark_selected_models_as_acceptable(self, proxy_indices):
+#        proxy_model = self.parent.measurement_model
+#        full_model = proxy_model.sourceModel()
+#        for proxy_index in proxy_indices:
+#            full_index = proxy_model.mapToSource(proxy_index)
+#            full_model.setData(full_index, 2, refresh_view=False)
+#        self.refresh_gui()
+#        return None
+#    def mark_selected_models_as_unacceptable(self, proxy_indices):
+#        proxy_model = self.parent.measurement_model
+#        full_model = proxy_model.sourceModel()
+#        for proxy_index in proxy_indices:
+#            full_index = proxy_model.mapToSource(proxy_index)
+#            full_model.setData(full_index, 0, refresh_view=False)
+#        self.refresh_gui()
+#        return None
+#
+#    def set_fitting_option_value(self, proxy_indices, key, value,
+#                                 valid_for_profile=False,
+#                                 valid_for_synth=False):
+#        num_fit = 0
+#        num_unacceptable = 0
+#        num_profile_models = 0
+#        num_synthesis_models = 0
+#        for proxy_index in proxy_indices:
+#            idx = self.model().mapToSource(proxy_index).row()
+#            spectral_model \
+#                = self.parent.parent.session.metadata["spectral_models"][idx]
+#            run_fit = False
+#            if not spectral_model.is_acceptable: 
+#                num_unacceptable += 1
+#                continue
+#            if valid_for_profile and isinstance(spectral_model,ProfileFittingModel):
+#                num_profile_models += 1
+#                spectral_model.metadata[key] = value
+#                run_fit = True
+#            if valid_for_synth and isinstance(spectral_model,SpectralSynthesisModel):
+#                num_synthesis_models += 1
+#                spectral_model.metadata[key] = value
+#                run_fit = True
+#                
+#            if run_fit and "fitted_result" in spectral_model.metadata:
+#                num_fit += 1
+#                spectral_model.fit()
+#                self.update_row(proxy_index.row())
+#        logger.debug("Changed {0}={1}, fit {2} out of {3} models ({4} profile, {5} synth, skipped {6} unacceptable)".format(\
+#                key, value, num_fit, len(proxy_indices), num_profile_models, num_synthesis_models, num_unacceptable))
+#        self.refresh_gui()
+#        return None
+#
+#
+#class SpectralModelsTableModel(SpectralModelsTableModelBase):
+#    def data(self, index, role):
+#        """
+#        Display the data.
+#
+#        :param index:
+#            The table index.
+#
+#        :param role:
+#            The display role.
+#        """
+#
+#        if not index.isValid():
+#            return None
+#
+#        if role==QtCore.Qt.FontRole:
+#            return _QFONT
+#
+#        column = index.column()
+#        spectral_model = self.spectral_models[index.row()]
+#
+#        if  column == 0 \
+#        and role in (QtCore.Qt.DisplayRole, QtCore.Qt.CheckStateRole):
+#            value = spectral_model.is_acceptable
+#            if role == QtCore.Qt.CheckStateRole:
+#                return QtCore.Qt.Checked if value else QtCore.Qt.Unchecked
+#            else:
+#                return None
+#        elif column == 1:
+#            value = spectral_model._repr_wavelength
+#
+#        elif column == 2: #abundance
+#            try:
+#                abundances \
+#                    = spectral_model.metadata["fitted_result"][2]["abundances"]
+#
+#            except (IndexError, KeyError):
+#                value = ""
+#
+#            else:
+#                if len(abundances) == 1:
+#                    value = "{0:.2f}".format(abundances[0])
+#                else:
+#                    assert isinstance(spectral_model, SpectralSynthesisModel), spectral_model
+#                    current_element = self.parent.filter_combo_box.currentText()
+#                    if current_element=="":
+#                        value = ""
+#                    elif current_element=="All":
+#                        try:
+#                            value = "; ".join(["{}".format(abund) \
+#                                               for abund in spectral_model.abundances])
+#                        except TypeError:
+#                            value = ""
+#                    else:
+#                        # HACK for molecules
+#                        if "-" in current_element: _elem = utils.species_to_element(utils.element_to_atomic_number(current_element)).split()[0]
+#                        else: _elem = current_element.split()[0]
+#                        for i,elem in enumerate(spectral_model.elements):
+#                            if _elem == elem: break
+#                        else:
+#                            raise ValueError("{} ({}) not in {}".format(current_element, _elem, spectral_model.elements))
+#                        value = "{0:.2f}".format(abundances[i])
+#        elif column in [3, 4]: #EW, REW
+#            if isinstance(spectral_model, ProfileFittingModel):
+#                try:
+#                    result = spectral_model.metadata["fitted_result"][2]
+#                    equivalent_width = result["equivalent_width"][0]
+#                except:
+#                    equivalent_width = np.nan
+#    
+#                if column == 3:
+#                    value = "{0:.1f}".format(1000 * equivalent_width) \
+#                        if np.isfinite(equivalent_width) else ""
+#                if column == 4:
+#                    value = "{:.2f}".format(np.log10(equivalent_width/float(spectral_model._repr_wavelength))) \
+#                        if np.isfinite(equivalent_width) else ""
+#            elif isinstance(spectral_model, SpectralSynthesisModel):
+#                if column == 3:
+#                    value = ""
+#                if column == 4:
+#                    # HACK
+#                    value = "-4.0"
+#                
+#        elif column == 5: #abundance err
+#            if isinstance(spectral_model, ProfileFittingModel):
+#                try:
+#                    result = spectral_model.metadata["fitted_result"][2]
+#                    err = result["abundance_uncertainties"][0]
+#                    value = "{:.2f}".format(err)
+#                except:
+#                    value = ""
+#            elif isinstance(spectral_model, SpectralSynthesisModel):
+#                current_element = self.parent.filter_combo_box.currentText()
+#                if current_element=="":
+#                    value = ""
+#                elif current_element=="All":
+#                    value = ""
+#                else:
+#                    # HACK for molecules
+#                    if "-" in current_element: _elem = utils.species_to_element(utils.element_to_atomic_number(current_element)).split()[0]
+#                    else: _elem = current_element.split()[0]
+#                    for i,elem in enumerate(spectral_model.elements):
+#                        if _elem == elem: break
+#                    else:
+#                        raise ValueError("{} not in {}".format(current_element, spectral_model.elements))
+#                    try:
+#                        covar = spectral_model.metadata["fitted_result"][1]
+#                    except:
+#                        value = ""
+#                    else:
+#                        err = np.sqrt(covar[i,i])
+#                        value = "{:.2f}".format(err)
+#        elif column == 6: #EW err
+#            try:
+#                result = spectral_model.metadata["fitted_result"][2]
+#                err = 1000.*np.nanmax(np.abs(result["equivalent_width"][1:3]))
+#                value = "{:.2f}".format(err)
+#            except:
+#                value = ""
+#        elif column == 7:
+#            if isinstance(spectral_model, SpectralSynthesisModel):
+#                value = ""
+#            else:
+#                try:
+#                    loggf = spectral_model.transitions[0]['loggf']
+#                    value = "{:6.3f}".format(loggf)
+#                except:
+#                    value = ""
+#        elif column == 8:
+#            value = "; ".join(["{}".format(element) \
+#                      for element in spectral_model.elements])
+#
+#        return value if role == QtCore.Qt.DisplayRole else None
+#
+#    def setData(self, index, value, role=QtCore.Qt.DisplayRole, refresh_view=True):
+#        value = super(SpectralModelsTableModel, self).setData(index, value, role)
+#        if index.column() != 0: return False
+#        
+#        proxy_index = self.parent.table_view.model().mapFromSource(index)
+#        proxy_row = proxy_index.row()
+#        self.parent.table_view.rowMoved(proxy_row, proxy_row, proxy_row)
+#
+#        if refresh_view:
+#            self.parent.summarize_current_table()
+#            self.parent.refresh_plots()
+#
+#        return value
 
 class SynthesisAbundanceTableView(QtGui.QTableView):
     """

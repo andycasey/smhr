@@ -62,6 +62,7 @@ class ReviewTab(QtGui.QWidget):
         if session is None: return None
         self.summary_model.new_session(session)
         self.full_measurement_model.new_session(session)
+        self.measurement_model.reset()
         self.refresh_plots()
         return None
         

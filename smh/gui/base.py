@@ -993,7 +993,7 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
 
     def verify_columns(self, columns):
         for col in columns:
-            assert col in self.allattrs
+            assert col in self.allattrs, col
         assert len(columns) == len(np.unique(columns))
         return True
 
