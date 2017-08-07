@@ -1356,7 +1356,8 @@ class Session(BaseSession):
         if copy_to_working_dir:
             self.copy_file_to_working_directory(filename)
             
-        master_list = ascii.read(filename, **kwargs)
+        master_list = ascii.read(filename, **kwargs).filled()
+        logger.debug(master_list)
         types = np.array(map(lambda x: x.lower(), np.array(master_list["type"])))
         assert np.all(map(lambda x: (x=="eqw") or (x=="syn") or (x=="list"), types)), types
 
@@ -1401,7 +1402,15 @@ class Session(BaseSession):
         ## Add SYN
         syn = master_list[types=="syn"]
         for row in syn:
-            element = int(row['species'])
+            elem1, elem2, isotope1, isotope2, ion = \
+                utils.species_to_elems_isotopes_ion(row['species'])
+            logger.debug("{} -> {} {} {} {} {}".format(row['species'],elem1,elem2,isotope1,isotope2,ion))
+            if elem2=="":
+                element = [elem1]
+            else:
+                # Just hardcoding for now, have to do something about this later
+                if elem1 == "H" and elem2 == "C": element = ["C"]
+                logger.debug("Hardcoded element: C")
             _filename = row["filename"]
             what_wavelength = row['wavelength']
             what_species = [row['species']]
