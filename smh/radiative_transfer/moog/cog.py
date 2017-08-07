@@ -201,10 +201,11 @@ def _parse_abfind_summary(summary_out_path):
             # July 2014 version of MOOG has an additional column w/ the species
             if len(line) == 7:
                 line.insert(1, species)
-
-            elif len(abundances) == 0:
-                logger.debug("Detecting MOOG version >= July 2014; "
-                             "not inserting species")
+                logger.debug("Detecting MOOG version < July 2014; "
+                             "inserting species")
+            #elif len(abundances) == 0:
+            #    logger.debug("Detecting MOOG version >= July 2014; "
+            #                 "not inserting species")
             abundances.append(line)
         
         elif 'corr. coeff.' in line:
