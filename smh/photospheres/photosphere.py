@@ -92,6 +92,8 @@ def _moog_writer(photosphere, filename, **kwargs):
         output += "NATOMS        0     {0:.3f}\n".format(
             photosphere.meta["stellar_parameters"]["metallicity"])
         output += "NMOL          0\n"
+        # MOOG11 fails to read if you don't add an extra line
+        output += "\n"
 
     else:
         raise ValueError("photosphere kind '{}' cannot be written to a MOOG-"\
