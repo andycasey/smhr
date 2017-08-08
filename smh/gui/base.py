@@ -1044,10 +1044,21 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
 
         fmt = self.attr2format[attr]
         if isinstance(value, list):
-            mystrs = [fmt.format(v) for v in value]
-            mystr = ";".join(mystrs)
+            try:
+                mystrs = [[fmt.format(v) for v in vlist] for vlist in value]
+                #mystrs = [item for sublist in mystrs for item in sublist]
+            except ValueError as e:
+                logger.debug("{} has fmt {} and failing on {}".format(attr, fmt, value))
+                mystr = str(value)
+            else:
+                mystr = ";".join(mystrs)
+                
         else:
-            mystr = fmt.format(value)
+            try:
+                mystr = fmt.format(value)
+            except ValueError as e:
+                logger.debug("{} has fmt {} and failing on {}".format(attr, fmt, value))
+                mystr = str(value)
         return mystr
 
     @property

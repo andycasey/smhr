@@ -64,7 +64,7 @@ def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={},
 
         # Include explicitly specified abundances.
         abundances.update(rt_abundances)
-        print(abundances)
+        logger.debug(abundances)
 
         spectra = model.session.rt.synthesize(
             model.session.stellar_photosphere, 
@@ -80,7 +80,7 @@ def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={},
             fluxes[M*i + j, :] = spectrum[1]
 
     def call(*parameters):
-        print(*parameters)
+        logger.debug(*parameters)
         N = len(model.metadata["elements"])
         if len(parameters) < N:
             raise ValueError("missing parameters")
@@ -476,7 +476,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         try:
             (named_p_opt, cov, meta) = self.metadata["fitted_result"]
         except KeyError:
-            print("Please run a fit first!")
+            logger.info("Please run a fit first!")
             return None
         ## Write synthetic spectrum
         # take the mean of the two errors for simplicity
@@ -539,7 +539,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         try:
             (named_p_opt, cov, meta) = self.metadata["fitted_result"]
         except KeyError:
-            print("Please run a fit first!")
+            logger.info("Please run a fit first!")
             return None
         model_x = meta["model_x"]
         model_y = self(model_x, *named_p_opt.values())
@@ -640,7 +640,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         except ValueError:
             v = self.metadata["manual_rv"]
 
-        #print("smooth: {:.4f}, rv: {:.4f}".format(sigma_smooth,v))
+        #logger.debug("smooth: {:.4f}, rv: {:.4f}".format(sigma_smooth,v))
         # Interpolate the model spectrum onto the requested dispersion points.
         return np.interp(dispersion, synth_dispersion * (1 + v/299792458e-3), 
             model, left=1, right=1)
