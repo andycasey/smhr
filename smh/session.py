@@ -958,6 +958,10 @@ class Session(BaseSession):
         Calculate abundance uncertainties too.
         Measure synthesis on the fly (TODO).
         save_abundances: if True, save measured values into the session
+        
+        NOTE: there may be a bug where the wrong EQW gets passed if you specify spectral_models
+        It hasn't seemed to be a huge problem.
+        Not going to fix because it is made obsolete by SMHR v0.2
         """
         start = time.time()
         if spectral_models is None:

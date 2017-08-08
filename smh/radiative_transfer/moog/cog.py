@@ -18,6 +18,7 @@ from pkg_resources import resource_stream
 from . import utils
 from .utils import RTError
 from smh.utils import element_to_species
+from smh import linelists
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +51,17 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
         = path("batch.par"), path("model.in"), path("lines.in")
     photosphere.write(model_in, format="moog")
 
+
     # Write out the transitions.
     # Note that this must write out the EW too
-    # TODO remove and replace bad EW? Currently done elsewhere
-    if np.all(transitions['loggf'] >= 0):
-        transitions = transitions.copy()
-        transitions['loggf'] = 10**transitions['loggf']
+    # Versions of MOOG < 2017 (e.g. 2014 and before) take log10 
+    # of linelists with all positive loggf. Add a fake line to compensate.
+    all_positive_loggf = np.all(transitions['loggf'] >= 0)
+    if all_positive_loggf:
+        # Add a fake line with negative loggf
+        fakeline = linelists.LineList.create_basic_linelist([5006.126],[26.0],[2.833],[-3])
+        fakeline[0]["equivalent_width"] = 50.
+        transitions = linelists.table.vstack([fakeline, transitions])
     transitions.write(lines_in, format="moog")
     
     # Load the abfind driver template.
@@ -120,6 +126,11 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
         logger.debug(err.rstrip())
         raise RTError("Num lines returned {} != {} Num lines input".format(len(transitions_array),len(transitions)))
     
+    if all_positive_loggf:
+        # Remove the fakeline
+        transitions = transitions[1:]
+        transitions_array = transitions_array[1:,:]
+
     # Match transitions. Check for anything missing.
     col_wl, col_species, col_ep, col_loggf, col_ew, col_logrw, col_abund, col_del_avg = range(8)
     moog_wl      = transitions_array[:,col_wl]
