@@ -85,7 +85,7 @@ class TransitionsDialog(QtGui.QDialog):
     def _create_table(self):
         tablemodel = MeasurementTableModelBase(self, self.session,
                      MeasurementTableModelBase.allattrs)
-        tableview  = BaseTableView(self)
+        tableview  = TransitionsDialogTableView(self)
         self.tablemodel = tablemodel
         self.tableview  = tableview
         self.tableview.setModel(self.tablemodel)
@@ -238,6 +238,39 @@ class TransitionsDialog(QtGui.QDialog):
         return True
 
 
+class TransitionsDialogTableView(BaseTableView):
+    def contextMenuEvent(self, event):
+        """
+        Provide a right-click menu for the line list table.
+        :param event:
+            The mouse event that triggered the menu.
+        """
+        menu = QtGui.QMenu(self)
+        delete_action = menu.addAction("Delete")
+
+        any_selected = len(self.selectionModel().selectedRows()) > 0
+        if not any_selected:
+            delete_action.setEnabled(False)
+        
+        action = menu.exec_(self.mapToGlobal(event.pos()))
+        if action == delete_action:
+            self.delete_selected_models()
+        return None
+        
+    def delete_selected_models(self):
+        """
+        Remove models. This assumes the view's rows are the same as the model's rows.
+        """
+        all_rows = [row.row() for row in self.selectionModel().selectedRows()]
+        all_rows = np.sort(all_rows)
+        # Pop models out of the raw spectral_models in the session
+        model_list = self.model().spectral_models
+        for row in all_rows[::-1]:
+            model = model_list.pop(row)
+            logger.debug("{} {}".format(model.species, model.wavelength))
+        self.model().reset()
+        self.clearSelection()
+        return None
 
 if __name__ == "__main__":
 

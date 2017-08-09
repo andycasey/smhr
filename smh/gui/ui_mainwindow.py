@@ -518,7 +518,6 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Ensure to update the proxy data models when the transitions dialog has
         # been closed.
         window = TransitionsDialog(self.session, callbacks=[
-            self.session.index_spectral_models,
             self.stellar_parameters_tab.proxy_spectral_models.reset,
             self.chemical_abundances_tab.refresh_table,
             self.review_tab.new_session_loaded
