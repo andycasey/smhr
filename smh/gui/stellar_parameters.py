@@ -1121,6 +1121,7 @@ class StellarParametersTab(QtGui.QWidget):
                     filtering=filtering)
 
         except ValueError as e:
+            logger.warn(e)
             logger.warn("No measured transitions to calculate abundances for.")
             return None
 
