@@ -1911,7 +1911,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                   "fitted element {}!".format(elem))
         else:
             for i,elem in enumerate(selected_model.elements):
-                abund = summary_dict[elem][1]
+                try:
+                    abund = summary_dict[elem][1]
+                except KeyError:
+                    logger.warn("No abundance found for {}, using nan".format(elem))
+                    abund = np.nan
                 key = "log_eps({})".format(elem)
                 fitted_result[0][key] = abund
                 fitted_result[2]["abundances"][i] = abund
