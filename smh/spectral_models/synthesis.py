@@ -388,8 +388,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Use (p_opt, cov) not (p_opt, p_cov)
 
         # Make many draws from the covariance matrix.
-        draws = kwargs.pop("covariance_draws", 100)
-        percentiles = kwargs.pop("percentiles", (2.5, 97.5))
+        draws = kwargs.pop("covariance_draws", 
+            self.session.setting("covariance_draws",100))
+        percentiles = kwargs.pop("percentiles", \
+            self.session.setting("error_percentiles",(16, 84)))
         if np.all(np.isfinite(cov)):
             p_alt = np.random.multivariate_normal(p_opt, cov, size=draws)
             model_yerr = model_y - np.percentile(
