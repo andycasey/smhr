@@ -511,6 +511,9 @@ class Session(BaseSession):
             A tuple containing a tree of dictionary keys.
         """
 
+        if isinstance(key_tree, string_types):
+            key_tree = [key_tree]
+        
         value = self.metadata
         try:
             for key in key_tree:

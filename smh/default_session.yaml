@@ -192,4 +192,5 @@ summary_figure:
       - he1523-0901
 plot_styles:
   spectrum_drawstyle: steps-mid
-  
+covariance_draws: 100
+error_percentiles: [16, 84]
