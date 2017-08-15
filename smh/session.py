@@ -1253,6 +1253,9 @@ class Session(BaseSession):
         return smh_plotting.make_summary_plot(defaults["summary_figure_ncap"],
                                        self.normalized_spectrum, figure)
 
+    def make_snr_plot(self, figure=None):
+        return smh_plotting.make_snr_plot(self.normalized_spectrum, figure)
+
     def copy_file_to_working_directory(self, filename, twd=None):
         """
         Generic utility to copy files safely to twd

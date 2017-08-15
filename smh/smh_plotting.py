@@ -126,3 +126,15 @@ def make_summary_plot(summary_figure, normalized_spectrum,
     figure.legend(handles, labels, (.6, .8), prop = {'size': 12},
                   ncol = 2)
     return figure
+
+def make_snr_plot(normalized_spectrum, figure=None):
+    if figure==None: 
+        figure = plt.figure(figsize=(10,8))
+    figure.subplots_adjust(left=0.10, right=0.95)
+    figure.patch.set_facecolor("w")
+    
+    ax = figure.add_subplot(111)
+    ax.plot(normalized_spectrum.dispersion, np.sqrt(normalized_spectrum.ivar), lw=1, color='k')
+    ax.set_xlabel("Wavelength (A)")
+    ax.set_ylabel("SNR = sqrt(ivar)")
+    return figure

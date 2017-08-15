@@ -20,7 +20,7 @@ import smh
 from balmer import BalmerLineFittingDialog
 from linelist_manager import TransitionsDialog
 from isotope_manager import IsotopeDialog
-from plotting import SummaryPlotDialog
+from plotting import SummaryPlotDialog, SNRPlotDialog
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +128,10 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         # Plot menu
         plot_menu = self.menuBar().addMenu("&Plot")
+        ncap_summary_plot = QtGui.QAction("&SNR Plot", self,
+            statusTip="Make SNR plot",
+            triggered=self.snr_plot)
+        plot_menu.addAction(ncap_summary_plot)
         summary_plot = QtGui.QAction("&Summary Plot", self,
             statusTip="Make summary plot",
             triggered=self.summary_plot)
@@ -553,6 +557,14 @@ class Ui_MainWindow(QtGui.QMainWindow):
         Make a ncap summary plot in a popup dialog
         """
         window = SummaryPlotDialog(self.session, self, ncap=True)
+        window.exec_()
+        return None
+
+    def snr_plot(self):
+        """
+        Make a snr plot (=1/ivar) in a popup dialog
+        """
+        window = SNRPlotDialog(self.session, self)
         window.exec_()
         return None
 
