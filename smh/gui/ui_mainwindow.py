@@ -132,6 +132,10 @@ class Ui_MainWindow(QtGui.QMainWindow):
             statusTip="Make summary plot",
             triggered=self.summary_plot)
         plot_menu.addAction(summary_plot)
+        ncap_summary_plot = QtGui.QAction("&Ncap Summary Plot", self,
+            statusTip="Make ncap summary plot",
+            triggered=self.ncap_summary_plot)
+        plot_menu.addAction(ncap_summary_plot)
 
         # Export menu.
         self._menu_export_normalized_spectrum \
@@ -541,6 +545,14 @@ class Ui_MainWindow(QtGui.QMainWindow):
         Make a summary plot in a popup dialog
         """
         window = SummaryPlotDialog(self.session, self)
+        window.exec_()
+        return None
+
+    def ncap_summary_plot(self):
+        """
+        Make a ncap summary plot in a popup dialog
+        """
+        window = SummaryPlotDialog(self.session, self, ncap=True)
         window.exec_()
         return None
 
