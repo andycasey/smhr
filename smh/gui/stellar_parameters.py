@@ -642,8 +642,10 @@ class StellarParametersTab(QtGui.QWidget):
                 break # do not fit if any stellar parameter lines are already fit
         else:
             for model in self.parent.session.metadata["spectral_models"]:
-                # Only fit models for stellar parameter inference
-                if not model.use_for_stellar_parameter_inference: continue
+                ## Only fit models for stellar parameter inference
+                ##if not model.use_for_stellar_parameter_inference: continue
+                # Actually just fit all profile models
+                if isinstance(model, SpectralSynthesisModel): continue
                 try:
                     model.fit()
                 except:

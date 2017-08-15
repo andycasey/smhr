@@ -146,6 +146,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                                                      "species","wavelength",
                                                      "abundances",
                                                      "equivalent_width","reduced_equivalent_width",
+                                                     "equivalent_width_uncertainty",
                                                      "expot","loggf",
                                                      "is_upper_limit","user_flag"])
         self.measurement_model = MeasurementTableModelProxy(self)
@@ -807,8 +808,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 try:
                     res = spectral_model.fit()
                 except (ValueError, RuntimeError, TypeError) as e:
-                    logger.debug("Fitting error",spectral_model)
-                    logger.debug(e)
+                    logger.warn("Fitting error",spectral_model)
+                    logger.warn(e)
         # If none are acceptable, then fit all
         if num_unacceptable == self.full_measurement_model.rowCount(None):
             logger.info("Found no acceptable spectral models, fitting all!")

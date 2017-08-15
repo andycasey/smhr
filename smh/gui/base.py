@@ -771,6 +771,14 @@ class MeasurementTableView(BaseTableView):
         """ Used for proxy models """
         self.rowMoved(row, row, row)
         return None
+    #############################
+    # Stuff for rightclick menu #
+    #############################
+    def fit_selected_models(self):
+        raise NotImplementedError
+    def measure_selected_models(self):
+        raise NotImplementedError
+    
 def create_measurement_table_with_buttons(parent, filtermodel):
     """
     """
