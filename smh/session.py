@@ -1376,10 +1376,10 @@ class Session(BaseSession):
         ## Add EQW
         eqw = master_list[types=="eqw"]
         if len(eqw) > 0:
-            ll = LineList.create_basic_linelist(eqw["wavelength"],
-                                                eqw["species"],
-                                                eqw["expot"],
-                                                eqw["loggf"])
+            line_list = LineList.create_basic_linelist(eqw["wavelength"],
+                                                       eqw["species"],
+                                                       eqw["expot"],
+                                                       eqw["loggf"])
             spectral_models_to_add = []
             for i in range(len(line_list)):
                 line = line_list[i]

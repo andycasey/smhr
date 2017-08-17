@@ -167,6 +167,7 @@ class TransitionsDialog(QtGui.QDialog):
         if not paths: return None
         for path in paths:
             self.session.import_linelist_as_profile_models(path)
+
         self.tableview.model().reset()
         self.tableview.clearSelection()
         return None
@@ -176,7 +177,24 @@ class TransitionsDialog(QtGui.QDialog):
         paths = self.open_file(caption="Select linelists for synths", dir="", filter="")
         if not paths: return None
         for path in paths:
-            self.session.import_linelist_as_synthesis_model(path)
+            transitions = LineList.read(path)
+            selectable_elements \
+                = list(set(transitions.unique_elements).difference(["H"]))
+            
+            dialog = PeriodicTableDialog(
+                selectable_elements=selectable_elements,
+                explanation="Please select which element(s) will be measured"
+                            " by synthesizing the transitions in {}:".format(
+                    os.path.basename(path)),
+                multiple_select=True)
+            dialog.exec_()
+            
+            if len(dialog.selected_elements) == 0:
+                # Nothing selected. Skip this filename.
+                continue
+
+            self.session.import_linelist_as_synthesis_model(path, dialog.selected_elements)
+
         self.tableview.model().reset()
         self.tableview.clearSelection()
         return None
