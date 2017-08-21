@@ -14,7 +14,7 @@ import matplotlib
 from matplotlib.ticker import MaxNLocator
 
 import smh
-from smh import utils
+from smh import utils, LineList
 from smh.gui import mpl, style_utils
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 
@@ -162,6 +162,8 @@ class SMHSpecDisplay(mpl.MPLWidget):
                 np.nan, c="#666666", linestyle=":"),
             "transitions_center_residual": self.ax_residual.axvline(
                 np.nan, c="#666666", linestyle=":"),
+            "linelabels": self.ax_spectrum.vlines(
+                np.nan, np.nan, np.nan, color="#95d0fc", linestyle=":"),
             "model_masks": [],
             "nearby_lines": [],
             "model_fit": self.ax_spectrum.plot([], [], c="r")[0],
@@ -199,6 +201,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
         for key in ["spectrum", "transitions_center_main", "transitions_center_residual",
                     "model_fit", "model_residual"]:
             self._lines[key].set_data([],[])
+        self.label_lines(None)
     def new_session(self, session):
         self.reset()
         self.session = session
@@ -242,7 +245,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
     def _set_xlimits(self, limits):
         self.ax_spectrum.set_xlim(limits)
         self.ax_residual.set_xlim(limits)
-    def update_spectrum_figure(self, redraw=False, reset_limits=True):
+    def update_spectrum_figure(self, redraw=False, reset_limits=True, label_transitions=None):
         logger.debug("update spectrum figure ({}, {}, {})".format(self, redraw, reset_limits))
         if self.session is None: return None
         if reset_limits:
@@ -266,8 +269,29 @@ class SMHSpecDisplay(mpl.MPLWidget):
         ## Plot model
         success = self._plot_model()
 
+        ## Plot labeled lines
+        self.label_lines(label_transitions)
+
         if redraw: self.draw()
         
+        return None
+    def label_lines(self, transitions, label_elem=False,
+                    ymin=0.0, ymax=1.2):
+        """
+        Draw vertical lines at transition wavelengths
+        """
+        collection = self._lines["linelabels"]
+        if transitions is None:
+            collection.set_paths([])
+            return None
+        assert isinstance(transitions, LineList), type(transitions)
+        xs = np.array(transitions["wavelength"])
+        if label_elem: #TODO add text saying wl and elem
+            raise NotImplementedError
+        paths = []
+        for x in xs:
+            paths.append([[x, ymin], [x, ymax]])
+        collection.set_paths(paths)
         return None
         
     def key_press_zoom(self, event):
