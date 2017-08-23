@@ -252,13 +252,13 @@ class SMHSpecDisplay(mpl.MPLWidget):
         self.ax_residual.set_xlim(limits)
     def update_spectrum_figure(self, redraw=False, reset_limits=True,
                                label_transitions=None, label_rv=None):
-        logger.debug("update spectrum figure ({}, {}, {})".format(self, redraw, reset_limits))
-        if label_transitions is not None: logger.debug("labelling {} transitions for {}".format(
-                len(label_transitions), np.unique(label_transitions["species"])))
+        #logger.debug("update spectrum figure ({}, {}, {})".format(self, redraw, reset_limits))
+        if label_transitions is not None: logger.info("labelling {} transitions for {}".format(
+                len(label_transitions), np.array(np.unique(label_transitions["species"]))))
         if self.session is None: return None
         if reset_limits:
             self.update_selected_model()
-        logger.debug(" selected model: {}".format(self.selected_model))
+        #logger.debug(" selected model: {}".format(self.selected_model))
         if self.selected_model is None: return None
         selected_model = self.selected_model
         
@@ -901,7 +901,6 @@ class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
             return []
     def show_or_hide_unacceptable(self, btn):
         hide = btn.text().startswith("Hide")
-        logger.debug("Hide: {}".format(hide))
         if hide:
             self.add_filter_function(
                 "is_acceptable", lambda model: model.is_acceptable)
@@ -1093,14 +1092,17 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
         # TODO the spectral model itself should decide how its own information is displayed.
         # Make a _repr_attr for every attr?
         if attr == "wavelength":
-            return spectral_model._repr_wavelength
+            try:
+                return str(float(spectral_model.wavelength))
+            except:
+                return spectral_model._repr_wavelength
         if attr == "elements":
             return spectral_model._repr_element
 
         fmt = self.attr2format[attr]
-        if isinstance(value, list):
+        if isinstance(value, (list, np.ndarray)):
             try: 
-                if isinstance(value[0], list): # list of lists for syntheses species
+                if isinstance(value[0], (list, np.ndarray)): # list of lists for syntheses species
                     mystrs = [[fmt.format(v) for v in vlist] for vlist in value]
                     mystrs = [item for sublist in mystrs for item in sublist]
                 else:

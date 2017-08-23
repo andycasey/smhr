@@ -946,7 +946,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.update_spectrum_figure(True)
         return None
 
-    def update_spectrum_figure(self, redraw=False):
+    def update_spectrum_figure(self, redraw=False, reset_limits=True):
         ## If synthesis, label selected lines
         try:
             selected_model = self._get_selected_model()
@@ -963,6 +963,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     if np.sum(ii) != 0:
                         selected_transitions = transitions[ii]
                         redraw=True # force redraw
+                        reset_limits=False
                         label_rv = selected_model.metadata["manual_rv"]
                     else:
                         selected_transitions = None
@@ -975,6 +976,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 label_rv = None
         # Update figure
         self.figure.update_spectrum_figure(redraw=redraw,
+                                           reset_limits=reset_limits,
                                            label_transitions=selected_transitions,
                                            label_rv=label_rv)
 
