@@ -48,7 +48,7 @@ class Session(BaseSession):
     # The default settings path is only defined (hard-coded) here.
     _default_settings_path = os.path.expanduser("~/.smh_session.defaults")
 
-    def __init__(self, spectrum_paths, twd=None, **kwargs):
+    def __init__(self, spectrum_paths, twd=None, from_load=False, **kwargs):
         """
         Create a new session from input spectra.
 
@@ -127,15 +127,17 @@ class Session(BaseSession):
         self.metadata.setdefault("spectral_models", [])
         self.metadata.setdefault("reconstruct_copied_paths", [])
 
-        # Construct default profile models
-        line_list_filename = self.setting(("line_list_filename",))
-        if line_list_filename is not None and os.path.exists(line_list_filename):
-            self.import_linelist_as_profile_models(line_list_filename)
+        # Only do these things if creating session for the first time
+        if not from_load:
+            # Construct default profile models
+            line_list_filename = self.setting(("line_list_filename",))
+            if line_list_filename is not None and os.path.exists(line_list_filename):
+                self.import_linelist_as_profile_models(line_list_filename)
 
-        # Construct any default spectral models.
-        deconstructed_spectral_models = self.setting(("default_spectral_models", ))
-        if deconstructed_spectral_models is not None:
-            logger.warn("default_spectral_models is not implemented (skipping)")
+            # Construct any default spectral models.
+            deconstructed_spectral_models = self.setting(("default_spectral_models", ))
+            if deconstructed_spectral_models is not None:
+                logger.warn("default_spectral_models is not implemented (skipping)")
 
         return None
 
@@ -407,7 +409,7 @@ class Session(BaseSession):
         # Create the object using the temporary working directory input spectra.
         session = cls([os.path.join(twd, basename) \
             for basename in metadata["reconstruct_paths"]["input_spectra"]],
-            twd=twd)
+            twd=twd, from_load=True)
         
         # Load in any normalized spectrum.
         normalized_spectrum \
