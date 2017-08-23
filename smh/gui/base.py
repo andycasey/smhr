@@ -104,6 +104,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
     def __init__(self, parent, session=None, 
                  get_selected_model=None,
                  enable_zoom=True, enable_masks=False,
+                 label_ymin=1.0, label_ymax=1.2,
                  callbacks_after_fit=[],
                  **kwargs):
         super(SMHSpecDisplay, self).__init__(parent=parent, session=session, 
@@ -112,6 +113,8 @@ class SMHSpecDisplay(mpl.MPLWidget):
         self.get_selected_model = get_selected_model
         self.callbacks_after_fit = callbacks_after_fit
         self.session = session
+        self.label_ymin = label_ymin
+        self.label_ymax = label_ymax
         
         self.setMinimumSize(QtCore.QSize(100,100))
         sp = QtGui.QSizePolicy(
@@ -163,7 +166,9 @@ class SMHSpecDisplay(mpl.MPLWidget):
             "transitions_center_residual": self.ax_residual.axvline(
                 np.nan, c="#666666", linestyle=":"),
             "linelabels": self.ax_spectrum.vlines(
-                np.nan, np.nan, np.nan, color="#95d0fc", linestyle=":"),
+                np.nan, np.nan, np.nan, color="blue", lw=1),
+            "weak_linelabels": self.ax_spectrum.vlines(
+                np.nan, np.nan, np.nan, color="blue", linestyle=':', lw=1),
             "model_masks": [],
             "nearby_lines": [],
             "model_fit": self.ax_spectrum.plot([], [], c="r")[0],
@@ -245,8 +250,11 @@ class SMHSpecDisplay(mpl.MPLWidget):
     def _set_xlimits(self, limits):
         self.ax_spectrum.set_xlim(limits)
         self.ax_residual.set_xlim(limits)
-    def update_spectrum_figure(self, redraw=False, reset_limits=True, label_transitions=None):
+    def update_spectrum_figure(self, redraw=False, reset_limits=True,
+                               label_transitions=None, label_rv=None):
         logger.debug("update spectrum figure ({}, {}, {})".format(self, redraw, reset_limits))
+        if label_transitions is not None: logger.debug("labelling {} transitions for {}".format(
+                len(label_transitions), np.unique(label_transitions["species"])))
         if self.session is None: return None
         if reset_limits:
             self.update_selected_model()
@@ -276,22 +284,37 @@ class SMHSpecDisplay(mpl.MPLWidget):
         
         return None
     def label_lines(self, transitions, label_elem=False,
-                    ymin=0.0, ymax=1.2):
+                    ymin=None, ymax=None,
+                    rv=None,
+                    strong_loggf_min = -3.0,
+                    strong_expot_max = 2.0):
         """
         Draw vertical lines at transition wavelengths
         """
-        collection = self._lines["linelabels"]
-        if transitions is None:
-            collection.set_paths([])
-            return None
-        assert isinstance(transitions, LineList), type(transitions)
-        xs = np.array(transitions["wavelength"])
+        if ymin is None: ymin = self.label_ymin
+        if ymax is None: ymax = self.label_ymax
         if label_elem: #TODO add text saying wl and elem
             raise NotImplementedError
+        if rv is None: rv = 0.0
+
+        collection = self._lines["linelabels"]
+        collection2 = self._lines["weak_linelabels"]
+        if transitions is None:
+            collection.set_paths([])
+            collection2.set_paths([])
+            return None
+        assert isinstance(transitions, LineList), type(transitions)
+        ii_strong = np.logical_and(transitions["expot"] < strong_expot_max,
+                                   transitions["loggf"] > strong_loggf_min)
+        xs = np.array(transitions["wavelength"]) * (1 + rv/299792.458)
         paths = []
-        for x in xs:
+        for x in xs[ii_strong]:
             paths.append([[x, ymin], [x, ymax]])
         collection.set_paths(paths)
+        paths = []
+        for x in xs[~ii_strong]:
+            paths.append([[x, ymin], [x, ymax]])
+        collection2.set_paths(paths)
         return None
         
     def key_press_zoom(self, event):
@@ -1083,7 +1106,7 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
                 else:
                     mystrs = [fmt.format(v) for v in value]
             except ValueError as e:
-                logger.debug("{} has fmt {} and failing on {}".format(attr, fmt, value))
+                logger.debug("A: {} has fmt {} and failing on {}".format(attr, fmt, value))
                 mystr = str(value)
             else:
                 mystr = ";".join(mystrs)
@@ -1091,7 +1114,7 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
             try:
                 mystr = fmt.format(value)
             except ValueError as e:
-                logger.debug("{} has fmt {} and failing on {}".format(attr, fmt, value))
+                logger.debug("B: {} has fmt {} and failing on {}".format(attr, fmt, value))
                 mystr = str(value)
         return mystr
 

@@ -95,6 +95,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # Connect selection model
         #_ = self.table_view.selectionModel()
         #_.selectionChanged.connect(self.selected_model_changed)
+        _ = self.synth_abund_table.selectionModel()
+        _.selectionChanged.connect(self.update_spectrum_figure)
 
         # Connect buttons
         self.btn_fit_all.clicked.connect(self.fit_all_profiles)
@@ -945,7 +947,36 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def update_spectrum_figure(self, redraw=False):
-        self.figure.update_spectrum_figure(redraw=redraw)
+        ## If synthesis, label selected lines
+        try:
+            selected_model = self._get_selected_model()
+        except IndexError:
+            selected_transitions = None
+            label_rv = None
+        else:
+            if isinstance(selected_model, SpectralSynthesisModel):
+                selected_elem = self.synth_abund_table.get_selected_element()
+                if selected_elem is not None:
+                    transitions = selected_model.transitions
+                    ii = np.logical_or(transitions["elem1"] == selected_elem,
+                                       transitions["elem2"] == selected_elem)
+                    if np.sum(ii) != 0:
+                        selected_transitions = transitions[ii]
+                        redraw=True # force redraw
+                        label_rv = selected_model.metadata["manual_rv"]
+                    else:
+                        selected_transitions = None
+                        label_rv = None
+                else:
+                    selected_transitions = None
+                    label_rv = None
+            else:
+                selected_transitions = None
+                label_rv = None
+        # Update figure
+        self.figure.update_spectrum_figure(redraw=redraw,
+                                           label_transitions=selected_transitions,
+                                           label_rv=label_rv)
 
 
     def update_fitting_options(self):
@@ -1665,6 +1696,14 @@ class SynthesisAbundanceTableView(QtGui.QTableView):
         return QtCore.QSize(100,100)
     def minimumSizeHint(self):
         return QtCore.QSize(100,0)
+    def get_selected_element(self):
+        try:
+            index = self.selectionModel().selectedIndexes()[-1]
+            elem = self.model().elem_order[index.row()]
+            return elem
+        except:
+            logger.exception("Could not get selected element")
+            return None
 class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
     """
     Editable table of abundances to synthesize
