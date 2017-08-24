@@ -809,28 +809,257 @@ class BaseTableView(QtGui.QTableView):
     def minimumSizeHint(self):
         return QtCore.QSize(125,100)
 class MeasurementTableView(BaseTableView):
-    """
-    TODO add the rightclick menus to here
-    """
-    def __init__(self, parent, *args):
-        super(MeasurementTableView, self).__init__(parent, *args)
+    def __init__(self, parent, session,
+                 callbacks_after_menu=[], display_fitting_options=True):
+        super(MeasurementTableView, self).__init__(parent)
+        self.session = session
+        self.callbacks_after_menu = callbacks_after_menu
+        self.display_fitting_options = display_fitting_options
     def update_row(self,row):
-        """ Used for proxy models """
+        """ Used for proxy models to efficiently update data"""
         self.rowMoved(row, row, row)
         return None
+    def menu_finished(self):
+        """ Use to refresh GUI after changing fitting options """
+        for callback in self.callbacks_after_menu:
+            callback()
     #############################
     # Stuff for rightclick menu #
     #############################
-    def fit_selected_models(self):
-        raise NotImplementedError
-    def measure_selected_models(self):
-        raise NotImplementedError
+    def contextMenuEvent(self, event):
+        indices = self.selectionModel().selectedRows()
+        rows = [index.row() for index in indices]
+        N = len(rows)
+        
+        ### Create rightclick menu
+        menu = QtGui.QMenu(self)
+        fit_selected_models = menu.addAction(
+            "Fit selected model{}..".format(["", "s"][N != 1]))
+        measure_selected_models = menu.addAction(
+            "Measure selected model{}..".format(["", "s"][N != 1]))
+
+        menu.addSeparator()
+
+        mark_as_acceptable = menu.addAction("Mark as acceptable")
+        mark_as_unacceptable = menu.addAction("Mark as unacceptable")
+
+        set_user_flag = menu.addAction("Set user flag")
+        unset_user_flag = menu.addAction("Unset user flag")
+
+        if self.display_fitting_options:
+            menu.addSeparator()
+            
+            set_fitting_window = menu.addAction("Set fitting window..")
+            continuum_menu = menu.addMenu("Set continuum")
+            set_no_continuum = continuum_menu.addAction("No continuum",
+                checkable=True)
+            continuum_menu.addSeparator()
+            set_continuum_order = [continuum_menu.addAction(
+                "Order {}".format(i), checkable=True) for i in range(0, 10)]
     
-def create_measurement_table_with_buttons(parent, filtermodel):
+            menu.addSeparator()
+    
+            menu_profile_type = menu.addMenu("Set profile type")
+    
+            set_gaussian = menu_profile_type.addAction("Gaussian")
+            set_lorentzian = menu_profile_type.addAction("Lorentzian")
+            set_voigt = menu_profile_type.addAction("Voigt")
+    
+            menu.addSeparator()
+    
+            enable_central_weighting = menu.addAction("Enable central weighting")
+            disable_central_weighting = menu.addAction("Disable central weighting")
+    
+            menu.addSeparator()
+    
+            set_detection_sigma = menu.addAction("Set detection sigma..")
+            set_detection_pixels = menu.addAction("Set detection pixels..")
+    
+            menu.addSeparator()
+    
+            set_rv_tolerance = menu.addAction("Set RV tolerance..")
+            set_wl_tolerance = menu.addAction("Set WL tolerance..")
+
+        if N == 0:
+            menu.setEnabled(False)
+            
+        action = menu.exec_(self.mapToGlobal(event.pos()))
+    
+        if action == fit_selected_models:
+            self.fit_selected_models()
+        elif action == measure_selected_models:
+            self.measure_selected_models()
+        elif action in (mark_as_acceptable, mark_as_unacceptable):
+            toggle = (action == mark_as_acceptable)
+            self.set_flag("is_acceptable", toggle)
+        elif action in (set_user_flag, unset_user_flag):
+            toggle = (action == set_user_flag)
+            self.set_flag("user_flag", toggle)
+        if self.display_fitting_options:
+            if action == set_fitting_window:
+                self.set_fitting_window()
+            elif action == set_no_continuum:
+                self.set_continuum_order(-1)
+            elif action == set_continuum_order:
+                order = set_continuum_order.index(action)
+                self.set_continuum_order(order)
+            elif action in (set_gaussian, set_lorentzian, set_voigt):
+                kind = {
+                    set_gaussian: "gaussian",
+                    set_lorentzian: "lorentzian",
+                    set_voigt: "voigt"
+                }[action]
+                self.set_profile(kind)
+            elif action in (enable_central_weighting, disable_central_weighting):
+                toggle = (action == enable_central_weighting)
+                self.set_central_weighting(toggle)
+            elif action == set_detection_sigma:
+                self.set_detection_sigma()
+            elif action == set_detection_pixels:
+                self.set_detection_pixels()
+            elif action == set_rv_tolerance:
+                self.set_rv_tolerance()
+            elif action == self.set_wl_tolerance:
+                self.set_wl_tolerance()
+        
+        self.menu_finished()
+        return None
+
+    def get_selected_models(self, getrows=False):
+        indices = self.selectionModel().selectedRows()
+        rows = [index.row() for index in indices]
+        spectral_models = self.model().get_models_from_rows(rows)
+        if getrows:
+            return rows, spectral_models
+        return spectral_models
+
+    def fit_selected_models(self):
+        rows, spectral_models = self.get_selected_models(getrows=True)
+        for row, model in zip(rows, spectral_models):
+            try:
+                model.fit()
+            except:
+                logger.exception("Error fitting row {}".format(row))
+            self.update_row(row)
+        return None
+    
+    def measure_selected_models(self):
+        rows, spectral_models = self.get_selected_models(getrows=True)
+        self.session.measure_abundances(spectral_models)
+        for row in rows:
+            self.update_row(row)
+        return None
+    
+    def set_flag(self, flag_field, toggle):
+        assert flag_field in ["is_acceptable", "is_upper_limit", "user_flag"], flag_field
+        value = 2 if toggle else 0
+        rows, spectral_models = self.get_selected_models(getrows=True)
+        data_model = self.model()
+        col = self.model().attrs.index(flag_field)
+        for row in rows:
+            index = data_model.createIndex(row, col)
+            data_model.setData(index, value)
+        return None
+        
+    def set_fitting_option_value(self, key, value,
+                                 valid_for_profile=False,
+                                 valid_for_synth=False):
+        rows, spectral_models = self.get_selected_models(getrows=True)
+        num_fit = 0
+        num_unacceptable = 0
+        num_profile_models = 0
+        num_synthesis_models = 0
+        num_error = 0
+        for row, spectral_model in zip(rows, spectral_models):
+            run_fit = False
+            if not spectral_model.is_acceptable: 
+                num_unacceptable += 1
+                continue
+            if valid_for_profile and isinstance(spectral_model,ProfileFittingModel):
+                num_profile_models += 1
+                spectral_model.metadata[key] = value
+                run_fit = True
+            if valid_for_synth and isinstance(spectral_model,SpectralSynthesisModel):
+                num_synthesis_models += 1
+                spectral_model.metadata[key] = value
+                run_fit = True
+                
+            if run_fit and "fitted_result" in spectral_model.metadata:
+                num_fit += 1
+                try:
+                    spectral_model.fit()
+                except:
+                    num_error += 1
+                    logger.exception("Error fitting row {} after modifying {} to {}".format(row, key, value))
+                self.update_row(row)
+        logger.info("Changed {0}={1}, fit {2} out of {3} models ({4} profile, {5} synth, {6} unacceptable, {7} fit fail)".format(\
+                key, value, num_fit, len(spectral_models), num_profile_models, num_synthesis_models, num_unacceptable, num_error))
+        return None
+    def set_fitting_window(self):
+        window, is_ok = QtGui.QInputDialog.getDouble(
+            None, "Set fitting window", u"Fitting window (Å):", 
+            value=5, minValue=0.1, maxValue=1000)
+        if not is_ok: return None
+        self.set_fitting_option_value("window", window,
+                                      valid_for_profile=True,
+                                      valid_for_synth=True)
+        return None
+    def set_continuum_order(self, order):
+        self.set_fitting_option_value("continuum_order", order,
+                                      valid_for_profile=True,
+                                      valid_for_synth=True)
+        return None
+    def set_profile(self, kind):
+        self.set_fitting_option_value("profile", kind,
+                                      valid_for_profile=True,
+                                      valid_for_synth=False)
+        return None
+    def set_central_weighting(self, toggle):
+        self.set_fitting_option_value("central_weighting", toggle,
+                                      valid_for_profile=True,
+                                      valid_for_synth=False)
+        return None
+    def set_detection_sigma(self):
+        detection_sigma, is_ok = QtGui.QInputDialog.getDouble(
+            None, "Set detection sigma", u"Detection sigma:", 
+            value=0.5, minValue=0.1, maxValue=1000)
+        if not is_ok: return None
+        self.set_fitting_option_value("detection_sigma", detection_sigma,
+                                      valid_for_profile=True,
+                                      valid_for_synth=False)
+    def set_detection_pixels(self):
+        detection_pixels, is_ok = QtGui.QInputDialog.getInt(
+            None, "Set detection pixel", u"Detection pixels:", 
+            value=3, minValue=1, maxValue=1000)
+        if not is_ok: return None
+        self.set_fitting_option_value("detection_pixels", detection_pixels,
+                                      valid_for_profile=True,
+                                      valid_for_synth=False)
+    def set_rv_tolerance(self):
+        velocity_tolerance, is_ok = QtGui.QInputDialog.getDouble(
+            None, "Set velocity tolerance", u"Velocity tolerance:", 
+            value=5, minValue=0.01, maxValue=100)
+        if not is_ok: return None
+        # TODO cannot turn it back to None right now
+        self.set_fitting_option_value("velocity_tolerance", velocity_tolerance,
+                                      valid_for_profile=True,
+                                      valid_for_synth=True)
+    def set_wl_tolerance(self):
+        wavelength_tolerance, is_ok = QtGui.QInputDialog.getDouble(
+            None, "Set wavelength tolerance", u"Wavelength tolerance:", 
+            value=0.1, minValue=0.01, maxValue=1)
+        if not is_ok: return None
+        # TODO cannot turn it back to None right now
+        self.set_fitting_option_value("wavelength_tolerance", wavelength_tolerance,
+                                      valid_for_profile=True,
+                                      valid_for_synth=False)
+
+def create_measurement_table_with_buttons(parent, filtermodel, session, **kwargs):
     """
+    kwargs go to MeasurementTableView (esp. callbacks_after_menu, display_fitting_options)
     """
     vbox = QtGui.QVBoxLayout()
-    tableview = MeasurementTableView(parent)
+    tableview = MeasurementTableView(parent, session, **kwargs)
     tableview.setModel(filtermodel)
     vbox.addWidget(tableview)
     
@@ -1006,6 +1235,9 @@ class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
                 proxy_index.column())
         except AttributeError:
             return proxy_index
+    def get_models_from_rows(self, rows):
+        actual_rows = [self.lookup_indices[row] for row in rows]
+        return self.sourceModel().get_models_from_rows(actual_rows)
 
 class MeasurementTableModelBase(QtCore.QAbstractTableModel):
     """
@@ -1061,6 +1293,12 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
         getter = lambda ix: getattr(models[ix], attr, np.nan)
         data = map(getter, rows)
         return np.array(data)
+
+    def get_models_from_rows(self, rows):
+        models_to_return = []
+        for row in rows:
+            models_to_return.append(self.spectral_models[row])
+        return models_to_return
 
     def data(self, index, role):
         """

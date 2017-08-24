@@ -139,7 +139,9 @@ class ReviewTab(QtGui.QWidget):
         #self.measurement_view = MeasurementTableView(self)
         #self.measurement_view.setModel(self.measurement_model)
         vbox, measurement_view, btn_filter, btn_refresh = base.create_measurement_table_with_buttons(
-            self, self.measurement_model)
+            self, self.measurement_model, self.parent.session,
+            callbacks_after_menu=[self.new_session_loaded],
+            display_fitting_options=False)
         self.measurement_view = measurement_view
         self.measurement_model.add_view_to_update(self.measurement_view)
         _ = self.measurement_view.selectionModel()

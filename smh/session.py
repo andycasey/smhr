@@ -983,7 +983,7 @@ class Session(BaseSession):
                     equivalent_width_errs.append(np.nan)
                 num_profile += 1
             elif isinstance(spectral_model, SpectralSynthesisModel):
-                print("Ignoring synthesis",spectral_model)
+                logger.info("Ignoring synthesis",spectral_model)
                 num_synth += 1
             else:
                 raise RuntimeError("Unknown model type: {}".format(type(spectral_model)))
@@ -1033,7 +1033,7 @@ class Session(BaseSession):
                     zip(spectral_model_indices[finite], abundances, uncertainties):
                 spectral_models[index].metadata["fitted_result"][-1]["abundances"] = [abundance]
                 spectral_models[index].metadata["fitted_result"][-1]["abundance_uncertainties"] = [uncertainty]
-        print("Time to measure {} abundances: {:.1f}".format(np.sum(finite), time.time()-start))
+        logger.info("Time to measure {} abundances: {:.1f}".format(np.sum(finite), time.time()-start))
         return abundances, uncertainties if calculate_uncertainties else abundances
 
     def summarize_spectral_models(self, spectral_models=None, organize_by_element=False,
@@ -1146,9 +1146,6 @@ class Session(BaseSession):
             summary_dict[key] = summary
 
         total_num_models_summarized = np.sum([len(x) for x in all_logeps.values()])
-        ## This is basically instantaneous, which is good!
-        #print("Time to summarize {} measurements (organized by {}): {:.1f}".format(\
-        #        total_num_models_summarized, what_key_type, time.time()-start))
         return summary_dict
     
     def export_abundance_table(self, filepath):
@@ -1239,7 +1236,7 @@ class Session(BaseSession):
             raise RuntimeError("Defaults file ({}) must have summary_figure".format(\
                     self._default_settings_path))
         if not isinstance(self.normalized_spectrum, specutils.Spectrum1D):
-            print("Must have normalized spectrum to make summary plot")
+            logger.warn("Must have normalized spectrum to make summary plot")
             return None
         return smh_plotting.make_summary_plot(defaults["summary_figure"],
                                        self.normalized_spectrum, figure)
@@ -1250,7 +1247,7 @@ class Session(BaseSession):
             raise RuntimeError("Defaults file ({}) must have summary_figure".format(\
                     self._default_settings_path))
         if not isinstance(self.normalized_spectrum, specutils.Spectrum1D):
-            print("Must have normalized spectrum to make summary plot")
+            logger.warn("Must have normalized spectrum to make summary plot")
             return None
         return smh_plotting.make_summary_plot(defaults["summary_figure_ncap"],
                                        self.normalized_spectrum, figure)
