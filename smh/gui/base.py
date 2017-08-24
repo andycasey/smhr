@@ -815,6 +815,8 @@ class MeasurementTableView(BaseTableView):
         self.session = session
         self.callbacks_after_menu = callbacks_after_menu
         self.display_fitting_options = display_fitting_options
+    def update_session(self, session):
+        self.session = session
     def update_row(self,row):
         """ Used for proxy models to efficiently update data"""
         self.rowMoved(row, row, row)
