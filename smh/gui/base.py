@@ -253,8 +253,8 @@ class SMHSpecDisplay(mpl.MPLWidget):
     def update_spectrum_figure(self, redraw=False, reset_limits=True,
                                label_transitions=None, label_rv=None):
         #logger.debug("update spectrum figure ({}, {}, {})".format(self, redraw, reset_limits))
-        if label_transitions is not None: logger.info("labelling {} transitions for {}".format(
-                len(label_transitions), np.array(np.unique(label_transitions["species"]))))
+        if label_transitions is not None: logger.info("labelling {} transitions for {} (rv={})".format(
+                len(label_transitions), np.array(np.unique(label_transitions["species"])), label_rv))
         if self.session is None: return None
         if reset_limits:
             self.update_selected_model()
@@ -278,7 +278,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
         success = self._plot_model()
 
         ## Plot labeled lines
-        self.label_lines(label_transitions)
+        self.label_lines(label_transitions, rv=label_rv)
 
         if redraw: self.draw()
         
