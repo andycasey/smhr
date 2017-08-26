@@ -98,7 +98,7 @@ def test_MeasurementTableView():
                "abundances","abundances_to_solar","abundance_uncertainties",
                "is_upper_limit","user_flag"]
     measurement_table = MeasurementTableModelBase(None, session, columns)
-    view = MeasurementTableView(None)
+    view = MeasurementTableView(None, session)
     view.setModel(measurement_table)
 
     vbox.addWidget(view)
