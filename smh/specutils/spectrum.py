@@ -327,12 +327,13 @@ class Spectrum1D(object):
             # See http://iraf.net/irafdocs/specwcs.php
             crval = image[0].header["CRVAL1"]
             naxis = image[0].header["NAXIS1"]
-            crpix = image[0].header.get("CRPIX1", 0)
+            crpix = image[0].header.get("CRPIX1", 1)
             cdelt = image[0].header["CDELT1"]
             ltv = image[0].header.get("LTV1", 0)
 
+            # + 1 presumably because fits is 1-indexed instead of 0-indexed
             dispersion = \
-                crval + (np.arange(naxis) - crpix) * cdelt - ltv * cdelt
+                crval + (np.arange(naxis) + 1 - crpix) * cdelt - ltv * cdelt
 
             flux = image[0].data
             if len(image) == 1:
@@ -390,11 +391,11 @@ class Spectrum1D(object):
         
         else:
 
-            crpix1, crval1 = 0, self.dispersion.min()
+            crpix1, crval1 = 1, self.dispersion.min()
             cdelt1 = np.mean(np.diff(self.dispersion))
             naxis1 = len(self.dispersion)
             
-            linear_dispersion = crval1 + (np.arange(naxis1) - crpix1) * cdelt1
+            linear_dispersion = crval1 + (np.arange(naxis1) + 1 - crpix1) * cdelt1
 
             ## Check for linear dispersion map
             maxdiff = np.max(np.abs(linear_dispersion - self.dispersion))
