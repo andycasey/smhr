@@ -436,9 +436,9 @@ def corrections_from_headers(headers):
     try:
         mjd = Time("{0}T{1}".format(headers["DATE-MID"], headers["UT-MID"])).mjd
 
-    except IndexError:
+    except (IndexError, KeyError):
         # Try and calculate it from UT-START/UT-DATE keys
-        raise
+        #raise
 
         try:
             utdate_key = [_ for _ in ("UTDATE", "UT-DATE") if _ in headers][0]
@@ -466,4 +466,4 @@ def corrections_from_headers(headers):
 
     # Calculate the correction.
     return corrections(long_obs, lat_obs, alt_obs, ra, dec, mjd)
-   
+

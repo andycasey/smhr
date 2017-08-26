@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["SummaryPlotDialog"]
 
 class SummaryPlotDialog(QtGui.QDialog):
-    def __init__(self, session, parent):
+    def __init__(self, session, parent, ncap=False):
         super(SummaryPlotDialog, self).__init__()
         # Center it on the parent location
         rect = parent.geometry()
@@ -33,5 +33,23 @@ class SummaryPlotDialog(QtGui.QDialog):
         vbox = QtGui.QVBoxLayout(self)
         figure_widget = mpl.MPLWidget(None, tight_layout=True)
         vbox.addWidget(figure_widget)
-        session.make_summary_plot(figure_widget.figure)
+        if ncap:
+            session.make_ncap_summary_plot(figure_widget.figure)
+        else:
+            session.make_summary_plot(figure_widget.figure)
         
+class SNRPlotDialog(QtGui.QDialog):
+    def __init__(self, session, parent, ncap=False):
+        super(SNRPlotDialog, self).__init__()
+        # Center it on the parent location
+        rect = parent.geometry()
+        x, y = rect.center().x(), rect.center().y()
+        w = 1000
+        h = 640
+        self.setGeometry(x-w/2, y-h/2, w, h)
+        vbox = QtGui.QVBoxLayout(self)
+        figure_widget = mpl.MPLWidget(None, tight_layout=True)
+        figure_widget.enable_interactive_zoom()
+        vbox.addWidget(figure_widget)
+        session.make_snr_plot(figure_widget.figure)
+

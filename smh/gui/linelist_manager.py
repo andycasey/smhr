@@ -23,7 +23,8 @@ from astropy.table import Column
 
 from smh.linelists import LineList
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
-from smh.utils import spectral_model_conflicts
+
+from smh.gui.base import BaseTableView, MeasurementTableModelBase
 
 from periodic_table import PeriodicTableDialog
 
@@ -38,6 +39,267 @@ if sys.platform == "darwin":
     ]
     for substitute in substitutes:
         QtGui.QFont.insertSubstitution(*substitute)
+
+
+class TransitionsDialog(QtGui.QDialog):
+
+    def __init__(self, session, callbacks=None, **kwargs):
+        """
+        Initialise a dialog to manage the measurements for the given session.
+
+        :param session:
+            The session that will be inspected for measurements.
+        """
+        
+        super(TransitionsDialog, self).__init__(**kwargs)
+        
+        self.session = session
+        self.callbacks = callbacks or []
+        
+        self.setGeometry(900, 400, 900, 400)
+        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+            - self.rect().center())
+        self.setWindowTitle("Manage Measurements")
+        
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.MinimumExpanding, 
+            QtGui.QSizePolicy.MinimumExpanding)
+        sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
+        self.setSizePolicy(sp)
+        
+        parent_vbox = QtGui.QVBoxLayout(self)
+        self._create_table()
+        parent_vbox.addWidget(self.tableview)
+        
+        # A horizontal line.
+        hr = QtGui.QFrame(self)
+        hr.setFrameShape(QtGui.QFrame.HLine)
+        hr.setFrameShadow(QtGui.QFrame.Sunken)
+        parent_vbox.addWidget(hr)
+        
+        hbox = self._create_buttons()
+        parent_vbox.addLayout(hbox)
+        
+        return None
+
+    def _create_table(self):
+        tablemodel = MeasurementTableModelBase(self, self.session,
+                     MeasurementTableModelBase.allattrs)
+        tableview  = TransitionsDialogTableView(self)
+        self.tablemodel = tablemodel
+        self.tableview  = tableview
+        self.tableview.setModel(self.tablemodel)
+
+    def _create_buttons(self):
+        hbox = QtGui.QHBoxLayout()
+        
+        # Import from raw line lists
+        self.btn_add_profile_list = QtGui.QPushButton(self)
+        self.btn_add_profile_list.setText("Add EQW List")
+        self.btn_add_profile_list.clicked.connect(self.add_profile_list)
+        hbox.addWidget(self.btn_add_profile_list)
+        
+        self.btn_add_synth_list = QtGui.QPushButton(self)
+        self.btn_add_synth_list.setText("Add Synth List")
+        self.btn_add_synth_list.clicked.connect(self.add_synth_list)
+        hbox.addWidget(self.btn_add_synth_list)
+        
+        hbox.addItem(QtGui.QSpacerItem(40, 20, 
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+
+        # Import and export pickled spectral models
+        self.btn_import_spec_models = QtGui.QPushButton(self)
+        self.btn_import_spec_models.setText("Import Spectral Models")
+        self.btn_import_spec_models.clicked.connect(self.import_spectral_model_states)
+        hbox.addWidget(self.btn_import_spec_models)
+
+        self.btn_export_spec_models = QtGui.QPushButton(self)
+        self.btn_export_spec_models.setText("Export Spectral Models")
+        self.btn_export_spec_models.clicked.connect(self.export_spectral_model_states)
+        hbox.addWidget(self.btn_export_spec_models)
+        
+        hbox.addItem(QtGui.QSpacerItem(40, 20, 
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+
+        # Import a master line list
+        self.btn_import_master_list = QtGui.QPushButton(self)
+        self.btn_import_master_list.setText("Import Master List")
+        self.btn_import_master_list.clicked.connect(self.import_master_list)
+        hbox.addWidget(self.btn_import_master_list)
+        
+        hbox.addItem(QtGui.QSpacerItem(40, 20, 
+            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+
+        self.btn_ok = QtGui.QPushButton(self)
+        self.btn_ok.setText("OK")
+        self.btn_ok.setFocus()
+        self.btn_ok.clicked.connect(self.close)
+        hbox.addWidget(self.btn_ok)
+        return hbox
+
+
+    def closeEvent(self, event):
+        """
+        Perform any requested callbacks before letting the widget close.
+
+        :param event:
+            The close event.
+        """
+
+        for callback in self.callbacks:
+            callback()
+
+        event.accept()
+        return None
+
+
+    def open_file(self, caption="", dir="", filter=""):
+        paths, _ = QtGui.QFileDialog.getOpenFileName(self,
+            caption=caption, dir=dir, filter=filter)
+        if paths is None: return None
+        if isinstance(paths, string_types):
+            paths = [paths]
+        return paths
+
+    def add_profile_list(self):
+        if self.session is None: return None
+        paths = self.open_file(caption="Select linelists for profiles", dir="", filter="")
+        if not paths: return None
+        for path in paths:
+            self.session.import_linelist_as_profile_models(path)
+
+        self.tableview.model().reset()
+        self.tableview.clearSelection()
+        return None
+
+    def add_synth_list(self):
+        if self.session is None: return None
+        paths = self.open_file(caption="Select linelists for synths", dir="", filter="")
+        if not paths: return None
+        for path in paths:
+            transitions = LineList.read(path)
+            selectable_elements \
+                = list(set(transitions.unique_elements).difference(["H"]))
+            
+            dialog = PeriodicTableDialog(
+                selectable_elements=selectable_elements,
+                explanation="Please select which element(s) will be measured"
+                            " by synthesizing the transitions in {}:".format(
+                    os.path.basename(path)),
+                multiple_select=True)
+            dialog.exec_()
+            
+            if len(dialog.selected_elements) == 0:
+                # Nothing selected. Skip this filename.
+                continue
+
+            self.session.import_linelist_as_synthesis_model(path, dialog.selected_elements)
+
+        self.tableview.model().reset()
+        self.tableview.clearSelection()
+        return None
+
+    def import_spectral_model_states(self):
+        if self.session is None: return None
+        paths = self.open_file(caption="Select spectral model state file", dir="", filter="*.pkl")
+        for path in paths:
+            self.session.import_spectral_model_states(path)
+        self.tableview.model().reset()
+        self.tableview.clearSelection()
+        return None
+
+    def import_master_list(self):
+        if self.session is None: return None
+        paths = self.open_file(caption="Select master lists", dir="", filter="")
+        for path in paths:
+            self.session.import_master_list(path)
+        self.tableview.model().reset()
+        self.tableview.clearSelection()
+        return None
+
+    def export_spectral_model_states(self):
+        if self.session is None: return None
+        raise NotImplementedError
+
+    def save_as_default(self):
+        """
+        Save the current line list and all spectral models as the defaults for
+        future SMH sessions.
+        """
+
+        # Save the line list as default.
+        path = os.path.expanduser("~/.smh.line_list")
+        self.session.metadata["line_list"].write(
+            path, format="fits", overwrite=True)
+        self.session.update_default_setting(("line_list_filename", ), path)
+
+        # Update the defaults for spectral models.
+        states = []
+        for spectral_model in self.session.metadata.get("spectral_models", []):
+
+            # Re-index this spectral model just in case of weirdness.
+            spectral_model.index_transitions()
+
+            # Create a deep, clean copy of the state.
+            state = deepcopy(spectral_model.__getstate__())
+            state["metadata"].pop("fitted_result", None)
+            state["metadata"].pop("is_acceptable", None)
+
+            # To prevent YAML issues with numpy string ararys.
+            state["transition_hashes"] \
+                = ["{}".format(_) for _ in state["transition_hashes"]]
+            states.append(state)
+
+        # Update the default setting entry.
+        self.session.update_default_setting(("default_spectral_models", ), states)
+
+        return True
+
+
+class TransitionsDialogTableView(BaseTableView):
+    def contextMenuEvent(self, event):
+        """
+        Provide a right-click menu for the line list table.
+        :param event:
+            The mouse event that triggered the menu.
+        """
+        menu = QtGui.QMenu(self)
+        delete_action = menu.addAction("Delete")
+
+        any_selected = len(self.selectionModel().selectedRows()) > 0
+        if not any_selected:
+            delete_action.setEnabled(False)
+        
+        action = menu.exec_(self.mapToGlobal(event.pos()))
+        if action == delete_action:
+            self.delete_selected_models()
+        return None
+        
+    def delete_selected_models(self):
+        """
+        Remove models. This assumes the view's rows are the same as the model's rows.
+        """
+        all_rows = [row.row() for row in self.selectionModel().selectedRows()]
+        all_rows = np.sort(all_rows)
+        # Pop models out of the raw spectral_models in the session
+        model_list = self.model().spectral_models
+        for row in all_rows[::-1]:
+            model = model_list.pop(row)
+            logger.debug("{} {}".format(model.species, model.wavelength))
+        self.model().reset()
+        self.clearSelection()
+        return None
+
+if __name__ == "__main__":
+
+    # This is just for development testing.
+    app = QtGui.QApplication(sys.argv)
+    window = TransitionsDialog(None)
+    window.exec_()
+
+    
+
+
 
 
 class LineListTableModel(QtCore.QAbstractTableModel):
@@ -851,189 +1113,4 @@ class SpectralModelsTableView(QtGui.QTableView):
 
 
 
-
-class TransitionsDialog(QtGui.QDialog):
-
-    def __init__(self, session, callbacks=None, **kwargs):
-        """
-        Initialise a dialog to manage the transitions (atomic physics and
-        spectral models) for the given session.
-
-        :param session:
-            The session that will be inspected for transitions.
-        """
-
-        super(TransitionsDialog, self).__init__(**kwargs)
-
-        self.session = session
-        self.callbacks = callbacks or []
-
-        self.setGeometry(900, 400, 900, 400)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
-            - self.rect().center())
-        self.setWindowTitle("Manage transitions")
-
-        sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.MinimumExpanding, 
-            QtGui.QSizePolicy.MinimumExpanding)
-        sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
-        self.setSizePolicy(sp)
-
-        parent_vbox = QtGui.QVBoxLayout(self)
-        tabs = QtGui.QTabWidget(self)
-
-        # Line list tab.
-        self.linelist_tab = QtGui.QWidget()
-        self.linelist_view = LineListTableView(self, session)
-        self.linelist_view.setModel(
-            LineListTableModel(self, session))
-        self.linelist_view.setSelectionBehavior(
-            QtGui.QAbstractItemView.SelectRows)
-        self.linelist_view.setSortingEnabled(True)
-        self.linelist_view.horizontalHeader().setStretchLastSection(True)
-
-        #self.linelist_view.setItemDelegate(LineListTableDelegate(self, session))
-        self.linelist_view.resizeColumnsToContents()
-
-        QtGui.QVBoxLayout(self.linelist_tab).addWidget(self.linelist_view)
-        tabs.addTab(self.linelist_tab, "Line list")
-
-        self.models_tab = QtGui.QWidget()
-        self.models_view = SpectralModelsTableView(self, session)
-        self.models_view.setModel(
-            SpectralModelsTableModel(self, session))
-        self.models_view.setSelectionBehavior(
-            QtGui.QAbstractItemView.SelectRows)
-        self.models_view.setSortingEnabled(True)
-        self.models_view.setItemDelegate(SpectralModelsTableDelegate(self, session))
-        self.models_view.resizeColumnsToContents()
-
-        QtGui.QVBoxLayout(self.models_tab).addWidget(self.models_view)
-        tabs.addTab(self.models_tab, "Spectral models")
-
-        parent_vbox.addWidget(tabs)
-
-        # A horizontal line.
-        hr = QtGui.QFrame(self)
-        hr.setFrameShape(QtGui.QFrame.HLine)
-        hr.setFrameShadow(QtGui.QFrame.Sunken)
-        parent_vbox.addWidget(hr)
-
-        # Buttons.
-        hbox = QtGui.QHBoxLayout()
-        btn_import = QtGui.QPushButton(self)
-        btn_import.setText("Import transitions..")
-        hbox.addWidget(btn_import)
-        self.checkbox_merge_without_conflicts = QtGui.QCheckBox(self)
-        self.checkbox_merge_without_conflicts.setText("Ignore conflicts when merging")
-        hbox.addWidget(self.checkbox_merge_without_conflicts)
-
-        # Spacer with a minimum width.
-        hbox.addItem(QtGui.QSpacerItem(40, 20, 
-            QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
-
-        btn_save_as_default = QtGui.QPushButton(self)
-        btn_save_as_default.setText("Save as default")
-        hbox.addWidget(btn_save_as_default)
-
-        btn_ok = QtGui.QPushButton(self)
-        btn_ok.setText("OK")
-        btn_ok.setFocus()
-        hbox.addWidget(btn_ok)
-
-        parent_vbox.addLayout(hbox)
-
-        # Connect the buttons.
-        btn_import.clicked.connect(self.import_transitions)
-        btn_save_as_default.clicked.connect(self.save_as_default)
-        btn_ok.clicked.connect(self.close)
-
-        return None
-
-
-    def closeEvent(self, event):
-        """
-        Perform any requested callbacks before letting the widget close.
-
-        :param event:
-            The close event.
-        """
-
-        for callback in self.callbacks:
-            callback()
-
-        event.accept()
-        return None
-
-
-    def import_transitions(self):
-        """ Import transitions (line lists and spectral models) from a file. """
-
-        path, _ = QtGui.QFileDialog.getOpenFileName(self,
-            caption="Select exported transitions file", dir="", filter="*.pkl")
-        if not path: return None
-
-        N = self.session.import_transitions(path)
-        if N > 0:
-            self.linelist_view.model().reset()
-            self.linelist_view.clearSelection()
-
-            self.models_view.model().reset()
-            self.models_view.clearSelection()
-
-            self.session._spectral_model_conflicts = spectral_model_conflicts(
-                self.session.metadata["spectral_models"],
-                self.session.metadata["line_list"])
-
-        QtGui.QMessageBox.information(self, "Transitions loaded",
-            "There were {} spectral model(s) loaded into this session."\
-                .format(N))
-
-        return None
-
-
-    def save_as_default(self):
-        """
-        Save the current line list and all spectral models as the defaults for
-        future SMH sessions.
-        """
-
-        # Save the line list as default.
-        path = os.path.expanduser("~/.smh.line_list")
-        self.session.metadata["line_list"].write(
-            path, format="fits", overwrite=True)
-        self.session.update_default_setting(("line_list_filename", ), path)
-
-        # Update the defaults for spectral models.
-        states = []
-        for spectral_model in self.session.metadata.get("spectral_models", []):
-
-            # Re-index this spectral model just in case of weirdness.
-            spectral_model.index_transitions()
-
-            # Create a deep, clean copy of the state.
-            state = deepcopy(spectral_model.__getstate__())
-            state["metadata"].pop("fitted_result", None)
-            state["metadata"].pop("is_acceptable", None)
-
-            # To prevent YAML issues with numpy string ararys.
-            state["transition_hashes"] \
-                = ["{}".format(_) for _ in state["transition_hashes"]]
-            states.append(state)
-
-        # Update the default setting entry.
-        self.session.update_default_setting(("default_spectral_models", ), states)
-
-        return True
-
-
-
-if __name__ == "__main__":
-
-    # This is just for development testing.
-    app = QtGui.QApplication(sys.argv)
-    window = TransitionsDialog(None)
-    window.exec_()
-
-    
 

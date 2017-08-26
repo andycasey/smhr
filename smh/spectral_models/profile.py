@@ -87,19 +87,18 @@ class ProfileFittingModel(BaseSpectralModel):
         "voigt": (_voigt, ("mean", "fwhm", "amplitude", "shape"))
     }
 
-    def __init__(self, session, transition_hashes, **kwargs):
+    def __init__(self, session, transitions, **kwargs):
         """
-        Initialize a base class for modelling spectra.
+        Initialize a class for modelling spectra with analytic profile.
 
         :param session:
             The session that this spectral model will be associated with.
 
-        :param transition_hashes:
-            The hashes of transitions in the parent session that will be
-            associated with this model.
+        :param transitions:
+            A linelist containing atomic data for this model.
         """
 
-        super(ProfileFittingModel, self).__init__(session, transition_hashes,
+        super(ProfileFittingModel, self).__init__(session, transitions,
             **kwargs)
 
         # Initialize metadata with default fitting values.
@@ -128,6 +127,51 @@ class ProfileFittingModel(BaseSpectralModel):
         self._repr_element = self.transitions["element"][0]
 
         return None
+
+
+    @property
+    def abundance_uncertainties(self):
+        try:
+            result = self.metadata["fitted_result"][2]
+            return result["abundance_uncertainties"][0]
+        except KeyError:
+            return None
+
+    @property
+    def expot(self):
+        return self.transitions[0]["expot"]
+    
+    @property
+    def loggf(self):
+        return self.transitions[0]["loggf"]
+
+    @property
+    def equivalent_width(self):
+        try:
+            result = self.metadata["fitted_result"][2]
+            equivalent_width = result["equivalent_width"][0]
+        except KeyError:
+            return None
+        return 1000. * equivalent_width
+
+    @property
+    def equivalent_width_uncertainty(self):
+        try:
+            result = self.metadata["fitted_result"][2]
+            err = 1000.*np.nanmax(np.abs(result["equivalent_width"][1:3]))
+            return err
+        except:
+            return None
+    
+    @property
+    def reduced_equivalent_width(self):
+        eqw = self.equivalent_width
+        if eqw is None: return None
+        return np.log10(eqw/self.wavelength) - 3.
+
+    @property
+    def measurement_type(self):
+        return "eqw"
 
 
     def _verify_transitions(self):
@@ -425,7 +469,7 @@ class ProfileFittingModel(BaseSpectralModel):
         draws = kwargs.pop("covariance_draws", 
             self.session.setting("covariance_draws",100))
         percentiles = kwargs.pop("percentiles", \
-            self.session.setting("error_percentiles",(2.5, 97.5)))
+            self.session.setting("error_percentiles",(16, 84)))
         if np.all(np.isfinite(p_cov)):
             p_alt = np.random.multivariate_normal(p_opt, p_cov, size=draws)
         else:
@@ -466,28 +510,26 @@ class ProfileFittingModel(BaseSpectralModel):
             [self(x, *_) for _ in p_alt], percentiles, axis=0) - model_y
         model_yerr = np.max(np.abs(model_yerr), axis=0)
 
-        """
-        # DEBUG PLOT
-        fig, ax = plt.subplots()
-        ax.plot(x, y, c='k', drawstyle='steps-mid')
-
-        O = self.metadata["continuum_order"]
-        bg = np.ones_like(x) if 0 > O else np.polyval(p_opt[-(O + 1):], x)    
-        for p, (u, l) in nearby_lines:
-            bg *= self(x, *p)
-
-            m = (u >= x) * (x >= l)
-            ax.scatter(x[m], y[m], facecolor="r")
-
-        ax.plot(x, bg, c='r')
-        ax.plot(x, model_y, c='b')
-
-        model_err = np.percentile(
-            [self(x, *_) for _ in p_alt], percentiles, axis=0)
-
-        ax.fill_between(x, model_err[0] + model_y, model_err[1] + model_y,
-            edgecolor="None", facecolor="b", alpha=0.5)
-        """
+        ### DEBUG PLOT
+        ##fig, ax = plt.subplots()
+        ##ax.plot(x, y, c='k', drawstyle='steps-mid')
+        ##
+        ##O = self.metadata["continuum_order"]
+        ##bg = np.ones_like(x) if 0 > O else np.polyval(p_opt[-(O + 1):], x)    
+        ##for p, (u, l) in nearby_lines:
+        ##    bg *= self(x, *p)
+        ##
+        ##    m = (u >= x) * (x >= l)
+        ##    ax.scatter(x[m], y[m], facecolor="r")
+        ##
+        ##ax.plot(x, bg, c='r')
+        ##ax.plot(x, model_y, c='b')
+        ##
+        ##model_err = np.percentile(
+        ##    [self(x, *_) for _ in p_alt], percentiles, axis=0)
+        ##
+        ##ax.fill_between(x, model_err[0] + model_y, model_err[1] + model_y,
+        ##    edgecolor="None", facecolor="b", alpha=0.5)
         
         # Convert x, model_y, etc back to real-spectrum indices.
         x, model_y, model_yerr, residuals = self._fill_masked_arrays(
@@ -548,45 +590,6 @@ class ProfileFittingModel(BaseSpectralModel):
         
         return y
 
-    """
-    @property
-    def abundances(self):
-        "
-        Calculate the abundance from the curve-of-growth given the fitted
-        equivalent width and the current stellar parameters in the parent
-        session.
-        "
-
-        # TODO: Create a hash of the stellar parameters, EW, and any relevant
-        #       radiative transfer inputs.
-
-        # Does the hash match the last calculation?
-        # If so, return that value. If not, calculate the new value.
-
-        try:
-            return self.metadata["fitted_result"][2]["abundances"]
-        except KeyError:
-            pass
-
-        logger.info("Fitting COG for "+str(self))
-        # Fixed Issue #38
-        transitions = self.transitions.copy()
-        assert len(transitions)==1,len(transitions)
-        # A to mA
-        transitions['equivalent_width'] = 1000.*self.metadata["fitted_result"][2]["equivalent_width"][0]
-        # Calculate symmetric error
-        transitions = astropy.table.vstack([transitions,transitions])
-        transitions[1]['equivalent_width'] += 1000.*np.nanmax(np.abs(self.metadata["fitted_result"][2]["equivalent_width"][1:3]))
-        abundances = self.session.rt.abundance_cog(
-            self.session.stellar_photosphere,
-            transitions)
-        assert len(abundances)==2,abundances
-        abundances = [abundances[0]]
-        uncertainties = [abundances[1]-abundances[0]]
-        self.metadata["fitted_result"][2]["abundances"] = abundances
-        self.metadata["fitted_result"][2]["abundance_uncertainties"] = uncertainties
-        return abundances
-    """
 
 if __name__ == "__main__":
 

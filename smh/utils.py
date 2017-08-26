@@ -177,9 +177,12 @@ def spectral_model_conflicts(spectral_models, line_list):
         stellar parameters and/or composition.
     """
 
+    line_list_hashes = line_list.compute_hashes()
+
     transition_hashes = {}
     for i, spectral_model in enumerate(spectral_models):
-        for transition_hash in spectral_model._transition_hashes:
+        for transition in spectral_model.transitions:
+            transition_hash = line_list.hash(transition)
             transition_hashes.setdefault(transition_hash, [])
             transition_hashes[transition_hash].append(i)
 
@@ -189,7 +192,7 @@ def spectral_model_conflicts(spectral_models, line_list):
         if len(indices) < 2: continue
 
         # OK, what element is this transition?
-        match = (line_list["hash"] == transition_hash)
+        match = (line_list_hashes == transition_hash)
         element = line_list["element"][match][0].split()[0]
 
         # Of the spectral models that use this spectral hash, what are they

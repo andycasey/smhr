@@ -327,12 +327,13 @@ class Spectrum1D(object):
             # See http://iraf.net/irafdocs/specwcs.php
             crval = image[0].header["CRVAL1"]
             naxis = image[0].header["NAXIS1"]
-            crpix = image[0].header.get("CRPIX1", 0)
+            crpix = image[0].header.get("CRPIX1", 1)
             cdelt = image[0].header["CDELT1"]
             ltv = image[0].header.get("LTV1", 0)
 
+            # + 1 presumably because fits is 1-indexed instead of 0-indexed
             dispersion = \
-                crval + (np.arange(naxis) - crpix) * cdelt - ltv * cdelt
+                crval + (np.arange(naxis) + 1 - crpix) * cdelt - ltv * cdelt
 
             flux = image[0].data
             if len(image) == 1:
@@ -390,11 +391,11 @@ class Spectrum1D(object):
         
         else:
 
-            crpix1, crval1 = 0, self.dispersion.min()
+            crpix1, crval1 = 1, self.dispersion.min()
             cdelt1 = np.mean(np.diff(self.dispersion))
             naxis1 = len(self.dispersion)
             
-            linear_dispersion = crval1 + (np.arange(naxis1) - crpix1) * cdelt1
+            linear_dispersion = crval1 + (np.arange(naxis1) + 1 - crpix1) * cdelt1
 
             ## Check for linear dispersion map
             maxdiff = np.max(np.abs(linear_dispersion - self.dispersion))
@@ -1056,7 +1057,7 @@ def common_dispersion_map(spectra, full_output=True):
 
     return common
 
-def stitch(spectra, linearize_dispersion = False, min_disp_step = 0.001):
+def stitch_old(spectra, linearize_dispersion = False, min_disp_step = 0.001):
     """
     Stitch spectra together, some of which may have overlapping dispersion
     ranges. This is a crude (knowingly incorrect) approximation: we interpolate
@@ -1114,3 +1115,80 @@ def stitch(spectra, linearize_dispersion = False, min_disp_step = 0.001):
     return Spectrum1D(dispersion, flux, ivar)
     
 
+def common_dispersion_map2(spectra):
+    # Find regions that will have individual dispersions
+    lefts = []; rights = []
+    dwls = []
+    for spectrum in spectra:
+        lefts.append(spectrum.dispersion.min())
+        rights.append(spectrum.dispersion.max())
+        dwls.append(np.median(np.diff(spectrum.dispersion)))
+    points = np.sort(lefts + rights)
+    Nregions = len(points)-1
+    
+    # Create dispersion map
+    # Find orders in each region and use minimum dwl
+    alldisp = []
+    for i in range(Nregions):
+        r_left = points[i]
+        r_right = points[i+1]
+        r_dwl = 99999.
+        #print(i)
+        num_spectra = 0
+        for j, (left, right, dwl) in enumerate(zip(lefts, rights, dwls)):
+            # if order in range, use its dwl
+            if right <= r_left or left >= r_right:
+                pass
+            else:
+                r_dwl = min(r_dwl, dwl)
+                #print("{:3} {:.2f} {:.2f} {:2} {:.2f} {:.2f}".format(i, r_left, r_right, j, left, right))
+                num_spectra += 1
+        #print(i,num_spectra)
+
+        # Use smallest dwl to create linear dispersion
+        # Drop the last point since that will be in the next one
+        alldisp.append(np.arange(r_left, r_right, r_dwl))
+    alldisp = np.concatenate(alldisp)
+    return alldisp
+
+def stitch(spectra, new_dispersion=None, full_output=False):
+    """
+    Stitch spectra together, some of which may have overlapping dispersion
+    ranges. This is a crude (knowingly incorrect) approximation: we interpolate
+    fluxes without ensuring total conservation.
+    Even worse, we interpolate ivar, which is explicitly not conserved.
+    However the stitching is much better than before.
+
+    :param spectra:
+        A list of potentially overlapping spectra.
+    """
+    if new_dispersion is None:
+        new_dispersion = common_dispersion_map2(spectra)
+    
+    N = len(spectra)
+    common_flux = np.zeros((N, new_dispersion.size))
+    common_ivar = np.zeros((N, new_dispersion.size))
+    
+    for i, spectrum in enumerate(spectra):
+        common_flux[i, :] = np.interp(
+            new_dispersion, spectrum.dispersion, spectrum.flux,
+            left=0, right=0)
+        common_ivar[i, :] = np.interp(
+            new_dispersion, spectrum.dispersion, spectrum.ivar,
+            left=0, right=0)
+        #common_ivar[i, j] = spectrum.ivar
+
+    finite = np.isfinite(common_flux * common_ivar)
+    common_flux[~finite] = 0
+    common_ivar[~finite] = 0
+
+    numerator = np.sum(common_flux * common_ivar, axis=0)
+    denominator = np.sum(common_ivar, axis=0)
+
+    flux, ivar = (numerator/denominator, denominator)
+    newspec = Spectrum1D(new_dispersion, flux, ivar)
+
+    if full_output:
+        return newspec, (common_flux, common_ivar)
+    else:
+        return newspec

@@ -45,7 +45,7 @@ flux_int: 0
 #       line list for an individual line, then if the factor is greater
 #       than 10^(-10), multiply the Unsold value by the factor,
 #       otherwise replace the Unsold value by the factor
-# 1     use the Unsold approximation multiplied by 6.3
+# 1     use Barklem data when available, otherwise use Unsold approximation
 # 2     use the Unsold approximation multiplied by a factor recommended
 #       by the Blackwell group
 damping: 2

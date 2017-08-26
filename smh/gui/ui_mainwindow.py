@@ -14,13 +14,13 @@ import yaml
 import numpy as np
 
 # Import functionality related to each tab
-import rv, normalization, summary, stellar_parameters, chemical_abundances
+import rv, normalization, summary, stellar_parameters, chemical_abundances, review
 
 import smh
 from balmer import BalmerLineFittingDialog
 from linelist_manager import TransitionsDialog
 from isotope_manager import IsotopeDialog
-from plotting import SummaryPlotDialog
+from plotting import SummaryPlotDialog, SNRPlotDialog
 
 logger = logging.getLogger(__name__)
 
@@ -128,10 +128,18 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         # Plot menu
         plot_menu = self.menuBar().addMenu("&Plot")
+        ncap_summary_plot = QtGui.QAction("&SNR Plot", self,
+            statusTip="Make SNR plot",
+            triggered=self.snr_plot)
+        plot_menu.addAction(ncap_summary_plot)
         summary_plot = QtGui.QAction("&Summary Plot", self,
             statusTip="Make summary plot",
             triggered=self.summary_plot)
         plot_menu.addAction(summary_plot)
+        ncap_summary_plot = QtGui.QAction("&Ncap Summary Plot", self,
+            statusTip="Make ncap summary plot",
+            triggered=self.ncap_summary_plot)
+        plot_menu.addAction(ncap_summary_plot)
 
         # Export menu.
         self._menu_export_normalized_spectrum \
@@ -323,6 +331,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.rv_tab.update_from_new_session()
         self.normalization_tab._populate_widgets()
         self.stellar_parameters_tab.populate_widgets()
+        self.chemical_abundances_tab.new_session_loaded()
+        self.review_tab.new_session_loaded()
 
         self._update_window_title()
 
@@ -403,11 +413,13 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         self.tabs.setTabEnabled(3, True)
         self.tabs.setTabEnabled(4, True)
+        self.tabs.setTabEnabled(5, True)
         #self.stellar_parameters_tab.new_session_loaded()
         # TODO there are likely more things needed here!
         self.stellar_parameters_tab.populate_widgets()
 
         self.chemical_abundances_tab.new_session_loaded()
+        self.review_tab.new_session_loaded()
         
         return None
 
@@ -514,9 +526,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Ensure to update the proxy data models when the transitions dialog has
         # been closed.
         window = TransitionsDialog(self.session, callbacks=[
-            self.session.index_spectral_models,
             self.stellar_parameters_tab.proxy_spectral_models.reset,
             self.chemical_abundances_tab.refresh_table,
+            self.review_tab.new_session_loaded
             ])
         window.exec_()
 
@@ -537,6 +549,22 @@ class Ui_MainWindow(QtGui.QMainWindow):
         Make a summary plot in a popup dialog
         """
         window = SummaryPlotDialog(self.session, self)
+        window.exec_()
+        return None
+
+    def ncap_summary_plot(self):
+        """
+        Make a ncap summary plot in a popup dialog
+        """
+        window = SummaryPlotDialog(self.session, self, ncap=True)
+        window.exec_()
+        return None
+
+    def snr_plot(self):
+        """
+        Make a snr plot (=1/ivar) in a popup dialog
+        """
+        window = SNRPlotDialog(self.session, self)
         window.exec_()
         return None
 
@@ -582,10 +610,14 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.addTab(self.stellar_parameters_tab, "Stellar parameters")
 
         # Create chemical abundances tab
-        # BUT IT'S XBOX HUGE
         self.chemical_abundances_tab \
             = chemical_abundances.ChemicalAbundancesTab(self)
-        self.tabs.addTab(self.chemical_abundances_tab, "Chemical abundances")
+        self.tabs.addTab(self.chemical_abundances_tab, "Line Measurements")
+
+        # Create review tab
+        self.review_tab \
+            = review.ReviewTab(self)
+        self.tabs.addTab(self.review_tab, "Review")
 
         # Disable all tabs except the first one.
         for i in range(self.tabs.count()):
@@ -597,3 +629,10 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.setCurrentIndex(0)
         self._update_window_title()
 
+    def transition_dialog_callback(self):
+        self.stellar_parameters_tab.proxy_spectral_models.reset()
+        self.chemical_abundances_tab.refresh_table()
+        self.review_tab.new_session_loaded()
+
+    def refresh_all_guis(self):
+        raise NotImplementedError

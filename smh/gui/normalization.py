@@ -356,10 +356,14 @@ class NormalizationTab(QtGui.QWidget):
         # Stitch and stack all orders.
         self.parent.session.stitch_and_stack()
 
-        # Enable the menu-bar and the next two tabs.
+        # Enable the menu-bar and the next three tabs.
         self.parent._menu_export_normalized_spectrum.setEnabled(True)
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 1, True)
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 2, True)
+        self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 3, True)
+
+        self.parent.stellar_parameters_tab.populate_widgets()
+        self.parent.chemical_abundances_tab.new_session_loaded()
 
         return None
 
