@@ -489,9 +489,9 @@ class ProfileFittingModel(BaseSpectralModel):
                 p_opt[0] + integrate_sigma * p_opt[1]
             )
 
-            ew = integrate.quad(profile, l, u, args=tuple(p_opt[:N]))[0]
-            ew_alt = [integrate.quad(profile, l, u, args=tuple(_[:N]))[0] \
-                for _ in p_alt]
+            ew = np.abs(integrate.quad(profile, l, u, args=tuple(p_opt[:N]))[0])
+            ew_alt = np.abs([integrate.quad(profile, l, u, args=tuple(_[:N]))[0] \
+                for _ in p_alt])
             ew_uncertainty = np.percentile(ew_alt, percentiles) - ew
         
         # Calculate chi-square for the points that we modelled.
