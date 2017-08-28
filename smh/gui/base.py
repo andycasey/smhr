@@ -588,6 +588,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
             assert len(meta["model_x"]) == len(meta["model_yerr"])
 
             self._lines["model_fit"].set_data(meta["model_x"], meta["model_y"])
+            self._lines["model_fit"].set_linestyle("-" if self.selected_model.is_acceptable else "--")
             self._lines["model_residual"].set_data(meta["model_x"], 
                 meta["residual"])
 
