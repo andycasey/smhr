@@ -451,7 +451,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
         #    assert meta["model_yerr"].shape[0] == 2, meta["model_yerr"].shape
         #    ivar = (np.nanmean(meta["model_yerr"], axis=0))**-2.
         #synth_spec = Spectrum1D(meta["model_x"], meta["model_y"], ivar)
-        synth_spec = Spectrum1D(meta["synthesized_dispersion"], meta["synthesized_flux"], 1000000.*np.ones_like(meta["synthesized_flux"]))
+        disp = self.metadata["synthesized_dispersion"]
+        flux = self.metadata["synthesized_flux"]
+        synth_spec = Spectrum1D(disp, flux, np.full(len(disp), 1000000.))
         synth_spec.write(synth_fname)
         
         ## Write data only in the mask range
