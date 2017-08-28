@@ -443,14 +443,15 @@ class SpectralSynthesisModel(BaseSpectralModel):
         except KeyError:
             print("Please run a fit first!")
             return None
-        ## Write synthetic spectrum
-        # take the mean of the two errors for simplicity
-        if len(meta["model_yerr"].shape) == 1:
-            ivar = (meta["model_yerr"])**-2.
-        elif len(meta["model_yerr"].shape) == 2:
-            assert meta["model_yerr"].shape[0] == 2, meta["model_yerr"].shape
-            ivar = (np.nanmean(meta["model_yerr"], axis=0))**-2.
-        synth_spec = Spectrum1D(meta["model_x"], meta["model_y"], ivar)
+        ### Write synthetic spectrum
+        ## take the mean of the two errors for simplicity
+        #if len(meta["model_yerr"].shape) == 1:
+        #    ivar = (meta["model_yerr"])**-2.
+        #elif len(meta["model_yerr"].shape) == 2:
+        #    assert meta["model_yerr"].shape[0] == 2, meta["model_yerr"].shape
+        #    ivar = (np.nanmean(meta["model_yerr"], axis=0))**-2.
+        #synth_spec = Spectrum1D(meta["model_x"], meta["model_y"], ivar)
+        synth_spec = Spectrum1D(meta["synthesized_dispersion"], meta["synthesized_flux"], 1000000.*np.ones_like(meta["synthesized_flux"]))
         synth_spec.write(synth_fname)
         
         ## Write data only in the mask range
@@ -604,6 +605,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
             v = parameters[names.index("vrad")]
         except ValueError:
             v = self.metadata["manual_rv"]
+
+        ## HACK
+        self.metadata["synthesized_dispersion"] = synth_dispersion * (1 + v/299792458e-3)
+        self.metadata["synthesized_flux"] = model
 
         #print("smooth: {:.4f}, rv: {:.4f}".format(sigma_smooth,v))
         # Interpolate the model spectrum onto the requested dispersion points.
