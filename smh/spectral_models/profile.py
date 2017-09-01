@@ -532,10 +532,20 @@ class ProfileFittingModel(BaseSpectralModel):
         ##    edgecolor="None", facecolor="b", alpha=0.5)
         
         # Convert x, model_y, etc back to real-spectrum indices.
-        x, model_y, model_yerr, residuals = self._fill_masked_arrays(
-            spectrum, x, model_y, model_yerr, residuals)
-
-
+        if self.session.setting("show_full_profiles", False):
+            # HACK #152
+            indices = spectrum.dispersion.searchsorted(x)
+            x = spectrum.dispersion[indices[0]:1 + indices[-1]]
+            y = spectrum.flux[indices[0]:1 + indices[-1]]
+            model_y = self(x, *p_opt)
+            model_yerr = np.percentile(
+                [self(x, *_) for _ in p_alt], percentiles, axis=0) - model_y
+            model_yerr = np.max(np.abs(model_yerr), axis=0)
+            residuals = y - model_y
+        else:
+            x, model_y, model_yerr, residuals = self._fill_masked_arrays(
+                spectrum, x, model_y, model_yerr, residuals)
+        
         # We ignore the uncertainty in wavelength position because it only
         # affects the uncertainty in REW at the ~10^-5 level.
         rew = np.log10(ew/p_opt[0])
