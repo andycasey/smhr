@@ -545,7 +545,9 @@ class SpectralSynthesisModel(BaseSpectralModel):
             return None
         model_x = meta["model_x"]
         model_y = self(model_x, *named_p_opt.values())
-        model_yerr = np.nan * np.ones((2, model_x.size))
+        #model_yerr = np.nan * np.ones((2, model_x.size))
+        model_yerr = np.nan * np.ones((1, model_x.size))
+        #model_yerr = np.max(np.abs(model_yerr), axis=0)
         residuals = (meta["residual"] + meta["model_y"]) - model_y
         model_x, model_y, model_yerr, residuals = self._fill_masked_arrays(
             spectrum, model_x, model_y, model_yerr, residuals)
@@ -647,6 +649,15 @@ class SpectralSynthesisModel(BaseSpectralModel):
         return np.interp(dispersion, synth_dispersion * (1 + v/299792458e-3), 
             model, left=1, right=1)
 
+
+    def find_upper_limit(self, elem, sigma=3):
+        """
+        Does a simple chi2 check to find the upper limit 
+        """
+        assert len(self.metadata["elements"]) == 1, self.metadata["elements"]
+        assert self.metadata["elements"][0] == elem, (self.metadata["elements"], elem)
+        
+        
 
     """
     def abundances(self):

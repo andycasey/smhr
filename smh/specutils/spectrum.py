@@ -6,7 +6,7 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
-__all__ = ["Spectrum1D", "stitch"]
+__all__ = ["Spectrum1D", "stitch", "coadd"]
 
 import logging
 import numpy as np
@@ -1192,3 +1192,44 @@ def stitch(spectra, new_dispersion=None, full_output=False):
         return newspec, (common_flux, common_ivar)
     else:
         return newspec
+
+def coadd(spectra, new_dispersion=None, full_output=False):
+    """
+    Add spectra together (using linear interpolation to do bad rebinning).
+    ivar is also interpolated and added.
+    This differs from stitch only because it is a direct sum
+    (rather than being weighted pixel-by-pixel with ivar).
+    
+    I think this is more correct when summing raw counts.
+    
+    :param spectra:
+        A list of potentially overlapping spectra.
+    """
+    if new_dispersion is None:
+        new_dispersion = common_dispersion_map2(spectra)
+    
+    N = len(spectra)
+    common_flux = np.zeros((N, new_dispersion.size))
+    common_ivar = np.zeros((N, new_dispersion.size))
+    
+    for i, spectrum in enumerate(spectra):
+        common_flux[i, :] = np.interp(
+            new_dispersion, spectrum.dispersion, spectrum.flux,
+            left=0, right=0)
+        common_ivar[i, :] = np.interp(
+            new_dispersion, spectrum.dispersion, spectrum.ivar,
+            left=0, right=0)
+
+    finite = np.isfinite(common_flux * common_ivar)
+    common_flux[~finite] = 0
+    common_ivar[~finite] = 0
+
+    flux = np.sum(common_flux, axis=0)
+    ivar = np.sum(common_ivar, axis=0)
+    newspec = Spectrum1D(new_dispersion, flux, ivar)
+
+    if full_output:
+        return newspec, (common_flux, common_ivar)
+    else:
+        return newspec
+    

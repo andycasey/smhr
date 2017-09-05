@@ -202,14 +202,15 @@ class SMHSpecDisplay(mpl.MPLWidget):
         
         if self.session is not None:
             drawstyle = self.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
+            logger.debug("drawstyle: {}".format(drawstyle))
             self._lines["spectrum"].set_drawstyle(drawstyle)
         for key in ["spectrum", "transitions_center_main", "transitions_center_residual",
                     "model_fit", "model_residual"]:
             self._lines[key].set_data([],[])
         self.label_lines(None)
     def new_session(self, session):
-        self.reset()
         self.session = session
+        self.reset()
         self.draw() #update_spectrum_figure()
         return None
 

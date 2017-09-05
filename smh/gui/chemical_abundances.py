@@ -1706,7 +1706,9 @@ class SynthesisAbundanceTableView(QtGui.QTableView):
         return QtCore.QSize(100,0)
     def get_selected_element(self):
         try:
-            index = self.selectionModel().selectedIndexes()[-1]
+            index = self.selectionModel().selectedIndexes()
+            if len(index)==0: return None
+            index = index[-1]
             elem = self.model().elem_order[index.row()]
             return elem
         except:
