@@ -147,7 +147,16 @@ class Ui_MainWindow(QtGui.QMainWindow):
                 statusTip="Export a normalized, rest-frame spectrum resampled "
                           "onto a common wavelength mapping",
                 triggered=self.export_normalized_spectrum)
-        self._menu_export_normalized_spectrum.setEnabled(False)
+        self._menu_export_unnormalized_spectrum \
+            = QtGui.QAction("Unnormalized rest-frame spectrum", self,
+                statusTip="Export a coadded rest-frame spectrum resampled "
+                          "onto a common wavelength mapping",
+                triggered=self.export_unnormalized_spectrum)
+        self._menu_export_stitched_continuum \
+            = QtGui.QAction("Stitched continuum", self,
+                statusTip="Export a coadded continuum",
+                triggered=self.export_stitched_continuum)
+        #self._menu_export_normalized_spectrum.setEnabled(False)
         self._menu_print_abundance_table \
             = QtGui.QAction("Print abundance table", self,
                 statusTip="",
@@ -162,6 +171,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
                 triggered=self.export_spectral_model_measurements)
         export_menu = self.menuBar().addMenu("&Export")
         export_menu.addAction(self._menu_export_normalized_spectrum)
+        export_menu.addAction(self._menu_export_unnormalized_spectrum)
+        export_menu.addAction(self._menu_export_stitched_continuum)
         export_menu.addAction(self._menu_print_abundance_table)
         export_menu.addAction(self._menu_export_abundance_table)
         export_menu.addAction(self._menu_export_spectral_model_measurements)
