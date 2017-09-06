@@ -1443,3 +1443,30 @@ class Session(BaseSession):
             logger.warn("Created {} models out of {} in the master list".format(
                     num_added, len(master_list)))
         return None
+    
+    def export_normalized_spectrum(self, path):
+        """ Write out the normalized spectrum """
+        self.normalized_spectrum.write(path)
+        return None
+    
+    def export_unnormalized_spectrum(self, path):
+        """ Coadd input orders into one spectrum and write out """
+        new_spectrum = specutils.spectrum.coadd(self.input_spectra)
+        new_spectrum.write(path)
+        return None
+    
+    def export_stitched_continuum(self, path):
+        """ Coadd fitted continuums into one spectrum and write out """
+
+        assert len(self.input_spectra) == len(self.metadata["normalization"]["continuum"])
+        continuums = []
+        for i, (spectrum, continuum) \
+        in enumerate(zip(self.input_spectra,
+        self.metadata["normalization"]["continuum"])):
+            continuums.append(specutils.Spectrum1D(
+                    spectrum.dispersion,continuum, 1./continuum))
+
+        new_spectrum = specutils.spectrum.coadd(continuums)
+        new_spectrum.write(path)
+        return None
+    

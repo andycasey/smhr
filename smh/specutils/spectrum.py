@@ -1176,7 +1176,6 @@ def stitch(spectra, new_dispersion=None, full_output=False):
         common_ivar[i, :] = np.interp(
             new_dispersion, spectrum.dispersion, spectrum.ivar,
             left=0, right=0)
-        #common_ivar[i, j] = spectrum.ivar
 
     finite = np.isfinite(common_flux * common_ivar)
     common_flux[~finite] = 0
@@ -1184,7 +1183,6 @@ def stitch(spectra, new_dispersion=None, full_output=False):
 
     numerator = np.sum(common_flux * common_ivar, axis=0)
     denominator = np.sum(common_ivar, axis=0)
-
     flux, ivar = (numerator/denominator, denominator)
     newspec = Spectrum1D(new_dispersion, flux, ivar)
 
@@ -1225,7 +1223,7 @@ def coadd(spectra, new_dispersion=None, full_output=False):
     common_ivar[~finite] = 0
 
     flux = np.sum(common_flux, axis=0)
-    ivar = np.sum(common_ivar, axis=0)
+    ivar = 1./np.sum(1./common_ivar, axis=0)
     newspec = Spectrum1D(new_dispersion, flux, ivar)
 
     if full_output:

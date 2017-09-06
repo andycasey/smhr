@@ -487,10 +487,27 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
     def export_normalized_spectrum(self):
         """ Export a normalized, rest-frame spectrum. """
+        if self.session is None: return
+        path, _ = QtGui.QFileDialog.getSaveFileName(self,
+            caption="Enter normalized rest frame spectrum filename", dir="", filter="")
+        if not path: return
+        self.session.export_normalized_spectrum(path)
 
-        self.session.normalized_spectrum.write("test.txt")
-        print("wrote to test.txt")
+    def export_unnormalized_spectrum(self):
+        """ Export a stitched, unnormalized, rest-frame spectrum. """
+        if self.session is None: return
+        path, _ = QtGui.QFileDialog.getSaveFileName(self,
+            caption="Enter unnormalized rest frame spectrum filename", dir="", filter="")
+        if not path: return
+        self.session.export_unnormalized_spectrum(path)
 
+    def export_stitched_continuum(self):
+        """ Export a stitched continuum. """
+        if self.session is None: return
+        path, _ = QtGui.QFileDialog.getSaveFileName(self,
+            caption="Enter continuum filename", dir="", filter="")
+        if not path: return
+        self.session.export_stitched_continuum(path)
 
     def print_abundance_table(self):
         """ Print abundance table to console (HACK) """
