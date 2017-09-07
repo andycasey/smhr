@@ -111,11 +111,21 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.action_isotopes_manager = QtGui.QAction("&Isotopes..", self,
             statusTip="Manage isotopes for elements and molecules",
             triggered=self.isotopes_manager)
+        self.action_comparison_spectrum = QtGui.QAction("&Comparison Spectrum..", self,
+            statusTip="Plot a comparison spectrum (in cyan)",
+            triggered=self.comparison_spectrum_dialog)
+        self.action_clear_comparison_spectrum = QtGui.QAction("&Clear Comparison Spectrum", self,
+            statusTip="Remove comparison spectrum",
+            triggered=self.clear_comparison_spectrum)
         self.action_transitions_manager.setEnabled(False)
         self.action_isotopes_manager.setEnabled(False)
+        self.action_comparison_spectrum.setEnabled(True)
+        self.action_clear_comparison_spectrum.setEnabled(True)
         edit_menu = self.menuBar().addMenu("&Edit")
         edit_menu.addAction(self.action_transitions_manager)
         edit_menu.addAction(self.action_isotopes_manager)
+        edit_menu.addAction(self.action_comparison_spectrum)
+        edit_menu.addAction(self.action_clear_comparison_spectrum)
 
         # Advanced menu
         advanced_menu = self.menuBar().addMenu("&Advanced")
@@ -335,6 +345,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Enable/disable relevant menu actions.
         self.action_transitions_manager.setEnabled(True)
         self.action_isotopes_manager.setEnabled(True)
+        self.action_comparison_spectrum.setEnabled(True)
+        self.action_clear_comparison_spectrum.setEnabled(True)
         self._action_fit_balmer_lines.setEnabled(False)
 
         # Re-populate widgets in all tabs.
@@ -392,6 +404,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Enable relevant menu actions.
         self.action_transitions_manager.setEnabled(True)
         self.action_isotopes_manager.setEnabled(True)
+        self.action_comparison_spectrum.setEnabled(True)
+        self.action_clear_comparison_spectrum.setEnabled(True)
         self._action_fit_balmer_lines.setEnabled(False)
 
 
@@ -569,6 +583,28 @@ class Ui_MainWindow(QtGui.QMainWindow):
         """
         window = IsotopeDialog(self.session)
         window.exec_()
+        return None
+
+
+    def comparison_spectrum_dialog(self):
+        """
+        Open a dialog to pick comparison spectrum
+        """
+        path, _ = QtGui.QFileDialog.getOpenFileName(self,
+            caption="Pick comparison spectrum", dir="", filter="")
+        if not path: return
+        spectrum = smh.specutils.Spectrum1D.read(path)
+        self.stellar_parameters_tab.specfig.update_comparison_spectrum(spectrum)
+        self.chemical_abundances_tab.figure.update_comparison_spectrum(spectrum)
+        return None
+
+
+    def clear_comparison_spectrum(self):
+        """
+        Remove the comparison spectrum
+        """
+        self.stellar_parameters_tab.specfig.update_comparison_spectrum(None)
+        self.chemical_abundances_tab.figure.update_comparison_spectrum(None)
         return None
 
 
