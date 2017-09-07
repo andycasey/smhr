@@ -106,6 +106,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
                  enable_zoom=True, enable_masks=False,
                  label_ymin=1.0, label_ymax=1.2,
                  callbacks_after_fit=[],
+                 comparison_spectrum=None,
                  **kwargs):
         super(SMHSpecDisplay, self).__init__(parent=parent, session=session, 
                                              **kwargs)
@@ -116,6 +117,8 @@ class SMHSpecDisplay(mpl.MPLWidget):
         self.label_ymin = label_ymin
         self.label_ymax = label_ymax
         
+        self.comparison_spectrum = comparison_spectrum
+
         self.setMinimumSize(QtCore.QSize(100,100))
         sp = QtGui.QSizePolicy(
             QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Expanding)
@@ -161,6 +164,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
 
         # Internal MPL variables
         self._lines = {
+            "comparison_spectrum": self.ax_spectrum.plot([], [], c="c", alpha=.5, drawstyle="steps-mid")[0],
             "spectrum": self.ax_spectrum.plot([], [], c="k", drawstyle="steps-mid")[0], #None,
             "spectrum_fill": None,
             "residual_fill": None,
@@ -207,6 +211,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
             drawstyle = self.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
             logger.debug("drawstyle: {}".format(drawstyle))
             self._lines["spectrum"].set_drawstyle(drawstyle)
+            self._lines["comparison_spectrum"].set_drawstyle(drawstyle)
         for key in ["spectrum", "transitions_center_main", "transitions_center_residual",
                     "model_fit", "model_residual"]:
             self._lines[key].set_data([],[])
@@ -215,6 +220,11 @@ class SMHSpecDisplay(mpl.MPLWidget):
         self.session = session
         self.reset()
         self.draw() #update_spectrum_figure()
+        return None
+
+    def update_comparison_spectrum(self, new_comparison_spectrum):
+        self.comparison_spectrum = new_comparison_spectrum
+        self.update_spectrum_figure(redraw=True)
         return None
 
     def update_after_selection(self, selected_models):
@@ -271,6 +281,8 @@ class SMHSpecDisplay(mpl.MPLWidget):
         ## Plot spectrum and error bars
         success = self._plot_normalized_spectrum(limits)
         if not success: return None
+        
+        self._plot_comparison_spectrum(limits)
         
         ## Plot indication of current lines
         self._plot_current_lines(selected_model)
@@ -496,9 +508,6 @@ class SMHSpecDisplay(mpl.MPLWidget):
         
         # Draw the spectrum.
         self._lines["spectrum"].set_data(spectrum.dispersion[plot_ii], spectrum.flux[plot_ii])
-        #drawstyle = self.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
-        #self._lines["spectrum"] = self.ax_spectrum.plot(spectrum.dispersion[plot_ii],
-        #    spectrum.flux[plot_ii], c="k", drawstyle=drawstyle)[0]
 
         # Draw the error bars.
         sigma = 1.0/np.sqrt(spectrum.ivar[plot_ii])
@@ -515,6 +524,22 @@ class SMHSpecDisplay(mpl.MPLWidget):
         three_sigma = 3*np.median(sigma[np.isfinite(sigma)])
         self.ax_residual.set_ylim(-three_sigma, three_sigma)
         
+        return True
+    
+    def _plot_comparison_spectrum(self, limits, extra_disp=10):
+        if self.comparison_spectrum is None: 
+            self._lines["comparison_spectrum"].set_data([], [])
+            return False            
+        spectrum = self.comparison_spectrum
+        
+        plot_ii = np.logical_and(spectrum.dispersion > limits[0]-extra_disp,
+                                 spectrum.dispersion < limits[1]+extra_disp)
+        if np.sum(plot_ii)==0: # Can't plot, no points!
+            self._lines["comparison_spectrum"].set_data([], [])
+            return False            
+        
+        self._lines["comparison_spectrum"].set_data(
+            spectrum.dispersion[plot_ii], spectrum.flux[plot_ii])
         return True
     
     def _plot_current_lines(self, selected_model):
