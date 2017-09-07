@@ -1452,6 +1452,7 @@ class Session(BaseSession):
     def export_unnormalized_spectrum(self, path):
         """ Coadd input orders into one spectrum and write out """
         new_spectrum = specutils.spectrum.coadd(self.input_spectra)
+        new_spectrum.redshift(self.metadata["rv"]["rv_applied"])
         new_spectrum.write(path)
         return None
     
@@ -1467,6 +1468,7 @@ class Session(BaseSession):
                     spectrum.dispersion,continuum, 1./continuum))
 
         new_spectrum = specutils.spectrum.coadd(continuums)
+        new_spectrum.redshift(self.metadata["rv"]["rv_applied"])
         new_spectrum.write(path)
         return None
     
