@@ -11,7 +11,7 @@ from six import iteritems
 import numpy as np
 
 import matplotlib
-from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import MaxNLocator, MultipleLocator
 
 import smh
 from smh import utils, LineList
@@ -129,19 +129,22 @@ class SMHSpecDisplay(mpl.MPLWidget):
 
         self.ax_residual = self.figure.add_subplot(gs[0])
         self.ax_residual.axhline(0, c="#666666")
-        self.ax_residual.xaxis.set_major_locator(MaxNLocator(5))
+        self.ax_residual.xaxis.set_major_locator(MaxNLocator(10))
+        self.ax_residual.xaxis.get_major_formatter().set_useOffset(False)
         #self.ax_residual.yaxis.set_major_locator(MaxNLocator(2))
-        self.ax_residual.set_xticklabels([])
+        #self.ax_residual.set_xticklabels([])
         self.ax_residual.set_ylabel("Resid")
         
-        self.ax_spectrum = self.figure.add_subplot(gs[1])
+        self.ax_spectrum = self.figure.add_subplot(gs[1], sharex=self.ax_residual)
         self.ax_spectrum.axhline(1, c='k', ls=':')
-        self.ax_spectrum.xaxis.get_major_formatter().set_useOffset(False)
-        self.ax_spectrum.xaxis.set_major_locator(MaxNLocator(5))
+        #self.ax_spectrum.xaxis.get_major_formatter().set_useOffset(False)
+        #self.ax_spectrum.xaxis.set_major_locator(MaxNLocator(5))
         self.ax_spectrum.set_xlabel(u"Wavelength (Å)")
         self.ax_spectrum.set_ylabel(r"Normalized flux")
         self.ax_spectrum.set_ylim(0, 1.2)
-        self.ax_spectrum.set_yticks([0, 0.5, 1])
+        self.ax_spectrum.yaxis.set_major_locator(MultipleLocator(0.2))
+        self.ax_spectrum.yaxis.set_minor_locator(MultipleLocator(0.02))
+        #self.ax_spectrum.set_yticks([0, 0.5, 1])
         
         if enable_zoom:
             self.enable_interactive_zoom()
