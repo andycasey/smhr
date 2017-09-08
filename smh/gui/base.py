@@ -618,8 +618,8 @@ class SMHSpecDisplay(mpl.MPLWidget):
 
             self._lines["model_fit"].set_data(meta["model_x"], meta["model_y"])
             self._lines["model_fit"].set_linestyle("-" if self.selected_model.is_acceptable else "--")
-            self._lines["model_residual"].set_data(meta["model_x"], 
-                meta["residual"])
+            self._lines["model_fit"].set_color("r" if self.selected_model.is_acceptable else "b")
+            self._lines["model_residual"].set_data(meta["model_x"], meta["residual"])
 
             # Model yerr.
             if np.any(np.isfinite(meta["model_yerr"])):
@@ -627,7 +627,8 @@ class SMHSpecDisplay(mpl.MPLWidget):
                     meta["model_x"],
                     meta["model_y"] + meta["model_yerr"],
                     meta["model_y"] - meta["model_yerr"],
-                    facecolor="r", edgecolor="none", alpha=0.5)
+                    facecolor="r" if self.selected_model.is_acceptable else "b",
+                    edgecolor="none", alpha=0.5)
 
             # Model masks due to nearby lines.
             if "nearby_lines" in meta:
