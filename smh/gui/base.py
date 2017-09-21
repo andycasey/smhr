@@ -604,7 +604,14 @@ class SMHSpecDisplay(mpl.MPLWidget):
             (named_p_opt, cov, meta) = selected_model.metadata["fitted_result"]
 
             # Test for some requirements.
-            _ = (meta["model_x"], meta["model_y"], meta["residual"])
+            if "plot_x" not in meta: #Profile
+                _ = (meta["model_x"], meta["model_y"], meta["residual"])
+                plotxkey = "model_x"
+                plotykey = "model_y"
+            else: #Synthesis
+                _ = (meta["plot_x"], meta["plot_y"], meta["residual"])
+                plotxkey = "plot_x"
+                plotykey = "plot_y"
 
         except KeyError:
             meta = {}
@@ -612,11 +619,11 @@ class SMHSpecDisplay(mpl.MPLWidget):
             self._lines["model_residual"].set_data([], [])
 
         else:
-            assert len(meta["model_x"]) == len(meta["model_y"])
+            assert len(meta[plotxkey]) == len(meta[plotykey])
             assert len(meta["model_x"]) == len(meta["residual"])
             assert len(meta["model_x"]) == len(meta["model_yerr"])
 
-            self._lines["model_fit"].set_data(meta["model_x"], meta["model_y"])
+            self._lines["model_fit"].set_data(meta[plotxkey], meta[plotykey])
             self._lines["model_fit"].set_linestyle("-" if self.selected_model.is_acceptable else "--")
             self._lines["model_fit"].set_color("r" if self.selected_model.is_acceptable else "b")
             self._lines["model_residual"].set_data(meta["model_x"], meta["residual"])

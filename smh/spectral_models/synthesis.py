@@ -450,18 +450,31 @@ class SpectralSynthesisModel(BaseSpectralModel):
         x, model_y, model_yerr, residuals = self._fill_masked_arrays(
             spectrum, x, model_y, model_yerr, residuals)
 
+        # Convert result to ordered dict.
+        named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
+        
+        # Save plotting
+        if self.session.setting("full_synth_resolution",False):
+            plot_x = self.metadata["raw_synthetic_dispersion"]
+            plot_y = self._nuisance_methods(plot_x, plot_x,
+                                            self.metadata["raw_synthetic_flux"],
+                                            *named_p_opt.values())
+        else:
+            plot_x = x
+            plot_y = model_y
+
         fitting_metadata = {
             "model_x": x,
             "model_y": model_y,
             "model_yerr": model_yerr,
             "residual": residuals,
+            "plot_x": plot_x,
+            "plot_y": plot_y,
             "chi_sq": chi_sq,
             "dof": dof,
             "abundances": p_opt[:len(self.elements)]
         }
 
-        # Convert result to ordered dict.
-        named_p_opt = OrderedDict(zip(self.parameter_names, p_opt))
         self.metadata["fitted_result"] = (named_p_opt, cov, fitting_metadata)
         self.metadata["is_acceptable"] = True
         if "vrad" in self.parameter_names:
@@ -487,7 +500,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
         elif len(meta["model_yerr"].shape) == 2:
             assert meta["model_yerr"].shape[0] == 2, meta["model_yerr"].shape
             ivar = (np.nanmean(meta["model_yerr"], axis=0))**-2.
-        synth_spec = Spectrum1D(meta["model_x"], meta["model_y"], ivar)
+        #synth_spec = Spectrum1D(meta["model_x"], meta["model_y"], ivar)
+        synth_spec = Spectrum1D(meta["plot_x"], meta["plot_y"], ivar)
         synth_spec.write(synth_fname)
         
         ## Write data only in the mask range
@@ -524,7 +538,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
             fp.write("\n")
         return None
     
-    def update_fit_after_parameter_change(self, synthesize=False):
+
+    def update_fit_after_parameter_change(self, synthesize=True):
         """
         After manual parameter change, update fitting metadata 
         for plotting purposes.
@@ -532,9 +547,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
         fiddle manually you probably don't care about those anyway.
         
         :param synthesize:
-            Not implemented. Eventually should not recalc synth every time.
-            But have to figure out when you need to recalc synth,
-            and where to store the synth.
+            If True (default), resynthesizes the spectrum.
+            If False, use existing raw synthetic spectrum and reapply nuisance methods.
         """
         self._update_parameter_names()
         spectrum = self._verify_spectrum(None)
@@ -544,16 +558,41 @@ class SpectralSynthesisModel(BaseSpectralModel):
             logger.info("Please run a fit first!")
             return None
         model_x = meta["model_x"]
-        model_y = self(model_x, *named_p_opt.values())
-        #model_yerr = np.nan * np.ones((2, model_x.size))
         model_yerr = np.nan * np.ones((1, model_x.size))
-        #model_yerr = np.max(np.abs(model_yerr), axis=0)
+        
+        # recompute model
+        if synthesize:
+            model_y = self(model_x, *named_p_opt.values())
+        else:
+            try:
+                model_y = self.metadata["raw_synthetic_flux"]
+            except KeyError:
+                logger.debug("No raw spectrum, synthesizing...")
+                model_y = self(model_x, *named_p_opt.values())
+            else:
+                model_y = self._nuisance_methods(model_x,
+                                                 self.metadata["raw_synthetic_dispersion"],
+                                                 self.metadata["raw_synthetic_flux"],
+                                                 *named_p_opt.values())
         residuals = (meta["residual"] + meta["model_y"]) - model_y
+        
         model_x, model_y, model_yerr, residuals = self._fill_masked_arrays(
             spectrum, model_x, model_y, model_yerr, residuals)
+        # recompute plot
+        if self.session.setting("full_synth_resolution",False):
+            plot_x = self.metadata["raw_synthetic_dispersion"]
+            plot_y = self._nuisance_methods(plot_x, plot_x,
+                                            self.metadata["raw_synthetic_flux"],
+                                            *named_p_opt.values())
+        else:
+            plot_x = model_x
+            plot_y = model_y
+
         meta["model_y"] = model_y
         meta["model_yerr"] = model_yerr
         meta["residual"] = residuals
+        meta["plot_x"] = plot_x
+        meta["plot_y"] = plot_y
         return None
 
     def __call__(self, dispersion, *parameters):
@@ -586,6 +625,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
             abundances=abundances, 
             isotopes=self.session.metadata["isotopes"],
             twd=self.session.twd)[0] # TODO: Other RT kwargs......
+
+        # Save raw synthetic spectrum
+        self.metadata["raw_synthetic_dispersion"] = synth_dispersion
+        self.metadata["raw_synthetic_flux"] = intensities
 
         return self._nuisance_methods(
             dispersion, synth_dispersion, intensities, *parameters)

@@ -195,3 +195,4 @@ plot_styles:
 covariance_draws: 100
 error_percentiles: [16, 84]
 show_full_profiles: 0
+full_synth_resolution: 0
