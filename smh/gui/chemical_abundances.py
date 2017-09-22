@@ -381,7 +381,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         vbox_lhs.setSpacing(0)
         vbox_lhs.setContentsMargins(0,0,0,0)
         hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "View window",
-                                                 0, 1000, 1)
+                                                 -1000, 1000, 1)
         self.edit_view_window_2 = line
         vbox_lhs.addLayout(hbox)
 
@@ -865,7 +865,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.measurement_view.update_row(proxy_index.row())
         self.summarize_current_table()
         self.update_fitting_options()
-        self.refresh_plots()
+        #self.refresh_plots()
+        self.update_spectrum_figure(redraw=True,reset_limits=False)
         return None
         
     def _check_for_spectral_models(self):
@@ -1030,8 +1031,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.opt_tabs.setTabEnabled(1, True)
             self.opt_tabs.setCurrentIndex(1)
 
-            self.edit_view_window.setText("{}".format(selected_model.metadata["window"]))
-            self.edit_fit_window.setText("{}".format(selected_model.metadata["window"]))
+            #self.edit_view_window_2.setText("{}".format(selected_model.metadata["window"]))
+            self.edit_fit_window_2.setText("{}".format(selected_model.metadata["window"]))
 
             # Continuum order.
             continuum_order = selected_model.metadata["continuum_order"]
