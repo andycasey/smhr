@@ -1266,7 +1266,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         else:
             selected_model = self._get_selected_model()
             selected_model.metadata["manual_continuum"] = value
-            selected_model.update_fit_after_parameter_change()
+            selected_model.update_fit_after_parameter_change(synthesize=False)
             self.update_spectrum_figure(redraw=True)
         return None
     def clicked_checkbox_vrad_tolerance_2(self):
@@ -1296,7 +1296,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         else:
             selected_model = self._get_selected_model()
             selected_model.metadata["manual_rv"] = value
-            selected_model.update_fit_after_parameter_change()
+            selected_model.update_fit_after_parameter_change(synthesize=False)
             self.update_spectrum_figure(redraw=True)
         return None
     def update_initial_abundance_bound(self):
@@ -1326,7 +1326,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         else:
             selected_model = self._get_selected_model()
             selected_model.metadata["manual_sigma_smooth"] = value
-            selected_model.update_fit_after_parameter_change()
+            selected_model.update_fit_after_parameter_change(synthesize=False)
             self.update_spectrum_figure(redraw=True)
         return None
     def clicked_checkbox_upper_limit_2(self):
