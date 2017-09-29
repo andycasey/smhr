@@ -35,18 +35,28 @@ class Interpolator(BaseInterpolator):
         of 1 km/s in plane-parallel models and 2 km/s in spherical models.
 
         """
-        return super(self.__class__, self).__init__("marcs-2011-standard.pkl",
+        return super(self.__class__, self).__init__("marcs-2011_m1.0_t02_st.pkl",
             **kwargs)
         
+
+    @property
+    def stellar_parameters_grid(self):
+        """
+        Overload this function so that the radii are considered 0 or 1 for the
+        purposes of interpolation.
+        """
+
+        grid = self.stellar_parameters.view(float).reshape(
+            len(self.stellar_parameters), -1).copy()
+        grid[:, -1] = np.clip(grid[:, -1], 0, 1)
+        return grid
+
 
     def _spherical_or_plane_parallel(self, *point):
 
         point = list(point) + [0.5] # equi-spaced from plane-parallel/spherical
         neighbours = self.nearest_neighbours(point, 8) # 8 = 2**3
-
-        sph_or_pp = self.stellar_parameters.view(float).reshape(
-            len(self.stellar_parameters), -1)[:, -1]
-        return np.round(np.median(sph_or_pp[neighbours]))
+        return np.round(np.median(self.stellar_parameters_grid[neighbours, -1]))
 
 
     def interpolate(self, *point, **kwargs):
@@ -75,6 +85,19 @@ class Interpolator(BaseInterpolator):
 
 
 
+    def _prepare_photosphere(self, stellar_parameters, quantities, 
+        neighbour_indices):
+        """ 
+        Prepare the interpolated photospheric quantities (with correct columns,
+        units, metadata, etc).
+        """
+
+        radius = np.mean(self.stellar_parameters["radius"][neighbour_indices])
+        return self._return_photosphere(
+            stellar_parameters, quantities, meta=dict(radius=radius))
+
+
+
 
 def parse_filename(filename, full_output=False):
     """
@@ -85,17 +108,29 @@ def parse_filename(filename, full_output=False):
     teff = basename[1:5]
     logg = basename.split("_")[1][1:]
     feh = basename.split("_")[5][1:]
-    parameters = map(float, [teff, logg, feh, int(basename[0].lower() == "s")])
+
+    is_spherical = int(basename[0].lower() == "s")
+    if is_spherical:
+        # Need to open the file and get the radius from line 8
+        f = gzip.open if filename.lower().endswith(".gz") else open
+        with f(filename, "r") as fp:
+            content = fp.readlines()
+        radius = content[7].split()[0]
+
+    else:
+        radius = 0
+
+    parameters = np.array([teff, logg, feh, radius]).astype(float)
 
     if full_output:
         names = ("effective_temperature", "surface_gravity", "metallicity",
-            "is_spherical?")
+            "radius")
         return (parameters, names)
     return parameters
 
 
 def parse_photospheric_structure(filename, ndepth=56, line=25,
-    columns=("lgTau5", "Depth", "T", "Pe", "Pg"), full_output=False):
+    columns=("lgTau5", "Depth", "T", "Pe", "Pg", "Prad"), full_output=False):
     """
     Parse the photospheric structure (optical depths, temperatures, electron
     and gas pressures) from the filename provided.
