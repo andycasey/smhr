@@ -138,7 +138,6 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
     transitions_basename = "transitions.in"
     transitions.write(path(transitions_basename), format="turbospectrum")
         
-    # TODO: MOlecule files.
 
     n_files = ["DATA/Hlinedata", transitions_basename]
 
@@ -151,13 +150,17 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
 
 
     proc_synth = subprocess.Popen(command, stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=path(""))
 
     out_synth, err_synth = proc_synth.communicate(input=bsyn_lu_contents)
     errcode_synth = proc_synth.returncode
 
 
+    import matplotlib.pyplot as plt
 
+    spectrum = np.loadtxt(path("spectrum.out"))
+    fig, ax = plt.subplots()
+    ax.plot(spectrum[:,0], spectrum[:,1])
 
     raise a
     # Get regions to synthesise.

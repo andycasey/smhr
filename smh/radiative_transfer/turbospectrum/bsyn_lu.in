@@ -5,7 +5,7 @@
 'COS(THETA):' '1.00'
 'ABFIND :' '.false.'
 'MODELOPAC:' '{opacities_path}'
-'RESULTFILE': '{spectrum_path}'
+'RESULTFILE:' '{spectrum_path}'
 'METALLICITY:'    '0.00'
 'ALPHA/Fe   :'    '0.00'
 'HELIUM     :'    '0.00'
