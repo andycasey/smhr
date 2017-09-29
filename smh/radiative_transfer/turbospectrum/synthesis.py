@@ -8,6 +8,8 @@ from __future__ import (division, print_function, absolute_import,
 
 import logging
 import numpy as np
+import os
+import subprocess
 import yaml
 from pkg_resources import resource_stream
 
@@ -69,6 +71,20 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
     with resource_stream(__name__, "babsma_lu.in") as fp:
         babsma_lu_template = fp.read()
 
+    if abundances is None:
+        abundances = {}
+
+    # TODO Put the abundances on the right scale????
+
+    formatted_abundances = "\n".join(["{0} {1:.2f}".format(species, abundance) \
+        for species, abundance in abundances.items()])
+
+    babsma_lu_kwds.update(
+        num_abundances=len(abundances),
+        formatted_abundances=formatted_abundances)
+
+
+
     # XI
     # num abundances
     # formatted abundances.
@@ -90,6 +106,55 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
     babsma_lu_contents = babsma_lu_template.format(**babsma_lu_kwds)
 
 
+    # Calcualte opacities.
+    command = kwds["turbospectrum_babsma_lu"]
+
+    os.symlink(kwds["turbospectrum_data_dir"], path("DATA"))
+    proc = subprocess.Popen(command.split(), stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        cwd=path(""))
+
+    out, err = proc.communicate(input=babsma_lu_contents)
+    errcode = proc.returncode
+
+
+    # Calculate the spectrum.
+    os.symlink(kwds["turbospectrum_molecules_dir"], path("molecules"))
+    command = kwds["turbospectrum_bsyn_lu"]
+
+    with resource_stream(__name__, "bsyn_lu.in") as fp:
+        bsyn_lu_template = fp.read()
+
+    if isotopes is None:
+        isotopes = {}
+    formatted_isotopes = "\n".join(["{0} {1:.2f}".format(mass_number, relative_abundance) \
+        for mass_number, relative_abundance in isotopes.items()])
+
+
+    babsma_lu_kwds.update(spectrum_path=path("spectrum.out"),
+        num_isotopes=len(isotopes), formatted_isotopes=formatted_isotopes,
+        is_spherical=["F", "T"][photosphere.meta["radius"] > 0])
+
+    transitions_basename = "transitions.in"
+    transitions.write(path(transitions_basename), format="turbospectrum")
+        
+    # TODO: MOlecule files.
+
+    n_files = ["DATA/Hlinedata", transitions_basename]
+
+    babsma_lu_kwds.update(formatted_n_files="\n".join(n_files),
+        n_files=len(n_files))
+
+
+    bsyn_lu_contents = bsyn_lu_template.format(**babsma_lu_kwds)
+    command = kwds["turbospectrum_bsyn_lu"].split()
+
+
+    proc_synth = subprocess.Popen(command, stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    out_synth, err_synth = proc_synth.communicate(input=bsyn_lu_contents)
+    errcode_synth = proc_synth.returncode
 
 
 
