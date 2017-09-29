@@ -14,5 +14,5 @@ from __future__ import (division, print_function, absolute_import,
 
 from .synthesis import synthesize
 from .equivalent_widths import equivalent_widths
-#from .cog import abundance_cog
+from .cog import abundance_cog
 

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """ 
-Functionality to derive equivalent widths from a transition's curve-of-growth using the
+Functionality to derive abundances from a transition's curve-of-growth using the
 Turbospectrum radiative transfer code.
 """
 
@@ -25,10 +25,12 @@ with resource_stream(__name__, "defaults.yaml") as fp:
     _turbospectrum_defaults = yaml.load(fp)
 
 
-def equivalent_widths(photosphere, transitions, full_output=False, verbose=False,
+def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
     twd=None, **kwargs):
     """
-    Calculate equivalent widths from a curve-of-growth.
+    Calculate atomic line abundances by interpolating the measured 
+    equivalent width from the curve-of-growth. 
+    This wraps the MOOG `abfind` driver.
 
     :param photosphere:
         A formatted photosphere.
@@ -37,7 +39,7 @@ def equivalent_widths(photosphere, transitions, full_output=False, verbose=False
         A list of atomic transitions with measured equivalent widths.
 
     :param verbose: [optional]
-        Specify verbose flags.
+        Specify verbose flags to MOOG. This is primarily used for debugging.
     """
 
     kwds = _turbospectrum_defaults.copy()
@@ -57,7 +59,7 @@ def equivalent_widths(photosphere, transitions, full_output=False, verbose=False
         is_spherical=["F", "T"][photosphere.meta["radius"] > 0],
         num_isotopes=0, formatted_isotopes="",
         num_abundances=0, formatted_abundances="",
-        abfind="false"
+        abfind="true"
     )
 
     path = utils.twd_path(twd=twd, **kwargs)
@@ -77,10 +79,6 @@ def equivalent_widths(photosphere, transitions, full_output=False, verbose=False
         babsma_contents = fp.read()
 
     op_out, op_err = op_proc.communicate(input=babsma_contents.format(**kwds))
-
-    if verbose:
-        logger.info("Output from opacitices:\n{}".format(op_out))
-        logger.warn("Error from opacities:\n{}".format(op_err))
 
     if op_proc.returncode:
         logging.exception(
@@ -103,16 +101,16 @@ def equivalent_widths(photosphere, transitions, full_output=False, verbose=False
 
     out, err = proc.communicate(input=bsyn_contents.format(**kwds))
     if proc.returncode:
-        logging.exception("Exception when calculating EWs in Turbospectrum:"\
+        logging.exception("Exception when calculating spectrum in Turbospectrum:"\
             "\n{}".format(err))
-        raise ValueError("exception when calculating EWs with Turbospectrum")
+        raise ValueError("exception when calculating spectrum with Turbospectrum")
 
+    # Order the transitions
     transitions = transitions.copy()
     transitions.sort(["species", "wavelength"])
 
-    transitions["equivalent_width"] = np.loadtxt(
-        path(kwds["result_path"]), usecols=(5, )).T
+    transitions["abundance"] = np.loadtxt(
+        path(kwds["result_path"]), usecols=(11, ), skiprows=2)
 
     return transitions
-
 

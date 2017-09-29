@@ -3,7 +3,7 @@
 'LAMBDA_STEP:' '{dispersion_delta:.2f}'
 'INTENSITY/FLUX:' 'Flux'
 'COS(THETA):' '1.00'
-'ABFIND :' '.false.'
+'ABFIND :' '.{abfind}.'
 'MODELOPAC:' '{opacities_path}'
 'RESULTFILE:' '{result_path}'
 'METALLICITY:'    '0.00'
