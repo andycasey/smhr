@@ -109,9 +109,13 @@ def equivalent_widths(photosphere, transitions, full_output=False, verbose=False
 
     transitions = transitions.copy()
     transitions.sort(["species", "wavelength"])
+    transitions["equivalent_width"] = np.nan * np.ones(len(transitions))
 
-    transitions["equivalent_width"] = np.loadtxt(
-        path(kwds["result_path"]), usecols=(5, )).T
+    wavelengths, equivalent_widths = np.loadtxt(
+        path(kwds["result_path"]), usecols=(2, 5, )).T
+
+    indices = np.where(np.in1d(transitions["wavelength"], wavelengths))[0]
+    transitions["equivalent_width"][indices] = equivalent_widths
 
     return transitions
 

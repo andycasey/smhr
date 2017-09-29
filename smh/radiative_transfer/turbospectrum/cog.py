@@ -109,8 +109,13 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
     transitions = transitions.copy()
     transitions.sort(["species", "wavelength"])
 
-    transitions["abundance"] = np.loadtxt(
-        path(kwds["result_path"]), usecols=(11, ), skiprows=2)
+    transitions["abundance"] = np.nan * np.ones(len(transitions))
+
+    wavelengths, abundances = np.loadtxt(
+        path(kwds["result_path"]), usecols=(2, 11, ), skiprows=2).T
+
+    indices = np.where(np.in1d(transitions["wavelength"], wavelengths))[0]
+    transitions["abundance"][indices] = abundances
 
     return transitions
 
