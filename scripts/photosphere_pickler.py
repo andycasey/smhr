@@ -8,16 +8,12 @@ from __future__ import division, absolute_import, print_function
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import cPickle as pickle
-import gzip
 import os
-import sys
 from glob import glob
 
 import numpy as np
 
-import marcs
-import castelli_kurucz
-import stagger
+from smh.photospheres import (marcs, castelli_kurucz)
 
 
 def pickle_photospheres(photosphere_filenames, kind, meta=None):
