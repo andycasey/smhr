@@ -22,6 +22,24 @@ with resource_stream(__name__, "defaults.yaml") as fp:
     _turbospectrum_defaults = yaml.load(fp)
 
 
+def _is_supported():
+
+    # Must have these things on path:
+    required_executables_on_path = ("babsma_lu", "bsyn_lu")
+    for each in required_executables_on_path:
+        try:
+            subprocess.check_output("which {}".format(each), shell=True)
+
+        except subprocess.CalledProcessError:
+            raise OSError("cannot find executable {} on path".format(each))
+
+    # and environment variable $TURBODATA
+    if os.environ.get("TURBODATA") is None \
+    or not os.path.exists(os.environ.get("TURBODATA")):
+        raise OSError("the TURBODATA environment variable must point to the "\
+                      "DATA directory for turbospectrum")
+
+    return True
 
 
 
@@ -39,6 +57,18 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
 
     """
 
+    if abundances is None:
+        abundances = {}
+
+    # TODO Put the abundances on the right scale????
+    formatted_abundances = "\n".join(["{0} {1:.2f}".format(species, abundance) \
+        for species, abundance in abundances.items()])
+
+    if isotopes is None:
+        isotopes = {}
+
+    formatted_isotopes = "\n".join(["{0} {1:.2f}".format(mass_number, relative_abundance) \
+        for mass_number, relative_abundance in isotopes.items()])
 
     kwds = _turbospectrum_defaults.copy()
     kwds.update(kwargs)
@@ -50,128 +80,69 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
         max(transitions["wavelength"]) + kwds["opacity_contribution"] \
                                        + kwds["dispersion_delta"])
 
-
     # TODO put in abundances.
     if kwds["dispersion_max"] - kwds["dispersion_min"] > 1000.0:
         raise NotImplementedError("turbospectrum fails for large synth, "
                                   "and chunking not implemented yet")
 
+    # Update keywords.
+    xi = photosphere.meta.get("microturbulence", None) or 1.0
+    kwds.update(
+        microturbulence=xi,
+        is_spherical=["F", "T"][photosphere.meta["radius"] > 0],
+        num_isotopes=len(isotopes),
+        formatted_isotopes=formatted_isotopes,
+        num_abundances=len(abundances),
+        formatted_abundances=formatted_abundances,
+    )
+
     path = utils.twd_path(twd=twd, **kwargs)
 
+    # Write atmosphere file.
+    photosphere.write(path(kwds["photosphere_path"]), format="turbospectrum")
+
+    # Requires environment variable for the Turbospectrum data path.
+    os.symlink(os.environ.get("TURBODATA"), path("DATA"))
 
     # Calculate opacities.
-    babsma_lu_kwds = kwds.copy()
-    babsma_lu_kwds["opacities_path"] = path("opacities.in")
-    babsma_lu_kwds["photosphere_path"] = path("photosphere.in")
-
-    # Write atmosphere file.
-    photosphere.write(babsma_lu_kwds["photosphere_path"], format="turbospectrum")
-
-    # Get babsma_lu template and format it.
-    with resource_stream(__name__, "babsma_lu.in") as fp:
-        babsma_lu_template = fp.read()
-
-    if abundances is None:
-        abundances = {}
-
-    # TODO Put the abundances on the right scale????
-
-    formatted_abundances = "\n".join(["{0} {1:.2f}".format(species, abundance) \
-        for species, abundance in abundances.items()])
-
-    babsma_lu_kwds.update(
-        num_abundances=len(abundances),
-        formatted_abundances=formatted_abundances)
-
-
-
-    # XI
-    # num abundances
-    # formatted abundances.
-
-    # If no XI value, then estimate it.
-    xi = photosphere.meta.get("microturbulence", None)
-    if xi is None:
-        xi = 1.0 # [km/s]
-        logger.warn("No microturbulence given in photosphere. Assuming 1 km/s.")
-
-    # TODO microturbulence may have been specified by kwargs....
-    if "microturbulence" in babsma_lu_kwds:
-        raise a
-
-    babsma_lu_kwds["microturbulence"] = xi
-
-    # Set some default values???
-
-    babsma_lu_contents = babsma_lu_template.format(**babsma_lu_kwds)
-
-
-    # Calcualte opacities.
-    command = kwds["turbospectrum_babsma_lu"]
-
-    os.symlink(kwds["turbospectrum_data_dir"], path("DATA"))
-    proc = subprocess.Popen(command.split(), stdin=subprocess.PIPE,
+    op_proc = subprocess.Popen(["babsma_lu"], stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         cwd=path(""))
 
-    out, err = proc.communicate(input=babsma_lu_contents)
-    errcode = proc.returncode
+    with resource_stream(__name__, "babsma_lu.in") as fp:
+        babsma_contents = fp.read()
+
+    op_out, op_err = op_proc.communicate(input=babsma_contents.format(**kwds))
+
+    if op_proc.returncode:
+        logging.exception(
+            "Exception when calculating opacities in Turbospectrum: {}".format(
+                op_err))
+        raise ValueError("exception when calculating Turbospectrum opacities")
 
 
     # Calculate the spectrum.
-    os.symlink(kwds["turbospectrum_molecules_dir"], path("molecules"))
-    command = kwds["turbospectrum_bsyn_lu"]
+    transitions.write(path(kwds["transitions_path"]), format="turbospectrum")
+    
+    # TODO: Molecules
+    n_files = ["DATA/Hlinedata", kwds["transitions_path"]]
+    kwds.update(formatted_n_files="\n".join(n_files), n_files=len(n_files))
 
-    with resource_stream(__name__, "bsyn_lu.in") as fp:
-        bsyn_lu_template = fp.read()
-
-    if isotopes is None:
-        isotopes = {}
-    formatted_isotopes = "\n".join(["{0} {1:.2f}".format(mass_number, relative_abundance) \
-        for mass_number, relative_abundance in isotopes.items()])
-
-
-    babsma_lu_kwds.update(spectrum_path=path("spectrum.out"),
-        num_isotopes=len(isotopes), formatted_isotopes=formatted_isotopes,
-        is_spherical=["F", "T"][photosphere.meta["radius"] > 0])
-
-    transitions_basename = "transitions.in"
-    transitions.write(path(transitions_basename), format="turbospectrum")
-        
-
-    n_files = ["DATA/Hlinedata", transitions_basename]
-
-    babsma_lu_kwds.update(formatted_n_files="\n".join(n_files),
-        n_files=len(n_files))
-
-
-    bsyn_lu_contents = bsyn_lu_template.format(**babsma_lu_kwds)
-    command = kwds["turbospectrum_bsyn_lu"].split()
-
-
-    proc_synth = subprocess.Popen(command, stdin=subprocess.PIPE,
+    # Calculate the spectrum.
+    proc_synth = subprocess.Popen(["bsyn_lu"], stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=path(""))
 
-    out_synth, err_synth = proc_synth.communicate(input=bsyn_lu_contents)
-    errcode_synth = proc_synth.returncode
+    with resource_stream(__name__, "bsyn_lu.in") as fp:
+        bsyn_contents = fp.read()
 
+    synth_out, synth_err = proc_synth.communicate(input=bsyn_contents.format(**kwds))
+    if proc_synth.returncode:
+        logging.exception("Exception when calculating spectrum in Turbospectrum:"\
+            "\n{}".format(synth_err))
+        raise ValueError("exception when calculating spectrum with Turbospectrum")
 
-    import matplotlib.pyplot as plt
+    dispersion, flux = np.loadtxt(path(kwds["result_path"]), usecols=(0, 1)).T
 
-    spectrum = np.loadtxt(path("spectrum.out"))
-    fig, ax = plt.subplots()
-    ax.plot(spectrum[:,0], spectrum[:,1])
+    meta = {}
 
-    raise a
-    # Get regions to synthesise.
-
-
-
-    # Update abundances
-
-    # Calculate opacities
-
-    # Synthesise
-
-
-
+    return [(dispersion, flux, meta)]
