@@ -22,6 +22,7 @@ from socket import gethostname, gethostbyname
 
 # Third party imports
 import numpy as np
+import astropy.table
 
 common_molecule_name2Z = {
     'Mg-H': 12,'H-Mg': 12,
@@ -138,7 +139,7 @@ def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species",
                 #group_lines[x_column] = (np.nan, np.nan, np.nan, np.nan, 0)
                 continue
 
-            x, y, yerr = x[finite], y[finite], yerr[finite]
+            x, y, yerr = np.array(x[finite]), np.array(y[finite]), np.array(yerr[finite])
 
             A = np.vstack((np.ones_like(x), x)).T
             C = np.diag(yerr**2)
