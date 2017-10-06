@@ -291,14 +291,19 @@ class SpectralSynthesisModel(BaseSpectralModel):
                 # Elemental abundance.
                 element = parameter.split("(")[1].rstrip(")")
 
+                # Assume scaled-solar composition.
+                default_value = solar_composition(element) + \
+                        self.session.metadata["stellar_parameters"]["metallicity"]
                 try:
                     fitted_result = self.metadata["fitted_result"]
                 except KeyError:
-                    # Assume scaled-solar composition.
-                    p0.append(solar_composition(element) + \
-                        self.session.metadata["stellar_parameters"]["metallicity"])
+                    p0.append(default_value)
                 else:
-                    p0.append(fitted_result[0][parameter])
+                    value = fitted_result[0][parameter]
+                    if np.isnan(value):
+                        p0.append(default_value)
+                    else:
+                        p0.append(value)
                 
             elif parameter.startswith("c"):
                 # Continuum coefficient.
