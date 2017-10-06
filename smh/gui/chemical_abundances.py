@@ -845,6 +845,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.summarize_current_table()
         self.update_fitting_options()
         self.refresh_plots()
+        if self.parent.session.setting("bring_to_top_after_fit", False):
+            self.parent.raise_()
+            self.parent.activateWindow()
+            self.parent.showNormal()
         return None
 
     def measure_one(self):
