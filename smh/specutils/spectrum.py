@@ -231,8 +231,12 @@ class Spectrum1D(object):
             ivar = image[0].data[noise_ext]**(-2)
 
         else:
-            ivar = np.nan * np.ones_like(flux)
-            #raise ValueError("could not identify flux and ivar extensions")
+            ivar = np.full_like(flux, np.nan)
+            logger.info("could not identify flux and ivar extensions "
+                        "(using nan for ivar)")
+            # It turns out this can mess you up badly so it's better to
+            # just throw the error.
+            raise NotImplementedError
 
         dispersion = np.atleast_2d(dispersion)
         flux = np.atleast_2d(flux)
@@ -780,6 +784,43 @@ class Spectrum1D(object):
                     sigma=self.ivar[continuum_indices], absolute_sigma=False)
                 continuum = np.polyval(popt, dispersion)
 
+            elif function in ("leg", "legendre"):
+                
+                coeffs = np.polynomial.legendre.legfit(splrep_disp, splrep_flux, order,
+                                                       w=splrep_weights)
+                
+                popt, pcov = op.curve_fit(lambda x, *c: np.polynomial.legendre.legval(x, c), 
+                    splrep_disp, splrep_flux, coeffs, 
+                    sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                continuum = np.polynomial.legendre.legval(dispersion, popt)
+
+
+            elif function in ("polysinc"):
+                # sinc^2(x) * polynomial
+                # sinc has 3 parameters: norm, center, shape
+                # polynomial has <order> parameters
+
+                # Initialize sinc
+                p0 = [np.percentile(splrep_flux, 95), np.median(splrep_disp),
+                      np.percentile(splrep_disp, 75) - np.percentile(splrep_disp, 25)]
+                p0, p0cov = op.curve_fit(lambda x, *p: p[0]*np.sinc((x-p[1])/p[2])**2,
+                                         splrep_disp, splrep_flux, p0)
+                
+                # Fit polysinc (this is slow but seems to work)
+                _func = lambda x, *p: p[0]*np.sinc((x-p[1])/p[2])**2 * np.polyval(p[3:], x)
+                p0 = [p0[0], p0[1], p0[2]] + [0. for O in range(order)]
+                popt, pcov = op.curve_fit(_func, 
+                    splrep_disp, splrep_flux, p0, 
+                    sigma=self.ivar[continuum_indices], absolute_sigma=False, maxfev=100000)
+                
+                continuum = _func(dispersion, *popt)
+
+            elif function in ("trig","sincos"):
+                # Casey+2016
+                
+                raise NotImplementedError
+
+
             else:
                 raise ValueError("Unknown function type: only spline or poly "\
                     "available ({} given)".format(function))
@@ -929,7 +970,15 @@ def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
             raise ValueError(
                 "function type {0} not recognised".format(function_type))
 
+        assert Pmax == int(Pmax), Pmax; Pmax = int(Pmax)
+        assert Pmin == int(Pmin), Pmin; Pmin = int(Pmin)
+
         if function_type == 1:
+            # Legendre polynomial.
+            if None in (order, Pmin, Pmax, coefficients):
+                raise TypeError("order, Pmin, Pmax and coefficients required "
+                                "for a Chebyshev or Legendre polynomial")
+
             order = int(order)
             n = np.linspace(-1, 1, Pmax - Pmin + 1)
             temp = np.zeros((Pmax - Pmin + 1, order), dtype=float)

@@ -447,8 +447,13 @@ def corrections_from_headers(headers):
         except IndexError:
             raise KeyError("cannot find all time keys: UTSTART/UTDATE")
 
-        ut_start = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
-            headers[utstart_key]), format="isot", scale="utc")
+        try:
+            ut_start = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
+                headers[utstart_key]), format="isot", scale="utc")
+        except:
+            ut_start = Time("{0}T{1}".format(headers[utdate_key].replace("/", "-"),
+                headers[utstart_key]), format="isot", scale="utc")
+            
 
         try:
             utend_key = [_ for _ in ("UTEND", "UT-END") if _ in headers][0]
@@ -458,8 +463,12 @@ def corrections_from_headers(headers):
                 "Calculating celestial corrections based on the UT-START only")
 
         else:        
-            ut_end = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
-                headers[utend_key]), format="isot", scale="utc")
+            try:
+                ut_end = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
+                    headers[utend_key]), format="isot", scale="utc")
+            except:
+                ut_end = Time("{0}T{1}".format(headers[utdate_key].replace("/", "-"),
+                    headers[utend_key]), format="isot", scale="utc")
 
             # Get the MJD of the mid-point of the observation.
             mjd = (ut_end - ut_start).jd/2 + ut_start.mjd
