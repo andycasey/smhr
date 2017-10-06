@@ -1154,13 +1154,14 @@ class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
     Proxy model allowing for filtering (and eventually sorting) of the full MeasurementTableModelBase
     Based on the old SpectralModelsFilterProxyModel
     """
-    def __init__(self, parent=None, views_to_update=[]):
+    def __init__(self, parent=None, views_to_update=[], callbacks_after_setData=[]):
         """
         Views to update must implement update_row(proxy_index).
         """
         super(MeasurementTableModelProxy, self).__init__(parent)
         self.filter_functions = {}
         self.views_to_update = views_to_update
+        self.callbacks_after_setData = callbacks_after_setData
         return None
     @property
     def attrs(self):
@@ -1182,6 +1183,10 @@ class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
         self.views_to_update.append(view)
     def reset_views_to_update(self):
         self.views_to_update = []
+    def add_callback_after_setData(self, callback):
+        self.callbacks_after_setData.append(callback)
+    def reset_callbacks_after_setData(self):
+        self.callbacks_after_setData = []
     def get_data_column(self, column, rows=None):
         """ Function to quickly go under the hood and access one column """
         if rows is None:
@@ -1207,6 +1212,8 @@ class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
             
             for view in self.views_to_update:
                 view.update_row(proxy_row)
+            for callback in self.callbacks_after_setData:
+                callback()
             return value
     def add_filter_function(self, name, filter_function):
         self.filter_functions[name] = filter_function

@@ -159,6 +159,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             display_fitting_options=True)
         self.measurement_view = measurement_view
         self.measurement_model.add_view_to_update(self.measurement_view)
+        self.measurement_model.add_callback_after_setData(self.summarize_current_table)
         _ = self.measurement_view.selectionModel()
         _.selectionChanged.connect(self.selected_model_changed)
         self.measurement_view.setSizePolicy(QtGui.QSizePolicy(
