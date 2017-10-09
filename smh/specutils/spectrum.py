@@ -137,7 +137,8 @@ class Spectrum1D(object):
 
 
     @classmethod
-    def read_fits_multispec(cls, path, flux_ext=None, ivar_ext=None, **kwargs):
+    def read_fits_multispec(cls, path, flux_ext=None, ivar_ext=None,
+                            WAT_LENGTH=68, **kwargs):
         """
         Create multiple Spectrum1D classes from a multi-spec file on disk.
 
@@ -150,6 +151,9 @@ class Spectrum1D(object):
         :param ivar_ext: [optional]
             The zero-indexed extension number containing the inverse variance of
             the flux values.
+
+        :param WAT_LENGTH: [optional]
+            The multispec format fits uses 68, but some files are broken
         """
 
         image = fits.open(path)
@@ -186,7 +190,7 @@ class Spectrum1D(object):
         while key_fmt.format(i) in metadata:
             # .ljust(68, " ") had str/unicode issues across Python 2/3
             value = metadata[key_fmt.format(i)]
-            concatenated_wat += value + (" "  * (68 - len(value)))
+            concatenated_wat += value + (" "  * (WAT_LENGTH - len(value)))
             i += 1
 
         # Split the concatenated header into individual orders.
@@ -203,10 +207,11 @@ class Spectrum1D(object):
         md5_hash = md5(";".join([v for k, v in metadata.items() \
             if k.startswith("BANDID")])).hexdigest()
         is_carpy_mike_product = (md5_hash == "0da149208a3c8ba608226544605ed600")
+        is_carpy_mike_product_old = (md5_hash == "e802331006006930ee0e60c7fbc66cec")
         is_carpy_mage_product = (md5_hash == "6b2c2ec1c4e1b122ccab15eb9bd305bc")
         is_apo_product = (image[0].header.get("OBSERVAT", None) == "APO")
 
-        if is_carpy_mike_product or is_carpy_mage_product:
+        if is_carpy_mike_product or is_carpy_mage_product or is_carpy_mike_product_old:
             # CarPy gives a 'noise' spectrum, which we must convert to an
             # inverse variance array
             flux_ext = flux_ext or 1
