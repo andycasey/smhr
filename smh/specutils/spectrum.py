@@ -114,7 +114,8 @@ class Spectrum1D(object):
         methods = (
             cls.read_fits_multispec,
             cls.read_fits_spectrum1d,
-            cls.read_ascii_spectrum1d
+            cls.read_ascii_spectrum1d,
+            cls.read_multispec
         )
 
         for method in methods:
@@ -135,6 +136,67 @@ class Spectrum1D(object):
         orders = orders if len(orders) > 1 else orders[0]
         return orders
 
+
+    @classmethod
+    def read_multispec(cls, fname, full_output=False):
+        """
+        There are some files that are not reduced with Dan Kelson's pipeline.
+        So we have to read those manually and define ivar
+        """
+        print("READ MULTISPEC DWARF CANNON")
+        # Hardcoded file with old CarPy format: 5 bands instead of 7
+        if "hd13979red_multi_200311ibt" in fname:
+            WAT_LENGTH=67
+        else:
+            WAT_LENGTH=68
+        
+        try:
+            orders = cls.read(fname, WAT_LENGTH=WAT_LENGTH)
+            code = 1
+        except:
+            print("OLD FORMAT STARTING")
+            # This is the old format: (Norders x Npix) with no noise spec...
+            with fits.open(fname) as hdulist:
+                assert len(hdulist)==1, len(hdulist)
+                header = hdulist[0].header
+                data = hdulist[0].data
+                # orders x pixels
+                assert len(data.shape)==2, data.shape
+                
+                metadata = OrderedDict()
+                for k, v in header.items():
+                    if k in metadata:
+                        metadata[k] += v
+                    else:
+                        metadata[k] = v
+
+            ## Compute dispersion
+            assert metadata["CTYPE1"].upper().startswith("MULTISPE") \
+                or metadata["WAT0_001"].lower() == "system=multispec"
+
+            # Join the WAT keywords for dispersion mapping.
+            i, concatenated_wat, key_fmt = (1, str(""), "WAT2_{0:03d}")
+            while key_fmt.format(i) in metadata:
+                value = metadata[key_fmt.format(i)]
+                concatenated_wat += value + (" "  * (68 - len(value)))
+                i += 1
+
+            # Split the concatenated header into individual orders.
+            order_mapping = np.array([map(float, each.rstrip('" ').split()) \
+                for each in re.split('spec[0-9]+ ?= ?"', concatenated_wat)[1:]])
+            print(order_mapping)
+            dispersion = np.array(
+                [compute_dispersion(*mapping) for 
+                 mapping in order_mapping])
+            
+            ## Compute flux
+            flux = data
+            flux[0 > flux] = np.nan
+            
+            ## Compute ivar assuming Poisson noise
+            ivar = 1./flux
+            
+        return (dispersion, flux, ivar, metadata)
 
     @classmethod
     def read_fits_multispec(cls, path, flux_ext=None, ivar_ext=None,
@@ -800,10 +862,22 @@ class Spectrum1D(object):
                 continuum = np.polynomial.legendre.legval(dispersion, popt)
 
 
+            elif function in ("cheb", "chebyshev"):
+                
+                coeffs = np.polynomial.chebyshev.chebfit(splrep_disp, splrep_flux, order,
+                                                         w=splrep_weights)
+                
+                popt, pcov = op.curve_fit(lambda x, *c: np.polynomial.chebyshev.chebval(x, c), 
+                    splrep_disp, splrep_flux, coeffs, 
+                    sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                continuum = np.polynomial.chebyshev.chebval(dispersion, popt)
+
+
             elif function in ("polysinc"):
                 # sinc^2(x) * polynomial
                 # sinc has 3 parameters: norm, center, shape
                 # polynomial has <order> parameters
+                # This is really slow because of maxfev
 
                 # Initialize sinc
                 p0 = [np.percentile(splrep_flux, 95), np.median(splrep_disp),
