@@ -807,7 +807,7 @@ class Spectrum1D(object):
 
             splrep_disp = dispersion[continuum_indices]
             splrep_flux = self.flux[continuum_indices]
-            splrep_weights = self.ivar[continuum_indices]**0.5
+            splrep_weights = self.ivar[continuum_indices]
 
             median_weight = np.nanmedian(splrep_weights)
 
