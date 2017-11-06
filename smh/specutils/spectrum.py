@@ -471,7 +471,7 @@ class Spectrum1D(object):
                 hdulist.writeto(filename, output_verify=output_verify, clobber=clobber)
                 return
 
-    def redshift(self, v=None, z=None):
+    def redshift(self, v=None, z=None, reinterpolate=False):
         """
         Redshift the spectrum.
 
@@ -480,13 +480,24 @@ class Spectrum1D(object):
 
         :param z:
             A redshift.
+            
+        :param reinterpolate:
+            If True, interpolates result onto original dispersion
         """
 
         if (v is None and z is None) or (v is not None and z is not None):
             raise ValueError("either v or z must be given, but not both")
 
+        if reinterpolate:
+            olddisp = self._dispersion.copy()
+
         z = z or v/299792458e-3
         self._dispersion *= 1 + z
+        
+        if reinterpolate:
+            newflux = np.interp(olddisp, self._dispersion, self._flux)
+            self._dispersion = olddisp
+            self._flux = newflux
         return True
 
 

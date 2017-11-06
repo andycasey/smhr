@@ -137,23 +137,30 @@ def cross_correlate(observed_spectrum, template_spectrum, dispersion_range=None,
 
 
     # Create functions for interpolating back onto the dispersion map
-    fft_points = (0, p1[0])
+    fft_points = (0, p1[0], p1[2])
     interp_x = np.arange(num/2) - num/4
 
     wl_points = []
     for point in fft_points:
         idx = np.searchsorted(interp_x, point)
-        f = interpolate.interp1d(interp_x[idx-3:idx+3], dispersion[idx-3:idx+3],
-            bounds_error=True, kind='cubic')
+        try:
+            f = interpolate.interp1d(interp_x[idx-3:idx+3], dispersion[idx-3:idx+3],
+                bounds_error=True, kind='cubic')
+        except ValueError as e:
+            print("Interpolation error! Probably bad template? Returning nans with raw CCF")
+            print(e)
+            print(fft_points, point)
+            return np.nan, np.nan, np.array([fft_x, fft_y])
         wl_points.append(f(point))
 
     # Calculate velocity 
     c = 299792458e-3 # km/s
-    f, g = wl_points
+    f, g, h = wl_points
     rv = c * (1 - g/f)
 
-    # Uncertainty
-    rv_uncertainty = np.nan # TODO
+    # Approx Uncertainty based on simple gaussian
+    # This is not a real uncertainty as it doesn't take into account data errors
+    rv_uncertainty = np.abs(c * (h-f)/g)
 
     # Create a CCF spectrum.
     ccf = np.array([fft_x * (rv/p1[0]), fft_y])
