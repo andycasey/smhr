@@ -893,6 +893,13 @@ class Spectrum1D(object):
         return normalized_spectrum
 
 
+    def add_noise(self, seed=None):
+        if seed is not None:
+            np.random.seed(seed)
+        noise = np.sqrt(1./self.ivar) * np.random.randn(len(self.flux))
+        return Spectrum1D(self.dispersion, self.flux + noise, self.ivar)
+
+
 def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
     mean_dispersion_delta, num_pixels, redshift, aperture_low, aperture_high,
     weight=1, offset=0, function_type=None, order=None, Pmin=None, Pmax=None,

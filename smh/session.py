@@ -809,13 +809,203 @@ class Session(BaseSession):
 
         return photosphere
 
+    @property
+    def stellar_parameters(self):
+        """
+        Return Teff, logg, vt, MH
+        """
+        return self.metadata["stellar_parameters"]["effective_temperature"], \
+               self.metadata["stellar_parameters"]["surface_gravity"], \
+               self.metadata["stellar_parameters"]["microturbulence"], \
+               self.metadata["stellar_parameters"]["metallicity"]
+
+    def set_stellar_parameters(self, Teff, logg, MH, vt, alpha=None):
+        """ 
+        Set stellar parameters (Teff, logg, MH, vt[, alpha])
+        """
+        self.metadata["stellar_parameters"]["effective_temperature"] = Teff
+        self.metadata["stellar_parameters"]["surface_gravity"] = logg
+        self.metadata["stellar_parameters"]["metallicity"] = MH
+        self.metadata["stellar_parameters"]["microturbulence"] = vt
+        if alpha is not None:
+            self.metadata["stellar_parameters"]["alpha"] = alpha
+        return None
+    
+    def stellar_parameter_uncertainty_analysis(self, transitions=None,
+                                               tolerances=[5,0.01,0.01]):
+        """
+        Performs an uncertainty analysis on the stellar parameters.
+        Teff from varying Teff until the slope is +1 sigma off from its current value
+          (sigma is slope fitting standard error on mean)
+        logg from varying logg until difference between Fe 1 and Fe 2 is +1 sigma off from its current value
+          (sigma is standard error added in quadrature)
+        microturbulence is changing Teff until slope is +1 sigma off from its current value
+        MH is maximum standard deviation of Fe 1 and Fe 2
+        alpha has no error
+        
+        tolerances for accuracy in Teff, logg, vt can be specified with tolerances keyword
+        (default 5, .01, .01)
+        """
+        
+        from scipy.optimize import fmin
+        from scipy.stats import linregress
+        start = time.time()
+        saved_stellar_params = self.metadata["stellar_parameters"].copy()
+        
+        # Use abundance errors in fit? Should just not use this by default for now
+        if self.setting(("stellar_parameter_inference", 
+            "use_abundance_uncertainties_in_line_fits"), False):
+            yerr_column = "abundance_uncertainty"
+        else:
+            yerr_column = None
+        
+        if transitions is None:
+            # TODO right now just assuming all acceptable Fe EQW lines
+            transitions = []
+            spectral_models = []
+            eqws = []
+            rews = []
+            for model in self.metadata["spectral_models"]:
+                if model.is_acceptable and \
+                   isinstance(model, ProfileFittingModel) and \
+                   model.elements[0] == "Fe":
+                    transitions.append(model.transitions[0])
+                    spectral_models.append(model)
+                    eqws.append(model.equivalent_width)
+                    rews.append(model.reduced_equivalent_width)
+            transitions = LineList.vstack(transitions)
+            eqws = np.array(eqws); rews = np.array(rews)
+            transitions["equivalent_width"] = eqws
+            transitions["reduced_equivalent_width"] = rews
+            assert np.all(np.isfinite(eqws)), np.sum(~np.isfinite(eqws))
+            assert np.all(eqws > .01), np.sum(eqws <= .01)
+            abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
+            transitions["abundance"] = abundances
+        else:
+            transitions = transitions.copy()
+            eqws = transitions["equivalent_width"]
+            assert np.all(np.isfinite(eqws)), np.sum(~np.isfinite(eqws))
+            assert np.all(eqws > .01), np.sum(eqws <= .01)
+            for needed_col in ["abundance", "expot", "reduced_equivalent_width"]:
+                assert needed_col in transitions.colnames, needed_col
+        initial_slopes = utils.equilibrium_state(transitions, columns=("expot", "reduced_equivalent_width"),
+                                                 ycolumn="abundance", yerr_column=yerr_column)
+        
+
+        # Put everything in a big try/except block so you don't accidentally overwrite current SPs
+        # (Might be unnecessary)
+        try:
+            # MH: stdev of all Fe lines (including Fe I and II)
+            self.metadata["stellar_parameters"] = saved_stellar_params
+            abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
+            mh_error = np.nanstd(abundances)
+            
+            # Teff
+            try:
+                self.metadata["stellar_parameters"] = saved_stellar_params
+                m, b, median, sigma, N = initial_slopes[26.0].get("expot", (np.nan,np.nan,np.nan,np.nan,0))
+                logger.info("Finding error in Teff slope: {:.3f} +/- {:.3f}".format(m, sigma[1]))
+                Teff = saved_stellar_params["effective_temperature"]
+                Teff_error = np.nan
+                m_target = m + sigma[1]
+                def _calculate_teff_slope(teff):
+                    self.metadata["stellar_parameters"]["effective_temperature"] = teff
+                    abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
+                    transitions["abundance"] = abundances
+                    m, b, median, sigma, N = utils.equilibrium_state(transitions, columns=("expot",), ycolumn="abundance",
+                                                                     yerr_column=yerr_column)[26.0]["expot"]
+                    logger.debug("Teff={:.0f} m={:.3f} m_target={:.3f}".format(teff,m,m_target))
+                    return m
+                minfn = lambda teff: (m_target - _calculate_teff_slope(teff[0]))**2
+                Teff_positive_slope = fmin(minfn, [Teff], xtol=tolerances[0], ftol=0.00001)[0]
+                Teff_error = int(round(np.abs(Teff_positive_slope - Teff)))
+                self.metadata["stellar_parameters"] = saved_stellar_params
+                logger.info("Teff: {} + {}".format(Teff, Teff_error))
+            except:
+                logger.warn("Error calculating uncertainties in Teff")
+                raise
+
+            # logg
+            try:
+                self.metadata["stellar_parameters"] = saved_stellar_params
+                def _get_fe_values(abundances, transitions):
+                    ii1 = transitions["species"] == 26.0
+                    ii2 = transitions["species"] == 26.1
+                    N1 = np.sum(ii1); N2 = np.sum(ii2)
+                    ab1 = np.mean(abundances[ii1]); ab2 = np.mean(abundances[ii2])
+                    std1 = np.std(abundances[ii1])/np.sqrt(N1)
+                    std2 = np.std(abundances[ii2])/np.sqrt(N2)
+                    return ab1, ab2, std1, std2
+                abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
+                abFe1, abFe2, semFe1, semFe2 = _get_fe_values(abundances, transitions)
+                dFe0 = abFe1 - abFe2
+                logger.debug("Finding error in logg: Fe1={:.2f}+/-{:.2f}, Fe2={:.2f}+/-{:.2f}".format(
+                        abFe1, semFe1, abFe2, semFe2))
+                Fe_offset = np.sqrt(semFe1**2 + semFe2**2)
+                logg = saved_stellar_params["surface_gravity"]
+                logg_error = np.nan
+                dFe_target = dFe0 + Fe_offset
+                
+                def _calculate_logg_dFe(logg):
+                    self.metadata["stellar_parameters"]["surface_gravity"] = logg
+                    abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
+                    ab1,ab2,sem1,sem2 = _get_fe_values(abundances, transitions)
+                    logger.debug("logg={:.2f} dFe={:.3f} dFe_target={:.3f}".format(logg,ab1-ab2,dFe_target))
+                    return ab1 - ab2
+                minfn = lambda logg: (dFe_target - _calculate_logg_dFe(logg[0]))**2
+                logg_positive_error = fmin(minfn, [logg], xtol=tolerances[1], ftol=0.00001)[0]
+                logg_error = np.abs(logg_positive_error - logg)
+                self.metadata["stellar_parameters"] = saved_stellar_params
+                logger.info("logg: {:.2f} + {:.2f}".format(logg, logg_error))
+            except:
+                logger.warn("Error calculating uncertainties in logg")
+                raise
+
+            # vt
+            try:
+                self.metadata["stellar_parameters"] = saved_stellar_params
+                m, b, median, sigma, N = initial_slopes[26.0].get("reduced_equivalent_width", (np.nan,np.nan,np.nan,np.nan,0))
+                logger.info("Finding error in vt slope: {:.3f} +/- {:.3f}".format(m, sigma[1]))
+                vt = saved_stellar_params["microturbulence"]
+                vt_error = np.nan
+                m_target = m + sigma[1]
+                def _calculate_vt_slope(vt):
+                    self.metadata["stellar_parameters"]["microturbulence"] = vt
+                    abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
+                    transitions["abundance"] = abundances
+                    m, b, median, sigma, N = utils.equilibrium_state(transitions, columns=("reduced_equivalent_width",),ycolumn="abundance",
+                                                                     yerr_column=yerr_column)[26.0]["reduced_equivalent_width"]
+                    logger.debug("vt={:.2f} m={:.3f} m_target={:.3f}".format(vt,m,m_target))
+                    return m
+                minfn = lambda vt: (m_target - _calculate_vt_slope(vt[0]))**2
+                vt_positive_slope = fmin(minfn, [vt], xtol=tolerances[2], ftol=0.00001)[0]
+                vt_error = round(np.abs(vt_positive_slope - vt),2)
+                self.metadata["stellar_parameters"] = saved_stellar_params
+                logger.info("vt: {:.2f} + {:.2f}".format(vt, vt_error))
+            except:
+                logger.warn("Error calculating uncertainties in vt")
+                raise
+
+        except Exception as e:
+            self.metadata["stellar_parameters"] = saved_stellar_params
+            raise
+        else:
+            self.metadata["stellar_parameters"] = saved_stellar_params
+            self.metadata["stellar_parameters"]["error_effective_temperature"] = Teff_error
+            self.metadata["stellar_parameters"]["error_surface_gravity"] = logg_error
+            self.metadata["stellar_parameters"]["error_microturbulence"] = vt_error
+            self.metadata["stellar_parameters"]["error_metallicity"] = mh_error
+            logger.info("Uncertainties: dTeff={:.0f} dlogg={:.2f} dvt={:.2f} dmh={:.2f}, took {:.1f}s".format(
+                    Teff_error, logg_error, vt_error, mh_error, time.time()-start))
+
+        return Teff_error, logg_error, vt_error, mh_error
 
     def stellar_parameter_state(self, full_output=False, **kwargs):
         """
         Calculate the abundances of all spectral models that are used in the
         determination of stellar parameters.
 
-
+        TODO this should be removed in favor of the measure_abundances method.
         """
 
         # Get the transitions & EWs together from spectral models.

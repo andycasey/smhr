@@ -1551,6 +1551,7 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
             return _QFONT
 
         column = index.column()
+        # TODO this is broken
         spectral_model = self.spectral_models[index.row()]
 
         if  column == 0 \
