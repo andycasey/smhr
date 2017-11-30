@@ -17,6 +17,7 @@ import scipy.interpolate
 from collections import OrderedDict
 from six import string_types, iteritems
 from scipy.ndimage import gaussian_filter
+from scipy import stats
 
 from .base import BaseSpectralModel
 from smh import utils
@@ -64,7 +65,7 @@ def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={},
 
         # Include explicitly specified abundances.
         abundances.update(rt_abundances)
-        logger.debug(abundances)
+        #logger.debug(abundances)
 
         spectra = model.session.rt.synthesize(
             model.session.stellar_photosphere, 
@@ -148,8 +149,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Set rt_abundances to have all the elements with nan
         unique_elements = np.unique(np.array(self.transitions["elem1"]))
         unique_elements = np.concatenate([unique_elements,np.array(np.unique(self.transitions["elem2"]))])
-        logger.debug(unique_elements)
-        logger.debug(type(unique_elements))
+        #logger.debug(unique_elements)
+        #logger.debug(type(unique_elements))
         unique_elements = np.unique(unique_elements)
         
         rt_abundances = {}
@@ -598,6 +599,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         meta["residual"] = residuals
         meta["plot_x"] = plot_x
         meta["plot_y"] = plot_y
+        
         return None
 
     def __call__(self, dispersion, *parameters):
@@ -698,25 +700,78 @@ class SpectralSynthesisModel(BaseSpectralModel):
             model, left=1, right=1)
 
 
+    def find_error(self, sigma=1, max_elem_diff=2.0, abundtol=.001):
+        """
+        Increase abundance of elem until chi2 is <sigma> higher.
+        Return the difference in abundance
+        """
+        assert len(self.metadata["elements"]) == 1, self.metadata["elements"]
+        assert sigma > 0, sigma
+        elem = self.metadata["elements"][0]
+        self._update_parameter_names()
+
+        # Load current fit
+        try:
+            (orig_p_opt, cov, meta) = self.metadata["fitted_result"]
+        except KeyError:
+            logger.info("Please run a fit first!")
+            return None
+        elem_p_opt_name = "log_eps({})".format(elem)
+        assert elem_p_opt_name in orig_p_opt, (elem, orig_p_opt)
+        abund0 = orig_p_opt[elem_p_opt_name]
+
+        # Set up data again from scratch
+        spectrum = self._verify_spectrum(None)
+        mask = self.mask(spectrum)
+        x = spectrum.dispersion[mask]
+        data_y = spectrum.flux[mask]
+        data_ivar = spectrum.ivar[mask]
+        
+        # recompute chi2 and get target
+        model_y = self(x, *orig_p_opt.values())
+        chi2_best = np.nansum((data_y - model_y)**2 * data_ivar)
+        frac = stats.norm.cdf(sigma) - stats.norm.cdf(-sigma)
+        target_chi2 = chi2_best + stats.chi2.ppf(frac, 1)
+        logger.debug("chi2={:.2f}, target chi2={:.2f}".format(chi2_best, target_chi2))
+        
+       # Find abundance where chi2 matches
+        p_opt = orig_p_opt.copy() # temporary thing
+        def minfn(abund):
+            logger.debug("abund = {:.3f}".format(abund))
+            # calculate model_y: run synthesis with new abund
+            p_opt[elem_p_opt_name] = abund
+            #try:
+            model_y = self(x, *p_opt.values())
+            #except Exception as e:
+            #    print(e)
+            #    #logger.debug(e)
+            #    return np.nan
+            
+            # return difference in chi2
+            _chi2 = np.nansum((data_y - model_y)**2 * data_ivar)
+            logger.debug("chi2 diff = {:.3f}".format(_chi2 - target_chi2))
+            return _chi2 - target_chi2
+        
+        abund1 = op.brentq(minfn, abund0, abund0+max_elem_diff, xtol = abundtol)
+        logger.debug("orig abund={:.2f} error abund={:.2f}", abund0, abund1)
+        # Reset the raw synthetic spectrum back to what it was and return
+        _ = self(x, *orig_p_opt.values())
+
+        self.metadata["{}_sigma_abundance_error".format(sigma)] = np.abs(abund1 - abund0)
+        return np.abs(abund1 - abund0)
+        
+
     def find_upper_limit(self, elem, sigma=3):
         """
-        Does a simple chi2 check to find the upper limit 
+        Does a simple chi2 check to find the upper limit
+        
+        Start with none of the element, then increase abundance
+        until it is (x) sigma above.
         """
         assert len(self.metadata["elements"]) == 1, self.metadata["elements"]
         assert self.metadata["elements"][0] == elem, (self.metadata["elements"], elem)
         
-        
-
-    """
-    def abundances(self):
-        "
-        Calculate the abundances (model parameters) given the current stellar
-        parameters in the parent session.
-        "
-
-        #_ self.fit(self.session.normalized_spectrum)
-
-        # Parse the abundances into the right format.
-        raise NotImplementedError("nope")
-    """
-        
+        #current_abund = None
+        #dabund = self.find_error(elem, sigma)
+        #return current_abund + dabund
+        raise NotImplementedError
