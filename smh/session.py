@@ -1000,6 +1000,59 @@ class Session(BaseSession):
 
         return Teff_error, logg_error, vt_error, mh_error
 
+    def propagate_stellar_parameter_error_to_equivalent_widths(self, Teff_error, logg_error, vt_error, mh_error):
+        """
+        Measure EQW abundances at multiple different stellar parameters
+        Output:
+        Dict[stellar_param] -> [+err, -err]
+        Each err dict has two types of keys:
+            species -> abundance difference for that species (logeps)
+            (species1, species2) -> abundance difference for the ratio between those species
+        """
+        spnames = ["effective_temperature","surface_gravity","microturbulence","metallicity"]
+        eqw_models = []
+        for model in self.spectral_models:
+            if model.is_acceptable and isinstance(model, ProfileFittingModel) and (not model.is_upper_limit):
+                eqw_models.append(model)
+        
+        all_species = np.unique(map(lambda m: m.species[0], eqw_models))
+        all_ratios = []
+        for _s1 in all_species:
+            for _s2 in all_species:
+                all_ratios.append((_s1, _s2))
+
+        abund0 = self.measure_abundances(eqw_models, save_abundances=True, calculate_uncertainties=False)
+        sp0 = self.metadata["stellar_parameters"].copy()
+        summary0 = self.summarize_spectral_models()
+        ratios0 = {}
+        for ratio in all_ratios:
+            ratios0[ratio] = summary0[ratio[0]][1] - summary0[ratio[1]][1]
+        
+        error_output = {}
+        error_output["stellar_parameter_errors"] = [Teff_error, logg_error, vt_error, mh_error]
+        error_output["orig_abund"] = abund0
+        error_output["orig_ratios"] = ratios0
+        for spname, error in zip(spnames,[Teff_error, logg_error, vt_error, mh_error]):
+            sperr_list = []
+            for sign in [+1., -1.]:
+                abund_diffs = {}
+                self.metadata["stellar_parameters"].update(sp0)
+                self.metadata["stellar_parameters"][spname] += sign * error
+                logger.debug(spname+" "+str(self.metadata["stellar_parameters"][spname]))
+                self.measure_abundances(eqw_models, save_abundances=True, calculate_uncertainties=False)
+                summary = self.summarize_spectral_models()
+                for species in all_species:
+                    logger.debug("{:4.1f} {:5.2f} {:5.2f}".format(species, summary[species][1], summary0[species][1]))
+                    abund_diffs[species] = summary[species][1] - summary0[species][1]
+                for ratio in all_ratios:
+                    abund_diffs[ratio] = (summary[ratio[0]][1] - summary[ratio[1]][1]) - ratios0[ratio]
+                sperr_list.append(abund_diffs)
+            error_output[spname] = sperr_list
+        # Reset abundance measurements in session
+        self.measure_abundances(eqw_models, save_abundances=True, calculate_uncertainties=True)
+        return error_output
+    
+
     def stellar_parameter_state(self, full_output=False, **kwargs):
         """
         Calculate the abundances of all spectral models that are used in the
@@ -1134,6 +1187,7 @@ class Session(BaseSession):
 
         raise NotImplementedError
 
+
     def measure_abundances(self, spectral_models=None, 
                            save_abundances=True,
                            calculate_uncertainties=True):
@@ -1225,7 +1279,8 @@ class Session(BaseSession):
                 spectral_models[index].metadata["fitted_result"][-1]["abundance_uncertainties"] = [uncertainty]
         logger.info("Time to measure {} abundances: {:.1f}".format(np.sum(finite), time.time()-start))
         return abundances, uncertainties if calculate_uncertainties else abundances
-
+    
+    
     def summarize_spectral_models(self, spectral_models=None, organize_by_element=False,
                                   use_weights = None, use_finite = True, what_fe = 1):
         """
@@ -1370,13 +1425,22 @@ class Session(BaseSession):
         ## Make sure to include synthesis measurements.
         ## We'll eventually put in upper limits too.
         spectral_models = self.metadata.get("spectral_models", [])
-        linedata = np.zeros((len(spectral_models), 6)) + np.nan
+        linedata = np.zeros((len(spectral_models), 7)) + np.nan
         for i,spectral_model in enumerate(spectral_models):
             # TODO include upper limits
             if not spectral_model.is_acceptable or spectral_model.is_upper_limit: continue
-            # TODO make this work with syntheses as well
             if isinstance(spectral_model, SpectralSynthesisModel):
-                raise NotImplementedError
+                assert len(spectral_model.elements) == 1, spectral_model.elements
+                wavelength = spectral_model.wavelength
+                species = spectral_model.species[0][0]
+                expot = spectral_model.expot
+                loggf = spectral_model.loggf
+                EW = np.nan
+                logeps = spectral_model.abundances[0]
+                try:
+                    logeps_err = spectral_model.metadata["2_sigma_abundance_error"]/2.0
+                except:
+                    logeps_err = np.nan
             elif isinstance(spectral_model, ProfileFittingModel):
                 line = spectral_model.transitions[0]
                 wavelength = line['wavelength']
@@ -1387,16 +1451,19 @@ class Session(BaseSession):
                 try:
                     EW = 1000.*spectral_model.metadata["fitted_result"][2]["equivalent_width"][0]
                     logeps = spectral_model.abundances[0]
+                    logeps_err = spectral_model.abundance_uncertainties or np.nan
                 except Exception as e:
                     print(e)
                     EW = np.nan
                     logeps = np.nan
+                    logeps_err = np.nan
                 if EW is None: EW = np.nan
                 if logeps is None: logeps = np.nan
             else:
                 raise NotImplementedError
-            linedata[i,:] = [species, wavelength, expot, loggf, EW, logeps]
-        ii_bad = np.logical_or(np.isnan(linedata[:,5]), np.isnan(linedata[:,4]))
+            linedata[i,:] = [species, wavelength, expot, loggf, EW, logeps, logeps_err]
+        #ii_bad = np.logical_or(np.isnan(linedata[:,5]), np.isnan(linedata[:,4]))
+        ii_bad = np.isnan(linedata[:,5])
         linedata = linedata[~ii_bad,:]
 
         if filepath.endswith(".tex"):
@@ -1408,7 +1475,7 @@ class Session(BaseSession):
     def _export_latex_measurement_table(self, filepath, linedata):
         raise NotImplementedError
     def _export_ascii_measurement_table(self, filepath, linedata):
-        names = ["species", "wavelength", "expot", "loggf", "EW", "logeps"]
+        names = ["species", "wavelength", "expot", "loggf", "EW", "logeps", "e_logeps"]
         tab = astropy.table.Table(linedata, names=names)
         tab.sort(["species","wavelength","expot"])
         tab["wavelength"].format = ".3f"
@@ -1416,6 +1483,7 @@ class Session(BaseSession):
         tab["loggf"].format = "6.3f"
         tab["EW"].format = "6.2f"
         tab["logeps"].format = "6.3f"
+        tab["e_logeps"].format = "6.3f"
         tab.write(filepath, format="ascii.fixed_width_two_line")
         return True
 

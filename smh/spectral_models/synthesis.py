@@ -734,7 +734,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         target_chi2 = chi2_best + stats.chi2.ppf(frac, 1)
         logger.debug("chi2={:.2f}, target chi2={:.2f}".format(chi2_best, target_chi2))
         
-       # Find abundance where chi2 matches
+        # Find abundance where chi2 matches
         p_opt = orig_p_opt.copy() # temporary thing
         def minfn(abund):
             logger.debug("abund = {:.3f}".format(abund))
