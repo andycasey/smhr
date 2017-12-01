@@ -24,7 +24,7 @@ from smh import utils
 from smh.specutils import Spectrum1D
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 # HACK TODO REVISIT SOLAR SCALE: Read from session defaults?
-
+from astropy.table import Table
 
 logger = logging.getLogger(__name__)
 
@@ -545,7 +545,67 @@ class SpectralSynthesisModel(BaseSpectralModel):
         return None
     
 
-    def update_fit_after_parameter_change(self, synthesize=True):
+    def export_plot_data(self, logeps_err, wlmin=None, wlmax=None):
+        """
+        Exports data and synthesized models to be used for a synthesis plot.
+        Returns two tables:
+        (1) Model table: wl, flux(A(X)=-9), flux(fit-err), flux(fit), flux(fit+err)
+        (2) Data table: wl, flux, err, and model residuals
+        """
+        assert len(self.elements) == 1, self.elements
+        assert self.session.setting("full_synth_resolution",True)
+        try:
+            named_p, cov, meta = self.metadata["fitted_result"]
+        except KeyError:
+            logger.warn("No fit run yet!")
+            return None
+        elem = self.elements[0]
+        assert "log_eps({})".format(elem) in named_p
+        
+        ## Assemble data
+        self._update_parameter_names()
+        spectrum = self._verify_spectrum(None)
+        if (wlmin is None) or (wlmax is None):
+            wavelengths = self.transitions["wavelength"]
+            try:
+                wlmin = wavelengths[0]
+                wlmax = wavelengths[-1]
+            except IndexError: # Single row.
+                wlmin, wlmax = (wavelengths, wavelengths)
+            window = abs(self.metadata["window"])
+            wlmin -= window
+            wlmax += window
+        mask = (spectrum.dispersion >= wlmin) \
+             * (spectrum.dispersion <= wlmax)
+        data_disp = spectrum.dispersion[mask]
+        data_flux = spectrum.flux[mask]
+        data_errs = 1./np.sqrt(spectrum.ivar[mask])
+        wlrange = (data_disp[0], data_disp[-1])
+        
+        model_output = [self.metadata["raw_synthetic_dispersion"]]
+        data_output = [data_disp, data_flux, data_errs]
+
+        # Run synths
+        abund0 = self.abundances[0]
+        abunds_to_synth = [-9, abund0 - logeps_err, abund0, abund0 + logeps_err]
+        orig_p = named_p.copy()
+        for abund in abunds_to_synth:
+            abund = float(abund)
+            named_p["log_eps({})".format(elem)] = abund
+            self.update_fit_after_parameter_change(synthesize=True, wlrange=wlrange, with_mask=False)
+            data_output.append(meta["residual"].copy())
+            model_output.append(meta["plot_y"].copy())
+            
+        # Reset state
+        named_p = orig_p
+        self.update_fit_after_parameter_change(synthesize=True, wlrange=wlrange)
+        
+        data_output = Table(data_output, names=["wl","flux","err","r_none","r_-err","r_fit","r_+err"])
+        model_output = Table(model_output, names=["wl","f_none","f_-err","f_fit","f_+err"])
+        
+        return elem, orig_p, logeps_err, model_output, data_output
+        
+    def update_fit_after_parameter_change(self, synthesize=True, wlrange=None, with_mask=True):
         """
         After manual parameter change, update fitting metadata 
         for plotting purposes.
@@ -563,7 +623,16 @@ class SpectralSynthesisModel(BaseSpectralModel):
         except KeyError:
             logger.info("Please run a fit first!")
             return None
-        model_x = meta["model_x"]
+        if wlrange is None:
+            model_x = meta["model_x"]
+            data_y = meta["residual"] + meta["model_y"]
+        else:
+            if with_mask:
+                mask = self.mask(spectrum)
+            else:
+                mask = (spectrum.dispersion >= wlrange[0]) & (spectrum.dispersion <= wlrange[-1])
+            model_x = spectrum.dispersion[mask]
+            data_y = spectrum.flux[mask]
         model_yerr = np.nan * np.ones((1, model_x.size))
         
         # recompute model
@@ -580,7 +649,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
                                                  self.metadata["raw_synthetic_dispersion"],
                                                  self.metadata["raw_synthetic_flux"],
                                                  *named_p_opt.values())
-        residuals = (meta["residual"] + meta["model_y"]) - model_y
+        residuals = data_y - model_y
         
         model_x, model_y, model_yerr, residuals = self._fill_masked_arrays(
             spectrum, model_x, model_y, model_yerr, residuals)
