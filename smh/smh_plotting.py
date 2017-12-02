@@ -204,15 +204,15 @@ def make_synthesis_plot(plotdata, default_err=0.1,
     ax.errorbar(data["wl"], data["flux"], yerr=yerr, **data_kwargs)
     
     # Plot +/- error models
-    error_kwargs={'color':'r','linestyle':':','lw':1,'label':None}
+    error_kwargs={'color':'r','linestyle':':','lw':1}
     for suffix in ["-err", "+err"]:
-        ax.plot(model["wl"], model["f_"+suffix], **error_kwargs)
+        ax.plot(model["wl"], np.array(model["f_"+suffix]), label=None, **error_kwargs)
         if plot_resid:
-            ax_residual.plot(data["wl"], data["r_"+suffix], **error_kwargs)
+            ax_residual.plot(data["wl"], data["r_"+suffix], label=None, **error_kwargs)
     
     # Plot fit model
     fit_kwargs={'color':'r','linestyle':'-','lw':1}
-    fit_label="A({})={:5.2f}+/-{:.2f}".format(elem, abund0, logeps_err)
+    fit_label=r"A({})={:5.2f}$\pm${:.2f}".format(elem, abund0, logeps_err)
     ax.plot(model["wl"], model["f_fit"], label=fit_label, **fit_kwargs)
     if plot_resid:
         ax_residual.plot(data["wl"], data["r_fit"], **fit_kwargs)
