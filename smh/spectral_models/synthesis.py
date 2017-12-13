@@ -81,7 +81,7 @@ def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={},
             fluxes[M*i + j, :] = spectrum[1]
 
     def call(*parameters):
-        print(*parameters)
+        #print(*parameters)
         N = len(model.metadata["elements"])
         if len(parameters) < N:
             raise ValueError("missing parameters")

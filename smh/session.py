@@ -819,7 +819,7 @@ class Session(BaseSession):
                self.metadata["stellar_parameters"]["microturbulence"], \
                self.metadata["stellar_parameters"]["metallicity"]
 
-    def set_stellar_parameters(self, Teff, logg, MH, vt, alpha=None):
+    def set_stellar_parameters(self, Teff, logg, vt, MH, alpha=None):
         """ 
         Set stellar parameters (Teff, logg, MH, vt[, alpha])
         """
@@ -1227,7 +1227,7 @@ class Session(BaseSession):
                     equivalent_width_errs.append(np.nan)
                 num_profile += 1
             elif isinstance(spectral_model, SpectralSynthesisModel):
-                logger.info("Ignoring synthesis",spectral_model)
+                #logger.info("Ignoring synthesis",spectral_model)
                 num_synth += 1
             else:
                 raise RuntimeError("Unknown model type: {}".format(type(spectral_model)))
