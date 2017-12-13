@@ -136,7 +136,7 @@ def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species",
 
             # Only use finite values.
             finite = np.isfinite(x * y * yerr)
-            try: # bugfix for masked arrays
+            try: # fix for masked arrays
                 finite = finite.filled(False)
             except:
                 pass
