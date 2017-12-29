@@ -549,6 +549,13 @@ class Spectrum1D(object):
         return self.__class__(self.dispersion, smoothed_flux, self.ivar.copy(), metadata=self.metadata.copy())
         
     
+    def linterpolate(self, new_dispersion):
+        """ Straight up linear interpolation of flux and ivar onto a new dispersion """
+        new_flux = np.interp(new_dispersion, self.dispersion, self.flux, left=0, right=0)
+        new_ivar = np.interp(new_dispersion, self.dispersion, self.ivar, left=0, right=0)
+        return self.__class__(new_dispersion, new_flux, new_ivar, metadata=self.metadata.copy())
+        
+
     def smooth(self, window_len=11, window='hanning'):
         """Smooth the data using a window with requested size.
         
