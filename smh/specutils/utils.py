@@ -78,7 +78,7 @@ def find_overlaps(spectra, dispersion_range, return_indices=False):
 
     return overlaps if not return_indices else (overlaps, indices[:N])
 
-def calculate_snr(y, window, method='madstd', verbose=True):
+def calculate_noise(y, window, method='madstd', verbose=True, full_output=False):
     """
     Calculate SNR a posteriori.
     Very inefficient but who cares!
@@ -111,9 +111,9 @@ def calculate_snr(y, window, method='madstd', verbose=True):
             from astropy.stats import mean_absolute_deviation
         except ImportError:
             def noise_estimator(x):
-                return np.median(np.abs(x-np.median(x)))
+                return np.nanmedian(np.abs(x-np.nanmedian(x)))
         else:
-            noise_estimator = mean_absolute_deviation
+            noise_estimator = lambda x: mean_absolute_deviation(x, ignore_nan=True)
     
     ## Calculate noise
     noise = np.zeros(len(y))
@@ -132,5 +132,13 @@ def calculate_snr(y, window, method='madstd', verbose=True):
     # sigma = 1.4826 * MAD
     noise *= 1.4826
     
-    SNR = S/noise
+    if full_output:
+        SNR = S/noise
+        return noise, S, SNR
+    return noise
+
+def calculate_snr(*args, **kwargs):
+    kwargs = kwargs.copy()
+    kwargs["full_output"] = True
+    noise, S, SNR = calculate_noise(*args, **kwargs)
     return SNR
