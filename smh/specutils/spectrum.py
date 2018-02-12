@@ -114,7 +114,8 @@ class Spectrum1D(object):
         methods = (
             cls.read_fits_multispec,
             cls.read_fits_spectrum1d,
-            cls.read_ascii_spectrum1d
+            cls.read_ascii_spectrum1d,
+            cls.read_ascii_spectrum1d_noivar
         )
 
         for method in methods:
@@ -198,8 +199,14 @@ class Spectrum1D(object):
                 for each in re.split('spec[0-9]+ ?= ?"', concatenated_wat)[1:]])
 
         # Parse the order mapping into dispersion values.
-        dispersion = np.array(
-            [compute_dispersion(*mapping) for mapping in order_mapping])
+        # Do it this way to ensure ragged arrays work
+        num_pixels, num_orders = metadata["NAXIS1"], metadata["NAXIS2"]
+        dispersion = np.zeros((num_orders, num_pixels), dtype=np.float) + np.nan
+        for j in range(num_orders):
+            _dispersion = compute_dispersion(*order_mapping[j])
+            dispersion[j,0:len(_dispersion)] = _dispersion
+        #dispersion = np.array(
+        #    [compute_dispersion(*mapping) for mapping in order_mapping])
 
         # Get the flux and inverse variance arrays.
         # NOTE: Most multi-spec data previously used with SMH have been from
@@ -259,8 +266,23 @@ class Spectrum1D(object):
                 ivar = ivar[::-1]
 
         # Do something sensible regarding zero or negative fluxes.
-        ivar[0 >= flux] = 0
-        flux[0 >= flux] = np.nan
+        ivar[0 >= flux] = 0.000000000001
+        #flux[0 >= flux] = np.nan
+
+        # turn into list of arrays if it's ragged
+        if np.any(np.isnan(dispersion)):
+            newdispersion = []
+            newflux = []
+            newivar = []
+            for j in range(num_orders):
+                d = dispersion[j,:]
+                ii = np.isfinite(d)
+                newdispersion.append(dispersion[j,ii])
+                newflux.append(flux[j,ii])
+                newivar.append(ivar[j,ii])
+            dispersion = newdispersion
+            flux = newflux
+            ivar = newivar
 
         return (dispersion, flux, ivar, metadata)
 
@@ -372,12 +394,22 @@ class Spectrum1D(object):
         })
         kwds.setdefault("usecols", (0, 1, 2))
 
-        try:
-            dispersion, flux, ivar = np.loadtxt(path, **kwds)
-        except:
-            # Try by ignoring the first row.
-            kwds.setdefault("skiprows", 1)
-            dispersion, flux, ivar = np.loadtxt(path, **kwds)
+        if len(kwds["usecols"])==3:
+            try:
+                dispersion, flux, ivar = np.loadtxt(path, **kwds)
+            except:
+                # Try by ignoring the first row.
+                kwds.setdefault("skiprows", 1)
+                dispersion, flux, ivar = np.loadtxt(path, **kwds)
+        elif len(kwds["usecols"])==2:
+            try:
+                dispersion, flux = np.loadtxt(path, **kwds)
+            except:
+                # Try by ignoring the first row.
+                kwds.setdefault("skiprows", 1)
+                dispersion, flux = np.loadtxt(path, **kwds)
+            
+            ivar = np.ones_like(flux)*1e+5 # HACK S/N ~300 just for training/verification purposes
 
         dispersion = np.atleast_2d(dispersion)
         flux = np.atleast_2d(flux)
@@ -385,6 +417,21 @@ class Spectrum1D(object):
         metadata = { "smh_read_path": path }
         
         return (dispersion, flux, ivar, metadata)
+
+
+    @classmethod
+    def read_ascii_spectrum1d_noivar(cls, path, **kwargs):
+        """
+        Read Spectrum1D data from an ASCII-formatted file on disk.
+
+        :param path:
+            The path of the ASCII filename to read.
+        """
+
+        kwds = kwargs.copy()
+        kwds["usecols"] = (0,1)
+
+        return cls.read_ascii_spectrum1d(path, **kwds)
 
 
     def write(self, filename, clobber=True, output_verify="warn"):
