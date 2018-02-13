@@ -491,6 +491,26 @@ class SpectralSynthesisModel(BaseSpectralModel):
         return self.metadata["fitted_result"]
 
 
+    def iterfit(self, maxiter=10, tol=.01, init_abund = np.nan, **kwargs):
+        """
+        Iteratively run fit() until abundance is converged.
+        Only works for syntheses with single abundance.
+        Uses current fitting parameter settings.
+        """
+        ## Only do this with a single value right now
+        assert len(self.elements) == 1, self.elements
+
+        lastabund = init_abund
+        for i in range(maxiter):
+            self.fit(**kwargs)
+            abund = self.abundances[0]
+            if np.abs(abund - lastabund) < tol: break
+            lastabund = abund
+        else:
+            logger.warn("iterfit: Reached {}/{} iter without converging. Now {:.3f}, last {:.3f}, tol={:.3f}".format(
+                    i, maxiter, abund, lastabund, tol))
+        return abund
+
     def export_fit(self, synth_fname, data_fname, parameters_fname):
         self._update_parameter_names()
         spectrum = self._verify_spectrum(None)
@@ -830,17 +850,42 @@ class SpectralSynthesisModel(BaseSpectralModel):
         return np.abs(abund1 - abund0)
         
 
-    def find_upper_limit(self, elem, sigma=3):
+    def find_upper_limit(self, sigma=3, start_at_current=True, max_elem_diff=12.0, tol=.01):
         """
         Does a simple chi2 check to find the upper limit
+        
+        (1) fit abundance until converged
+        (2) increase abundance until delta chi2 matches the difference from sigma
+        
+        If start_at_current is True, use the current best-fit abundance as 
+        the starting point to find the upper limit.
+        Otherwise, run iterfit and start there.
         
         Start with none of the element, then increase abundance
         until it is (x) sigma above.
         """
         assert len(self.metadata["elements"]) == 1, self.metadata["elements"]
-        assert self.metadata["elements"][0] == elem, (self.metadata["elements"], elem)
         
-        #current_abund = None
-        #dabund = self.find_error(elem, sigma)
-        #return current_abund + dabund
-        raise NotImplementedError
+        if start_at_current:
+            abund = self.abundances[0]
+            if abund is None:
+                logger.debug("find_upper_limit: No fit yet! Running fit...")
+                abund = self.iterfit(tol=tol)
+        else:
+            abund = self.iterfit(tol=tol)
+            
+        err = self.find_error(sigma=sigma, max_elem_diff=max_elem_diff, abundtol=tol)
+        upper_limit = abund + err
+        
+        # Save it as the current abundance and mark as upper limit
+        elem = self.metadata["elements"][0]
+        key = "log_eps({})".format(elem)
+        fitted_result = self.metadata["fitted_result"]
+        fitted_result[0][key] = upper_limit
+        fitted_result[2]["abundances"][0] = upper_limit
+        self.metadata["is_upper_limit"] = True
+        
+        # Update synthesized figure data
+        self.update_fit_after_parameter_change()
+
+        return upper_limit

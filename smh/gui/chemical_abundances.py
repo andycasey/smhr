@@ -450,10 +450,18 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.btn_synthesize.setText("Synthesize")
         vbox_rhs.addWidget(self.btn_synthesize)
 
+        hbox = QtGui.QHBoxLayout()
+        hbox.setSpacing(0)
+        hbox.setContentsMargins(0,0,0,0)
         self.checkbox_upper_limit_2 = QtGui.QCheckBox(self.tab_synthesis)
         self.checkbox_upper_limit_2.setText("Upper Limit")
         self.checkbox_upper_limit_2.setFont(_QFONT)
-        vbox_rhs.addWidget(self.checkbox_upper_limit_2)
+        hbox.addWidget(self.checkbox_upper_limit_2)
+        self.btn_find_upper_limit = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_find_upper_limit.setText("Find Upper Limit")
+        self.btn_find_upper_limit.setFont(_QFONT)
+        hbox.addWidget(self.btn_find_upper_limit)
+        vbox_rhs.addLayout(hbox)
 
         #vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
         #                                   QtGui.QSizePolicy.Minimum))
@@ -627,6 +635,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.synthesize_current_model)
         self.checkbox_upper_limit_2.stateChanged.connect(
             self.clicked_checkbox_upper_limit_2)
+        self.btn_find_upper_limit.clicked.connect(
+            self.clicked_btn_find_upper_limit)
         self.btn_fit_synth.clicked.connect(
             self.fit_one)
         self.btn_update_abund_table.clicked.connect(
@@ -659,6 +669,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             #(self.edit_initial_abundance_bound.returnPressed,self.synthDefaultAction),
             (self.btn_synthesize.clicked,self.synthesize_current_model),
             (self.checkbox_upper_limit_2.stateChanged,self.clicked_checkbox_upper_limit_2),
+            (self.btn_find_upper_limit.clicked,self.clicked_btn_find_upper_limit),
             (self.btn_fit_synth.clicked,self.fit_one),
             (self.btn_update_abund_table.clicked,self.clicked_btn_update_abund_table),
             (self.btn_clear_masks_2.clicked,self.clicked_btn_clear_masks),
@@ -1341,6 +1352,18 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             = self.checkbox_upper_limit_2.isChecked()
         self.measurement_view.update_row(proxy_index.row())
         self.summarize_current_table()
+        self.refresh_plots()
+        return None
+    def clicked_btn_find_upper_limit(self):
+        """ The button to find an upper limit has been clicked. """
+        spectral_model, proxy_index, index = self._get_selected_model(True)
+        # Find the upper limit 
+        sigma = 3.0
+        upper_limit = spectral_model.find_upper_limit(sigma=sigma, start_at_current=True)
+        # Refresh GUI
+        self.measurement_view.update_row(proxy_index.row())
+        self.summarize_current_table()
+        self.update_fitting_options()
         self.refresh_plots()
         return None
     def clicked_btn_update_abund_table(self):
