@@ -453,12 +453,32 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         hbox = QtGui.QHBoxLayout()
         hbox.setSpacing(0)
         hbox.setContentsMargins(0,0,0,0)
+        hbox2 = QtGui.QHBoxLayout()
+        hbox2.setSpacing(0)
+        hbox2.setContentsMargins(0,0,0,0)
         self.checkbox_upper_limit_2 = QtGui.QCheckBox(self.tab_synthesis)
         self.checkbox_upper_limit_2.setText("Upper Limit")
         self.checkbox_upper_limit_2.setFont(_QFONT)
         hbox.addWidget(self.checkbox_upper_limit_2)
+        label = QtGui.QLabel(self.tab_synthesis)
+        label.setText("Find")
+        label.setFont(_QFONT)
+        hbox2.addWidget(label)
+        line = QtGui.QLineEdit(self.tab_synthesis)
+        line.setMinimumSize(QtCore.QSize(20, 0))
+        line.setMaximumSize(QtCore.QSize(25, _ROWHEIGHT))
+        line.setFont(_QFONT)
+        line.setValidator(QtGui.QDoubleValidator(0, 10, 1, line))
+        line.setText("3.0")
+        self.edit_ul_sigma = line
+        hbox2.addWidget(self.edit_ul_sigma)
+        label = QtGui.QLabel(self.tab_synthesis)
+        label.setText(u"\u03C3")
+        label.setFont(_QFONT)
+        hbox2.addWidget(label)
+        hbox.addLayout(hbox2)
         self.btn_find_upper_limit = QtGui.QPushButton(self.tab_synthesis)
-        self.btn_find_upper_limit.setText("Find Upper Limit")
+        self.btn_find_upper_limit.setText("Upper Limit")
         self.btn_find_upper_limit.setFont(_QFONT)
         hbox.addWidget(self.btn_find_upper_limit)
         vbox_rhs.addLayout(hbox)
@@ -1358,7 +1378,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         """ The button to find an upper limit has been clicked. """
         spectral_model, proxy_index, index = self._get_selected_model(True)
         # Find the upper limit 
-        sigma = 3.0
+        try:
+            sigma = round(float(self.edit_ul_sigma.text()),1)
+        except:
+            logger.debug("Invalid sigma for finding limit")
+            return None
         upper_limit = spectral_model.find_upper_limit(sigma=sigma, start_at_current=True)
         # Refresh GUI
         self.measurement_view.update_row(proxy_index.row())

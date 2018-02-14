@@ -868,7 +868,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         
         if start_at_current:
             abund = self.abundances[0]
-            if abund is None:
+            if abund is None or np.isnan(abund):
                 logger.debug("find_upper_limit: No fit yet! Running fit...")
                 abund = self.iterfit(tol=tol)
         else:
