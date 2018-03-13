@@ -565,12 +565,15 @@ class SpectralSynthesisModel(BaseSpectralModel):
         return None
     
 
-    def export_plot_data(self, logeps_err, wlmin=None, wlmax=None):
+    def export_plot_data(self, logeps_err, wlmin=None, wlmax=None,
+                         normalize_data=False):
         """
         Exports data and synthesized models to be used for a synthesis plot.
         Returns two tables:
         (1) Model table: wl, flux(A(X)=-9), flux(fit-err), flux(fit), flux(fit+err)
         (2) Data table: wl, flux, err, and model residuals
+        If normalize_data=True, applies the continuum fit to the data rather than the model
+          (so normalized flux = 1 is the continuum)
         """
         assert len(self.elements) == 1, self.elements
         assert self.session.setting("full_synth_resolution",True)
@@ -623,6 +626,27 @@ class SpectralSynthesisModel(BaseSpectralModel):
         data_output = Table(data_output, names=["wl","flux","err","r_none","r_-err","r_fit","r_+err"])
         model_output = Table(model_output, names=["wl","f_none","f_-err","f_fit","f_+err"])
         
+        if normalize_data:
+            ## remove the continuum from model and data
+            modeldisp = model_output["wl"]
+            datadisp  = data_output["wl"]
+            parameters = self.metadata["fitted_result"][0].values()
+
+            names = self.parameter_names
+            O = self.metadata["continuum_order"]
+            if 0 > O:
+                continuum1 = 1 * self.metadata["manual_continuum"]
+                continuum2 = 1 * self.metadata["manual_continuum"]
+            else:
+                continuum1 = np.polyval([parameters[names.index("c{}".format(i))] \
+                    for i in range(O + 1)][::-1], modeldisp)
+                continuum2 = np.polyval([parameters[names.index("c{}".format(i))] \
+                    for i in range(O + 1)][::-1], datadisp)
+            for col in ["f_none", "f_-err", "f_fit", "f_+err"]:
+                model_output[col] = model_output[col]/continuum1
+            for col in ["flux", "r_none", "r_-err", "r_fit", "r_+err"]:
+                data_output[col] = data_output[col]/continuum2
+
         return elem, orig_p, logeps_err, model_output, data_output
         
     def update_fit_after_parameter_change(self, synthesize=True, wlrange=None, with_mask=True):
@@ -789,7 +813,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
             model, left=1, right=1)
 
 
-    def find_error(self, sigma=1, max_elem_diff=2.0, abundtol=.001):
+    def find_error(self, sigma=1, max_elem_diff=2.0, abundtol=.001, pix_per_element=1.0):
         """
         Increase abundance of elem until chi2 is <sigma> higher.
         Return the difference in abundance
@@ -820,7 +844,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         model_y = self(x, *orig_p_opt.values())
         chi2_best = np.nansum((data_y - model_y)**2 * data_ivar)
         frac = stats.norm.cdf(sigma) - stats.norm.cdf(-sigma)
-        target_chi2 = chi2_best + stats.chi2.ppf(frac, 1)
+        target_chi2 = chi2_best + stats.chi2.ppf(frac, 1)*pix_per_element
         logger.debug("chi2={:.2f}, target chi2={:.2f}".format(chi2_best, target_chi2))
         
         # Find abundance where chi2 matches
@@ -850,7 +874,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         return np.abs(abund1 - abund0)
         
 
-    def find_upper_limit(self, sigma=3, start_at_current=True, max_elem_diff=12.0, tol=.01):
+    def find_upper_limit(self, sigma=3, start_at_current=True, max_elem_diff=12.0, tol=.01, pix_per_element=1.0):
         """
         Does a simple chi2 check to find the upper limit
         
@@ -874,7 +898,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         else:
             abund = self.iterfit(tol=tol)
             
-        err = self.find_error(sigma=sigma, max_elem_diff=max_elem_diff, abundtol=tol)
+        err = self.find_error(sigma=sigma, max_elem_diff=max_elem_diff, abundtol=tol, pix_per_element=pix_per_element)
         upper_limit = abund + err
         
         # Save it as the current abundance and mark as upper limit

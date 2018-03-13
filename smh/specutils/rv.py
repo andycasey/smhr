@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def cross_correlate(observed_spectrum, template_spectrum, dispersion_range=None,
-    apodize=0, resample="template"):
+    use_weight=False, apodize=0, resample="template", verbose=False):
     """
     Cross-correlate the observed spectrum against a rest-frame template spectrum
     and measure the radial velocity of the source.
@@ -87,6 +87,7 @@ def cross_correlate(observed_spectrum, template_spectrum, dispersion_range=None,
 
         dispersion = observed_spectrum.dispersion[idx[0]:idx[1]][finite]
         observed_flux = observed_spectrum.flux[idx[0]:idx[1]][finite]
+        observed_ivar = observed_spectrum.ivar[idx[0]:idx[1]][finite]
 
         func = interpolate.interp1d(
             template_spectrum.dispersion, template_spectrum.flux,
@@ -105,13 +106,18 @@ def cross_correlate(observed_spectrum, template_spectrum, dispersion_range=None,
     # Is this necessary?: # TODO
     x_norm = observed_flux - np.mean(observed_flux[np.isfinite(observed_flux)])
     y_norm = template_flux - np.mean(template_flux[np.isfinite(template_flux)])
+    if use_weight:
+        x_norm = x_norm * observed_ivar
 
     Fx = np.fft.fft(x_norm, padding, )
     Fy = np.fft.fft(y_norm, padding, )
     iFxy = np.fft.ifft(Fx.conj() * Fy).real
     varxy = np.sqrt(np.inner(x_norm, x_norm) * np.inner(y_norm, y_norm))
 
-    fft_result = iFxy/varxy
+    if use_weight:
+        fft_result = iFxy
+    else:
+        fft_result = iFxy/varxy
 
     # Put around symmetry axis.
     num = len(fft_result) - 1 if len(fft_result) % 2 else len(fft_result)
@@ -158,14 +164,62 @@ def cross_correlate(observed_spectrum, template_spectrum, dispersion_range=None,
     f, g, h = wl_points
     rv = c * (1 - g/f)
 
-    # Approx Uncertainty based on simple gaussian
-    # This is not a real uncertainty as it doesn't take into account data errors
-    rv_uncertainty = np.abs(c * (h-f)/g)
-
     # Create a CCF spectrum.
     ccf = np.array([fft_x * (rv/p1[0]), fft_y])
+
+    # Calculate uncertainty
+    if use_weight:
+        # The ccf should be normalized so that it is close to a chi2 distribution
+        # Reducing the ccf by 0.5 from its peak value gives 1-sigma error
+        # We approximate this assuming the Gaussian fit is correct
+        ymax = p1[1]
+        minfunc = lambda x: (ymax - 0.5) - gaussian(p1, x) 
+        try:
+            xerr, ier = leastsq(minfunc, p1[0] + p1[2])
+        except:
+            logger.exception("Exception in measuring 1sigma offset for CCF")
+            raise
+        point = np.abs(xerr - p1[0])
+        idx = np.searchsorted(interp_x, point)
+        try:
+            func = interpolate.interp1d(interp_x[idx-3:idx+3], dispersion[idx-3:idx+3],
+                bounds_error=True, kind='cubic')
+        except ValueError as e:
+            print("Interpolation error in solving for error!")
+            print(e, point)
+            return np.nan, np.nan, np.array([fft_x, fft_y])
+        h = func(point)[0]
+        if verbose: print(f,g,h, (h-f)/g, ymax)
+        rv_uncertainty = np.abs(c * (h-f)/g)
+    else:
+        # Approx Uncertainty based on simple gaussian
+        # This is not a real uncertainty as it doesn't take into account data errors
+        rv_uncertainty = np.abs(c * (h-f)/g)
 
     return (rv, rv_uncertainty, ccf)
 
 
 
+def measure_order_velocities(orders, template, norm_kwargs, **kwargs):
+    """
+    Run cross correlation against a list of orders
+    Return Nx3 array, where columns are order_num, rv, e_rv, wlmin, wlmax
+    """
+    N = len(orders)
+    rv_output = np.zeros((N,5))
+    for i, order in enumerate(orders):
+        normorder = order.fit_continuum(**norm_kwargs)
+        try:
+            rv, e_rv, ccf = cross_correlate(normorder, template, **kwargs)
+        except:
+            rv, e_rv = np.nan, np.nan
+        try:
+            order_num = order.metadata["ECORD{}".format(i)]
+        except:
+            order_num = i
+        rv_output[i,0] = order_num
+        rv_output[i,1] = rv
+        rv_output[i,2] = e_rv
+        rv_output[i,3] = np.min(order.dispersion)
+        rv_output[i,4] = np.max(order.dispersion)
+    return rv_output
