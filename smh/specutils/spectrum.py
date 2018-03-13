@@ -139,7 +139,7 @@ class Spectrum1D(object):
 
     @classmethod
     def read_fits_multispec(cls, path, flux_ext=None, ivar_ext=None,
-                            WAT_LENGTH=68, **kwargs):
+                            WAT_LENGTH=68, override_bad=False, **kwargs):
         """
         Create multiple Spectrum1D classes from a multi-spec file on disk.
 
@@ -248,7 +248,8 @@ class Spectrum1D(object):
                         "(using nan for ivar)")
             # It turns out this can mess you up badly so it's better to
             # just throw the error.
-            raise NotImplementedError
+            if not override_bad:
+                raise NotImplementedError
 
         dispersion = np.atleast_2d(dispersion)
         flux = np.atleast_2d(flux)
