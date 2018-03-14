@@ -83,7 +83,7 @@ class Session(BaseSession):
         # TODO: Include UTDATE, etc to calculate helio/bary-centric corrections.
         self.metadata = {
             "VERSION": __version__,
-            "NOTES": ""
+            "NOTES": "Spectrum paths: "+",".join(spectrum_paths)
         }
         common_metadata_keys = ["RA", "DEC", "OBJECT"] \
             + kwargs.pop("common_metadata_keys", [])
