@@ -357,13 +357,13 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.chemical_abundances_tab.new_session_loaded()
         self.review_tab.new_session_loaded()
 
-        self._update_window_title()
+        self._update_window_title(os.path.basename(filenames[0]))
 
         
         return None
 
 
-    def _update_window_title(self):
+    def _update_window_title(self, default_title="Unnamed"):
         """
         Update the window title.
         """
@@ -377,7 +377,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
                 object_name = self.session.metadata["OBJECT"]
 
             except (AttributeError, KeyError):
-                title = joiner.join([prefix, "Unnamed"])
+                title = joiner.join([prefix, default_title])
 
             else:
                 title = joiner.join([prefix, object_name])
@@ -446,6 +446,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.chemical_abundances_tab.new_session_loaded()
         self.review_tab.new_session_loaded()
         
+        self._update_window_title(os.path.basename(self.session_path))
+
         return None
 
 
