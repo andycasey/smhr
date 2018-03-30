@@ -506,7 +506,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
             assert meta["model_yerr"].shape[0] == 2, meta["model_yerr"].shape
             ivar = (np.nanmean(meta["model_yerr"], axis=0))**-2.
         #synth_spec = Spectrum1D(meta["model_x"], meta["model_y"], ivar)
-        synth_spec = Spectrum1D(meta["plot_x"], meta["plot_y"], ivar)
+        if len(meta["plot_x"]) != len(ivar):
+            synth_spec = Spectrum1D(meta["plot_x"], meta["plot_y"], np.ones(len(meta["plot_x"]))*1e6)
+        else:
+            synth_spec = Spectrum1D(meta["plot_x"], meta["plot_y"], ivar)
         synth_spec.write(synth_fname)
         
         ## Write data only in the mask range
@@ -720,3 +723,6 @@ class SpectralSynthesisModel(BaseSpectralModel):
         raise NotImplementedError("nope")
     """
         
+    def export_line_list(self, fname):
+        self.transitions.write(fname, format="moog")
+        return None

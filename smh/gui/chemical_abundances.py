@@ -1398,9 +1398,14 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         param_path, _ = QtGui.QFileDialog.getSaveFileName(self,
                 caption="Enter parameter output filename", dir="") #, filter="*.txt")
         if not param_path: return
+        ## Ask for linelist output filename
+        linelist_path, _ = QtGui.QFileDialog.getSaveFileName(self,
+                caption="Enter linelist output filename", dir="") #, filter="*.txt")
+        if not param_path: return
         ## Export
         spectral_model.export_fit(synth_path, data_path, param_path)
-        logger.info("Exported to {}, {}, and {}".format(synth_path, data_path, param_path))
+        spectral_model.export_line_list(linelist_path)
+        logger.info("Exported to {}, {}, {}, {}".format(synth_path, data_path, param_path, linelist_path))
         return
 
     def refresh_current_model(self):
