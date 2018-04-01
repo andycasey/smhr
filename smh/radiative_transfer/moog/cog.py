@@ -58,6 +58,7 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
     # of linelists with all positive loggf. Add a fake line to compensate.
     all_positive_loggf = np.all(transitions['loggf'] >= 0)
     if all_positive_loggf:
+        logger.debug("Adding fake line with negative loggf!!!")
         # Add a fake line with negative loggf
         fakeline = linelists.LineList.create_basic_linelist([5006.126],[26.0],[2.833],[-3])
         fakeline[0]["equivalent_width"] = 50.

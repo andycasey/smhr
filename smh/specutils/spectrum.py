@@ -115,7 +115,8 @@ class Spectrum1D(object):
             cls.read_fits_multispec,
             cls.read_fits_spectrum1d,
             cls.read_ascii_spectrum1d,
-            cls.read_multispec
+            cls.read_multispec,
+            cls.read_ascii_spectrum1d_noivar
         )
 
         for method in methods:
@@ -200,7 +201,7 @@ class Spectrum1D(object):
 
     @classmethod
     def read_fits_multispec(cls, path, flux_ext=None, ivar_ext=None,
-                            WAT_LENGTH=68, **kwargs):
+                            WAT_LENGTH=68, override_bad=False, **kwargs):
         """
         Create multiple Spectrum1D classes from a multi-spec file on disk.
 
@@ -260,8 +261,14 @@ class Spectrum1D(object):
                 for each in re.split('spec[0-9]+ ?= ?"', concatenated_wat)[1:]])
 
         # Parse the order mapping into dispersion values.
-        dispersion = np.array(
-            [compute_dispersion(*mapping) for mapping in order_mapping])
+        # Do it this way to ensure ragged arrays work
+        num_pixels, num_orders = metadata["NAXIS1"], metadata["NAXIS2"]
+        dispersion = np.zeros((num_orders, num_pixels), dtype=np.float) + np.nan
+        for j in range(num_orders):
+            _dispersion = compute_dispersion(*order_mapping[j])
+            dispersion[j,0:len(_dispersion)] = _dispersion
+        #dispersion = np.array(
+        #    [compute_dispersion(*mapping) for mapping in order_mapping])
 
         # Get the flux and inverse variance arrays.
         # NOTE: Most multi-spec data previously used with SMH have been from
@@ -303,7 +310,8 @@ class Spectrum1D(object):
                         "(using nan for ivar)")
             # It turns out this can mess you up badly so it's better to
             # just throw the error.
-            raise NotImplementedError
+            if not override_bad:
+                raise NotImplementedError
 
         dispersion = np.atleast_2d(dispersion)
         flux = np.atleast_2d(flux)
@@ -321,8 +329,23 @@ class Spectrum1D(object):
                 ivar = ivar[::-1]
 
         # Do something sensible regarding zero or negative fluxes.
-        ivar[0 >= flux] = 0
-        flux[0 >= flux] = np.nan
+        ivar[0 >= flux] = 0.000000000001
+        #flux[0 >= flux] = np.nan
+
+        # turn into list of arrays if it's ragged
+        if np.any(np.isnan(dispersion)):
+            newdispersion = []
+            newflux = []
+            newivar = []
+            for j in range(num_orders):
+                d = dispersion[j,:]
+                ii = np.isfinite(d)
+                newdispersion.append(dispersion[j,ii])
+                newflux.append(flux[j,ii])
+                newivar.append(ivar[j,ii])
+            dispersion = newdispersion
+            flux = newflux
+            ivar = newivar
 
         return (dispersion, flux, ivar, metadata)
 
@@ -434,12 +457,22 @@ class Spectrum1D(object):
         })
         kwds.setdefault("usecols", (0, 1, 2))
 
-        try:
-            dispersion, flux, ivar = np.loadtxt(path, **kwds)
-        except:
-            # Try by ignoring the first row.
-            kwds.setdefault("skiprows", 1)
-            dispersion, flux, ivar = np.loadtxt(path, **kwds)
+        if len(kwds["usecols"])==3:
+            try:
+                dispersion, flux, ivar = np.loadtxt(path, **kwds)
+            except:
+                # Try by ignoring the first row.
+                kwds.setdefault("skiprows", 1)
+                dispersion, flux, ivar = np.loadtxt(path, **kwds)
+        elif len(kwds["usecols"])==2:
+            try:
+                dispersion, flux = np.loadtxt(path, **kwds)
+            except:
+                # Try by ignoring the first row.
+                kwds.setdefault("skiprows", 1)
+                dispersion, flux = np.loadtxt(path, **kwds)
+            
+            ivar = np.ones_like(flux)*1e+5 # HACK S/N ~300 just for training/verification purposes
 
         dispersion = np.atleast_2d(dispersion)
         flux = np.atleast_2d(flux)
@@ -447,6 +480,21 @@ class Spectrum1D(object):
         metadata = { "smh_read_path": path }
         
         return (dispersion, flux, ivar, metadata)
+
+
+    @classmethod
+    def read_ascii_spectrum1d_noivar(cls, path, **kwargs):
+        """
+        Read Spectrum1D data from an ASCII-formatted file on disk.
+
+        :param path:
+            The path of the ASCII filename to read.
+        """
+
+        kwds = kwargs.copy()
+        kwds["usecols"] = (0,1)
+
+        return cls.read_ascii_spectrum1d(path, **kwds)
 
 
     def write(self, filename, clobber=True, output_verify="warn"):
@@ -533,7 +581,7 @@ class Spectrum1D(object):
                 hdulist.writeto(filename, output_verify=output_verify, clobber=clobber)
                 return
 
-    def redshift(self, v=None, z=None):
+    def redshift(self, v=None, z=None, reinterpolate=False):
         """
         Redshift the spectrum.
 
@@ -542,13 +590,24 @@ class Spectrum1D(object):
 
         :param z:
             A redshift.
+            
+        :param reinterpolate:
+            If True, interpolates result onto original dispersion
         """
 
         if (v is None and z is None) or (v is not None and z is not None):
             raise ValueError("either v or z must be given, but not both")
 
+        if reinterpolate:
+            olddisp = self._dispersion.copy()
+
         z = z or v/299792458e-3
         self._dispersion *= 1 + z
+        
+        if reinterpolate:
+            newflux = np.interp(olddisp, self._dispersion, self._flux)
+            self._dispersion = olddisp
+            self._flux = newflux
         return True
 
 
@@ -600,6 +659,13 @@ class Spectrum1D(object):
         return self.__class__(self.dispersion, smoothed_flux, self.ivar.copy(), metadata=self.metadata.copy())
         
     
+    def linterpolate(self, new_dispersion):
+        """ Straight up linear interpolation of flux and ivar onto a new dispersion """
+        new_flux = np.interp(new_dispersion, self.dispersion, self.flux, left=0, right=0)
+        new_ivar = np.interp(new_dispersion, self.dispersion, self.ivar, left=0, right=0)
+        return self.__class__(new_dispersion, new_flux, new_ivar, metadata=self.metadata.copy())
+        
+
     def smooth(self, window_len=11, window='hanning'):
         """Smooth the data using a window with requested size.
         
@@ -954,6 +1020,13 @@ class Spectrum1D(object):
         if kwargs.get("full_output", False):
             return (normalized_spectrum, continuum, left, right)
         return normalized_spectrum
+
+
+    def add_noise(self, seed=None):
+        if seed is not None:
+            np.random.seed(seed)
+        noise = np.sqrt(1./self.ivar) * np.random.randn(len(self.flux))
+        return Spectrum1D(self.dispersion, self.flux + noise, self.ivar)
 
 
 def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,

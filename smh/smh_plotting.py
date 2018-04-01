@@ -6,10 +6,12 @@ __all__ = ["make_summary_plot"]
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
+from matplotlib.ticker import MultipleLocator, ScalarFormatter
 import os
 import logging
 
 from . import specutils
+from . import spectral_models
 
 logger = logging.getLogger(__name__)
 
@@ -138,3 +140,81 @@ def make_snr_plot(normalized_spectrum, figure=None):
     ax.set_xlabel("Wavelength (A)")
     ax.set_ylabel("SNR = sqrt(ivar)")
     return figure
+
+
+def make_synthesis_plot(plotdata, default_err=0.1,
+                        plot_resid=True, plot_data_err=True,
+                        xlim=None, ylim=(0,1.2), r_ylim=(-.1,.1),
+                        xmajlocator=1, ymajlocator=.1, r_ymajlocator=.05,
+                        xminlocator=.1, yminlocator=.1, r_yminlocator=.01,
+                        fig=None, ax=None, ax_residual=None, figsize=None):
+    if isinstance(plotdata, spectral_models.SpectralSynthesisModel):
+        plotdata = plotdata.export_plot_data(default_err)
+    elem, orig_p, logeps_err, model, data = plotdata
+    abund0 = orig_p["log_eps({})".format(elem)]
+    
+    # Get proper plotting axes
+    if ax is None:
+        assert ax_residual is None
+        if plot_resid:
+            fig = plt.figure(figsize=figsize)
+            gs = GridSpec(2, 1, height_ratios=[3,1])
+            ax = fig.add_subplot(gs[0])
+            ax_residual = fig.add_subplot(gs[1])
+        else:
+            fig, ax = plt.figure(figsize=figsize)
+    else:
+        fig = ax.get_figure()
+        if plot_resid:
+            assert ax_residual is not None
+    
+    # Set up limits and labeling
+    if xlim is None:
+        xlim = (min(model["wl"][0], data["wl"][0]), max(model["wl"][-1], data["wl"][-1]))
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.xaxis.set_major_locator(MultipleLocator(xmajlocator))
+    ax.xaxis.set_minor_locator(MultipleLocator(xminlocator))
+    ax.yaxis.set_major_locator(MultipleLocator(ymajlocator))
+    ax.yaxis.set_minor_locator(MultipleLocator(yminlocator))
+    ax.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+    if plot_resid:
+        ax_residual.plot(xlim, [0,0], 'k:', lw=1)
+        ax_residual.set_xlim(xlim)
+        ax_residual.set_ylim(r_ylim)
+        ax_residual.xaxis.set_major_locator(MultipleLocator(xmajlocator))
+        ax_residual.xaxis.set_minor_locator(MultipleLocator(xminlocator))
+        ax_residual.yaxis.set_major_locator(MultipleLocator(r_ymajlocator))
+        ax_residual.yaxis.set_minor_locator(MultipleLocator(r_yminlocator))
+        ax_residual.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+            
+    # Plot no elem model
+    noelem_kwargs={'color':'b','linestyle':':','lw':1}
+    noelem_label="No {}".format(elem)
+    ax.plot(model["wl"], model["f_none"], label=noelem_label, **noelem_kwargs)
+    if plot_resid:
+        ax_residual.plot(data["wl"], data["r_none"], **noelem_kwargs)
+    
+    # Plot data
+    data_kwargs={'fmt':'o-', 'color':'k', 'ecolor':'k', 'label':None}
+    if plot_data_err:
+        yerr = data["err"]
+    else:
+        yerr = None
+    ax.errorbar(data["wl"], data["flux"], yerr=yerr, **data_kwargs)
+    
+    # Plot +/- error models
+    error_kwargs={'color':'r','linestyle':':','lw':1}
+    for suffix in ["-err", "+err"]:
+        ax.plot(model["wl"], np.array(model["f_"+suffix]), label=None, **error_kwargs)
+        if plot_resid:
+            ax_residual.plot(data["wl"], data["r_"+suffix], label=None, **error_kwargs)
+    
+    # Plot fit model
+    fit_kwargs={'color':'r','linestyle':'-','lw':1}
+    fit_label=r"A({})={:5.2f}$\pm${:.2f}".format(elem, abund0, logeps_err)
+    ax.plot(model["wl"], model["f_fit"], label=fit_label, **fit_kwargs)
+    if plot_resid:
+        ax_residual.plot(data["wl"], data["r_fit"], **fit_kwargs)
+    
+    return fig

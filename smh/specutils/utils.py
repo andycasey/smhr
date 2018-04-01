@@ -9,6 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 __all__ = ["calculate_fractional_overlap", "find_overlaps"]
 
 import numpy as np
+import time
 
 
 def calculate_fractional_overlap(interest_range, comparison_range):
@@ -77,3 +78,67 @@ def find_overlaps(spectra, dispersion_range, return_indices=False):
 
     return overlaps if not return_indices else (overlaps, indices[:N])
 
+def calculate_noise(y, window, method='madstd', verbose=True, full_output=False):
+    """
+    Calculate SNR a posteriori.
+    Very inefficient but who cares!
+    :param y:
+        array of flux values to calculate SNR.
+        Assumes equal or slowly changing x sampling
+    :param window:
+        pixel window to use
+    :param method:
+        madstd (default): use astropy.stats.mean_absolute_deviation
+        betasigma: use PyAstronomy BSEqSamp
+    :param verbose:
+        if True (default), prints how long it takes to calculate the SNR.
+    """
+    assert method in ['madstd', 'betasigma']
+
+    from scipy import signal
+    ## Signal
+    S = signal.medfilt(y, window)
+    
+    ## Noise Estimator
+    if method == 'betasigma':
+        from PyAstronomy import pyasl
+        beq = pyasl.BSEqSamp()
+        N = 1; j = 1
+        def noise_estimator(x):
+            return beq.betaSigma(x, N, j, returnMAD=True)[0]
+    elif method == 'madstd':
+        try:
+            from astropy.stats import mean_absolute_deviation
+        except ImportError:
+            def noise_estimator(x):
+                return np.nanmedian(np.abs(x-np.nanmedian(x)))
+        else:
+            noise_estimator = lambda x: mean_absolute_deviation(x, ignore_nan=True)
+    
+    ## Calculate noise
+    noise = np.zeros(len(y))
+    if verbose: start = time.time()
+    # middle: calculate rolling value
+    for i in range(window, len(noise)-window):
+        noise[i] = noise_estimator(y[i-window:i+window])
+    # edges: just use the same noise value
+    noise[:window] = noise_estimator(y[:window])
+    noise[-window:] = noise_estimator(y[-window:])
+    
+    if verbose:
+        print("Noise estimate of {} points with window {} took {:.1f}s".format(len(noise), window, time.time()-start))
+
+    # https://en.wikipedia.org/wiki/Median_absolute_deviation
+    # sigma = 1.4826 * MAD
+    noise *= 1.4826
+    
+    if full_output:
+        SNR = S/noise
+        return noise, S, SNR
+    return noise
+
+def calculate_snr(*args, **kwargs):
+    kwargs = kwargs.copy()
+    kwargs["full_output"] = True
+    noise, S, SNR = calculate_noise(*args, **kwargs)
+    return SNR

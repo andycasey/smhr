@@ -122,9 +122,9 @@ def moogsilent(input_filename, cwd=None, timeout=30, shell=False, env=None,
         stdout, stderr = p.communicate(input=pipe_input)
 
         # Parse the version of MOOG.
-        index = stdout.find("VERSION")
-        version = (" ".join(stdout[index:].split(" ")[1:3])).strip("()")
-        logger.debug("MOOG at {} is version {}".format(moogsilent_path, version))
+        #index = stdout.find("VERSION")
+        #version = (" ".join(stdout[index:].split(" ")[1:3])).strip("()")
+        #logger.debug("MOOG at {} is version {}".format(moogsilent_path, version))
 
         if timeout != -1:
             signal.alarm(0)

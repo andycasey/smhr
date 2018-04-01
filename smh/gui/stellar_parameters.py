@@ -688,7 +688,7 @@ class StellarParametersTab(QtGui.QWidget):
 
         assert np.all(expected_hashes == self._state_transitions.compute_hashes())
 
-        self.update_scatter_plots()
+        self.update_scatter_plots(redraw=True)
 
         # Draw trend lines based on the data already there.
         self.update_trend_lines()
@@ -1551,6 +1551,7 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
             return _QFONT
 
         column = index.column()
+        # TODO this is broken
         spectral_model = self.spectral_models[index.row()]
 
         if  column == 0 \

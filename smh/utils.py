@@ -23,6 +23,7 @@ from socket import gethostname, gethostbyname
 # Third party imports
 import numpy as np
 import astropy.table
+from scipy import stats
 
 common_molecule_name2Z = {
     'Mg-H': 12,'H-Mg': 12,
@@ -102,7 +103,7 @@ def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species",
         A table of atomic transitions with measured equivalent widths and
         abundances.
 
-    :param x: [optional]
+    :param columns: [optional]
         The names of the columns to make fits against.
 
     :param group_by: [optional]
@@ -135,25 +136,37 @@ def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species",
 
             # Only use finite values.
             finite = np.isfinite(x * y * yerr)
+            try: # fix for masked arrays
+                finite = finite.filled(False)
+            except:
+                pass
             if not np.any(finite):
                 #group_lines[x_column] = (np.nan, np.nan, np.nan, np.nan, 0)
                 continue
 
             x, y, yerr = np.array(x[finite]), np.array(y[finite]), np.array(yerr[finite])
 
-            A = np.vstack((np.ones_like(x), x)).T
-            C = np.diag(yerr**2)
-            try:
-                cov = np.linalg.inv(np.dot(A.T, np.linalg.solve(C, A)))
-                b, m = np.dot(cov, np.dot(A.T, np.linalg.solve(C, y)))
+            # Let's remove the covariance between m and b by making the mean of x = 0
+            xbar = np.mean(x)
+            x = x - xbar
+            # y = mx+b = m(x-xbar) + (b+m*xbar), so m is unchanged but b is shifted.
 
-            except np.linalg.LinAlgError:
-                #group_lines[x_column] \
-                #    = (np.nan, np.nan, np.median(y), np.std(y), len(x))
-                None
-
-            else:
-                group_lines[x_column] = (m, b, np.median(y), np.std(y), len(x))
+#            A = np.vstack((np.ones_like(x), x)).T
+#            C = np.diag(yerr**2)
+#            try:
+#                cov = np.linalg.inv(np.dot(A.T, np.linalg.solve(C, A)))
+#                b, m = np.dot(cov, np.dot(A.T, np.linalg.solve(C, y)))
+#
+#            except np.linalg.LinAlgError:
+#                #group_lines[x_column] \
+#                #    = (np.nan, np.nan, np.median(y), np.std(y), len(x))
+#                None
+#
+#            else:
+#                #group_lines[x_column] = (m, b, np.median(y), (np.std(y), np.sqrt(cov[1,1])), len(x))
+#                group_lines[x_column] = (m, b+m*xbar, np.median(y), (np.std(y), np.sqrt(cov[1,1])), len(x))
+            m, b, r, p, m_stderr = stats.linregress(x, y)
+            group_lines[x_column] = (m, b+m*xbar, np.median(y), (np.std(y), m_stderr), len(x))
 
         identifier = transitions[group_by][start_index]
         if group_lines:

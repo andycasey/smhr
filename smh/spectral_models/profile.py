@@ -19,6 +19,7 @@ from scipy.special import wofz
 from scipy import integrate
 
 from .base import BaseSpectralModel
+from ..specutils import Spectrum1D
 
 logger = logging.getLogger(__name__)
 
@@ -575,8 +576,61 @@ class ProfileFittingModel(BaseSpectralModel):
         # Only mark as acceptable if the model meets the quality constraints.
         self.is_acceptable = self.meets_quality_constraints_in_parent_session
 
+        # Used normal fit
+        self.metadata["used_monte_carlo_fit"] = False
         return self.metadata["fitted_result"]
 
+
+    def montecarlo_fit(self, N=100, **kwargs):
+        """
+        Run a fit N times using spectrum ivar and report the resulting median and scatter
+        """
+        # Create base spectrum to add noise to
+        spectrum = self._verify_spectrum(None)
+        window = abs(self.metadata["window"])
+        mask = (spectrum.dispersion >= self.transitions["wavelength"][0] - window) & \
+               (spectrum.dispersion <= self.transitions["wavelength"][-1]+ window)
+        spectrum = Spectrum1D(spectrum.dispersion[mask], spectrum.flux[mask], spectrum.ivar[mask])
+
+        # Get rid of some kwargs
+        orig_covariance_draws = kwargs.pop("covariance_draws", 
+            self.session.setting("covariance_draws",100))
+
+        # Fit multiple times
+        EQWs = np.zeros(N) + np.nan
+        for i in range(N):
+            spec_i = spectrum.add_noise()
+            try:
+                meta = self.fit(spec_i, covariance_draws=1, **kwargs)
+            except Exception as e:
+                print(e)
+                EQWs[i] = np.nan
+            else:
+                if meta:
+                    EQWs[i] = meta[2]["equivalent_width"][0]
+                else:
+                    EQWs[i] = np.nan
+        
+        if np.any(np.isnan(EQWs)):
+            logger.debug("{:.1f} {:.1f}: {} EQWs are nan".format(self.species[0], self.wavelength,
+                                                             np.sum(np.isnan(EQWs))))
+        
+        # Run a fit to reset the plotting part to the original spectrum
+        while True:
+            meta = self.fit(covariance_draws=orig_covariance_draws, **kwargs)
+            if "fitted_result" in self.metadata: break
+            logger.debug("ERROR: default fit did not work! Trying again...")
+        # Update with the montecarlo errors
+        self.metadata["used_monte_carlo_fit"] = True
+        percentiles = kwargs.pop("percentiles", \
+            self.session.setting("error_percentiles",(16, 84)))
+        ew  = np.nanmedian(EQWs)
+        ew_uncertainty = np.nanpercentile(EQWs, percentiles) - ew
+        rew = np.log10(ew/self.wavelength)
+        rew_uncertainty = np.log10((ew + ew_uncertainty)/self.wavelength) - rew
+        self.metadata["fitted_result"][2]["equivalent_width"] = (ew, ew_uncertainty[0], ew_uncertainty[1])
+        self.metadata["fitted_result"][2]["reduced_equivalent_width"] = np.hstack([rew, rew_uncertainty])
+        return 1000.*ew, 1000.*np.max(np.abs(ew_uncertainty))
 
     def __call__(self, dispersion, *parameters):
         """

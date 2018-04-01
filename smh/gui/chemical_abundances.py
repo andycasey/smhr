@@ -450,10 +450,38 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.btn_synthesize.setText("Synthesize")
         vbox_rhs.addWidget(self.btn_synthesize)
 
+        hbox = QtGui.QHBoxLayout()
+        hbox.setSpacing(0)
+        hbox.setContentsMargins(0,0,0,0)
+        hbox2 = QtGui.QHBoxLayout()
+        hbox2.setSpacing(0)
+        hbox2.setContentsMargins(0,0,0,0)
         self.checkbox_upper_limit_2 = QtGui.QCheckBox(self.tab_synthesis)
         self.checkbox_upper_limit_2.setText("Upper Limit")
         self.checkbox_upper_limit_2.setFont(_QFONT)
-        vbox_rhs.addWidget(self.checkbox_upper_limit_2)
+        hbox.addWidget(self.checkbox_upper_limit_2)
+        label = QtGui.QLabel(self.tab_synthesis)
+        label.setText("Find")
+        label.setFont(_QFONT)
+        hbox2.addWidget(label)
+        line = QtGui.QLineEdit(self.tab_synthesis)
+        line.setMinimumSize(QtCore.QSize(20, 0))
+        line.setMaximumSize(QtCore.QSize(25, _ROWHEIGHT))
+        line.setFont(_QFONT)
+        line.setValidator(QtGui.QDoubleValidator(0, 10, 1, line))
+        line.setText("3.0")
+        self.edit_ul_sigma = line
+        hbox2.addWidget(self.edit_ul_sigma)
+        label = QtGui.QLabel(self.tab_synthesis)
+        label.setText(u"\u03C3")
+        label.setFont(_QFONT)
+        hbox2.addWidget(label)
+        hbox.addLayout(hbox2)
+        self.btn_find_upper_limit = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_find_upper_limit.setText("Upper Limit")
+        self.btn_find_upper_limit.setFont(_QFONT)
+        hbox.addWidget(self.btn_find_upper_limit)
+        vbox_rhs.addLayout(hbox)
 
         #vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
         #                                   QtGui.QSizePolicy.Minimum))
@@ -627,6 +655,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.synthesize_current_model)
         self.checkbox_upper_limit_2.stateChanged.connect(
             self.clicked_checkbox_upper_limit_2)
+        self.btn_find_upper_limit.clicked.connect(
+            self.clicked_btn_find_upper_limit)
         self.btn_fit_synth.clicked.connect(
             self.fit_one)
         self.btn_update_abund_table.clicked.connect(
@@ -659,6 +689,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             #(self.edit_initial_abundance_bound.returnPressed,self.synthDefaultAction),
             (self.btn_synthesize.clicked,self.synthesize_current_model),
             (self.checkbox_upper_limit_2.stateChanged,self.clicked_checkbox_upper_limit_2),
+            (self.btn_find_upper_limit.clicked,self.clicked_btn_find_upper_limit),
             (self.btn_fit_synth.clicked,self.fit_one),
             (self.btn_update_abund_table.clicked,self.clicked_btn_update_abund_table),
             (self.btn_clear_masks_2.clicked,self.clicked_btn_clear_masks),
@@ -1343,6 +1374,22 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.summarize_current_table()
         self.refresh_plots()
         return None
+    def clicked_btn_find_upper_limit(self):
+        """ The button to find an upper limit has been clicked. """
+        spectral_model, proxy_index, index = self._get_selected_model(True)
+        # Find the upper limit 
+        try:
+            sigma = round(float(self.edit_ul_sigma.text()),1)
+        except:
+            logger.debug("Invalid sigma for finding limit")
+            return None
+        upper_limit = spectral_model.find_upper_limit(sigma=sigma, start_at_current=True)
+        # Refresh GUI
+        self.measurement_view.update_row(proxy_index.row())
+        self.summarize_current_table()
+        self.update_fitting_options()
+        self.refresh_plots()
+        return None
     def clicked_btn_update_abund_table(self):
         selected_model = self._get_selected_model()
         if selected_model is None: return None
@@ -1398,9 +1445,14 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         param_path, _ = QtGui.QFileDialog.getSaveFileName(self,
                 caption="Enter parameter output filename", dir="") #, filter="*.txt")
         if not param_path: return
+        ## Ask for linelist output filename
+        linelist_path, _ = QtGui.QFileDialog.getSaveFileName(self,
+                caption="Enter linelist output filename", dir="") #, filter="*.txt")
+        if not param_path: return
         ## Export
         spectral_model.export_fit(synth_path, data_path, param_path)
-        logger.info("Exported to {}, {}, and {}".format(synth_path, data_path, param_path))
+        spectral_model.export_line_list(linelist_path)
+        logger.info("Exported to {}, {}, {}, {}".format(synth_path, data_path, param_path, linelist_path))
         return
 
     def refresh_current_model(self):
