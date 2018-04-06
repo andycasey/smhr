@@ -659,10 +659,10 @@ class Spectrum1D(object):
         return self.__class__(self.dispersion, smoothed_flux, self.ivar.copy(), metadata=self.metadata.copy())
         
     
-    def linterpolate(self, new_dispersion):
+    def linterpolate(self, new_dispersion, fill_value=0.):
         """ Straight up linear interpolation of flux and ivar onto a new dispersion """
-        new_flux = np.interp(new_dispersion, self.dispersion, self.flux, left=0, right=0)
-        new_ivar = np.interp(new_dispersion, self.dispersion, self.ivar, left=0, right=0)
+        new_flux = np.interp(new_dispersion, self.dispersion, self.flux, left=fill_value, right=fill_value)
+        new_ivar = np.interp(new_dispersion, self.dispersion, self.ivar, left=fill_value, right=fill_value)
         return self.__class__(new_dispersion, new_flux, new_ivar, metadata=self.metadata.copy())
         
 
@@ -750,7 +750,7 @@ class Spectrum1D(object):
             4310 A to 4340 A will always be excluded when determining the continuum
             regions.
 
-        function: only 'spline' or 'poly'
+        function: only 'spline' or 'poly', 'leg', 'cheb'
 
         scale : float
             A scaling factor to apply to the normalised flux levels.
@@ -1349,6 +1349,44 @@ def common_dispersion_map2(spectra):
         # Use smallest dwl to create linear dispersion
         # Drop the last point since that will be in the next one
         alldisp.append(np.arange(r_left, r_right, r_dwl))
+    alldisp = np.concatenate(alldisp)
+    return alldisp
+
+def common_dispersion_map3(spectra):
+    # Find regions that will have individual dispersions
+    lefts = []; rights = []
+    dwls = []
+    for spectrum in spectra:
+        lefts.append(spectrum.dispersion.min())
+        rights.append(spectrum.dispersion.max())
+        dwls.append(np.median(np.diff(spectrum.dispersion)))
+    points = np.sort(lefts + rights)
+    Nregions = len(points)-1
+    
+    # Create dispersion map
+    # Find orders in each region and use minimum dwl
+    alldisp = []
+    for i in range(Nregions):
+        r_left = points[i]
+        r_right = points[i+1]
+        r_dwl = 99999.
+        #print(i)
+        num_spectra = 0
+        for j, (left, right, dwl) in enumerate(zip(lefts, rights, dwls)):
+            # if order in range, use its dwl
+            if right <= r_left or left >= r_right:
+                pass
+            else:
+                r_dwl = min(r_dwl, dwl)
+                #print("{:3} {:.2f} {:.2f} {:2} {:.2f} {:.2f}".format(i, r_left, r_right, j, left, right))
+                num_spectra += 1
+        #print(i,num_spectra)
+
+        # Use smallest dwl to create linear dispersion
+        # Drop the last point since that will be in the next one
+        disp = np.arange(r_left, r_right, r_dwl)
+        if r_right - disp[-1] < r_dwl: disp = disp[:-1]
+        alldisp.append(disp)
     alldisp = np.concatenate(alldisp)
     return alldisp
 
