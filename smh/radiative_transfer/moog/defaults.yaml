@@ -48,7 +48,7 @@ flux_int: 0
 # 1     use Barklem data when available, otherwise use Unsold approximation
 # 2     use the Unsold approximation multiplied by a factor recommended
 #       by the Blackwell group
-damping: 2
+damping: 1
 
 # units:
 #*0     Angstroms
@@ -79,3 +79,8 @@ opacity_contribution: 2.0
 # dispersion_delta:
 # the step size in dispersion points to calculate
 dispersion_delta: 0.01
+
+# scat:
+# if 1, treat scattering with Sobeck code
+# if 0, normal moog
+scat: 1
