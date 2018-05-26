@@ -266,7 +266,7 @@ class Session(BaseSession):
             failed_on = []
             for key, value in iteritems(metadata):
                 try:
-                    with open(os.path.join("twd", ".damaged", "wb")) as dfp:
+                    with open(os.path.join(twd, ".damaged"), "wb") as dfp:
                         pickle.dump([key, value], dfp, protocol)
                 except:
                     failed_on.append(key)

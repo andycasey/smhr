@@ -124,5 +124,9 @@ def convert_v0_1_to_v0_2(fname_in, fname_out, overwrite=False):
     reconstructed_spectral_models = session.reconstruct_spectral_models(spectral_model_states)
     session.metadata["spectral_models"] = reconstructed_spectral_models
 
+    # HACK: line_list_argsort_hashes has a bug and is really dumb not needed legacy
+    if "line_list_argsort_hashes" in metadata.keys():
+        _ = session.metadata.pop("line_list_argsort_hashes")
+
     # Create and save a new session
     session.save(fname_out, overwrite=True)
