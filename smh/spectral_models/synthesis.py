@@ -726,3 +726,24 @@ class SpectralSynthesisModel(BaseSpectralModel):
     def export_line_list(self, fname):
         self.transitions.write(fname, format="moog")
         return None
+    
+    
+    def continuum(self, dispersion):
+        """
+        Get the continuum for current fit
+        """
+        try:
+            popt = self.metadata["fitted_result"][0]
+        except KeyError:
+            return np.ones_like(dispersion)
+        
+        # Continuum.
+        names = self.parameter_names
+        O = self.metadata["continuum_order"]
+        if 0 > O:
+            continuum = np.ones_like(dispersion) * self.metadata["manual_continuum"]
+        else:
+            continuum = np.polyval([parameters[names.index("c{}".format(i))] \
+                for i in range(O + 1)][::-1], dispersion)
+
+        return continuum

@@ -442,3 +442,8 @@ class BaseSpectralModel(object):
 
         return tuple(filled_arrays)
 
+    
+    def continuum(self, dispersion):
+        raise NotImplementedError(
+            "the continuum function must be implemented by sub-classes")
+    

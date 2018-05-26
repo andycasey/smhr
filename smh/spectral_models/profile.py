@@ -601,6 +601,27 @@ class ProfileFittingModel(BaseSpectralModel):
         return y
 
 
+    def continuum(self, dispersion):
+        """
+        Get the continuum for current fit
+        """
+        y = np.ones_like(dispersion)
+        try:
+            popt = self.metadata["fitted_result"][0]
+        except KeyError:
+            return y
+        parameters = list(popt)
+        
+        function, profile_parameters = self._profiles[self.metadata["profile"]]
+        N = len(profile_parameters)
+
+        # Assume rest of the parameters are continuum coefficients.
+        if parameters[N:]:
+            y *= np.polyval(parameters[N:], dispersion)
+        
+        return y
+
+
 if __name__ == "__main__":
 
 
