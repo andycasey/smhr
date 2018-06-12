@@ -19,8 +19,6 @@ simplefilter("ignore", UserWarning)
 matplotlib.rc_file(os.path.join(os.path.dirname(__file__), "matplotlibrc"))
 
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-#from matplotlib.backends.backend_qt4agg \
-#    import NavigationToolbar2QTAgg as NavigationToolbar
 
 from matplotlib.figure import Figure
 
@@ -36,7 +34,7 @@ class MPLWidget(FigureCanvas):
     __double_click_interval = 0.1
     __right_double_click_interval = 0.2
 
-    def __init__(self, parent=None, toolbar=False, tight_layout=True,
+    def __init__(self, parent=None, toolbar=True, tight_layout=True,
         autofocus=False, background_hack=True, **kwargs):
         """
         A widget to contain a matplotlib figure.
@@ -59,11 +57,14 @@ class MPLWidget(FigureCanvas):
         self.canvas = FigureCanvas(self.figure)
         self.canvas.setParent(parent)
 
+        if toolbar:
+            self.nav = self.make_toolbar()
+        else:
+            self.nav = None
+
         # Focus the canvas initially.
         self.canvas.setFocusPolicy(QtCore.Qt.WheelFocus)
         self.canvas.setFocus()
-
-        self.toolbar = None #if not toolbar else NavigationToolbar(self, parent)
 
         # Get background of parent widget.
 
@@ -82,7 +83,7 @@ class MPLWidget(FigureCanvas):
 
 
         if autofocus:
-            self._autofocus_cid = self.canvas.mpl_connect(
+            self._autofocus_cid = self.mpl_connect(
                 "figure_enter_event", self._focus)
 
         # State for zoom box
@@ -95,9 +96,15 @@ class MPLWidget(FigureCanvas):
         self.space_key_pressed = False 
        
 
+    def make_toolbar(self):
+        from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
+        toolbar = NavigationToolbar(self, self, False)
+        toolbar.setMaximumHeight(20)
+        toolbar.setStyleSheet("QToolBar { border: 0px }")
+        return toolbar
+
     def _focus(self, event):
         """ Set the focus of the canvas. """
-        print("_focus", event)
         self.canvas.setFocus()
 
     ######################
