@@ -730,6 +730,8 @@ class RVTab(QtGui.QWidget):
 
         # Perform the cross-correlation.
         rv, rv_uncertainty = self.parent.session.rv_measure(**kwds)
+        logger.info("rv uncertainty: {:.1f}".format(rv_uncertainty))
+        print("rv uncertainty: {:.1f}".format(rv_uncertainty))
 
         # Update the measured radial velocity in the GUI.
         self.rv_applied.setText("{0:+.1f}".format(rv))
