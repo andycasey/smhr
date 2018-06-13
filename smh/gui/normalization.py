@@ -462,6 +462,9 @@ class NormalizationTab(QtGui.QWidget):
             The matplotlib event signal.
         """
         
+        if self.nav is not None:
+            if self.nav._active is not None: return None
+
         # Add/remove an additional point?
         if event.dblclick:
 
@@ -567,6 +570,9 @@ class NormalizationTab(QtGui.QWidget):
         """
 
         if event.button != 1: return None
+        if self.nav is not None:
+            if self.nav._active is not None: return None
+
         try:
             signal_time, signal_cid = self._exclude_selected_region_signal
         except AttributeError:
@@ -617,6 +623,9 @@ class NormalizationTab(QtGui.QWidget):
         if event.xdata is None:
             return
         
+        if self.nav is not None:
+            if self.nav._active is not None: return None
+
         signal_time, signal_cid = self._exclude_selected_region_signal
         if time() - signal_time > DOUBLE_CLICK_INTERVAL: 
             

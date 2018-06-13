@@ -58,7 +58,7 @@ class MPLWidget(FigureCanvas):
         self.canvas.setParent(parent)
 
         if toolbar:
-            self.nav = self.make_toolbar()
+            self.nav = self.make_toolbar() 
         else:
             self.nav = None
 
@@ -119,6 +119,8 @@ class MPLWidget(FigureCanvas):
     
 
     def enable_interactive_zoom(self):
+        if self.nav is not None:
+            return None
 
         self._interactive_zoom_history = {}
         self._interactive_zoom_signals = [
@@ -128,6 +130,9 @@ class MPLWidget(FigureCanvas):
 
 
     def disable_interactive_zoom(self):
+        if self.nav is not None:
+            return None
+
         try:
             for cid in self._interactive_zoom_signals:
                 self.mpl_disconnect(cid)
@@ -149,6 +154,9 @@ class MPLWidget(FigureCanvas):
         :param event:
             A matplotlib event.
         """
+        
+        if self.nav is not None:
+            return None
         
         if event.button != 3 or event.inaxes is None:
             return None
@@ -173,6 +181,8 @@ class MPLWidget(FigureCanvas):
         """
         Updated the zoom box.
         """
+        if self.nav is not None:
+            return None
 
         if event.inaxes is None \
         or self.figure.axes[self._interactive_zoom_axis_index] != event.inaxes:
@@ -201,6 +211,8 @@ class MPLWidget(FigureCanvas):
         """
         Right mouse button released in axis.
         """
+        if self.nav is not None:
+            return None
 
         if event.button != 3 or event.inaxes is None \
         or self.figure.axes[self._interactive_zoom_axis_index] != event.inaxes:
@@ -261,6 +273,9 @@ class MPLWidget(FigureCanvas):
 
     def reset_zoom_limits(self):
         # Get the first entry from the zoom history.
+        if self.nav is not None:
+            return None
+        
         for index, limits in self._interactive_zoom_history.items():
             xlim, ylim = limits.pop(0)
             self.figure.axes[index].set_xlim(xlim)
@@ -272,6 +287,8 @@ class MPLWidget(FigureCanvas):
 
 
     def _clear_zoom_history(self, axis_index=None):
+        if self.nav is not None:
+            return None
 
         if axis_index is None:
             self._interactive_zoom_history = {}
@@ -325,6 +342,11 @@ class MPLWidget(FigureCanvas):
         :param event:
             The matplotlib event.
         """
+
+        if self.nav is not None:
+            # Need to disable masking while pan/zoom is enabled
+            mode = self.nav._active
+            if mode: return None
 
         if event.inaxes not in self._drag_to_mask_axes or event.button != 1:
             return None
@@ -392,6 +414,10 @@ class MPLWidget(FigureCanvas):
         :param event:
             The matplotlib event.
         """
+        if self.nav is not None:
+            # Need to disable masking while pan/zoom is enabled
+            mode = self.nav._active
+            if mode: return None
 
         if event.xdata is None or event.inaxes not in self._drag_to_mask_axes \
         or event.button != 1:
@@ -421,6 +447,10 @@ class MPLWidget(FigureCanvas):
         :param event:
             The matplotlib event.
         """
+        if self.nav is not None:
+            # Need to disable masking while pan/zoom is enabled
+            mode = self.nav._active
+            if mode: return None
 
         try:
             signal_time, signal_cid = self._mask_interactive_region_signal

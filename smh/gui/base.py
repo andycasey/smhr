@@ -357,6 +357,9 @@ class SMHSpecDisplay(mpl.MPLWidget):
         selected_model = self.selected_model
         if selected_model is None: return None
         
+        if self.nav is not None:
+            if self.nav._active is not None: return None
+
         ## Doubleclick: remove mask, and if so refit/redraw
         if event.dblclick:
             mask_removed = self._remove_mask(selected_model, event)
@@ -412,6 +415,9 @@ class SMHSpecDisplay(mpl.MPLWidget):
 
         if event.xdata is None: return
 
+        if self.nav is not None:
+            if self.nav._active is not None: return None
+
         signal_time, signal_cid = self._interactive_mask_region_signal
         if time.time() - signal_time > DOUBLE_CLICK_INTERVAL:
             data = self._lines["interactive_mask"][0].get_xy()
@@ -424,6 +430,9 @@ class SMHSpecDisplay(mpl.MPLWidget):
 
     def spectrum_left_mouse_release(self, event):
         if self.session is None: return None
+        if self.nav is not None:
+            if self.nav._active is not None: return None
+
         try:
             signal_time, signal_cid = self._interactive_mask_region_signal
         except AttributeError, TypeError:
