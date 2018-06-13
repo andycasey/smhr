@@ -516,18 +516,25 @@ class SMHSpecDisplay(mpl.MPLWidget):
             return False
         
         # Draw the spectrum.
-        self._lines["spectrum"].set_data(spectrum.dispersion[plot_ii], spectrum.flux[plot_ii])
+        wave = spectrum.dispersion[plot_ii]
+        flux = spectrum.flux[plot_ii]
+        if self.session.setting("plot_normalized_data",False):
+            # Normalize the data rather than the model
+            if self.selected_model is not None:
+                cont = self.selected_model.continuum(wave)
+                flux = flux/cont
+        self._lines["spectrum"].set_data(wave, flux)
 
         # Draw the error bars.
         sigma = 1.0/np.sqrt(spectrum.ivar[plot_ii])
         self._lines["spectrum_fill"] = \
-        style_utils.fill_between_steps(self.ax_spectrum, spectrum.dispersion[plot_ii],
-            spectrum.flux[plot_ii] - sigma, spectrum.flux[plot_ii] + sigma, 
+        style_utils.fill_between_steps(self.ax_spectrum, 
+            wave, flux - sigma, flux + sigma, 
             facecolor="#cccccc", edgecolor="#cccccc", alpha=1)
 
         # Draw the error bars.
         self._lines["residual_fill"] = \
-        style_utils.fill_between_steps(self.ax_residual, spectrum.dispersion[plot_ii],
+        style_utils.fill_between_steps(self.ax_residual, wave, 
             -sigma, +sigma, facecolor="#CCCCCC", edgecolor="none", alpha=1)
 
         three_sigma = 3*np.median(sigma[np.isfinite(sigma)])
@@ -632,7 +639,20 @@ class SMHSpecDisplay(mpl.MPLWidget):
             assert len(meta["model_x"]) == len(meta["residual"])
             assert len(meta["model_x"]) == len(meta["model_yerr"])
 
-            self._lines["model_fit"].set_data(meta[plotxkey], meta[plotykey])
+            # Note: the difference between plotxkey and model_x is only if you want full synth resolution
+            wave = meta[plotxkey]
+            flux = meta[plotykey]
+            modely = meta["model_y"]
+            if self.session.setting("plot_normalized_data",False):
+                # Normalize the data rather than the model.
+                # This basically just undoes one of the nuisance methods
+                if self.selected_model is not None:
+                    cont = self.selected_model.continuum(wave)
+                    flux = flux/cont
+                    cont = self.selected_model.continuum(meta["model_x"])
+                    modely = modely/cont
+
+            self._lines["model_fit"].set_data(wave, flux)
             self._lines["model_fit"].set_linestyle("-" if self.selected_model.is_acceptable else "--")
             self._lines["model_fit"].set_color("r" if self.selected_model.is_acceptable else "b")
             self._lines["model_residual"].set_data(meta["model_x"], meta["residual"])
@@ -641,8 +661,8 @@ class SMHSpecDisplay(mpl.MPLWidget):
             if np.any(np.isfinite(meta["model_yerr"])):
                 self._lines["model_yerr"] = self.ax_spectrum.fill_between(
                     meta["model_x"],
-                    meta["model_y"] + meta["model_yerr"],
-                    meta["model_y"] - meta["model_yerr"],
+                    modely + meta["model_yerr"],
+                    modely - meta["model_yerr"],
                     facecolor="r" if self.selected_model.is_acceptable else "b",
                     edgecolor="none", alpha=0.5)
 

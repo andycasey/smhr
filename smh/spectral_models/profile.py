@@ -607,10 +607,11 @@ class ProfileFittingModel(BaseSpectralModel):
         """
         y = np.ones_like(dispersion)
         try:
-            popt = self.metadata["fitted_result"][0]
+            named_p_opt = self.metadata["fitted_result"][0]
         except KeyError:
+            logger.debug("Could not find fitted continuum: returning 1")
             return y
-        parameters = list(popt)
+        parameters = list(named_p_opt.values())
         
         function, profile_parameters = self._profiles[self.metadata["profile"]]
         N = len(profile_parameters)

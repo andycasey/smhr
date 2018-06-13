@@ -733,16 +733,18 @@ class SpectralSynthesisModel(BaseSpectralModel):
         Get the continuum for current fit
         """
         try:
-            popt = self.metadata["fitted_result"][0]
+            named_p_opt = self.metadata["fitted_result"][0]
         except KeyError:
+            logger.debug("Could not find fitted continuum: returning 1")
             return np.ones_like(dispersion)
-        
+
         # Continuum.
         names = self.parameter_names
         O = self.metadata["continuum_order"]
         if 0 > O:
             continuum = np.ones_like(dispersion) * self.metadata["manual_continuum"]
         else:
+            parameters = list(named_p_opt.values())
             continuum = np.polyval([parameters[names.index("c{}".format(i))] \
                 for i in range(O + 1)][::-1], dispersion)
 
