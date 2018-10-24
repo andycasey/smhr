@@ -104,3 +104,8 @@ class Synthesizer(object):
         """ Do something for making easy plots """
         raise NotImplementedError
 
+    def run_abfind(self, atmosphere, linelist, verbose=False,
+                   **kwargs):
+        return self.rt.abundance_cog(atmosphere, linelist, verbose=verbose, twd=self.twd,
+                                     **kwargs)
+    
