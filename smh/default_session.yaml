@@ -192,4 +192,8 @@ summary_figure:
       - he1523-0901
 plot_styles:
   spectrum_drawstyle: steps-mid
-  
+covariance_draws: 100
+error_percentiles: [16, 84]
+show_full_profiles: 0
+full_synth_resolution: 0
+bring_to_top_after_fit: 0

@@ -18,7 +18,9 @@ from matplotlib.ticker import MaxNLocator
 from time import time
 
 import mpl, style_utils
+import astropy.table
 import smh
+from smh.gui.base import SMHSpecDisplay
 from smh.photospheres import available as available_photospheres
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
@@ -169,263 +171,53 @@ class StellarParametersTab(QtGui.QWidget):
         self.parent_layout = QtGui.QHBoxLayout(self)
         self.parent_layout.setContentsMargins(20, 20, 20, 0)
 
+        ###########################################
+        ############ Create LHS Layout ############
+        ###########################################
         lhs_layout = QtGui.QVBoxLayout()
-        grid_layout = QtGui.QGridLayout()
+        lhs_layout.setSpacing(0)
+        lhs_layout.setContentsMargins(0,0,0,0)
 
-        # Effective temperature.
-        label = QtGui.QLabel(self)
-        label.setText("Teff")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
-        grid_layout.addWidget(label, 0, 0, 1, 1)
-        self.edit_teff = QtGui.QLineEdit(self)
-        self.edit_teff.setMinimumSize(QtCore.QSize(40, 0))
-        self.edit_teff.setMaximumSize(QtCore.QSize(50, 16777215))
-        self.edit_teff.setAlignment(QtCore.Qt.AlignCenter)
-        self.edit_teff.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
-        self.edit_teff.setValidator(
-            QtGui.QDoubleValidator(3000, 8000, 0, self.edit_teff))
-        self.edit_teff.textChanged.connect(self._check_lineedit_state)
-        grid_layout.addWidget(self.edit_teff, 0, 1)
-        
-        # Surface gravity.
-        label = QtGui.QLabel(self)
-        label.setText("logg")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
-
-        grid_layout.addWidget(label, 1, 0, 1, 1)
-        self.edit_logg = QtGui.QLineEdit(self)
-        self.edit_logg.setMinimumSize(QtCore.QSize(40, 0))
-        self.edit_logg.setMaximumSize(QtCore.QSize(50, 16777215))
-        self.edit_logg.setAlignment(QtCore.Qt.AlignCenter)
-        self.edit_logg.setValidator(
-            QtGui.QDoubleValidator(-1, 6, 3, self.edit_logg))
-        self.edit_logg.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
-
-        self.edit_logg.textChanged.connect(self._check_lineedit_state)
-        grid_layout.addWidget(self.edit_logg, 1, 1)
-
-        # Metallicity.
-        label = QtGui.QLabel(self)
-        label.setText("[M/H]")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
-
-        grid_layout.addWidget(label, 2, 0, 1, 1)
-        self.edit_metallicity = QtGui.QLineEdit(self)
-        self.edit_metallicity.setMinimumSize(QtCore.QSize(40, 0))
-        self.edit_metallicity.setMaximumSize(QtCore.QSize(50, 16777215))
-        self.edit_metallicity.setAlignment(QtCore.Qt.AlignCenter)
-        self.edit_metallicity.setValidator(
-            QtGui.QDoubleValidator(-5, 1, 3, self.edit_metallicity))
-        self.edit_metallicity.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
-
-        self.edit_metallicity.textChanged.connect(self._check_lineedit_state)
-        grid_layout.addWidget(self.edit_metallicity, 2, 1)
-
-
-        # Microturbulence.
-        label = QtGui.QLabel(self)
-        label.setText("vt")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
-
-        grid_layout.addWidget(label, 3, 0, 1, 1)
-        self.edit_xi = QtGui.QLineEdit(self)
-        self.edit_xi.setMinimumSize(QtCore.QSize(40, 0))
-        self.edit_xi.setMaximumSize(QtCore.QSize(50, 16777215))
-        self.edit_xi.setAlignment(QtCore.Qt.AlignCenter)
-        self.edit_xi.setValidator(QtGui.QDoubleValidator(0, 5, 3, self.edit_xi))
-        self.edit_xi.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
-
-        self.edit_xi.textChanged.connect(self._check_lineedit_state)
-        grid_layout.addWidget(self.edit_xi, 3, 1)
-
-        # Alpha-enhancement.
-        label = QtGui.QLabel(self)
-        label.setText("alpha")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
-        
-        grid_layout.addWidget(label, 4, 0, 1, 1)
-        self.edit_alpha = QtGui.QLineEdit(self)
-        self.edit_alpha.setMinimumSize(QtCore.QSize(40, 0))
-        self.edit_alpha.setMaximumSize(QtCore.QSize(50, 16777215))
-        self.edit_alpha.setAlignment(QtCore.Qt.AlignCenter)
-        self.edit_alpha.setValidator(QtGui.QDoubleValidator(-1, 1, 3, self.edit_alpha))
-        #self.edit_alpha.setValidator(QtGui.QDoubleValidator(0, 0.4, 3, self.edit_alpha))
-        self.edit_alpha.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
-
-        self.edit_alpha.textChanged.connect(self._check_lineedit_state)
-        grid_layout.addWidget(self.edit_alpha, 4, 1)
-
+        ## Add RT options
+        grid_layout = self._init_rt_options(parent)
         lhs_layout.addLayout(grid_layout)
+        
+        ## Add RT buttons
+        hbox_layout = self._init_rt_buttons(parent)
+        lhs_layout.addLayout(hbox_layout)
 
-        # Buttons for solving/measuring.        
-        hbox = QtGui.QHBoxLayout()
-        self.btn_measure = QtGui.QPushButton(self)
-        self.btn_measure.setAutoDefault(True)
-        self.btn_measure.setDefault(True)
-        self.btn_measure.setText("Measure abundances")
-        hbox.addWidget(self.btn_measure)
-
-        self.btn_options = QtGui.QPushButton(self)
-        self.btn_options.setText("Options..")
-        hbox.addWidget(self.btn_options)
-
-        self.btn_solve = QtGui.QPushButton(self)
-        self.btn_solve.setText("Solve")
-        hbox.addWidget(self.btn_solve)
-        lhs_layout.addLayout(hbox)
-
-        line = QtGui.QFrame(self)
-        line.setFrameShape(QtGui.QFrame.HLine)
-        line.setFrameShadow(QtGui.QFrame.Sunken)
-        lhs_layout.addWidget(line)
-
-
-        self.state_table_view = QtGui.QTableView(self)
-        self.state_table_view.setModel(StateTableModel(self))
-        self.state_table_view.setSortingEnabled(False)
-        self.state_table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
-        self.state_table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
-        self.state_table_view.setMaximumSize(QtCore.QSize(400, 3*(_ROWHEIGHT+1))) # MAGIC
-        self.state_table_view.setSizePolicy(QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
-        self.state_table_view.setSelectionBehavior(
-            QtGui.QAbstractItemView.SelectRows)
-
-        self.state_table_view.horizontalHeader().setResizeMode(
-            QtGui.QHeaderView.Stretch)
-
-        self.state_table_view.horizontalHeader().setResizeMode(
-            1, QtGui.QHeaderView.Fixed)
-        self.state_table_view.horizontalHeader().resizeSection(1, 35) # MAGIC
-
-
+        ## Add state table (slopes)
+        self._init_state_table(parent)
         lhs_layout.addWidget(self.state_table_view)
 
-
-        #header = ["", u"λ\n[Å]", "Element", u"EW\n[mÅ]", u"σ(EW)\n[mÅ]",
-        #          "log ε\n[dex]", "σ(log ε)\n[dex]"]
-        header = ["", u"λ", "Element", u"EW", u"σ(EW)",
-                  "log ε", "σ(log ε)", "ul"]
-        attrs = ("is_acceptable", "_repr_wavelength", "_repr_element", 
-                 "equivalent_width", "err_equivalent_width", "abundance", "err_abundance",
-                 "is_upper_limit")
-
-        self.table_view = SpectralModelsTableView(self)
-        self.table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
-        self.table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
-        
-        # Set up a proxymodel.
-        self.proxy_spectral_models = SpectralModelsFilterProxyModel(self)
-        self.proxy_spectral_models.add_filter_function(
-            "use_for_stellar_parameter_inference",
-            lambda model: model.use_for_stellar_parameter_inference)
-
-        self.proxy_spectral_models.setDynamicSortFilter(True)
-        self.proxy_spectral_models.setSourceModel(SpectralModelsTableModel(self, header, attrs))
-
-        self.table_view.setModel(self.proxy_spectral_models)
-        self.table_view.setSelectionBehavior(
-            QtGui.QAbstractItemView.SelectRows)
-
-        # TODO: Re-enable sorting.
-        self.table_view.setSortingEnabled(False)
-        self.table_view.setMaximumSize(QtCore.QSize(400, 16777215))        
-        self.table_view.setSizePolicy(QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
-        
-        # Keep the first colum to a fixed width, but the rest stretched.
-        self.table_view.horizontalHeader().setResizeMode(
-            0, QtGui.QHeaderView.Fixed)
-        self.table_view.horizontalHeader().resizeSection(0, 30) # MAGIC
-
-        for i in range(1, len(header)):
-            self.table_view.horizontalHeader().setResizeMode(
-                i, QtGui.QHeaderView.Stretch)
-        
+        ## Add measurement table
+        self._init_measurement_table(parent)
         lhs_layout.addWidget(self.table_view)
 
         _ = self.table_view.selectionModel()
         _.selectionChanged.connect(self.selected_model_changed)
 
+        ## Add table buttons
+        hbox_layout = self._init_table_buttons(parent)
+        lhs_layout.addLayout(hbox_layout)
 
-        hbox = QtGui.QHBoxLayout()
-        self.btn_filter = QtGui.QPushButton(self)
-        self.btn_filter.setText("Hide unacceptable models")
-        self.btn_quality_control = QtGui.QPushButton(self)
-        self.btn_quality_control.setText("Quality control..")
-        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Preferred,
-            QtGui.QSizePolicy.Minimum))
-        hbox.addWidget(self.btn_filter)
-        hbox.addWidget(self.btn_quality_control)
-
-        lhs_layout.addLayout(hbox)
         self.parent_layout.addLayout(lhs_layout)
+        ###########################################
+        ############ Finish LHS Layout ############
+        ###########################################
 
 
-        # Matplotlib figure.
-        self.figure = mpl.MPLWidget(None, tight_layout=True, autofocus=True)
-        self.figure.setMinimumSize(QtCore.QSize(300, 300))
-        sp = QtGui.QSizePolicy(
-            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Expanding)
-        sp.setHorizontalStretch(0)
-        sp.setVerticalStretch(0)
-        sp.setHeightForWidth(self.figure.sizePolicy().hasHeightForWidth())
-        self.figure.setSizePolicy(sp)
-        #self.figure.setFocusPolicy(QtCore.Qt.StrongFocus)
+        ###########################################
+        ############ Create RHS Layout ############
+        ###########################################
+        rhs_layout = QtGui.QVBoxLayout()
+        rhs_layout.setSpacing(0)
+        rhs_layout.setContentsMargins(0,0,0,0)
 
-
-        gs_top = matplotlib.gridspec.GridSpec(4, 1)
-        gs_top.update(hspace=0.40)
-        gs_bottom = matplotlib.gridspec.GridSpec(4, 1, 
-            height_ratios=[2, 2, 1, 2])
-        gs_bottom.update(hspace=0)
-
-        self._colors = {
-            26.0: "#666666",
-            26.1: "r"
-        }
-        self._zorders = {
-            26.1: 10,
-        }
-
-        self.ax_excitation = self.figure.figure.add_subplot(gs_top[0])
-        self.ax_excitation.xaxis.get_major_formatter().set_useOffset(False)
-        self.ax_excitation.yaxis.set_major_locator(MaxNLocator(4))
-        self.ax_excitation.set_xlabel(u"Excitation potential, χ (eV)")
-        self.ax_excitation.set_ylabel("[X/H]")
-
-        self.ax_excitation_twin = self.ax_excitation.twinx()
-        self.ax_excitation_twin.yaxis.set_major_locator(MaxNLocator(4))
-        self.ax_excitation_twin.set_ylabel(r"$\log_\epsilon({\rm X})$")
-
-        self.ax_line_strength = self.figure.figure.add_subplot(gs_top[1])
-        self.ax_line_strength.xaxis.get_major_formatter().set_useOffset(False)
-        self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(4))
-        self.ax_line_strength.set_xlabel(
-            r"Reduced equivalent width (REW), $\log({\rm EW}/\lambda)$")
-        self.ax_line_strength.set_ylabel("[X/H]")
-
-        self.ax_line_strength_twin = self.ax_line_strength.twinx()
-        self.ax_line_strength_twin.yaxis.set_major_locator(MaxNLocator(4))
-        self.ax_line_strength_twin.set_ylabel(r"$\log_\epsilon({\rm X})$")
-
-        self.ax_residual = self.figure.figure.add_subplot(gs_bottom[2])
-        self.ax_residual.axhline(0, c="#666666")
-        self.ax_residual.xaxis.set_major_locator(MaxNLocator(5))
-        self.ax_residual.yaxis.set_major_locator(MaxNLocator(2))
-        self.ax_residual.set_xticklabels([])
-
-        # This is a faux twin axis so that the ylabels on ax_line_strength_twin
-        # and ax_excitation_twin do not disappear
-        self.ax_residual_twin = self.ax_residual.twinx()
-        self.ax_residual_twin.set_yticks([])
-        self.ax_residual_twin.set_ylabel(r"$\,$", labelpad=20)
-
-        self.ax_spectrum = self.figure.figure.add_subplot(gs_bottom[3])
-        self.ax_spectrum.xaxis.get_major_formatter().set_useOffset(False)
-        self.ax_spectrum.xaxis.set_major_locator(MaxNLocator(5))
-        self.ax_spectrum.set_xlabel(u"Wavelength (Å)")
-        self.ax_spectrum.set_ylabel(r"Normalized flux")
+        self._init_mpl_figure(parent)
+        rhs_layout.addWidget(self.figure)
+        rhs_layout.addWidget(self.specfig)
+        self.parent_layout.addLayout(rhs_layout)
 
         # Some empty figure objects that we will use later.
         self._lines = {
@@ -445,28 +237,8 @@ class StellarParametersTab(QtGui.QWidget):
                 self.ax_line_strength.scatter([], [],
                     edgecolor="b", facecolor="none", s=150, linewidth=3, zorder=1e4)
             ],
-            "spectrum": None,
-            "transitions_center_main": self.ax_spectrum.axvline(
-                np.nan, c="#666666", linestyle=":"),
-            "transitions_center_residual": self.ax_residual.axvline(
-                np.nan, c="#666666", linestyle=":"),
-            "model_masks": [],
-            "nearby_lines": [],
-            "model_fit": self.ax_spectrum.plot([], [], c="r")[0],
-            "model_residual": self.ax_residual.plot(
-                [], [], c="k", drawstyle="steps-mid")[0],
-            "interactive_mask": [
-                self.ax_spectrum.axvspan(xmin=np.nan, xmax=np.nan, ymin=np.nan,
-                    ymax=np.nan, facecolor="r", edgecolor="none", alpha=0.25,
-                    zorder=-5),
-                self.ax_residual.axvspan(xmin=np.nan, xmax=np.nan, ymin=np.nan,
-                    ymax=np.nan, facecolor="r", edgecolor="none", alpha=0.25,
-                    zorder=-5)
-            ],
-            "dotted_line_at_one": self.ax_spectrum.plot([2000,10000],[1,1], 'k:')
         }
 
-        self.parent_layout.addWidget(self.figure)
 
         # Connect buttons.
         self.btn_measure.clicked.connect(self.measure_abundances)
@@ -482,13 +254,8 @@ class StellarParametersTab(QtGui.QWidget):
 
         # Connect matplotlib.
         self.figure.mpl_connect("button_press_event", self.figure_mouse_press)
-        self.figure.mpl_connect("button_release_event", self.figure_mouse_release)
         # Zoom box
         self.figure.enable_interactive_zoom()
-        #self.figure.mpl_connect("button_press_event", self.figure.axis_right_mouse_press)
-        #self.figure.mpl_connect("button_release_event", self.figure.axis_right_mouse_release)
-        #self.figure.mpl_connect("key_press_event", self.figure.unzoom_on_z_press)
-        self.figure.mpl_connect("key_press_event", self.key_press_zoom)
         self.figure.setFocusPolicy(QtCore.Qt.ClickFocus)
 
         return None
@@ -511,6 +278,8 @@ class StellarParametersTab(QtGui.QWidget):
 
         for widget, format, key in widget_info:
             widget.setText(format.format(metadata[key]))
+
+        self.specfig.new_session(self.parent.session)
 
         return None
 
@@ -629,236 +398,10 @@ class StellarParametersTab(QtGui.QWidget):
         if event.button != 1: return None
 
         if event.inaxes \
-        in (self.ax_residual, self.ax_residual_twin, self.ax_spectrum):
-            self.spectrum_axis_mouse_press(event)
-
-        elif event.inaxes \
         in (self.ax_excitation, self.ax_excitation_twin,
             self.ax_line_strength, self.ax_line_strength_twin):
             self.figure_mouse_pick(event)
 
-        return None
-
-
-    def figure_mouse_release(self, event):
-        """
-        Trigger for when the left mouse button is released in the figure.
-
-        :param event:
-            The matplotlib event.
-        """
-
-        if event.button != 1: return None
-
-        if event.inaxes \
-        in (self.ax_residual, self.ax_residual_twin, self.ax_spectrum):
-            self.spectrum_axis_mouse_release(event)
-        return None
-
-
-    def key_press_zoom(self, event):
-        if event.key not in "1234": return None
-        if self.parent.session is None: return None
-        ylim = self.parent.session.setting(["zoom_shortcuts",int(event.key)],
-                                           default_return_value=[0.0,1.2])
-        self.ax_spectrum.set_ylim(ylim)
-        self.figure.draw()
-        return None
-
-
-    def spectrum_axis_mouse_press(self, event):
-        """
-        The mouse button was pressed in the spectrum axis.
-
-        :param event:
-            The matplotlib event.
-        """
-
-        if event.dblclick:
-
-            # Double click.
-            spectral_model, proxy_index, index = self._get_selected_model(True)
-            for i, (s, e) in enumerate(spectral_model.metadata["mask"][::-1]):
-                if e >= event.xdata >= s:
-
-                    mask = spectral_model.metadata["mask"]
-                    index = len(mask) - 1 - i
-                    del mask[index]
-
-                    # Re-fit the current spectral_model.
-                    spectral_model.fit()
-
-                    # Update the view of the current model.
-                    self.update_spectrum_figure()
-
-                    # Update the reduced equivalent width for this model in the
-                    # state.
-                    self.update_selected_scatter_point()
-
-                    # Update the data model.
-                    data_model = self.proxy_spectral_models.sourceModel()
-                    data_model.dataChanged.emit(
-                        data_model.createIndex(proxy_index.row(), 0),
-                        data_model.createIndex(proxy_index.row(),
-                            data_model.columnCount(QtCore.QModelIndex())))
-
-                    # It ought to be enough just to emit the dataChanged signal, but
-                    # there is a bug when using proxy models where the data table is
-                    # updated but the view is not, so we do this hack to make it
-                    # work:
-                    self.table_view.rowMoved(
-                        proxy_index.row(), proxy_index.row(), proxy_index.row())
-                    
-                    break
-
-            else:
-                # No match with a masked region. 
-
-                # TODO: Add a point that will be used for the continuum?
-
-                # For the moment just refit the model.
-                spectral_model.fit()
-
-                # Update the view of the current model.
-                self.update_spectrum_figure()
-
-                # Update the data model.
-                data_model = self.proxy_spectral_models.sourceModel()
-                data_model.dataChanged.emit(
-                    data_model.createIndex(proxy_index.row(), 0),
-                    data_model.createIndex(proxy_index.row(),
-                        data_model.columnCount(QtCore.QModelIndex())))
-
-                # It ought to be enough just to emit the dataChanged signal, but
-                # there is a bug when using proxy models where the data table is
-                # updated but the view is not, so we do this hack to make it
-                # work:
-                self.table_view.rowMoved(
-                    proxy_index.row(), proxy_index.row(), proxy_index.row())
-
-                return None
-
-        else:
-            # Single click.
-            xmin, xmax, ymin, ymax = (event.xdata, np.nan, -1e8, +1e8)
-            for patch in self._lines["interactive_mask"]:
-                patch.set_xy([
-                    [xmin, ymin],
-                    [xmin, ymax],
-                    [xmax, ymax],
-                    [xmax, ymin],
-                    [xmin, ymin]
-                ])
-
-            # Set the signal and the time.
-            self._interactive_mask_region_signal = (
-                time(),
-                self.figure.mpl_connect(
-                    "motion_notify_event", self.update_mask_region)
-            )
-
-        return None
-
-
-    def update_mask_region(self, event):
-        """
-        Update the visible selected masked region for the selected spectral
-        model. This function is linked to a callback for when the mouse position
-        moves.
-
-        :para event:
-            The matplotlib motion event to show the current mouse position.
-        """
-
-        if event.xdata is None: return
-
-        signal_time, signal_cid = self._interactive_mask_region_signal
-        if time() - signal_time > DOUBLE_CLICK_INTERVAL:
-
-            data = self._lines["interactive_mask"][0].get_xy()
-
-            # Update xmax.
-            data[2:4, 0] = event.xdata
-            for patch in self._lines["interactive_mask"]:
-                patch.set_xy(data)
-
-            self.figure.draw()
-
-        return None
-
-
-
-    def spectrum_axis_mouse_release(self, event):
-        """
-        Mouse button was released from the spectrum axis.
-
-        :param event:
-            The matplotlib event.
-        """
-
-        try:
-            signal_time, signal_cid = self._interactive_mask_region_signal
-
-        except AttributeError:
-            return None
-
-        xy = self._lines["interactive_mask"][0].get_xy()
-
-        if event.xdata is None:
-            # Out of axis; exclude based on the closest axis limit
-            xdata = xy[2, 0]
-        else:
-            xdata = event.xdata
-
-
-        # If the two mouse events were within some time interval,
-        # then we should not add a mask because those signals were probably
-        # part of a double-click event.
-        if  time() - signal_time > DOUBLE_CLICK_INTERVAL \
-        and np.abs(xy[0,0] - xdata) > 0:
-            
-            # Get current spectral model.
-            spectral_model, proxy_index, index = self._get_selected_model(True)
-            if spectral_model is None: 
-                raise RuntimeError("""Must have a spectral model selected while making mask!
-                                   Must have mouseover bug?""")
-
-            # Add mask metadata.
-            minx = min(xy[0,0],xy[2,0])
-            maxx = max(xy[0,0],xy[2,0])
-            spectral_model.metadata["mask"].append([minx,maxx])
-
-            # Re-fit the spectral model.
-            print("Fitting")
-            spectral_model.fit()
-
-            # Update the view of the spectral model.
-            self.update_spectrum_figure()
-
-            self.update_selected_scatter_point() 
-
-            # Update the data model.
-            data_model = self.proxy_spectral_models.sourceModel()
-            data_model.dataChanged.emit(
-                data_model.createIndex(proxy_index.row(), 0),
-                data_model.createIndex(proxy_index.row(),
-                    data_model.columnCount(QtCore.QModelIndex())))
-
-            # It ought to be enough just to emit the dataChanged signal, but
-            # there is a bug when using proxy models where the data table is
-            # updated but the view is not, so we do this hack to make it
-            # work:
-            self.table_view.rowMoved(
-                proxy_index.row(), proxy_index.row(), proxy_index.row())
-
-
-        xy[:, 0] = np.nan
-        for patch in self._lines["interactive_mask"]:
-            patch.set_xy(xy)
-
-        self.figure.mpl_disconnect(signal_cid)
-        self.figure.draw()
-        del self._interactive_mask_region_signal
         return None
 
 
@@ -920,9 +463,7 @@ class StellarParametersTab(QtGui.QWidget):
                 # Load line list manager.
                 dialog = TransitionsDialog(self.parent.session,
                     callbacks=[
-                        self.parent.session.index_spectral_models,
-                        self.proxy_spectral_models.reset,
-                        self.parent.chemical_abundances_tab.refresh_table
+                        self.parent.transition_dialog_callback
                     ])
                 dialog.exec_()
 
@@ -1101,8 +642,10 @@ class StellarParametersTab(QtGui.QWidget):
                 break # do not fit if any stellar parameter lines are already fit
         else:
             for model in self.parent.session.metadata["spectral_models"]:
-                # Only fit models for stellar parameter inference
-                if not model.use_for_stellar_parameter_inference: continue
+                ## Only fit models for stellar parameter inference
+                ##if not model.use_for_stellar_parameter_inference: continue
+                # Actually just fit all profile models
+                if isinstance(model, SpectralSynthesisModel): continue
                 try:
                     model.fit()
                 except:
@@ -1140,12 +683,12 @@ class StellarParametersTab(QtGui.QWidget):
         """
 
         # Otherwise we're fucked:
-        expected_hashes = np.array([each.transitions["hash"][0] for each in \
+        expected_hashes = np.array([smh.LineList.hash(each.transitions[0]) for each in \
             self.parent.session.metadata["spectral_models"]]) 
 
-        assert np.all(expected_hashes == self._state_transitions["hash"])
+        assert np.all(expected_hashes == self._state_transitions.compute_hashes())
 
-        self.update_scatter_plots()
+        self.update_scatter_plots(redraw=True)
 
         # Draw trend lines based on the data already there.
         self.update_trend_lines()
@@ -1299,7 +842,10 @@ class StellarParametersTab(QtGui.QWidget):
     def _get_selected_model(self, full_output=False):
 
         # Map the first selected row back to the source model index.
-        proxy_index = self.table_view.selectionModel().selectedIndexes()[-1]
+        try:
+            proxy_index = self.table_view.selectionModel().selectedIndexes()[-1]
+        except IndexError:
+            return (None, None, None) if full_output else None
         index = self.proxy_spectral_models.mapToSource(proxy_index).row()
         model = self.parent.session.metadata["spectral_models"][index]
         return (model, proxy_index, index) if full_output else model
@@ -1354,11 +900,15 @@ class StellarParametersTab(QtGui.QWidget):
 
         except IndexError:
             self.update_selected_points(redraw=True)
-            print("Time taken B: {}".format(time() - ta))
+            logger.debug("Time taken B: {}".format(time() - ta))
 
             return None
             
-        print("selected model is at ", selected_model._repr_wavelength)
+        if selected_model is None:
+            logger.debug("No selected model: {}".format(time() - ta))
+            return None
+
+        logger.debug("selected model is at {}".format(selected_model._repr_wavelength))
         
         self.update_selected_points()
 
@@ -1366,180 +916,13 @@ class StellarParametersTab(QtGui.QWidget):
         self.update_spectrum_figure(redraw=True)
         self.figure.reset_zoom_limits()
 
-        print("Time taken: {}".format(time() - ta))
+        logger.debug("Time taken: {}".format(time() - ta))
         return None
 
 
     def update_spectrum_figure(self, redraw=True):
         """ Update the spectrum figure. """
-
-        try:
-            selected_model = self._get_selected_model()
-
-        except IndexError:
-            # No line selected.
-            if redraw:
-                self.figure.draw()
-            return None
-
-        # Draw the spectrum.
-        transitions = selected_model.transitions
-        window = selected_model.metadata["window"]
-        limits = [
-            transitions["wavelength"][0] - window,
-            transitions["wavelength"][-1] + window,
-        ]
-        spectrum = self.parent.session.normalized_spectrum
-        show = (limits[1] >= spectrum.dispersion) \
-             * (spectrum.dispersion >= limits[0])
-
-        if self._lines.get("spectrum", None) is not None:
-            for i in range(len(self._lines["spectrum"])):
-                self._lines["spectrum"][i].remove()
-            del self._lines["spectrum"]
-
-        sigma = 1.0/np.sqrt(spectrum.ivar[show])
-        drawstyle = self.parent.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
-        self._lines["spectrum"] = [
-            # The flux values.
-            self.ax_spectrum.plot(spectrum.dispersion[show],
-                spectrum.flux[show], c="k", drawstyle=drawstyle)[0],
-
-            # The uncertainty in flue.
-            style_utils.fill_between_steps(self.ax_spectrum, 
-                spectrum.dispersion[show],
-                spectrum.flux[show] - sigma, spectrum.flux[show] + sigma, 
-                facecolor="#cccccc", edgecolor="#cccccc", alpha=1),
-
-            # The uncertainty in flux in the residuals panel.
-            style_utils.fill_between_steps(self.ax_residual, 
-                spectrum.dispersion[show], -sigma, +sigma, 
-                facecolor="#CCCCCC", edgecolor="none", alpha=1)
-        ]
-
-        self.ax_spectrum.set_xlim(limits)
-        self.ax_residual.set_xlim(limits)
-
-        self.ax_spectrum.set_ylim(0, 1.2)
-        self.ax_spectrum.set_yticks([0, 0.5, 1])
-        self.ax_residual.set_ylim(-0.05, 0.05)
-        
-        self.figure.draw()
-
-        # If this is a profile fitting line, show where the centroid is.
-        x = transitions["wavelength"][0] \
-            if isinstance(selected_model, ProfileFittingModel) else np.nan
-        self._lines["transitions_center_main"].set_data([x, x], [0, 1.2])
-        self._lines["transitions_center_residual"].set_data([x, x], [0, 1.2])
-
-        # Model masks specified by the user.
-        # (These should be shown regardless of whether there is a fit or not.)
-        for i, (start, end) in enumerate(selected_model.metadata["mask"]):
-            try:
-                patches = self._lines["model_masks"][i]
-
-            except IndexError:
-                self._lines["model_masks"].append([
-                    self.ax_spectrum.axvspan(np.nan, np.nan,
-                        facecolor="r", edgecolor="none", alpha=0.25),
-                    self.ax_residual.axvspan(np.nan, np.nan,
-                        facecolor="r", edgecolor="none", alpha=0.25)
-                ])
-                patches = self._lines["model_masks"][-1]
-
-            for patch in patches:
-                patch.set_xy([
-                    [start, -1e8],
-                    [start, +1e8],
-                    [end,   +1e8],
-                    [end,   -1e8],
-                    [start, -1e8]
-                ])
-                patch.set_visible(True)
-
-        # Hide unnecessary ones.
-        N = len(selected_model.metadata["mask"])
-        for unused_patches in self._lines["model_masks"][N:]:
-            for unused_patch in unused_patches:
-                unused_patch.set_visible(False)
-
-        # Hide previous model_errs
-        try:
-            self._lines["model_yerr"].set_visible(False)
-            del self._lines["model_yerr"]
-            # TODO: This is wrong. It doesn't actually delete them so if
-            #       you ran this forever then you would get a real bad 
-            #       memory leak in Python. But for now, re-calculating
-            #       the PolyCollection is in the too hard basket.
-
-        except KeyError:
-            None
-
-        # Things to show if there is a fitted result.
-        try:
-            (named_p_opt, cov, meta) = selected_model.metadata["fitted_result"]
-
-            # Test for some requirements.
-            _ = (meta["model_x"], meta["model_y"], meta["residual"])
-
-        except KeyError:
-            meta = {}
-            self._lines["model_fit"].set_data([], [])
-            self._lines["model_residual"].set_data([], [])
-
-        else:
-            assert len(meta["model_x"]) == len(meta["model_y"])
-            assert len(meta["model_x"]) == len(meta["residual"])
-            assert len(meta["model_x"]) == len(meta["model_yerr"])
-
-            self._lines["model_fit"].set_data(meta["model_x"], meta["model_y"])
-            self._lines["model_residual"].set_data(
-                meta["model_x"], meta["residual"])
-
-            # Model yerr.
-            if np.any(np.isfinite(meta["model_yerr"])):
-                self._lines["model_yerr"] = self.ax_spectrum.fill_between(
-                    meta["model_x"],
-                    meta["model_y"] + meta["model_yerr"],
-                    meta["model_y"] - meta["model_yerr"],
-                    facecolor="r", edgecolor="none", alpha=0.5)
-
-            # Model masks due to nearby lines.
-            if "nearby_lines" in meta:
-                for i, (_, (start, end)) in enumerate(meta["nearby_lines"]):
-                    try:
-                        patches = self._lines["nearby_lines"][i]
-                
-                    except IndexError:
-                        self._lines["nearby_lines"].append([
-                            self.ax_spectrum.axvspan(np.nan, np.nan,
-                                facecolor="b", edgecolor="none", alpha=0.25),
-                            self.ax_residual.axvspan(np.nan, np.nan,
-                                facecolor="b", edgecolor="none", alpha=0.25)
-                        ])
-                        patches = self._lines["nearby_lines"][-1]
-
-                    for patch in patches:                            
-                        patch.set_xy([
-                            [start, -1e8],
-                            [start, +1e8],
-                            [end,   +1e8],
-                            [end,   -1e8],
-                            [start, -1e8]
-                        ])
-                        patch.set_visible(True)
-                    
-
-        # Hide any masked model regions due to nearby lines.
-        N = len(meta.get("nearby_lines", []))
-        for unused_patches in self._lines["nearby_lines"][N:]:
-            for unused_patch in unused_patches:
-                unused_patch.set_visible(False)
-
-        self.figure.draw()
-
-        return None
-
+        self.specfig.update_spectrum_figure(redraw=redraw)
 
 
     def options(self):
@@ -1562,14 +945,13 @@ class StellarParametersTab(QtGui.QWidget):
                          sp["surface_gravity"], sp["metallicity"]]
 
         ## grab transitions for stellar parameters
-        transition_indices = []
+        transitions = []
         EWs = []
         for i, model in enumerate(self.parent.session.metadata["spectral_models"]):
             if model.use_for_stellar_parameter_inference and model.is_acceptable and not model.is_upper_limit:
-                transition_indices.append(model._transition_indices[0])
+                transitions.append(model.transitions[0])
                 EWs.append(1e3 * model.metadata["fitted_result"][-1]["equivalent_width"][0])
-        transition_indices = np.array(transition_indices)
-        transitions = self.parent.session.metadata["line_list"][transition_indices].copy()
+        transitions = smh.LineList.vstack(transitions)
         transitions["equivalent_width"] = EWs
         
         ## TODO the optimization does not use the error weights yet
@@ -1595,6 +977,238 @@ class StellarParametersTab(QtGui.QWidget):
         self.populate_widgets()
         ## refresh plot
         self.measure_abundances()
+
+
+    def _init_rt_options(self, parent):
+        grid_layout = QtGui.QGridLayout()
+        # Effective temperature.
+        label = QtGui.QLabel(self)
+        label.setText("Teff")
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        grid_layout.addWidget(label, 0, 0, 1, 1)
+        self.edit_teff = QtGui.QLineEdit(self)
+        self.edit_teff.setMinimumSize(QtCore.QSize(40, 0))
+        self.edit_teff.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_teff.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit_teff.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        self.edit_teff.setValidator(
+            QtGui.QDoubleValidator(3000, 8000, 0, self.edit_teff))
+        self.edit_teff.textChanged.connect(self._check_lineedit_state)
+        grid_layout.addWidget(self.edit_teff, 0, 1)
+        
+        # Surface gravity.
+        label = QtGui.QLabel(self)
+        label.setText("logg")
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
+        grid_layout.addWidget(label, 1, 0, 1, 1)
+        self.edit_logg = QtGui.QLineEdit(self)
+        self.edit_logg.setMinimumSize(QtCore.QSize(40, 0))
+        self.edit_logg.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_logg.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit_logg.setValidator(
+            QtGui.QDoubleValidator(-1, 6, 3, self.edit_logg))
+        self.edit_logg.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
+        self.edit_logg.textChanged.connect(self._check_lineedit_state)
+        grid_layout.addWidget(self.edit_logg, 1, 1)
+
+        # Metallicity.
+        label = QtGui.QLabel(self)
+        label.setText("[M/H]")
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
+        grid_layout.addWidget(label, 2, 0, 1, 1)
+        self.edit_metallicity = QtGui.QLineEdit(self)
+        self.edit_metallicity.setMinimumSize(QtCore.QSize(40, 0))
+        self.edit_metallicity.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_metallicity.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit_metallicity.setValidator(
+            QtGui.QDoubleValidator(-5, 1, 3, self.edit_metallicity))
+        self.edit_metallicity.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
+        self.edit_metallicity.textChanged.connect(self._check_lineedit_state)
+        grid_layout.addWidget(self.edit_metallicity, 2, 1)
+
+
+        # Microturbulence.
+        label = QtGui.QLabel(self)
+        label.setText("vt")
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
+        grid_layout.addWidget(label, 3, 0, 1, 1)
+        self.edit_xi = QtGui.QLineEdit(self)
+        self.edit_xi.setMinimumSize(QtCore.QSize(40, 0))
+        self.edit_xi.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_xi.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit_xi.setValidator(QtGui.QDoubleValidator(0, 5, 3, self.edit_xi))
+        self.edit_xi.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
+        self.edit_xi.textChanged.connect(self._check_lineedit_state)
+        grid_layout.addWidget(self.edit_xi, 3, 1)
+
+        # Alpha-enhancement.
+        label = QtGui.QLabel(self)
+        label.setText("alpha")
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        
+        grid_layout.addWidget(label, 4, 0, 1, 1)
+        self.edit_alpha = QtGui.QLineEdit(self)
+        self.edit_alpha.setMinimumSize(QtCore.QSize(40, 0))
+        self.edit_alpha.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_alpha.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit_alpha.setValidator(QtGui.QDoubleValidator(-1, 1, 3, self.edit_alpha))
+        #self.edit_alpha.setValidator(QtGui.QDoubleValidator(0, 0.4, 3, self.edit_alpha))
+        self.edit_alpha.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+
+        self.edit_alpha.textChanged.connect(self._check_lineedit_state)
+        grid_layout.addWidget(self.edit_alpha, 4, 1)
+
+        return grid_layout
+
+    def _init_rt_buttons(self, parent):
+        # Buttons for solving/measuring.        
+        hbox = QtGui.QHBoxLayout()
+        self.btn_measure = QtGui.QPushButton(self)
+        self.btn_measure.setAutoDefault(True)
+        self.btn_measure.setDefault(True)
+        self.btn_measure.setText("Measure abundances")
+        hbox.addWidget(self.btn_measure)
+
+        self.btn_options = QtGui.QPushButton(self)
+        self.btn_options.setText("Options..")
+        hbox.addWidget(self.btn_options)
+
+        self.btn_solve = QtGui.QPushButton(self)
+        self.btn_solve.setText("Solve")
+        hbox.addWidget(self.btn_solve)
+
+        return hbox
+        
+    def _init_state_table(self, parent):
+        self.state_table_view = QtGui.QTableView(self)
+        self.state_table_view.setModel(StateTableModel(self))
+        self.state_table_view.setSortingEnabled(False)
+        self.state_table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
+        self.state_table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
+        self.state_table_view.setMaximumSize(QtCore.QSize(400, 3*(_ROWHEIGHT+1))) # MAGIC
+        self.state_table_view.setSizePolicy(QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
+        self.state_table_view.setSelectionBehavior(
+            QtGui.QAbstractItemView.SelectRows)
+
+        self.state_table_view.horizontalHeader().setResizeMode(
+            QtGui.QHeaderView.Stretch)
+
+        self.state_table_view.horizontalHeader().setResizeMode(
+            1, QtGui.QHeaderView.Fixed)
+        self.state_table_view.horizontalHeader().resizeSection(1, 35) # MAGIC
+        return None
+
+    def _init_measurement_table(self, parent):
+        #header = ["", u"λ\n[Å]", "Element", u"EW\n[mÅ]", u"σ(EW)\n[mÅ]",
+        #          "log ε\n[dex]", "σ(log ε)\n[dex]"]
+        header = ["", u"λ", "Element", u"EW", u"σ(EW)",
+                  "log ε", "σ(log ε)", "ul"]
+        attrs = ("is_acceptable", "_repr_wavelength", "_repr_element", 
+                 "equivalent_width", "err_equivalent_width", "abundance", "err_abundance",
+                 "is_upper_limit")
+
+        self.table_view = SpectralModelsTableView(self)
+        self.table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
+        self.table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
+        
+        # Set up a proxymodel.
+        self.proxy_spectral_models = SpectralModelsFilterProxyModel(self)
+        self.proxy_spectral_models.add_filter_function(
+            "use_for_stellar_parameter_inference",
+            lambda model: model.use_for_stellar_parameter_inference)
+
+        self.proxy_spectral_models.setDynamicSortFilter(True)
+        self.proxy_spectral_models.setSourceModel(SpectralModelsTableModel(self, header, attrs))
+
+        self.table_view.setModel(self.proxy_spectral_models)
+        self.table_view.setSelectionBehavior(
+            QtGui.QAbstractItemView.SelectRows)
+
+        # TODO: Re-enable sorting.
+        self.table_view.setSortingEnabled(False)
+        self.table_view.setMaximumSize(QtCore.QSize(400, 16777215))        
+        self.table_view.setSizePolicy(QtGui.QSizePolicy(
+            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
+        
+        # Keep the first colum to a fixed width, but the rest stretched.
+        self.table_view.horizontalHeader().setResizeMode(
+            0, QtGui.QHeaderView.Fixed)
+        self.table_view.horizontalHeader().resizeSection(0, 30) # MAGIC
+
+        for i in range(1, len(header)):
+            self.table_view.horizontalHeader().setResizeMode(
+                i, QtGui.QHeaderView.Stretch)
+            
+        return None
+
+    def _init_table_buttons(self, parent):
+        hbox = QtGui.QHBoxLayout()
+        self.btn_filter = QtGui.QPushButton(self)
+        self.btn_filter.setText("Hide unacceptable models")
+        self.btn_quality_control = QtGui.QPushButton(self)
+        self.btn_quality_control.setText("Quality control..")
+        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Preferred,
+            QtGui.QSizePolicy.Minimum))
+        hbox.addWidget(self.btn_filter)
+        hbox.addWidget(self.btn_quality_control)
+        return hbox
+
+    def _init_mpl_figure(self, parent):
+        # Matplotlib figure.
+        self.figure = mpl.MPLWidget(None, tight_layout=True, autofocus=True)
+        self.figure.setMinimumSize(QtCore.QSize(10, 10))
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Expanding)
+        #sp.setHorizontalStretch(0)
+        #sp.setVerticalStretch(0)
+        #sp.setHeightForWidth(self.figure.sizePolicy().hasHeightForWidth())
+        self.figure.setSizePolicy(sp)
+        #self.figure.setFocusPolicy(QtCore.Qt.StrongFocus)
+
+        gs = matplotlib.gridspec.GridSpec(2, 1)
+        gs.update(hspace=0.40)
+
+        self._colors = {
+            26.0: "#666666",
+            26.1: "r"
+        }
+        self._zorders = {
+            26.1: 10,
+        }
+
+        self.ax_excitation = self.figure.figure.add_subplot(gs[0])
+        self.ax_excitation.xaxis.get_major_formatter().set_useOffset(False)
+        self.ax_excitation.yaxis.set_major_locator(MaxNLocator(4))
+        self.ax_excitation.set_xlabel(u"Excitation potential, χ (eV)")
+        self.ax_excitation.set_ylabel("[X/H]")
+
+        self.ax_excitation_twin = self.ax_excitation.twinx()
+        self.ax_excitation_twin.yaxis.set_major_locator(MaxNLocator(4))
+        self.ax_excitation_twin.set_ylabel(r"$\log_\epsilon({\rm X})$")
+
+        self.ax_line_strength = self.figure.figure.add_subplot(gs[1])
+        self.ax_line_strength.xaxis.get_major_formatter().set_useOffset(False)
+        self.ax_line_strength.yaxis.set_major_locator(MaxNLocator(4))
+        self.ax_line_strength.set_xlabel(
+            r"Reduced equivalent width (REW), $\log({\rm EW}/\lambda)$")
+        self.ax_line_strength.set_ylabel("[X/H]")
+
+        self.ax_line_strength_twin = self.ax_line_strength.twinx()
+        self.ax_line_strength_twin.yaxis.set_major_locator(MaxNLocator(4))
+        self.ax_line_strength_twin.set_ylabel(r"$\log_\epsilon({\rm X})$")
+
+        self.specfig = SMHSpecDisplay(None, self.parent.session, enable_masks=True,
+                                      get_selected_model=self._get_selected_model)
+        self.ax_spectrum = self.specfig.ax_spectrum
+        self.ax_residual = self.specfig.ax_residual
+
 
 class SpectralModelsTableView(SpectralModelsTableViewBase):
 
@@ -1937,6 +1551,7 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
             return _QFONT
 
         column = index.column()
+        # TODO this is broken
         spectral_model = self.spectral_models[index.row()]
 
         if  column == 0 \

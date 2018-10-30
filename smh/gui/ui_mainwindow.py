@@ -14,13 +14,13 @@ import yaml
 import numpy as np
 
 # Import functionality related to each tab
-import rv, normalization, summary, stellar_parameters, chemical_abundances
+import rv, normalization, summary, stellar_parameters, chemical_abundances, review
 
 import smh
 from balmer import BalmerLineFittingDialog
 from linelist_manager import TransitionsDialog
 from isotope_manager import IsotopeDialog
-from plotting import SummaryPlotDialog
+from plotting import SummaryPlotDialog, SNRPlotDialog
 
 logger = logging.getLogger(__name__)
 
@@ -111,11 +111,21 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.action_isotopes_manager = QtGui.QAction("&Isotopes..", self,
             statusTip="Manage isotopes for elements and molecules",
             triggered=self.isotopes_manager)
+        self.action_comparison_spectrum = QtGui.QAction("&Comparison Spectrum..", self,
+            statusTip="Plot a comparison spectrum (in cyan)",
+            triggered=self.comparison_spectrum_dialog)
+        self.action_clear_comparison_spectrum = QtGui.QAction("&Clear Comparison Spectrum", self,
+            statusTip="Remove comparison spectrum",
+            triggered=self.clear_comparison_spectrum)
         self.action_transitions_manager.setEnabled(False)
         self.action_isotopes_manager.setEnabled(False)
+        self.action_comparison_spectrum.setEnabled(True)
+        self.action_clear_comparison_spectrum.setEnabled(True)
         edit_menu = self.menuBar().addMenu("&Edit")
         edit_menu.addAction(self.action_transitions_manager)
         edit_menu.addAction(self.action_isotopes_manager)
+        edit_menu.addAction(self.action_comparison_spectrum)
+        edit_menu.addAction(self.action_clear_comparison_spectrum)
 
         # Advanced menu
         advanced_menu = self.menuBar().addMenu("&Advanced")
@@ -128,10 +138,18 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         # Plot menu
         plot_menu = self.menuBar().addMenu("&Plot")
+        ncap_summary_plot = QtGui.QAction("&SNR Plot", self,
+            statusTip="Make SNR plot",
+            triggered=self.snr_plot)
+        plot_menu.addAction(ncap_summary_plot)
         summary_plot = QtGui.QAction("&Summary Plot", self,
             statusTip="Make summary plot",
             triggered=self.summary_plot)
         plot_menu.addAction(summary_plot)
+        ncap_summary_plot = QtGui.QAction("&Ncap Summary Plot", self,
+            statusTip="Make ncap summary plot",
+            triggered=self.ncap_summary_plot)
+        plot_menu.addAction(ncap_summary_plot)
 
         # Export menu.
         self._menu_export_normalized_spectrum \
@@ -139,7 +157,16 @@ class Ui_MainWindow(QtGui.QMainWindow):
                 statusTip="Export a normalized, rest-frame spectrum resampled "
                           "onto a common wavelength mapping",
                 triggered=self.export_normalized_spectrum)
-        self._menu_export_normalized_spectrum.setEnabled(False)
+        self._menu_export_unnormalized_spectrum \
+            = QtGui.QAction("Unnormalized rest-frame spectrum", self,
+                statusTip="Export a coadded rest-frame spectrum resampled "
+                          "onto a common wavelength mapping",
+                triggered=self.export_unnormalized_spectrum)
+        self._menu_export_stitched_continuum \
+            = QtGui.QAction("Stitched continuum", self,
+                statusTip="Export a coadded continuum",
+                triggered=self.export_stitched_continuum)
+        #self._menu_export_normalized_spectrum.setEnabled(False)
         self._menu_print_abundance_table \
             = QtGui.QAction("Print abundance table", self,
                 statusTip="",
@@ -154,6 +181,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
                 triggered=self.export_spectral_model_measurements)
         export_menu = self.menuBar().addMenu("&Export")
         export_menu.addAction(self._menu_export_normalized_spectrum)
+        export_menu.addAction(self._menu_export_unnormalized_spectrum)
+        export_menu.addAction(self._menu_export_stitched_continuum)
         export_menu.addAction(self._menu_print_abundance_table)
         export_menu.addAction(self._menu_export_abundance_table)
         export_menu.addAction(self._menu_export_spectral_model_measurements)
@@ -316,6 +345,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Enable/disable relevant menu actions.
         self.action_transitions_manager.setEnabled(True)
         self.action_isotopes_manager.setEnabled(True)
+        self.action_comparison_spectrum.setEnabled(True)
+        self.action_clear_comparison_spectrum.setEnabled(True)
         self._action_fit_balmer_lines.setEnabled(False)
 
         # Re-populate widgets in all tabs.
@@ -323,14 +354,16 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.rv_tab.update_from_new_session()
         self.normalization_tab._populate_widgets()
         self.stellar_parameters_tab.populate_widgets()
+        self.chemical_abundances_tab.new_session_loaded()
+        self.review_tab.new_session_loaded()
 
-        self._update_window_title()
+        self._update_window_title(os.path.basename(filenames[0]))
 
         
         return None
 
 
-    def _update_window_title(self):
+    def _update_window_title(self, default_title="Unnamed"):
         """
         Update the window title.
         """
@@ -344,7 +377,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
                 object_name = self.session.metadata["OBJECT"]
 
             except (AttributeError, KeyError):
-                title = joiner.join([prefix, "Unnamed"])
+                title = joiner.join([prefix, default_title])
 
             else:
                 title = joiner.join([prefix, object_name])
@@ -371,6 +404,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Enable relevant menu actions.
         self.action_transitions_manager.setEnabled(True)
         self.action_isotopes_manager.setEnabled(True)
+        self.action_comparison_spectrum.setEnabled(True)
+        self.action_clear_comparison_spectrum.setEnabled(True)
         self._action_fit_balmer_lines.setEnabled(False)
 
 
@@ -403,12 +438,16 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         self.tabs.setTabEnabled(3, True)
         self.tabs.setTabEnabled(4, True)
+        self.tabs.setTabEnabled(5, True)
         #self.stellar_parameters_tab.new_session_loaded()
         # TODO there are likely more things needed here!
         self.stellar_parameters_tab.populate_widgets()
 
         self.chemical_abundances_tab.new_session_loaded()
+        self.review_tab.new_session_loaded()
         
+        self._update_window_title(os.path.basename(self.session_path))
+
         return None
 
 
@@ -475,10 +514,27 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
     def export_normalized_spectrum(self):
         """ Export a normalized, rest-frame spectrum. """
+        if self.session is None: return
+        path, _ = QtGui.QFileDialog.getSaveFileName(self,
+            caption="Enter normalized rest frame spectrum filename", dir="", filter="")
+        if not path: return
+        self.session.export_normalized_spectrum(path)
 
-        self.session.normalized_spectrum.write("test.txt")
-        print("wrote to test.txt")
+    def export_unnormalized_spectrum(self):
+        """ Export a stitched, unnormalized, rest-frame spectrum. """
+        if self.session is None: return
+        path, _ = QtGui.QFileDialog.getSaveFileName(self,
+            caption="Enter unnormalized rest frame spectrum filename", dir="", filter="")
+        if not path: return
+        self.session.export_unnormalized_spectrum(path)
 
+    def export_stitched_continuum(self):
+        """ Export a stitched continuum. """
+        if self.session is None: return
+        path, _ = QtGui.QFileDialog.getSaveFileName(self,
+            caption="Enter continuum filename", dir="", filter="")
+        if not path: return
+        self.session.export_stitched_continuum(path)
 
     def print_abundance_table(self):
         """ Print abundance table to console (HACK) """
@@ -514,9 +570,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Ensure to update the proxy data models when the transitions dialog has
         # been closed.
         window = TransitionsDialog(self.session, callbacks=[
-            self.session.index_spectral_models,
             self.stellar_parameters_tab.proxy_spectral_models.reset,
             self.chemical_abundances_tab.refresh_table,
+            self.review_tab.new_session_loaded
             ])
         window.exec_()
 
@@ -532,11 +588,49 @@ class Ui_MainWindow(QtGui.QMainWindow):
         return None
 
 
+    def comparison_spectrum_dialog(self):
+        """
+        Open a dialog to pick comparison spectrum
+        """
+        path, _ = QtGui.QFileDialog.getOpenFileName(self,
+            caption="Pick comparison spectrum", dir="", filter="")
+        if not path: return
+        spectrum = smh.specutils.Spectrum1D.read(path)
+        self.stellar_parameters_tab.specfig.update_comparison_spectrum(spectrum)
+        self.chemical_abundances_tab.figure.update_comparison_spectrum(spectrum)
+        return None
+
+
+    def clear_comparison_spectrum(self):
+        """
+        Remove the comparison spectrum
+        """
+        self.stellar_parameters_tab.specfig.update_comparison_spectrum(None)
+        self.chemical_abundances_tab.figure.update_comparison_spectrum(None)
+        return None
+
+
     def summary_plot(self):
         """
         Make a summary plot in a popup dialog
         """
         window = SummaryPlotDialog(self.session, self)
+        window.exec_()
+        return None
+
+    def ncap_summary_plot(self):
+        """
+        Make a ncap summary plot in a popup dialog
+        """
+        window = SummaryPlotDialog(self.session, self, ncap=True)
+        window.exec_()
+        return None
+
+    def snr_plot(self):
+        """
+        Make a snr plot (=1/ivar) in a popup dialog
+        """
+        window = SNRPlotDialog(self.session, self)
         window.exec_()
         return None
 
@@ -582,10 +676,14 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.addTab(self.stellar_parameters_tab, "Stellar parameters")
 
         # Create chemical abundances tab
-        # BUT IT'S XBOX HUGE
         self.chemical_abundances_tab \
             = chemical_abundances.ChemicalAbundancesTab(self)
-        self.tabs.addTab(self.chemical_abundances_tab, "Chemical abundances")
+        self.tabs.addTab(self.chemical_abundances_tab, "Line Measurements")
+
+        # Create review tab
+        self.review_tab \
+            = review.ReviewTab(self)
+        self.tabs.addTab(self.review_tab, "Review")
 
         # Disable all tabs except the first one.
         for i in range(self.tabs.count()):
@@ -597,3 +695,10 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.setCurrentIndex(0)
         self._update_window_title()
 
+    def transition_dialog_callback(self):
+        self.stellar_parameters_tab.proxy_spectral_models.reset()
+        self.chemical_abundances_tab.refresh_table()
+        self.review_tab.new_session_loaded()
+
+    def refresh_all_guis(self):
+        raise NotImplementedError

@@ -6,7 +6,7 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
-__all__ = ["Spectrum1D", "stitch"]
+__all__ = ["Spectrum1D", "stitch", "coadd"]
 
 import logging
 import numpy as np
@@ -114,7 +114,9 @@ class Spectrum1D(object):
         methods = (
             cls.read_fits_multispec,
             cls.read_fits_spectrum1d,
-            cls.read_ascii_spectrum1d
+            cls.read_ascii_spectrum1d,
+            cls.read_multispec,
+            cls.read_ascii_spectrum1d_noivar
         )
 
         for method in methods:
@@ -137,7 +139,69 @@ class Spectrum1D(object):
 
 
     @classmethod
-    def read_fits_multispec(cls, path, flux_ext=None, ivar_ext=None, **kwargs):
+    def read_multispec(cls, fname, full_output=False):
+        """
+        There are some files that are not reduced with Dan Kelson's pipeline.
+        So we have to read those manually and define ivar
+        """
+        print("READ MULTISPEC DWARF CANNON")
+        # Hardcoded file with old CarPy format: 5 bands instead of 7
+        if "hd13979red_multi_200311ibt" in fname:
+            WAT_LENGTH=67
+        else:
+            WAT_LENGTH=68
+        
+        try:
+            orders = cls.read(fname, WAT_LENGTH=WAT_LENGTH)
+            code = 1
+        except:
+            print("OLD FORMAT STARTING")
+            # This is the old format: (Norders x Npix) with no noise spec...
+            with fits.open(fname) as hdulist:
+                assert len(hdulist)==1, len(hdulist)
+                header = hdulist[0].header
+                data = hdulist[0].data
+                # orders x pixels
+                assert len(data.shape)==2, data.shape
+                
+                metadata = OrderedDict()
+                for k, v in header.items():
+                    if k in metadata:
+                        metadata[k] += v
+                    else:
+                        metadata[k] = v
+
+            ## Compute dispersion
+            assert metadata["CTYPE1"].upper().startswith("MULTISPE") \
+                or metadata["WAT0_001"].lower() == "system=multispec"
+
+            # Join the WAT keywords for dispersion mapping.
+            i, concatenated_wat, key_fmt = (1, str(""), "WAT2_{0:03d}")
+            while key_fmt.format(i) in metadata:
+                value = metadata[key_fmt.format(i)]
+                concatenated_wat += value + (" "  * (68 - len(value)))
+                i += 1
+
+            # Split the concatenated header into individual orders.
+            order_mapping = np.array([map(float, each.rstrip('" ').split()) \
+                for each in re.split('spec[0-9]+ ?= ?"', concatenated_wat)[1:]])
+            print(order_mapping)
+            dispersion = np.array(
+                [compute_dispersion(*mapping) for 
+                 mapping in order_mapping])
+            
+            ## Compute flux
+            flux = data
+            flux[0 > flux] = np.nan
+            
+            ## Compute ivar assuming Poisson noise
+            ivar = 1./flux
+            
+        return (dispersion, flux, ivar, metadata)
+
+    @classmethod
+    def read_fits_multispec(cls, path, flux_ext=None, ivar_ext=None,
+                            WAT_LENGTH=68, override_bad=False, **kwargs):
         """
         Create multiple Spectrum1D classes from a multi-spec file on disk.
 
@@ -150,6 +214,9 @@ class Spectrum1D(object):
         :param ivar_ext: [optional]
             The zero-indexed extension number containing the inverse variance of
             the flux values.
+
+        :param WAT_LENGTH: [optional]
+            The multispec format fits uses 68, but some files are broken
         """
 
         image = fits.open(path)
@@ -186,7 +253,7 @@ class Spectrum1D(object):
         while key_fmt.format(i) in metadata:
             # .ljust(68, " ") had str/unicode issues across Python 2/3
             value = metadata[key_fmt.format(i)]
-            concatenated_wat += value + (" "  * (68 - len(value)))
+            concatenated_wat += value + (" "  * (WAT_LENGTH - len(value)))
             i += 1
 
         # Split the concatenated header into individual orders.
@@ -194,8 +261,14 @@ class Spectrum1D(object):
                 for each in re.split('spec[0-9]+ ?= ?"', concatenated_wat)[1:]])
 
         # Parse the order mapping into dispersion values.
-        dispersion = np.array(
-            [compute_dispersion(*mapping) for mapping in order_mapping])
+        # Do it this way to ensure ragged arrays work
+        num_pixels, num_orders = metadata["NAXIS1"], metadata["NAXIS2"]
+        dispersion = np.zeros((num_orders, num_pixels), dtype=np.float) + np.nan
+        for j in range(num_orders):
+            _dispersion = compute_dispersion(*order_mapping[j])
+            dispersion[j,0:len(_dispersion)] = _dispersion
+        #dispersion = np.array(
+        #    [compute_dispersion(*mapping) for mapping in order_mapping])
 
         # Get the flux and inverse variance arrays.
         # NOTE: Most multi-spec data previously used with SMH have been from
@@ -203,10 +276,11 @@ class Spectrum1D(object):
         md5_hash = md5(";".join([v for k, v in metadata.items() \
             if k.startswith("BANDID")])).hexdigest()
         is_carpy_mike_product = (md5_hash == "0da149208a3c8ba608226544605ed600")
+        is_carpy_mike_product_old = (md5_hash == "e802331006006930ee0e60c7fbc66cec")
         is_carpy_mage_product = (md5_hash == "6b2c2ec1c4e1b122ccab15eb9bd305bc")
         is_apo_product = (image[0].header.get("OBSERVAT", None) == "APO")
 
-        if is_carpy_mike_product or is_carpy_mage_product:
+        if is_carpy_mike_product or is_carpy_mage_product or is_carpy_mike_product_old:
             # CarPy gives a 'noise' spectrum, which we must convert to an
             # inverse variance array
             flux_ext = flux_ext or 1
@@ -231,8 +305,13 @@ class Spectrum1D(object):
             ivar = image[0].data[noise_ext]**(-2)
 
         else:
-            ivar = np.nan * np.ones_like(flux)
-            #raise ValueError("could not identify flux and ivar extensions")
+            ivar = np.full_like(flux, np.nan)
+            logger.info("could not identify flux and ivar extensions "
+                        "(using nan for ivar)")
+            # It turns out this can mess you up badly so it's better to
+            # just throw the error.
+            if not override_bad:
+                raise NotImplementedError
 
         dispersion = np.atleast_2d(dispersion)
         flux = np.atleast_2d(flux)
@@ -250,8 +329,23 @@ class Spectrum1D(object):
                 ivar = ivar[::-1]
 
         # Do something sensible regarding zero or negative fluxes.
-        ivar[0 >= flux] = 0
-        flux[0 >= flux] = np.nan
+        ivar[0 >= flux] = 0.000000000001
+        #flux[0 >= flux] = np.nan
+
+        # turn into list of arrays if it's ragged
+        if np.any(np.isnan(dispersion)):
+            newdispersion = []
+            newflux = []
+            newivar = []
+            for j in range(num_orders):
+                d = dispersion[j,:]
+                ii = np.isfinite(d)
+                newdispersion.append(dispersion[j,ii])
+                newflux.append(flux[j,ii])
+                newivar.append(ivar[j,ii])
+            dispersion = newdispersion
+            flux = newflux
+            ivar = newivar
 
         return (dispersion, flux, ivar, metadata)
 
@@ -327,12 +421,13 @@ class Spectrum1D(object):
             # See http://iraf.net/irafdocs/specwcs.php
             crval = image[0].header["CRVAL1"]
             naxis = image[0].header["NAXIS1"]
-            crpix = image[0].header.get("CRPIX1", 0)
+            crpix = image[0].header.get("CRPIX1", 1)
             cdelt = image[0].header["CDELT1"]
             ltv = image[0].header.get("LTV1", 0)
 
+            # + 1 presumably because fits is 1-indexed instead of 0-indexed
             dispersion = \
-                crval + (np.arange(naxis) - crpix) * cdelt - ltv * cdelt
+                crval + (np.arange(naxis) + 1 - crpix) * cdelt - ltv * cdelt
 
             flux = image[0].data
             if len(image) == 1:
@@ -362,12 +457,22 @@ class Spectrum1D(object):
         })
         kwds.setdefault("usecols", (0, 1, 2))
 
-        try:
-            dispersion, flux, ivar = np.loadtxt(path, **kwds)
-        except:
-            # Try by ignoring the first row.
-            kwds.setdefault("skiprows", 1)
-            dispersion, flux, ivar = np.loadtxt(path, **kwds)
+        if len(kwds["usecols"])==3:
+            try:
+                dispersion, flux, ivar = np.loadtxt(path, **kwds)
+            except:
+                # Try by ignoring the first row.
+                kwds.setdefault("skiprows", 1)
+                dispersion, flux, ivar = np.loadtxt(path, **kwds)
+        elif len(kwds["usecols"])==2:
+            try:
+                dispersion, flux = np.loadtxt(path, **kwds)
+            except:
+                # Try by ignoring the first row.
+                kwds.setdefault("skiprows", 1)
+                dispersion, flux = np.loadtxt(path, **kwds)
+            
+            ivar = np.ones_like(flux)*1e+5 # HACK S/N ~300 just for training/verification purposes
 
         dispersion = np.atleast_2d(dispersion)
         flux = np.atleast_2d(flux)
@@ -375,6 +480,21 @@ class Spectrum1D(object):
         metadata = { "smh_read_path": path }
         
         return (dispersion, flux, ivar, metadata)
+
+
+    @classmethod
+    def read_ascii_spectrum1d_noivar(cls, path, **kwargs):
+        """
+        Read Spectrum1D data from an ASCII-formatted file on disk.
+
+        :param path:
+            The path of the ASCII filename to read.
+        """
+
+        kwds = kwargs.copy()
+        kwds["usecols"] = (0,1)
+
+        return cls.read_ascii_spectrum1d(path, **kwds)
 
 
     def write(self, filename, clobber=True, output_verify="warn"):
@@ -390,11 +510,11 @@ class Spectrum1D(object):
         
         else:
 
-            crpix1, crval1 = 0, self.dispersion.min()
+            crpix1, crval1 = 1, self.dispersion.min()
             cdelt1 = np.mean(np.diff(self.dispersion))
             naxis1 = len(self.dispersion)
             
-            linear_dispersion = crval1 + (np.arange(naxis1) - crpix1) * cdelt1
+            linear_dispersion = crval1 + (np.arange(naxis1) + 1 - crpix1) * cdelt1
 
             ## Check for linear dispersion map
             maxdiff = np.max(np.abs(linear_dispersion - self.dispersion))
@@ -461,7 +581,7 @@ class Spectrum1D(object):
                 hdulist.writeto(filename, output_verify=output_verify, clobber=clobber)
                 return
 
-    def redshift(self, v=None, z=None):
+    def redshift(self, v=None, z=None, reinterpolate=False):
         """
         Redshift the spectrum.
 
@@ -470,13 +590,24 @@ class Spectrum1D(object):
 
         :param z:
             A redshift.
+            
+        :param reinterpolate:
+            If True, interpolates result onto original dispersion
         """
 
         if (v is None and z is None) or (v is not None and z is not None):
             raise ValueError("either v or z must be given, but not both")
 
+        if reinterpolate:
+            olddisp = self._dispersion.copy()
+
         z = z or v/299792458e-3
         self._dispersion *= 1 + z
+        
+        if reinterpolate:
+            newflux = np.interp(olddisp, self._dispersion, self._flux)
+            self._dispersion = olddisp
+            self._flux = newflux
         return True
 
 
@@ -528,6 +659,13 @@ class Spectrum1D(object):
         return self.__class__(self.dispersion, smoothed_flux, self.ivar.copy(), metadata=self.metadata.copy())
         
     
+    def linterpolate(self, new_dispersion, fill_value=0.):
+        """ Straight up linear interpolation of flux and ivar onto a new dispersion """
+        new_flux = np.interp(new_dispersion, self.dispersion, self.flux, left=fill_value, right=fill_value)
+        new_ivar = np.interp(new_dispersion, self.dispersion, self.ivar, left=fill_value, right=fill_value)
+        return self.__class__(new_dispersion, new_flux, new_ivar, metadata=self.metadata.copy())
+        
+
     def smooth(self, window_len=11, window='hanning'):
         """Smooth the data using a window with requested size.
         
@@ -612,7 +750,7 @@ class Spectrum1D(object):
             4310 A to 4340 A will always be excluded when determining the continuum
             regions.
 
-        function: only 'spline' or 'poly'
+        function: only 'spline' or 'poly', 'leg', 'cheb'
 
         scale : float
             A scaling factor to apply to the normalised flux levels.
@@ -735,7 +873,7 @@ class Spectrum1D(object):
 
             splrep_disp = dispersion[continuum_indices]
             splrep_flux = self.flux[continuum_indices]
-            splrep_weights = self.ivar[continuum_indices]**0.5
+            splrep_weights = self.ivar[continuum_indices]
 
             median_weight = np.nanmedian(splrep_weights)
 
@@ -778,6 +916,55 @@ class Spectrum1D(object):
                     splrep_disp, splrep_flux, coeffs, 
                     sigma=self.ivar[continuum_indices], absolute_sigma=False)
                 continuum = np.polyval(popt, dispersion)
+
+            elif function in ("leg", "legendre"):
+                
+                coeffs = np.polynomial.legendre.legfit(splrep_disp, splrep_flux, order,
+                                                       w=splrep_weights)
+                
+                popt, pcov = op.curve_fit(lambda x, *c: np.polynomial.legendre.legval(x, c), 
+                    splrep_disp, splrep_flux, coeffs, 
+                    sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                continuum = np.polynomial.legendre.legval(dispersion, popt)
+
+
+            elif function in ("cheb", "chebyshev"):
+                
+                coeffs = np.polynomial.chebyshev.chebfit(splrep_disp, splrep_flux, order,
+                                                         w=splrep_weights)
+                
+                popt, pcov = op.curve_fit(lambda x, *c: np.polynomial.chebyshev.chebval(x, c), 
+                    splrep_disp, splrep_flux, coeffs, 
+                    sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                continuum = np.polynomial.chebyshev.chebval(dispersion, popt)
+
+
+            elif function in ("polysinc"):
+                # sinc^2(x) * polynomial
+                # sinc has 3 parameters: norm, center, shape
+                # polynomial has <order> parameters
+                # This is really slow because of maxfev
+
+                # Initialize sinc
+                p0 = [np.percentile(splrep_flux, 95), np.median(splrep_disp),
+                      np.percentile(splrep_disp, 75) - np.percentile(splrep_disp, 25)]
+                p0, p0cov = op.curve_fit(lambda x, *p: p[0]*np.sinc((x-p[1])/p[2])**2,
+                                         splrep_disp, splrep_flux, p0)
+                
+                # Fit polysinc (this is slow but seems to work)
+                _func = lambda x, *p: p[0]*np.sinc((x-p[1])/p[2])**2 * np.polyval(p[3:], x)
+                p0 = [p0[0], p0[1], p0[2]] + [0. for O in range(order)]
+                popt, pcov = op.curve_fit(_func, 
+                    splrep_disp, splrep_flux, p0, 
+                    sigma=self.ivar[continuum_indices], absolute_sigma=False, maxfev=100000)
+                
+                continuum = _func(dispersion, *popt)
+
+            elif function in ("trig","sincos"):
+                # Casey+2016
+                
+                raise NotImplementedError
+
 
             else:
                 raise ValueError("Unknown function type: only spline or poly "\
@@ -833,6 +1020,13 @@ class Spectrum1D(object):
         if kwargs.get("full_output", False):
             return (normalized_spectrum, continuum, left, right)
         return normalized_spectrum
+
+
+    def add_noise(self, seed=None):
+        if seed is not None:
+            np.random.seed(seed)
+        noise = np.sqrt(1./self.ivar) * np.random.randn(len(self.flux))
+        return Spectrum1D(self.dispersion, self.flux + noise, self.ivar)
 
 
 def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
@@ -928,7 +1122,15 @@ def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
             raise ValueError(
                 "function type {0} not recognised".format(function_type))
 
+        assert Pmax == int(Pmax), Pmax; Pmax = int(Pmax)
+        assert Pmin == int(Pmin), Pmin; Pmin = int(Pmin)
+
         if function_type == 1:
+            # Legendre polynomial.
+            if None in (order, Pmin, Pmax, coefficients):
+                raise TypeError("order, Pmin, Pmax and coefficients required "
+                                "for a Chebyshev or Legendre polynomial")
+
             order = int(order)
             n = np.linspace(-1, 1, Pmax - Pmin + 1)
             temp = np.zeros((Pmax - Pmin + 1, order), dtype=float)
@@ -1056,7 +1258,7 @@ def common_dispersion_map(spectra, full_output=True):
 
     return common
 
-def stitch(spectra, linearize_dispersion = False, min_disp_step = 0.001):
+def stitch_old(spectra, linearize_dispersion = False, min_disp_step = 0.001):
     """
     Stitch spectra together, some of which may have overlapping dispersion
     ranges. This is a crude (knowingly incorrect) approximation: we interpolate
@@ -1114,3 +1316,157 @@ def stitch(spectra, linearize_dispersion = False, min_disp_step = 0.001):
     return Spectrum1D(dispersion, flux, ivar)
     
 
+def common_dispersion_map2(spectra):
+    # Find regions that will have individual dispersions
+    lefts = []; rights = []
+    dwls = []
+    for spectrum in spectra:
+        lefts.append(spectrum.dispersion.min())
+        rights.append(spectrum.dispersion.max())
+        dwls.append(np.median(np.diff(spectrum.dispersion)))
+    points = np.sort(lefts + rights)
+    Nregions = len(points)-1
+    
+    # Create dispersion map
+    # Find orders in each region and use minimum dwl
+    alldisp = []
+    for i in range(Nregions):
+        r_left = points[i]
+        r_right = points[i+1]
+        r_dwl = 99999.
+        #print(i)
+        num_spectra = 0
+        for j, (left, right, dwl) in enumerate(zip(lefts, rights, dwls)):
+            # if order in range, use its dwl
+            if right <= r_left or left >= r_right:
+                pass
+            else:
+                r_dwl = min(r_dwl, dwl)
+                #print("{:3} {:.2f} {:.2f} {:2} {:.2f} {:.2f}".format(i, r_left, r_right, j, left, right))
+                num_spectra += 1
+        #print(i,num_spectra)
+
+        # Use smallest dwl to create linear dispersion
+        # Drop the last point since that will be in the next one
+        alldisp.append(np.arange(r_left, r_right, r_dwl))
+    alldisp = np.concatenate(alldisp)
+    return alldisp
+
+def common_dispersion_map3(spectra):
+    # Find regions that will have individual dispersions
+    lefts = []; rights = []
+    dwls = []
+    for spectrum in spectra:
+        lefts.append(spectrum.dispersion.min())
+        rights.append(spectrum.dispersion.max())
+        dwls.append(np.median(np.diff(spectrum.dispersion)))
+    points = np.sort(lefts + rights)
+    Nregions = len(points)-1
+    
+    # Create dispersion map
+    # Find orders in each region and use minimum dwl
+    alldisp = []
+    for i in range(Nregions):
+        r_left = points[i]
+        r_right = points[i+1]
+        r_dwl = 99999.
+        #print(i)
+        num_spectra = 0
+        for j, (left, right, dwl) in enumerate(zip(lefts, rights, dwls)):
+            # if order in range, use its dwl
+            if right <= r_left or left >= r_right:
+                pass
+            else:
+                r_dwl = min(r_dwl, dwl)
+                #print("{:3} {:.2f} {:.2f} {:2} {:.2f} {:.2f}".format(i, r_left, r_right, j, left, right))
+                num_spectra += 1
+        #print(i,num_spectra)
+
+        # Use smallest dwl to create linear dispersion
+        # Drop the last point since that will be in the next one
+        disp = np.arange(r_left, r_right, r_dwl)
+        if r_right - disp[-1] < r_dwl: disp = disp[:-1]
+        alldisp.append(disp)
+    alldisp = np.concatenate(alldisp)
+    return alldisp
+
+def stitch(spectra, new_dispersion=None, full_output=False):
+    """
+    Stitch spectra together, some of which may have overlapping dispersion
+    ranges. This is a crude (knowingly incorrect) approximation: we interpolate
+    fluxes without ensuring total conservation.
+    Even worse, we interpolate ivar, which is explicitly not conserved.
+    However the stitching is much better than before.
+
+    :param spectra:
+        A list of potentially overlapping spectra.
+    """
+    if new_dispersion is None:
+        new_dispersion = common_dispersion_map2(spectra)
+    
+    N = len(spectra)
+    common_flux = np.zeros((N, new_dispersion.size))
+    common_ivar = np.zeros((N, new_dispersion.size))
+    
+    for i, spectrum in enumerate(spectra):
+        common_flux[i, :] = np.interp(
+            new_dispersion, spectrum.dispersion, spectrum.flux,
+            left=0, right=0)
+        common_ivar[i, :] = np.interp(
+            new_dispersion, spectrum.dispersion, spectrum.ivar,
+            left=0, right=0)
+
+    finite = np.isfinite(common_flux * common_ivar)
+    common_flux[~finite] = 0
+    common_ivar[~finite] = 0
+
+    numerator = np.sum(common_flux * common_ivar, axis=0)
+    denominator = np.sum(common_ivar, axis=0)
+    flux, ivar = (numerator/denominator, denominator)
+    newspec = Spectrum1D(new_dispersion, flux, ivar)
+
+    if full_output:
+        return newspec, (common_flux, common_ivar)
+    else:
+        return newspec
+
+def coadd(spectra, new_dispersion=None, full_output=False):
+    """
+    Add spectra together (using linear interpolation to do bad rebinning).
+    ivar is also interpolated and added.
+    This differs from stitch only because it is a direct sum
+    (rather than being weighted pixel-by-pixel with ivar).
+    
+    I think this is more correct when summing raw counts.
+    
+    :param spectra:
+        A list of potentially overlapping spectra.
+    """
+    if new_dispersion is None:
+        new_dispersion = common_dispersion_map2(spectra)
+    
+    N = len(spectra)
+    common_flux = np.zeros((N, new_dispersion.size))
+    common_ivar = np.zeros((N, new_dispersion.size))
+    
+    for i, spectrum in enumerate(spectra):
+        common_flux[i, :] = np.interp(
+            new_dispersion, spectrum.dispersion, spectrum.flux,
+            left=0, right=0)
+        common_ivar[i, :] = np.interp(
+            new_dispersion, spectrum.dispersion, spectrum.ivar,
+            left=0, right=0)
+
+    finite = np.isfinite(common_flux * common_ivar)
+    common_flux[~finite] = 0
+    common_ivar[~finite] = 0
+
+    flux = np.sum(common_flux, axis=0)
+    ivar = 1./np.sum(1./common_ivar, axis=0)
+    newspec = Spectrum1D(new_dispersion, flux, ivar)
+
+    if full_output:
+        return newspec, (common_flux, common_ivar)
+    else:
+        return newspec
+    

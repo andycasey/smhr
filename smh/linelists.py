@@ -75,20 +75,11 @@ class LineList(Table):
 
         super(LineList, self).__init__(*args,**kwargs)
 
-        if 'hash' not in self.columns and len(self) > 0:
-            # When sorting, it creates a LineList with just a column subset
-            try: 
-                self.validate_colnames(True)
-            except IOError:
-                pass
-            else:
-                hashes = [self.hash(line) for line in self]
-                self.add_column(Column(hashes,name='hash'))
-
-        if 'hash' in self.columns and (not self.has_duplicates):
-            self.check_for_duplicates()
         #self.validate_colnames(False)
 
+    def compute_hashes(self):
+        return np.array([self.hash(line) for line in self])
+    
     def check_for_duplicates(self):
         """
         Check for exactly duplicated lines. This has to fail because hashes
@@ -98,7 +89,9 @@ class LineList(Table):
         In these cases, it may be okay to combine the two lines into one 
         total line with a combined loggf.
         """
-        if len(self) != len(np.unique(self['hash'])):
+        hashes = self.compute_hashes()
+
+        if len(self) != len(np.unique(hashes)):
             error_msg = \
                 "This LineList contains lines with identical hashes.\n" \
                 "The problem is most likely due to completely identical lines\n" \
@@ -108,12 +101,12 @@ class LineList(Table):
                 "We now print the duplicated lines:\n"
             fmt = "{:.3f} {:.3f} {:.3f} {:5} {}\n"
             total_duplicates = 0
-            for i,hash in enumerate(self['hash']):
-                N = np.sum(self['hash']==hash)
+            for i,hash in enumerate(hashes):
+                N = np.sum(hashes==hash)
                 if N > 1: 
                     line = self[i]
                     total_duplicates += 1
-                    error_msg += fmt.format(line['wavelength'],line['expot'],line['loggf'],line['element'],line['hash'])
+                    error_msg += fmt.format(line['wavelength'],line['expot'],line['loggf'],line['element'],hashes[i])
             raise ValueError(error_msg)
         self.has_duplicates = False
         return None
@@ -139,8 +132,15 @@ class LineList(Table):
         if error:
             raise IOError(error_msg)
         else:
-            print(error_msg)
+            logger.warn(error_msg)
         return False
+
+    @staticmethod
+    def vstack(tables, **kwargs):
+        """
+        Wraps astropy.table.vstack and returns a LineList
+        """
+        return LineList(table.vstack(tables, **kwargs))
 
     @staticmethod
     def identify_conflicts(ll1, ll2, 
@@ -272,7 +272,7 @@ class LineList(Table):
 
         if ignore_conflicts:
             if self.verbose:
-                print("Ignoring conflicts: adding {} lines".format(len(new_ll)))
+                logger.warn("Ignoring conflicts: adding {} lines".format(len(new_ll)))
             if not in_place:
                 return table.vstack([self, new_ll])
             else:
@@ -328,9 +328,9 @@ class LineList(Table):
             if len(conflicts1) > 0:
                 raise LineListConflict(conflicts1, conflicts2)
         if self.verbose:
-            print("Num lines added: {}".format(num_lines_added))
-            print("Num lines {}: {}".format('replaced' if override_current else 'ignored', num_in_list))
-            print("Num lines with multiple matches: {}".format(num_with_multiple_conflicts))
+            logger.info("Num lines added: {}".format(num_lines_added))
+            logger.info("Num lines {}: {}".format('replaced' if override_current else 'ignored', num_in_list))
+            logger.info("Num lines with multiple matches: {}".format(num_with_multiple_conflicts))
 
         if not in_place:
             return LineList(new_data)
@@ -354,13 +354,13 @@ class LineList(Table):
         for line in matches:
             if self.lines_equal(new_line,line):
                 if self.verbose:
-                    print("Found identical match: {:8.3f} {:4.1f} {:5.2f} {:6.3f}".format(new_line['wavelength'],new_line['species'],new_line['expot'],new_line['loggf']))
+                    logger.info("Found identical match: {:8.3f} {:4.1f} {:5.2f} {:6.3f}".format(new_line['wavelength'],new_line['species'],new_line['expot'],new_line['loggf']))
                 return -1
 
         if self.verbose:
-            print("----{} Matches----".format(len(matches)))
-            print(new_line)
-            print(matches)
+            logger.info("----{} Matches----".format(len(matches)))
+            logger.info(new_line)
+            logger.info(matches)
         
         # Pick the line that is closest in wavelength
         best = np.argmin(np.abs(new_line['wavelength']-matches['wavelength']))
@@ -434,7 +434,7 @@ class LineList(Table):
         #return None
         if in_place: raise NotImplementedError
 
-        uniq, ix = np.unique(self["hash"], return_index=True)
+        uniq, ix = np.unique(self.compute_hashes(), return_index=True)
         return self[ix]
 
 
@@ -454,7 +454,7 @@ class LineList(Table):
     @staticmethod
     def lines_exactly_equal(l1,l2):
         #return LineList.lines_equal(l1,l2,dwl_thresh=1e-4,dEP_thresh=1e-4,dgf_thresh=1e-4)
-        return l1['hash']==l2['hash']
+        return LineList.hash(l1)==LineList.hash(l2)
 
     @classmethod
     def create_basic_linelist(cls,wavelength,species,expot,loggf, **kwargs):
@@ -582,7 +582,7 @@ class LineList(Table):
         if np.all(loggf >= 0): 
             loggf = np.log10(loggf)
             # TODO this is the MOOG default, but it may not be a good idea...
-            print("Warning: no lines with loggf < 0 in {}, assuming input is gf".format(filename))
+            logger.warn("MOOG: no lines with loggf < 0 in {}, assuming input is gf".format(filename))
         
         # TODO
         # Cite the filename as the reference for now

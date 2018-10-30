@@ -11,50 +11,39 @@ __all__ = ["BaseSpectralModel"]
 import numpy as np
 
 from .quality_constraints import constraints
+from ..linelists import LineList
+from astropy.table import Row
+from smh.photospheres.abundances import asplund_2009 as solar_composition
 
 class BaseSpectralModel(object):
 
-    def __init__(self, session, transition_hashes, **kwargs):
+    def __init__(self, session, transitions, **kwargs):
         """
         Initialize a base class for modelling spectra.
 
         :param session:
             The session that this spectral model will be associated with.
 
-        :param transition_hashes:
-            The hashes of transitions in the parent session that will be
-            associated with this model.
+        :param transitions:
+            A linelist containing atomic data for this model.
         """
 
-        # Here we will have to just assume that the user knows what they are
-        # doing, otherwise to import BaseSession implies that we will (probably)
-        # have a recursive import loop.
-        #if not isinstance(session, BaseSession):
-        #    raise TypeError("session must be a sub-class from BaseSession")
-
-        if len(session.metadata.get("line_list", [])) == 0:
-            raise ValueError("session does not have a line list")
-
-        # Validate the transition_hashes
-        transition_hashes = list(transition_hashes)
-        for transition_hash in transition_hashes:
-            if transition_hash not in session.metadata["line_list"]["hash"]:
-                raise ValueError(
-                    "transition hash '{}' not found in parent session"\
-                    .format(transition_hash))
+        if isinstance(transitions, Row):
+            transitions = LineList(transitions)
+        assert isinstance(transitions, LineList), type(transitions)
+        
 
         self._session = session
-        self._transition_hashes = transition_hashes
+        self._transitions = transitions
 
-        # Link the .transitions attribute to the parent session.
-        self.index_transitions()
-        
         self.metadata = {
             "is_upper_limit": False,
             "use_for_stellar_composition_inference": True,
             "use_for_stellar_parameter_inference": (
                 "Fe I" in self.transitions["element"] or
-                "Fe II" in self.transitions["element"])
+                "Fe II" in self.transitions["element"]),
+            "antimask_flag": False,
+            "user_flag": 0
         }
 
         # Create a _repr_wavelength property.
@@ -75,8 +64,11 @@ class BaseSpectralModel(object):
         occurs.
         """
 
+        if len(self.transitions) == 1: return float(self.transitions["wavelength"])
+        if hasattr(self,"_wavelength"):
+            return self._wavelength
         wavelength = np.mean(self.transitions["wavelength"])
-        return int(wavelength) if len(self.transitions) > 1 else wavelength
+        return int(wavelength)
 
 
     @property
@@ -214,47 +206,15 @@ class BaseSpectralModel(object):
         return self._transitions
 
 
-    def index_transitions(self):
-        """
-        Index the transitions to the parent session.
-        
-        This step is very slow for large linelists.
-        """
-
-        #if len(self._transition_hashes) < 50:
-        #if True:
-        if False:
-            ## Brute force loop for small N
-            indices = np.zeros(len(self._transition_hashes), dtype=int)
-            for i, each in enumerate(self._transition_hashes):
-                index = np.where(
-                    self._session.metadata["line_list"]["hash"] == each)[0]
-                #assert len(index) == 1, len(index)
-                if len(index) != 1: 
-                    #print("WARNING: hash {} appears {} times in session linelist".format(each,len(index)))
-                    index = index[0]
-                indices[i] = index
-        else:
-            ## Use searchsorted binary search, speeds up by ~1.8x
-            #iisort = np.argsort(self._session.metadata["line_list"]["hash"])
-            iisort = self._session.metadata["line_list_argsort_hashes"]
-            sorted = np.searchsorted(self._session.metadata["line_list"]["hash"],
-                                     self._transition_hashes,
-                                     sorter=iisort)
-            indices = iisort[sorted]
-            ## Check for correctness, i.e. all hashes are actually in linelist
-            assert np.all(self._transition_hashes == self._session.metadata["line_list"]["hash"][indices])
-
-        self._transition_indices = indices
-        self._transitions = self._session.metadata["line_list"][indices]
-
-        return indices
-
-
     @property
     def elements(self):
         """ Return the elements to be measured from this class. """
         return self.metadata["elements"]
+
+
+    @property
+    def num_elems(self):
+        return len(self.elements)
 
 
     @property
@@ -276,6 +236,46 @@ class BaseSpectralModel(object):
         except KeyError:
             return None
         
+    @property
+    def abundances_to_solar(self):
+        """ Return [X/H] if fit, else None """
+        abunds = self.abundances
+        if abunds is None: return None
+        elems = self.elements
+        return [AX - solar_composition(X) for AX,X in zip(abunds,elems)]
+
+    @property
+    def abundance_uncertainties(self):
+        return None
+
+    @property
+    def expot(self):
+        raise NotImplementedError
+    
+    @property
+    def loggf(self):
+        raise NotImplementedError
+    
+    @property
+    def equivalent_width(self):
+        return None
+
+    @property
+    def equivalent_width_uncertainty(self):
+        return None
+
+    @property
+    def reduced_equivalent_width(self):
+        return None
+
+    @property
+    def user_flag(self):
+        return self.metadata["user_flag"]
+
+    @user_flag.setter
+    def user_flag(self, flag):
+        self.metadata["user_flag"] = flag
+        return None
 
     @property
     def parameters(self):
@@ -308,9 +308,11 @@ class BaseSpectralModel(object):
     def __getstate__(self):
         """ Return a serializable state of this spectral model. """
 
+        # LineList is a superclass of astropy.table.Table so it serializes
+        # This could be a problem if e.g. astropy version changes
         state = {
             "type": self.__class__.__name__,
-            "transition_hashes": self._transition_hashes,
+            "transitions": self.transitions.as_array(),
             "metadata": self.metadata
         }
         return state
@@ -364,9 +366,6 @@ class BaseSpectralModel(object):
             A spectrum to generate a mask for.
         """
 
-        # HACK
-        if "antimask_flag" not in self.metadata:
-            self.metadata["antimask_flag"] = False
         if self.metadata["antimask_flag"]:
             antimask = np.ones_like(spectrum.dispersion,dtype=bool)
             for start, end in self.metadata["mask"]:

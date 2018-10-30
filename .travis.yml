@@ -12,11 +12,13 @@ before_install:
   - ./miniconda.sh -b
   - export PATH=/home/travis/miniconda2/bin:$PATH
   - conda update --yes conda
-  - "mkdir $HOME/.smh"  
+  # Fingers crossed..
+  - "export QT_API=pyside"
 
   # So that we can use matplotlib on Travis.
   - "export DISPLAY=:99.0"
   - "sh -e /etc/init.d/xvfb start"
+  - "mkdir $HOME/.smh"
 
 install: 
   - conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy astropy matplotlib nose six coverage

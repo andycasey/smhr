@@ -110,7 +110,8 @@ def asplund_2009(elements):
         "Cs": 1.08, 
         "Cr": 5.64, 
         "Cu": 4.19, 
-        "Er": 0.92
+        "Er": 0.92,
+        "Tc": -5.0 # MOOG uses this
     }
 
     def parse(x):
