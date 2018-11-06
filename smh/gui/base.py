@@ -5,7 +5,7 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 import sys
 import os
-from PyQt5 import (QtCore, QtWidgets as QtGui)
+from PyQt5 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 import time
 from six import iteritems
 import numpy as np
@@ -29,11 +29,11 @@ if sys.platform == "darwin":
         (".Helvetica Neue DeskInterface", "Helvetica Neue")
     ]
     for substitute in substitutes:
-        QtGui.QFont.insertSubstitution(*substitute)
+        QtGui2.QFont.insertSubstitution(*substitute)
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 PICKER_TOLERANCE = 10 # MAGIC HACK
-_QFONT = QtGui.QFont("Helvetica Neue", 10)
+_QFONT = QtGui2.QFont("Helvetica Neue", 10)
 _ROWHEIGHT = 20
 
 ## These are valid attrs of a spectral model
@@ -1127,9 +1127,9 @@ class MeasurementTableDelegate(QtGui.QItemDelegate):
         self.view = view
     def paint(self, painter, option, index):
         painter.save()
-        painter.setPen(QtGui.QPen(QtCore.Qt.NoPen))
+        painter.setPen(QtGui2.QPen(QtCore.Qt.NoPen))
         if option.state & QtGui.QStyle.State_Selected:
-            painter.setBrush(QtGui.QBrush(
+            painter.setBrush(QtGui2.QBrush(
                 self.parent().palette().highlight().color()))
         else:
             model = self.view.model()
@@ -1138,18 +1138,18 @@ class MeasurementTableDelegate(QtGui.QItemDelegate):
                 col = model.attrs.index("user_flag")
                 state = model.data(model.createIndex(row,col))
                 if state == QtCore.Qt.Checked:
-                    painter.setBrush(QtGui.QBrush(QtGui.QColor(self.COLOR)))
+                    painter.setBrush(QtGui2.QBrush(QtGui2.QColor(self.COLOR)))
                 else:
-                    painter.setBrush(QtGui.QBrush(QtCore.Qt.white))
+                    painter.setBrush(QtGui2.QBrush(QtCore.Qt.white))
             else:
-                painter.setBrush(QtGui.QBrush(QtCore.Qt.white))
+                painter.setBrush(QtGui2.QBrush(QtCore.Qt.white))
         painter.drawRect(option.rect)
-        painter.setPen(QtGui.QPen(QtCore.Qt.black))
+        painter.setPen(QtGui2.QPen(QtCore.Qt.black))
         painter.drawText(option.rect, QtCore.Qt.AlignLeft|QtCore.Qt.AlignCenter, index.data())
         painter.restore()
         
 
-class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
+class MeasurementTableModelProxy(QtCore.QSortFilterProxyModel):
     """
     Proxy model allowing for filtering (and eventually sorting) of the full MeasurementTableModelBase
     Based on the old SpectralModelsFilterProxyModel

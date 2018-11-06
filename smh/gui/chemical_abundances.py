@@ -12,7 +12,7 @@ import logging
 import matplotlib.gridspec
 import numpy as np
 import sys
-from PyQt5 import (QtCore, QtWidgets as QtGui)
+from PyQt5 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 import time
 
 import smh
@@ -39,9 +39,9 @@ if sys.platform == "darwin":
         (".Helvetica Neue DeskInterface", "Helvetica Neue")
     ]
     for substitute in substitutes:
-        QtGui.QFont.insertSubstitution(*substitute)
+        QtGui2.QFont.insertSubstitution(*substitute)
 
-_QFONT = QtGui.QFont("Helvetica Neue", 10)
+_QFONT = QtGui2.QFont("Helvetica Neue", 10)
 _ROWHEIGHT = 20
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 PICKER_TOLERANCE = 10 # MAGIC HACK
@@ -205,9 +205,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             line.setMaximumSize(QtCore.QSize(60, _ROWHEIGHT))
             line.setFont(_QFONT)
             if validate_int:
-                line.setValidator(QtGui.QIntValidator(bot, top, line))
+                line.setValidator(QtGui2.QIntValidator(bot, top, line))
             else:
-                line.setValidator(QtGui.QDoubleValidator(bot, top, dec, line))
+                line.setValidator(QtGui2.QDoubleValidator(bot, top, dec, line))
             hbox.addWidget(label)
             hbox.addItem(QtGui.QSpacerItem(40, _ROWHEIGHT, QtGui.QSizePolicy.Expanding,
                                            QtGui.QSizePolicy.Minimum))
@@ -226,7 +226,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             line.setMinimumSize(QtCore.QSize(60, 0))
             line.setMaximumSize(QtCore.QSize(60, _ROWHEIGHT))
             line.setFont(_QFONT)
-            line.setValidator(QtGui.QDoubleValidator(bot, top, dec, line))
+            line.setValidator(QtGui2.QDoubleValidator(bot, top, dec, line))
             hbox.addWidget(checkbox)
             hbox.addItem(QtGui.QSpacerItem(10, 10, QtGui.QSizePolicy.Fixed,
                                            QtGui.QSizePolicy.Minimum))
@@ -468,7 +468,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         line.setMinimumSize(QtCore.QSize(20, 0))
         line.setMaximumSize(QtCore.QSize(25, _ROWHEIGHT))
         line.setFont(_QFONT)
-        line.setValidator(QtGui.QDoubleValidator(0, 10, 1, line))
+        line.setValidator(QtGui2.QDoubleValidator(0, 10, 1, line))
         line.setText("3.0")
         self.edit_ul_sigma = line
         hbox2.addWidget(self.edit_ul_sigma)

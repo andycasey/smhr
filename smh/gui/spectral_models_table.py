@@ -9,7 +9,7 @@ __all__ = ["SpectralModelsTableViewBase", "SpectralModelsFilterProxyModel", "Spe
 import logging
 import numpy as np
 import sys
-from PyQt5 import (QtCore, QtWidgets as QtGui)
+from PyQt5 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 import time
 
 from smh.photospheres import available as available_photospheres
@@ -27,7 +27,7 @@ if sys.platform == "darwin":
         (".Helvetica Neue DeskInterface", "Helvetica Neue")
     ]
     for substitute in substitutes:
-        QtGui.QFont.insertSubstitution(*substitute)
+        QtGui2.QFont.insertSubstitution(*substitute)
 
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
@@ -236,7 +236,7 @@ class SpectralModelsTableViewBase(QtGui.QTableView):
                                       valid_for_profile=True,
                                       valid_for_synth=False)
 
-class SpectralModelsFilterProxyModel(QtGui.QSortFilterProxyModel):
+class SpectralModelsFilterProxyModel(QtCore.QSortFilterProxyModel):
 
     def __init__(self, parent=None):
         super(SpectralModelsFilterProxyModel, self).__init__(parent)

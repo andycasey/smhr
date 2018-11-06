@@ -8,7 +8,7 @@ from __future__ import (division, print_function, absolute_import,
 
 import logging
 from os import system
-from PyQt5 import (QtCore, QtWidgets as QtGui)
+from PyQt5 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 from urllib import quote
 
 import mpl
@@ -55,7 +55,7 @@ class SummaryTab(QtGui.QWidget):
 
         # Star name label.
         self.star_label = QtGui.QLabel(self)
-        bold_monospaced = QtGui.QFont("Courier", 14)
+        bold_monospaced = QtGui2.QFont("Courier", 14)
         bold_monospaced.setBold(True)
         self.star_label.setFont(bold_monospaced)
         summary_layout.addWidget(self.star_label)

@@ -13,7 +13,7 @@ import sys
 import time
 from glob import glob
 from matplotlib.ticker import MaxNLocator
-from PyQt5 import (QtCore, QtWidgets as QtGui)
+from PyQt5 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 from scipy import interpolate
 
 from smh.balmer import BalmerLineModel
@@ -31,7 +31,7 @@ if sys.platform == "darwin":
         (".Helvetica Neue DeskInterface", "Helvetica Neue")
     ]
     for substitute in substitutes:
-        QtGui.QFont.insertSubstitution(*substitute)
+        QtGui2.QFont.insertSubstitution(*substitute)
 
 
 def unique_indices(a):

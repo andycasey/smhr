@@ -14,7 +14,7 @@ import numpy as np
 import os
 import sys
 from copy import deepcopy
-from PyQt5 import (QtCore, QtWidgets as QtGui)
+from PyQt5 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 from six import string_types
 from six.moves import cPickle as pickle
 from time import time # DEBUG TODO
@@ -38,7 +38,7 @@ if sys.platform == "darwin":
         (".Helvetica Neue DeskInterface", "Helvetica Neue")
     ]
     for substitute in substitutes:
-        QtGui.QFont.insertSubstitution(*substitute)
+        QtGui2.QFont.insertSubstitution(*substitute)
 
 
 class TransitionsDialog(QtGui.QDialog):

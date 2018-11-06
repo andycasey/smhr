@@ -7,7 +7,7 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
 import logging
-from PyQt5 import (QtCore, QtWidgets as QtGui)
+from PyQt5 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 import yaml
 import os
 
@@ -41,7 +41,7 @@ if __name__ == '__main__':
             (".Helvetica Neue DeskInterface", "Helvetica Neue")
         ]
         for substitute in substitutes:
-            QtGui.QFont.insertSubstitution(*substitute)
+            QtGui2.QFont.insertSubstitution(*substitute)
 
     # Create a global exception hook.
     sys._excepthook = sys.excepthook

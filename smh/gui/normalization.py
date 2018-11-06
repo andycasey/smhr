@@ -11,7 +11,7 @@ __all__ = ["NormalizationTab"]
 import logging
 import numpy as np
 import sys
-from PyQt5 import (QtCore, QtWidgets as QtGui)
+from PyQt5 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 from time import time
 
 from matplotlib import gridspec
@@ -148,7 +148,7 @@ class NormalizationTab(QtGui.QWidget):
         self.low_sigma_clip.setAlignment(QtCore.Qt.AlignCenter)
         self.low_sigma_clip.setObjectName("norm_low_sigma_clip")
         self.low_sigma_clip.setValidator(
-            QtGui.QDoubleValidator(0, 1000, 2, self.low_sigma_clip))
+            QtGui2.QDoubleValidator(0, 1000, 2, self.low_sigma_clip))
 
         hbox.addWidget(self.low_sigma_clip)
         settings_grid_layout.addLayout(hbox, 3, 1, 1, 1)
@@ -169,7 +169,7 @@ class NormalizationTab(QtGui.QWidget):
         self.high_sigma_clip.setAlignment(QtCore.Qt.AlignCenter)
         self.high_sigma_clip.setObjectName("norm_high_sigma_clip")
         self.high_sigma_clip.setValidator(
-            QtGui.QDoubleValidator(0, 1000, 2, self.high_sigma_clip))
+            QtGui2.QDoubleValidator(0, 1000, 2, self.high_sigma_clip))
         hbox.addWidget(self.high_sigma_clip)
         settings_grid_layout.addLayout(hbox, 4, 1, 1, 1)
         
@@ -188,7 +188,7 @@ class NormalizationTab(QtGui.QWidget):
         self.knot_spacing.setMaximumSize(QtCore.QSize(40, 16777215))
         self.knot_spacing.setAlignment(QtCore.Qt.AlignCenter)
         self.knot_spacing.setValidator(
-            QtGui.QDoubleValidator(0, 10000, 0, self.knot_spacing))
+            QtGui2.QDoubleValidator(0, 10000, 0, self.knot_spacing))
         self.knot_spacing.setObjectName("norm_knot_spacing")
         hbox.addWidget(self.knot_spacing)
         settings_grid_layout.addLayout(hbox, 5, 1, 1, 1)
@@ -225,11 +225,11 @@ class NormalizationTab(QtGui.QWidget):
         sp.setHeightForWidth(self.stitch_btn.sizePolicy().hasHeightForWidth())
         self.stitch_btn.setSizePolicy(sp)
         self.stitch_btn.setMinimumSize(QtCore.QSize(250, 0))
-        font = QtGui.QFont()
+        font = QtGui2.QFont()
         font.setBold(True)
         font.setWeight(75)
         self.stitch_btn.setFont(font)
-        self.stitch_btn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        self.stitch_btn.setCursor(QtGui2.QCursor(QtCore.Qt.PointingHandCursor))
         self.stitch_btn.setDefault(True)
         self.stitch_btn.setObjectName("stitch_btn")
         self.stitch_btn.setText("Normalize and stitch orders")
@@ -380,9 +380,9 @@ class NormalizationTab(QtGui.QWidget):
         sender = self.sender()
         validator = sender.validator()
         state = validator.validate(sender.text(), 0)[0]
-        if state == QtGui.QValidator.Acceptable:
+        if state == QtGui2.QValidator.Acceptable:
             color = 'none' # normal background color
-        elif state == QtGui.QValidator.Intermediate:
+        elif state == QtGui2.QValidator.Intermediate:
             color = '#fff79a' # yellow
         else:
             color = '#f6989d' # red

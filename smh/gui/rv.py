@@ -9,7 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 import numpy as np
 import os
 import sys
-from PyQt5 import (QtCore, QtWidgets as QtGui)
+from PyQt5 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 from six import string_types
 
 import mpl
@@ -237,7 +237,7 @@ class RVTab(QtGui.QWidget):
         self.norm_low_sigma.setAlignment(QtCore.Qt.AlignCenter)
         self.norm_low_sigma.setObjectName("rv_norm_low_sigma")
         self.norm_low_sigma.setValidator(
-            QtGui.QDoubleValidator(0, 1000, 2, self.norm_low_sigma))
+            QtGui2.QDoubleValidator(0, 1000, 2, self.norm_low_sigma))
         hbox.addWidget(self.norm_low_sigma)
         norm_tab_grid_layout.addLayout(hbox, 3, 1, 1, 1)
 
@@ -257,7 +257,7 @@ class RVTab(QtGui.QWidget):
         self.norm_high_sigma.setAlignment(QtCore.Qt.AlignCenter)
         self.norm_high_sigma.setObjectName("rv_norm_high_sigma")
         self.norm_high_sigma.setValidator(
-            QtGui.QDoubleValidator(0, 1000, 2, self.norm_high_sigma))
+            QtGui2.QDoubleValidator(0, 1000, 2, self.norm_high_sigma))
         hbox.addWidget(self.norm_high_sigma)
         norm_tab_grid_layout.addLayout(hbox, 4, 1, 1, 1)
         
@@ -277,7 +277,7 @@ class RVTab(QtGui.QWidget):
         self.norm_knot_spacing.setAlignment(QtCore.Qt.AlignCenter)
         self.norm_knot_spacing.setObjectName("rv_norm_knot_spacing")
         self.norm_knot_spacing.setValidator(
-            QtGui.QIntValidator(0, 10000, self.norm_knot_spacing))
+            QtGui2.QIntValidator(0, 10000, self.norm_knot_spacing))
         hbox.addWidget(self.norm_knot_spacing)
         norm_tab_grid_layout.addLayout(hbox, 5, 1, 1, 1)
 
@@ -309,7 +309,7 @@ class RVTab(QtGui.QWidget):
         self.rv_applied.setMinimumSize(QtCore.QSize(50, 16777215))
         self.rv_applied.setAlignment(QtCore.Qt.AlignCenter)
         self.rv_applied.setValidator(
-            QtGui.QDoubleValidator(-1e6, 1e6, 2, self.rv_applied))
+            QtGui2.QDoubleValidator(-1e6, 1e6, 2, self.rv_applied))
         self.rv_applied.textChanged.connect(self.check_state)
         self.rv_applied.returnPressed.connect(self.correct_radial_velocity)
 
@@ -338,11 +338,11 @@ class RVTab(QtGui.QWidget):
         rv_ccc_btn.setSizePolicy(sp)
         rv_ccc_btn.setMinimumSize(QtCore.QSize(300, 0))
         rv_ccc_btn.setMaximumSize(QtCore.QSize(300, 16777215))
-        font = QtGui.QFont()
+        font = QtGui2.QFont()
         font.setBold(True)
         font.setWeight(75)
         rv_ccc_btn.setFont(font)
-        rv_ccc_btn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        rv_ccc_btn.setCursor(QtGui2.QCursor(QtCore.Qt.PointingHandCursor))
         rv_ccc_btn.setDefault(True)
         rv_ccc_btn.setObjectName("rv_ccc_btn")
         rv_ccc_btn.setText("Cross-correlate and correct")
@@ -450,9 +450,9 @@ class RVTab(QtGui.QWidget):
         sender = self.sender()
         validator = sender.validator()
         state = validator.validate(sender.text(), 0)[0]
-        if state == QtGui.QValidator.Acceptable:
+        if state == QtGui2.QValidator.Acceptable:
             color = 'none' # normal background color
-        elif state == QtGui.QValidator.Intermediate:
+        elif state == QtGui2.QValidator.Intermediate:
             color = '#fff79a' # yellow
         else:
             color = '#f6989d' # red

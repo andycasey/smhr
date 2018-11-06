@@ -9,7 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 import sys
 import logging
 import os
-from PyQt5 import (QtCore, QtWidgets as QtGui)
+from PyQt5 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 import yaml
 import numpy as np
 
@@ -68,17 +68,17 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         # File menu.
         new_session = QtGui.QAction("&New", self,
-            shortcut=QtGui.QKeySequence.New,
+            shortcut=QtGui2.QKeySequence.New,
             statusTip="Create a new session",
             triggered=self.new_session)
 
         open_session = QtGui.QAction("&Open...", self,
-            shortcut=QtGui.QKeySequence.Open,
+            shortcut=QtGui2.QKeySequence.Open,
             statusTip="Open an existing session from disk",
             triggered=self.open_session)
 
         save_session = QtGui.QAction("&Save", self,
-            shortcut=QtGui.QKeySequence.Save,
+            shortcut=QtGui2.QKeySequence.Save,
             statusTip="Save the session to disk",
             triggered=self.save_session)
 

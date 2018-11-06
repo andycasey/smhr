@@ -12,7 +12,7 @@ import logging
 import matplotlib.gridspec
 import numpy as np
 import sys
-from PyQt5 import (QtCore, QtWidgets as QtGui)
+from PyQt5 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 from matplotlib.colors import ColorConverter
 from matplotlib.ticker import MaxNLocator
 from time import time
@@ -43,10 +43,10 @@ if sys.platform == "darwin":
         (".Helvetica Neue DeskInterface", "Helvetica Neue")
     ]
     for substitute in substitutes:
-        QtGui.QFont.insertSubstitution(*substitute)
+        QtGui2.QFont.insertSubstitution(*substitute)
 
 
-_QFONT = QtGui.QFont("Helvetica Neue", 10)
+_QFONT = QtGui2.QFont("Helvetica Neue", 10)
 _ROWHEIGHT = 20
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
@@ -296,9 +296,9 @@ class StellarParametersTab(QtGui.QWidget):
         sender = self.sender()
         validator = sender.validator()
         state = validator.validate(sender.text(), 0)[0]
-        if state == QtGui.QValidator.Acceptable:
+        if state == QtGui2.QValidator.Acceptable:
             color = 'none' # normal background color
-        elif state == QtGui.QValidator.Intermediate:
+        elif state == QtGui2.QValidator.Intermediate:
             color = '#fff79a' # yellow
         else:
             color = '#f6989d' # red
@@ -992,7 +992,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_teff.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_teff.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
         self.edit_teff.setValidator(
-            QtGui.QDoubleValidator(3000, 8000, 0, self.edit_teff))
+            QtGui2.QDoubleValidator(3000, 8000, 0, self.edit_teff))
         self.edit_teff.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_teff, 0, 1)
         
@@ -1007,7 +1007,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_logg.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_logg.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_logg.setValidator(
-            QtGui.QDoubleValidator(-1, 6, 3, self.edit_logg))
+            QtGui2.QDoubleValidator(-1, 6, 3, self.edit_logg))
         self.edit_logg.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
 
         self.edit_logg.textChanged.connect(self._check_lineedit_state)
@@ -1024,7 +1024,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_metallicity.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_metallicity.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_metallicity.setValidator(
-            QtGui.QDoubleValidator(-5, 1, 3, self.edit_metallicity))
+            QtGui2.QDoubleValidator(-5, 1, 3, self.edit_metallicity))
         self.edit_metallicity.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
 
         self.edit_metallicity.textChanged.connect(self._check_lineedit_state)
@@ -1041,7 +1041,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_xi.setMinimumSize(QtCore.QSize(40, 0))
         self.edit_xi.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_xi.setAlignment(QtCore.Qt.AlignCenter)
-        self.edit_xi.setValidator(QtGui.QDoubleValidator(0, 5, 3, self.edit_xi))
+        self.edit_xi.setValidator(QtGui2.QDoubleValidator(0, 5, 3, self.edit_xi))
         self.edit_xi.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
 
         self.edit_xi.textChanged.connect(self._check_lineedit_state)
@@ -1057,7 +1057,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_alpha.setMinimumSize(QtCore.QSize(40, 0))
         self.edit_alpha.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_alpha.setAlignment(QtCore.Qt.AlignCenter)
-        self.edit_alpha.setValidator(QtGui.QDoubleValidator(-1, 1, 3, self.edit_alpha))
+        self.edit_alpha.setValidator(QtGui2.QDoubleValidator(-1, 1, 3, self.edit_alpha))
         #self.edit_alpha.setValidator(QtGui.QDoubleValidator(0, 0.4, 3, self.edit_alpha))
         self.edit_alpha.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
 
