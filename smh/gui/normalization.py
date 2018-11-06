@@ -1210,7 +1210,7 @@ class NormalizationTab(QtGui.QWidget):
         # Draw the additional points.
         ap = meta["normalization_kwargs"][index].get("additional_points", None)
         if ap is None:
-            ap = np.array([])
+            ap = np.array([[],[]]).T
         else:
             ap = ap[:, :2]
         self.ax_order.collections[0].set_offsets(ap)

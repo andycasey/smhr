@@ -365,7 +365,7 @@ class RVTab(QtGui.QWidget):
         rv_tab_layout.addWidget(self.rv_plot)
 
 
-        gs_top = gridspec.GridSpec(3, 1, height_ratios=[2, 1, 1, 1])
+        gs_top = gridspec.GridSpec(3, 1, height_ratios=[2, 1, 1])
         gs_top.update(hspace=0)
         gs_bottom = gridspec.GridSpec(3, 1)
         self.ax_order = self.rv_plot.figure.add_subplot(gs_top[0])
