@@ -436,7 +436,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.synth_abund_table_model = SynthesisAbundanceTableModel(self)
         self.synth_abund_table.setModel(self.synth_abund_table_model)
         self.synth_abund_table.resizeColumnsToContents()
-        self.synth_abund_table.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
+        self.synth_abund_table.verticalHeader().setSectionResizeMode(QtGui.QHeaderView.Fixed)
         self.synth_abund_table.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
         self.synth_abund_table.setColumnWidth(0, 40) # MAGIC
         self.synth_abund_table.setColumnWidth(1, 55) # MAGIC

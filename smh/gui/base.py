@@ -840,7 +840,7 @@ class BaseTableView(QtGui.QTableView):
         self.setSortingEnabled(False)
         self.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
         self.horizontalHeader().setStretchLastSection(True)
-        self.horizontalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
+        self.horizontalHeader().setSectionResizeMode(QtGui.QHeaderView.Stretch)
         self.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
     def sizeHint(self):
         return QtCore.QSize(125,100)

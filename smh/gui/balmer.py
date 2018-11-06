@@ -284,11 +284,11 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         self.p1_model_options.setEditTriggers(
             QtGui.QAbstractItemView.CurrentChanged)
         self.p1_model_options.setModel(BalmerLineOptionsTableModel(self))
-        self.p1_model_options.horizontalHeader().setResizeMode(
+        self.p1_model_options.horizontalHeader().setSectionResizeMode(
             QtGui.QHeaderView.Stretch)
 
         # First column should be fixed for the checkbox.
-        self.p1_model_options.horizontalHeader().setResizeMode(
+        self.p1_model_options.horizontalHeader().setSectionResizeMode(
             0, QtGui.QHeaderView.Fixed)
         self.p1_model_options.horizontalHeader().resizeSection(0, 30) # MAGIC
 

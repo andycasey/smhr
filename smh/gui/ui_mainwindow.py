@@ -320,9 +320,11 @@ class Ui_MainWindow(QtGui.QMainWindow):
                 return
 
         # Get filenames of input spectra.
-        if filenames is None:
+        print("filenames:",filenames)
+        if filenames is None or filenames is False:
             filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(
-                self, caption="Select input spectra", dir="")
+                self, caption="Select input spectra", directory="", filter="*")
+            print("filenames:",filenames)
             if not filenames:
                 return None
 

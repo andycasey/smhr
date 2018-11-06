@@ -246,11 +246,11 @@ class StellarParametersTab(QtGui.QWidget):
         self.btn_solve.clicked.connect(self.solve_parameters)
         self.btn_filter.clicked.connect(self.filter_models)
         self.btn_quality_control.clicked.connect(self.quality_control)
-        self.edit_teff.returnPressed.connect(self.btn_measure.clicked)
-        self.edit_logg.returnPressed.connect(self.btn_measure.clicked)
-        self.edit_metallicity.returnPressed.connect(self.btn_measure.clicked)
-        self.edit_xi.returnPressed.connect(self.btn_measure.clicked)
-        self.edit_alpha.returnPressed.connect(self.btn_measure.clicked)
+        self.edit_teff.returnPressed.connect(self.measure_abundances)
+        self.edit_logg.returnPressed.connect(self.measure_abundances)
+        self.edit_metallicity.returnPressed.connect(self.measure_abundances)
+        self.edit_xi.returnPressed.connect(self.measure_abundances)
+        self.edit_alpha.returnPressed.connect(self.measure_abundances)
 
         # Connect matplotlib.
         self.figure.mpl_connect("button_press_event", self.figure_mouse_press)
@@ -1089,7 +1089,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.state_table_view = QtGui.QTableView(self)
         self.state_table_view.setModel(StateTableModel(self))
         self.state_table_view.setSortingEnabled(False)
-        self.state_table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
+        self.state_table_view.verticalHeader().setSectionResizeMode(QtGui.QHeaderView.Fixed)
         self.state_table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
         self.state_table_view.setMaximumSize(QtCore.QSize(400, 3*(_ROWHEIGHT+1))) # MAGIC
         self.state_table_view.setSizePolicy(QtGui.QSizePolicy(
@@ -1097,10 +1097,10 @@ class StellarParametersTab(QtGui.QWidget):
         self.state_table_view.setSelectionBehavior(
             QtGui.QAbstractItemView.SelectRows)
 
-        self.state_table_view.horizontalHeader().setResizeMode(
+        self.state_table_view.horizontalHeader().setSectionResizeMode(
             QtGui.QHeaderView.Stretch)
 
-        self.state_table_view.horizontalHeader().setResizeMode(
+        self.state_table_view.horizontalHeader().setSectionResizeMode(
             1, QtGui.QHeaderView.Fixed)
         self.state_table_view.horizontalHeader().resizeSection(1, 35) # MAGIC
         return None
@@ -1115,7 +1115,7 @@ class StellarParametersTab(QtGui.QWidget):
                  "is_upper_limit")
 
         self.table_view = SpectralModelsTableView(self)
-        self.table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
+        self.table_view.verticalHeader().setSectionResizeMode(QtGui.QHeaderView.Fixed)
         self.table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
         
         # Set up a proxymodel.
@@ -1138,12 +1138,12 @@ class StellarParametersTab(QtGui.QWidget):
             QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
         
         # Keep the first colum to a fixed width, but the rest stretched.
-        self.table_view.horizontalHeader().setResizeMode(
+        self.table_view.horizontalHeader().setSectionResizeMode(
             0, QtGui.QHeaderView.Fixed)
         self.table_view.horizontalHeader().resizeSection(0, 30) # MAGIC
 
         for i in range(1, len(header)):
-            self.table_view.horizontalHeader().setResizeMode(
+            self.table_view.horizontalHeader().setSectionResizeMode(
                 i, QtGui.QHeaderView.Stretch)
             
         return None
