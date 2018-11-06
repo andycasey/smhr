@@ -11,7 +11,7 @@ __all__ = ["SolveOptionsDialog"]
 
 import logging
 
-from PySide import QtCore, QtGui
+from PyQt5 import QtCore, QtGui
 
 logger = logging.getLogger(__name__)
 

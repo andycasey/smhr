@@ -9,7 +9,7 @@ __all__ = ["SpectralModelsTableViewBase", "SpectralModelsFilterProxyModel", "Spe
 import logging
 import numpy as np
 import sys
-from PySide import QtCore, QtGui
+from PyQt5 import QtCore, QtGui
 import time
 
 from smh.photospheres import available as available_photospheres

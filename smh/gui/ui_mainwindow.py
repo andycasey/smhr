@@ -9,7 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 import sys
 import logging
 import os
-from PySide import QtCore, QtGui
+from PyQt5 import QtCore, QtGui
 import yaml
 import numpy as np
 

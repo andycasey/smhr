@@ -12,7 +12,7 @@ import logging
 import matplotlib.gridspec
 import numpy as np
 import sys
-from PySide import QtCore, QtGui
+from PyQt5 import QtCore, QtGui
 import time
 
 import smh

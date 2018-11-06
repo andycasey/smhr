@@ -9,7 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 
 import operator
 import numpy as np
-from PySide import QtCore, QtGui
+from PyQt5 import QtCore, QtGui
 from time import time
 
 import mpl

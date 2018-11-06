@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" Functionality to use matplotlib figures in PySide GUIs. """
+""" Functionality to use matplotlib figures in PyQt5 GUIs. """
 
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
@@ -24,7 +24,7 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 
 from matplotlib.figure import Figure
 
-from PySide import QtCore, QtGui
+from PyQt5 import QtCore, QtGui
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 

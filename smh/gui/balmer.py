@@ -13,7 +13,7 @@ import sys
 import time
 from glob import glob
 from matplotlib.ticker import MaxNLocator
-from PySide import QtCore, QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 from scipy import interpolate
 
 from smh.balmer import BalmerLineModel
@@ -93,7 +93,7 @@ class Worker(QtCore.QThread):
         return None
 
 
-class BalmerLineFittingDialog(QtGui.QDialog):
+class BalmerLineFittingDialog(QtWidgets.QDialog):
 
     __balmer_line_names = ("H-α", "H-β", "H-γ", "H-δ")
     __balmer_line_wavelengths = (6563, 4861, 4341, 4102)
