@@ -9,7 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 import numpy as np
 import os
 import sys
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import (QtCore, QtWidgets as QtGui)
 
 from matplotlib import (gridspec, pyplot as plt)
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["IsotopeDialog","IsotopeError","IsotopeLog"]
 
-class IsotopeDialog(QtWidgets.QDialog):
+class IsotopeDialog(QtGui.QDialog):
     """
     Widget to edit isotope ratios.
 

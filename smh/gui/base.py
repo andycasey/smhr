@@ -5,7 +5,7 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 import sys
 import os
-from PyQt5 import QtCore, QtGui
+from PyQt5 import (QtCore, QtWidgets as QtGui)
 import time
 from six import iteritems
 import numpy as np

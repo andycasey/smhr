@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" Functionality to use matplotlib figures in PyQt5 GUIs. """
+from PyQt5 import (QtCore, QtWidgets as QtGui)
 
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)

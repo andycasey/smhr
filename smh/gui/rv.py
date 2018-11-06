@@ -9,7 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 import numpy as np
 import os
 import sys
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import (QtCore, QtWidgets as QtGui)
 from six import string_types
 
 import mpl
@@ -903,7 +903,7 @@ class RVTab(QtGui.QWidget):
 
         return code
     
-class RVRegionDialog(QtWidgets.QDialog):
+class RVRegionDialog(QtGui.QDialog):
     def __init__(self, rv_tab, *args):
         """
         Initialise a dialog to set new RV correction regions.

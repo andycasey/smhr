@@ -11,7 +11,7 @@ __all__ = ["NormalizationTab"]
 import logging
 import numpy as np
 import sys
-from PyQt5 import QtCore, QtGui
+from PyQt5 import (QtCore, QtWidgets as QtGui)
 from time import time
 
 from matplotlib import gridspec

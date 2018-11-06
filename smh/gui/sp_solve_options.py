@@ -11,12 +11,12 @@ __all__ = ["SolveOptionsDialog"]
 
 import logging
 
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import (QtCore, QtWidgets as QtGui)
 
 logger = logging.getLogger(__name__)
 
 
-class SolveOptionsDialog(QtWidgets.QDialog):
+class SolveOptionsDialog(QtGui.QDialog):
 
     def __init__(self, session, **kwargs):
         """

@@ -12,7 +12,7 @@ import logging
 import matplotlib.gridspec
 import numpy as np
 import sys
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import (QtCore, QtWidgets as QtGui)
 from matplotlib.colors import ColorConverter
 from matplotlib.ticker import MaxNLocator
 from time import time

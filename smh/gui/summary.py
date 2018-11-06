@@ -8,7 +8,7 @@ from __future__ import (division, print_function, absolute_import,
 
 import logging
 from os import system
-from PyQt5 import QtCore, QtGui
+from PyQt5 import (QtCore, QtWidgets as QtGui)
 from urllib import quote
 
 import mpl

@@ -9,7 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 import numpy as np
 import os
 import sys
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import (QtCore, QtWidgets as QtGui)
 
 import mpl
 from matplotlib import (gridspec, pyplot as plt)
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["SummaryPlotDialog"]
 
-class SummaryPlotDialog(QtWidgets.QDialog):
+class SummaryPlotDialog(QtGui.QDialog):
     def __init__(self, session, parent, ncap=False):
         super(SummaryPlotDialog, self).__init__()
         # Center it on the parent location
@@ -38,7 +38,7 @@ class SummaryPlotDialog(QtWidgets.QDialog):
         else:
             session.make_summary_plot(figure_widget.figure)
         
-class SNRPlotDialog(QtWidgets.QDialog):
+class SNRPlotDialog(QtGui.QDialog):
     def __init__(self, session, parent, ncap=False):
         super(SNRPlotDialog, self).__init__()
         # Center it on the parent location

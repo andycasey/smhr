@@ -11,11 +11,11 @@ __all__ = ["QualityControlDialog"]
 import logging
 import numpy as np
 
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import (QtCore, QtWidgets as QtGui)
 
 logger = logging.getLogger(__name__)
 
-class QualityControlDialog(QtWidgets.QDialog):
+class QualityControlDialog(QtGui.QDialog):
 
     _default_explanation = \
         "Set any lower and upper constraints on line properties. Any lines "\

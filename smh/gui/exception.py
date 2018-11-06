@@ -14,7 +14,7 @@ import traceback as tb
 #from tempfile import mkstemp
 from smh.utils import mkstemp
 from urllib import quote
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import (QtCore, QtWidgets as QtGui)
 
 from smh import __git_status__
 
@@ -200,7 +200,7 @@ class PythonHighlighter(QtGui.QSyntaxHighlighter):
 
 
 
-class ExceptionWidget(QtWidgets.QDialog):
+class ExceptionWidget(QtGui.QDialog):
     def __init__(self, exception_type, message, traceback, *args):
         """
         Initialize a widget to display details about an exception that was

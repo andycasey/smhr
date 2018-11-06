@@ -4,7 +4,7 @@ from __future__ import (division, print_function, absolute_import,
 import numpy as np
 import os
 import sys
-from PyQt5 import QtCore, QtGui
+from PyQt5 import (QtCore, QtWidgets as QtGui)
 from six import string_types, iteritems
 
 from smh import (Session, specutils)
