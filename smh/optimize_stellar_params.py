@@ -1,3 +1,6 @@
+from __future__ import (division, print_function, absolute_import,
+                        unicode_literals)
+
 import numpy as np
 from scipy.optimize import fsolve
 from . import (photospheres, radiative_transfer, utils)
@@ -37,7 +40,7 @@ def stellar_optimization(func):
             except:
                 sampled_before = (previously_sampled_points[:, :4] == this_point).all()
                 #np.arange(previously_sampled_points[:, :4].ndim - this_point.ndim, previously_sampled_points[:, :4].ndim))
-            #print sampled_before
+            #print(sampled_before)
 
             if np.any(sampled_before):
                 index = np.where(sampled_before)[0][0]
@@ -171,7 +174,7 @@ def optimize_stellar_parameters(initial_guess, transitions, EWs=None,
             results = fsolve(minimisation_function, solver_guess, args=args, fprime=utils.approximate_stellar_jacobian,
                              col_deriv=1, epsfcn=0, xtol=1e-10, full_output=1, maxfev=maxfev)
         except OptimizationSuccess as e:#: #Exception as e:# OptimizationSuccess as e:
-            print e
+            print(e)
             
             # Optimization is complete and tolerances have been reached
             t_elapsed = time.time() - start
