@@ -9,10 +9,10 @@ from __future__ import (division, print_function, absolute_import,
 __all__ = ["PeriodicTableDialog"]
 
 from numpy import ceil
-from PyQt5 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 from textwrap import dedent
 
-class PeriodicTableDialog(QtGui.QDialog):
+class PeriodicTableDialog(QtWidgets.QDialog):
 
     elements = """
         H                                                  He
