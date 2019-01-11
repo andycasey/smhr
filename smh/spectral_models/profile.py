@@ -175,6 +175,27 @@ class ProfileFittingModel(BaseSpectralModel):
         return "eqw"
 
 
+    @property
+    def fwhm(self):
+        try:
+            popt = self.metadata["fitted_result"][0]
+            if self.metadata["profile"] == "gaussian":
+                return popt["sigma"]*2.355
+            elif self.metadata["profile"] == "lorentzian":
+                return popt["width"] # I may be wrong about this value
+            elif self.metadata["profile"] == "voigt":
+                return popt["fwhm"] # I may be wrong about this value
+            else:
+                return None
+        except KeyError:
+            return None
+
+    _profiles = {
+        "gaussian": (_gaussian, ("mean", "sigma", "amplitude")),
+        "lorentzian": (_lorentzian, ("mean", "width", "amplitude")),
+        "voigt": (_voigt, ("mean", "fwhm", "amplitude", "shape"))
+    }
+
     def _verify_transitions(self):
         """
         Verify that the atomic or molecular transitions associated with this
