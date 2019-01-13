@@ -3,7 +3,7 @@ from __future__ import (division, print_function, absolute_import,
 from six import iteritems
 
 import numpy as np
-import cPickle as pickle
+import pickle
 import os
 
 from .linelists import LineList
@@ -217,8 +217,8 @@ def load_isotope_data(whichdata,include_molecules=False):
                'sproc':'sneden08_sproc_isotopes.pkl',
                'sneden':'sneden08_all_isotopes.pkl',
                'asplund':'asplund09_isotopes.pkl'}
-    with open(_datadir+'/'+datamap[whichdata],'r') as f:
-        isotopes = pickle.load(f)
+    with open(_datadir+'/'+datamap[whichdata],'rb') as f:
+        isotopes = pickle.load(f, encoding="latin1")
     if include_molecules:
         isotopes = add_molecules(isotopes)
     validate_isotopes(isotopes)

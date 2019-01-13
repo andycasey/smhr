@@ -10,7 +10,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 # Standard library.
 import os
 import logging
-import cPickle as pickle
+from six.moves import cPickle as pickle
 from pkg_resources import resource_stream
 
 # Third-party.
