@@ -52,7 +52,7 @@ def convert_isodict_to_array(isotopes,sort_by_Z=True):
                 A2 = A-100*A1
                 A = A1+A2
             return Z,A
-        out = map(_sorter,zip(tab[:,0],tab[:,1]))
+        out = list(map(_sorter,zip(tab[:,0],tab[:,1])))
         out = np.array(out)
         ii = np.lexsort([out[:,1],out[:,0]])
         #Z = [int(element_to_species(elem)) for elem in tab[:,0]]

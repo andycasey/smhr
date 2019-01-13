@@ -1015,7 +1015,7 @@ class Session(BaseSession):
             if model.is_acceptable and isinstance(model, ProfileFittingModel) and (not model.is_upper_limit):
                 eqw_models.append(model)
         
-        all_species = np.unique(map(lambda m: m.species[0], eqw_models))
+        all_species = np.unique(list(map(lambda m: m.species[0], eqw_models)))
         all_ratios = []
         for _s1 in all_species:
             for _s2 in all_species:
@@ -1625,8 +1625,8 @@ class Session(BaseSession):
             
         master_list = ascii.read(filename, **kwargs).filled()
         logger.debug(master_list)
-        types = np.array(map(lambda x: x.lower(), np.array(master_list["type"])))
-        assert np.all(map(lambda x: (x=="eqw") or (x=="syn") or (x=="list"), types)), types
+        types = np.array(list(map(lambda x: x.lower(), np.array(master_list["type"]))))
+        assert np.all(list(map(lambda x: (x=="eqw") or (x=="syn") or (x=="list"), types)), types)
 
         num_added = 0
 

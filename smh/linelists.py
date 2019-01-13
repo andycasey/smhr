@@ -550,7 +550,7 @@ class LineList(Table):
         for i,line in enumerate(lines):
             s = line.split()
             try:
-                _wl,_species,_EP,_loggf = map(float,s[:4])
+                _wl,_species,_EP,_loggf = list(map(float,s[:4]))
             except:
                 if i==0:
                     has_header_line = True
@@ -663,7 +663,7 @@ class LineList(Table):
             return species
         import time
         start = time.time()
-        species = map(_get_species, tab)
+        species = list(map(_get_species, tab))
         print('{:.1f}s to compute species'.format(time.time()-start))
 
         memo = {}
@@ -672,7 +672,7 @@ class LineList(Table):
             element = species_to_element(species)
             memo[species] = element
             return element
-        elements = map(_get_element, species)
+        elements = list(map(_get_element, species))
 
         expot = tab['E_LOW']
         loggf = tab['LOG_GF']

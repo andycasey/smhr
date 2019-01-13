@@ -1342,7 +1342,7 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
             rows = np.arange(len(models))
         # TODO replace np.nan with something else
         getter = lambda ix: getattr(models[ix], attr, np.nan)
-        data = map(getter, rows)
+        data = list(map(getter, rows))
         return np.array(data)
 
     def get_models_from_rows(self, rows):

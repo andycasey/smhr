@@ -521,12 +521,14 @@ class StellarParametersTab(QtGui.QWidget):
                     self.ax_excitation.errorbar(
                         np.nan * np.ones(2), np.nan * np.ones(2), 
                         yerr=np.nan * np.ones((2, 2)), fmt=None, 
-                        ecolor="#666666", elinewidth=2, zorder=-10),
+                        ecolor="#666666", elinewidth=2, zorder=-10,
+                        capsize=3),
                     self.ax_line_strength.errorbar(
                         np.nan * np.ones(2), np.nan * np.ones(2), 
                         xerr=np.nan * np.ones((2, 2)),
                         yerr=np.nan * np.ones((2, 2)), fmt=None,
-                        ecolor="#666666", elinewidth=2,  zorder=-10)
+                        ecolor="#666666", elinewidth=2,  zorder=-10,
+                        capsize=3)
                 ]
 
             ex_collection, ls_collection \
@@ -720,6 +722,7 @@ class StellarParametersTab(QtGui.QWidget):
         Update the trend lines in the figures.
         """
 
+        
         if not hasattr(self, "_state_transitions"):
             if redraw:
                 self.figure.draw()
@@ -733,12 +736,14 @@ class StellarParametersTab(QtGui.QWidget):
         else:
             yerr_column = None
 
+        self.state_table_view.model().beginResetModel()
         states = utils.equilibrium_state(self._state_transitions,
             columns=("expot", "reduced_equivalent_width"), ycolumn="abundance",
             yerr_column=yerr_column)
 
         self._state_slopes = states
-        self.state_table_view.model().reset()
+        #self.state_table_view.model().reset()
+        self.state_table_view.model().endResetModel()
 
 
         """
