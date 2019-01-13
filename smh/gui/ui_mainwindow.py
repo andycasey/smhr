@@ -220,7 +220,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         default_settings["_gui_recently_opened"] \
             = default_settings["_gui_recently_opened"][-5:]
 
-        with open(smh.Session._default_settings_path, "wb") as fp:
+        with open(smh.Session._default_settings_path, "w") as fp:
             fp.write(yaml.dump(default_settings))
 
         self.update_recently_opened(default_settings["_gui_recently_opened"])
@@ -392,10 +392,12 @@ class Ui_MainWindow(QtGui.QMainWindow):
     def open_session(self, path=None):
         """ Open existing session. """
 
-        if path is None:
+        print("Testing path:",path)
+        if path is None or path is False:
             path, _ = QtGui.QFileDialog.getOpenFileName(self,
-                caption="Select session", dir="", filter="*.smh")
+                caption="Select session", directory="", filter="*.smh")
             if not path: return
+        print("We got:",path)
 
 
         self.add_to_recently_opened(path)
