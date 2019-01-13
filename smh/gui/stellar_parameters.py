@@ -339,13 +339,14 @@ class StellarParametersTab(QtGui.QWidget):
         # Update the state.
         if len(dialog.affected_indices) > 0:
 
+            self.proxy_spectral_models.beginResetModel()
             if hasattr(self, "_state_transitions"):
                 indices = np.array(dialog.affected_indices)
                 self._state_transitions["abundance"][indices] = np.nan
                 self._state_transitions["reduced_equivalent_width"][indices] = np.nan
 
             # Update table and view.
-            self.proxy_spectral_models.reset()
+            self.proxy_spectral_models.endResetModel()
             self.update_scatter_plots()
             self.update_trend_lines(redraw=True)
 
@@ -659,6 +660,7 @@ class StellarParametersTab(QtGui.QWidget):
         # calculate abundances.
         self.update_stellar_parameters()
 
+        self.proxy_spectral_models.beginResetModel()
         filtering = lambda model: model.use_for_stellar_parameter_inference
         try:
             self._state_transitions, state, \
@@ -712,7 +714,7 @@ class StellarParametersTab(QtGui.QWidget):
         # work:
         self.table_view.columnMoved(3, 3, 3)
 
-        self.proxy_spectral_models.reset()
+        self.proxy_spectral_models.endResetModel()
 
         return None
 
@@ -1644,6 +1646,7 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
         "fitted_result" not in self.spectral_models[index.row()].metadata:
             return False
         
+        self.parent.proxy_spectral_models.beginResetModel()
         value = super(SpectralModelsTableModel, self).setData(index, value, role)
 
         # If we have a cache of the state transitions, update the entries.
@@ -1657,7 +1660,7 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
         # TODO: Any cheaper way to update this?
         #       layoutAboutToBeChanged() and layoutChanged() didn't work
         #       neither did rowCountChanged or rowMoved()
-        self.parent.proxy_spectral_models.reset()
+        self.parent.proxy_spectral_models.endResetModel()
 
         # Update figures.
         self.parent.update_scatter_plots(redraw=False)

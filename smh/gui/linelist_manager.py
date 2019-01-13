@@ -165,10 +165,11 @@ class TransitionsDialog(QtGui.QDialog):
         if self.session is None: return None
         paths = self.open_file(caption="Select linelists for profiles", dir="", filter="")
         if not paths: return None
+        self.tableview.model().beginResetModel()
         for path in paths:
             self.session.import_linelist_as_profile_models(path)
 
-        self.tableview.model().reset()
+        self.tableview.model().endResetModel()
         self.tableview.clearSelection()
         return None
 
@@ -176,6 +177,7 @@ class TransitionsDialog(QtGui.QDialog):
         if self.session is None: return None
         paths = self.open_file(caption="Select linelists for synths", dir="", filter="")
         if not paths: return None
+        self.tableview.model().beginResetModel()
         for path in paths:
             transitions = LineList.read(path)
             selectable_elements \
@@ -195,25 +197,27 @@ class TransitionsDialog(QtGui.QDialog):
 
             self.session.import_linelist_as_synthesis_model(path, dialog.selected_elements)
 
-        self.tableview.model().reset()
+        self.tableview.model().endResetModel()
         self.tableview.clearSelection()
         return None
 
     def import_spectral_model_states(self):
         if self.session is None: return None
         paths = self.open_file(caption="Select spectral model state file", dir="", filter="*.pkl")
+        self.tableview.model().beginResetModel()        
         for path in paths:
             self.session.import_spectral_model_states(path)
-        self.tableview.model().reset()
+        self.tableview.model().endResetModel()
         self.tableview.clearSelection()
         return None
 
     def import_master_list(self):
         if self.session is None: return None
         paths = self.open_file(caption="Select master lists", dir="", filter="")
+        self.tableview.model().beginResetModel()        
         for path in paths:
             self.session.import_master_list(path)
-        self.tableview.model().reset()
+        self.tableview.model().endResetModel()
         self.tableview.clearSelection()
         return None
 
@@ -283,10 +287,11 @@ class TransitionsDialogTableView(BaseTableView):
         all_rows = np.sort(all_rows)
         # Pop models out of the raw spectral_models in the session
         model_list = self.model().spectral_models
+        self.model().beginResetModel()
         for row in all_rows[::-1]:
             model = model_list.pop(row)
             logger.debug("{} {}".format(model.species, model.wavelength))
-        self.model().reset()
+        self.model().endResetModel()
         self.clearSelection()
         return None
 
@@ -469,6 +474,7 @@ class LineListTableView(QtGui.QTableView):
             spectral_models_to_add.append(
                 ProfileFittingModel(self.session, transitions["hash"][[index]]))
 
+        self._parent.models_view.model().beginResetModel()
         self.session.metadata.setdefault("spectral_models", [])
         self.session.metadata["spectral_models"].extend(spectral_models_to_add)
         self.session._spectral_model_conflicts = spectral_model_conflicts(
@@ -476,7 +482,7 @@ class LineListTableView(QtGui.QTableView):
             self.session.metadata["line_list"])
 
         # Update the spectral models abstract table model.
-        self._parent.models_view.model().reset()
+        self._parent.models_view.model().endResetModel()
         print("Time taken: {:.1f}".format(time() - ta))
 
         return None
@@ -496,6 +502,7 @@ class LineListTableView(QtGui.QTableView):
         
         full_line_list, filenames, filename_transitions = selected
 
+        self._parent.models_view.model().beginResetModel()
         if input_elements is not None and len(filenames)==len(input_elements): 
             for elements_to_measure in input_elements:
                 assert len(elements_to_measure) >= 1
@@ -544,7 +551,7 @@ class LineListTableView(QtGui.QTableView):
             self.session.metadata["line_list"])
 
         # Update the spectral models abstract table model.
-        self._parent.models_view.model().reset()
+        self._parent.models_view.model().endResetModel()
         print("Time taken: {:.1f}".format(time() - ta))
 
         return None
@@ -560,6 +567,7 @@ class LineListTableView(QtGui.QTableView):
                 ProfileFittingModel(self.session,
                     self.session.metadata["line_list"]["hash"][[row.row()]]))
 
+        self._parent.models_view.model().beginResetModel()
         self.session.metadata.setdefault("spectral_models", [])
         self.session.metadata["spectral_models"].extend(spectral_models_to_add)
         
@@ -568,7 +576,7 @@ class LineListTableView(QtGui.QTableView):
             self.session.metadata["line_list"])
 
         # Update the spectral models abstract table model.
-        self._parent.models_view.model().reset()
+        self._parent.models_view.model().endResetModel()
         print("Time taken: {:.1f}".format(time() - ta))
 
         return None
@@ -589,6 +597,7 @@ class LineListTableView(QtGui.QTableView):
 
         self.session.metadata.setdefault("spectral_models", [])
 
+        self._parent.models_view.model().beginResetModel()
         if len(elements) == 1:    
             self.session.metadata["spectral_models"].append(
                 SpectralSynthesisModel(self.session, transitions["hash"], 
@@ -618,7 +627,7 @@ class LineListTableView(QtGui.QTableView):
             self.session.metadata["line_list"])
 
         # Update the spectral models abstract table model.
-        self._parent.models_view.model().reset()
+        self._parent.models_view.model().endResetModel()
         print("Time taken: {:.1f}".format(time() - ta))
 
         return None
@@ -655,6 +664,7 @@ class LineListTableView(QtGui.QTableView):
         if np.all(mask):
             return None
 
+        self._parent.models_view.model().beginResetModel()
         self.session.metadata["line_list"] \
             = self.session.metadata["line_list"][mask]
 
@@ -662,7 +672,7 @@ class LineListTableView(QtGui.QTableView):
         self.session.metadata["line_list_argsort_hashes"] = np.argsort(
             self.session.metadata["line_list"]["hash"])
 
-        self._parent.models_view.model().reset()
+        self._parent.models_view.model().endResetModel()
 
         self.clearSelection()
 
@@ -683,10 +693,11 @@ class LineListTableView(QtGui.QTableView):
 
         # Load from files.
         ta = time()
+        self.model().beginResetModel()
         out = self.session.import_linelists(filenames,
                 ignore_conflicts=self._parent.checkbox_merge_without_conflicts.isChecked(),
                 full_output=full_output)
-        self.model().reset()
+        self.model().endResetModel()
         print("Time taken: {:.1f}".format(time() - ta))
 
         if full_output:
@@ -709,12 +720,14 @@ class LineListTableView(QtGui.QTableView):
         if not filenames:
             return None
 
+        self.model().beginResetModel()
+        self._parent.models_view.model().beginResetModel()
         self.session.import_transitions_with_measured_equivalent_widths(
             filenames, ignore_conflicts=self._parent.checkbox_merge_without_conflicts.isChecked())
 
         # Update the data models.
-        self.model().reset()
-        self._parent.models_view.model().reset()
+        self.model().endResetModel()
+        self._parent.models_view.model().endResetModel()
 
         return None
 
@@ -1059,6 +1072,7 @@ class SpectralModelsTableView(QtGui.QTableView):
 
         delete_indices = [_.row() for _ in self.selectionModel().selectedRows()]
 
+        self.model().beginResetModel()
         self.session.metadata["spectral_models"] = [sm \
             for i, sm in enumerate(self.session.metadata["spectral_models"]) \
                 if i not in delete_indices]
@@ -1067,7 +1081,7 @@ class SpectralModelsTableView(QtGui.QTableView):
             self.session.metadata["spectral_models"],
             self.session.metadata["line_list"])
 
-        self.model().reset()
+        self.model().endResetModel()
 
         self.clearSelection()
         return None

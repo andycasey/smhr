@@ -291,8 +291,10 @@ class SpectralModelsFilterProxyModel(QtCore.QSortFilterProxyModel):
         return None
 
     def reset(self, *args):
-        super(SpectralModelsFilterProxyModel, self).reset(*args)
+        #super(SpectralModelsFilterProxyModel, self).reset(*args)
+        super().beginResetModel()
         self.reindex()
+        super().endResetModel()
         return None
 
 

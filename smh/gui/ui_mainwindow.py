@@ -235,7 +235,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         :param event:
             The close event.
         """
-
+        ## TODO in PyQt5 something causes this to display twice sometimes???
 
         if self.session is None:
             # There is no session.
@@ -477,9 +477,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
             The filename where to save the session.
         """
 
-        if path is None:
+        if path is None or path is False:
             path, _ = QtGui.QFileDialog.getSaveFileName(self,
-                caption="Enter filename", dir="", filter="*.smh")
+                caption="Enter filename", directory="", filter="*.smh")
             if not path: return
 
         self.session_path = path
@@ -520,7 +520,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         """ Export a normalized, rest-frame spectrum. """
         if self.session is None: return
         path, _ = QtGui.QFileDialog.getSaveFileName(self,
-            caption="Enter normalized rest frame spectrum filename", dir="", filter="")
+            caption="Enter normalized rest frame spectrum filename", directory="", filter="")
         if not path: return
         self.session.export_normalized_spectrum(path)
 
@@ -528,7 +528,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         """ Export a stitched, unnormalized, rest-frame spectrum. """
         if self.session is None: return
         path, _ = QtGui.QFileDialog.getSaveFileName(self,
-            caption="Enter unnormalized rest frame spectrum filename", dir="", filter="")
+            caption="Enter unnormalized rest frame spectrum filename", directory="", filter="")
         if not path: return
         self.session.export_unnormalized_spectrum(path)
 
@@ -536,7 +536,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         """ Export a stitched continuum. """
         if self.session is None: return
         path, _ = QtGui.QFileDialog.getSaveFileName(self,
-            caption="Enter continuum filename", dir="", filter="")
+            caption="Enter continuum filename", directory="", filter="")
         if not path: return
         self.session.export_stitched_continuum(path)
 
@@ -554,14 +554,14 @@ class Ui_MainWindow(QtGui.QMainWindow):
     def export_abundance_table(self):
         if self.session is None: return
         path, _ = QtGui.QFileDialog.getSaveFileName(self,
-            caption="Enter abundance table filename", dir="", filter="")
+            caption="Enter abundance table filename", directory="", filter="")
         if not path: return
         self.session.export_abundance_table(path)
     
     def export_spectral_model_measurements(self):
         if self.session is None: return
         path, _ = QtGui.QFileDialog.getSaveFileName(self,
-            caption="Enter spectral model measurements filename", dir="", filter="")
+            caption="Enter spectral model measurements filename", directory="", filter="")
         if not path: return
         self.session.export_spectral_model_measurements(path)
     
@@ -574,7 +574,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Ensure to update the proxy data models when the transitions dialog has
         # been closed.
         window = TransitionsDialog(self.session, callbacks=[
-            self.stellar_parameters_tab.proxy_spectral_models.reset,
+            #self.stellar_parameters_tab.proxy_spectral_models.reset, ## TODO this is bad but I don't know what to do
             self.chemical_abundances_tab.refresh_table,
             self.review_tab.new_session_loaded
             ])
@@ -597,7 +597,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         Open a dialog to pick comparison spectrum
         """
         path, _ = QtGui.QFileDialog.getOpenFileName(self,
-            caption="Pick comparison spectrum", dir="", filter="")
+            caption="Pick comparison spectrum", directory="", filter="")
         if not path: return
         spectrum = smh.specutils.Spectrum1D.read(path)
         self.stellar_parameters_tab.specfig.update_comparison_spectrum(spectrum)
@@ -700,7 +700,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self._update_window_title()
 
     def transition_dialog_callback(self):
-        self.stellar_parameters_tab.proxy_spectral_models.reset()
+        ## TODO this is bad but I don't know what to do
+        #self.stellar_parameters_tab.proxy_spectral_models.reset()
         self.chemical_abundances_tab.refresh_table()
         self.review_tab.new_session_loaded()
 

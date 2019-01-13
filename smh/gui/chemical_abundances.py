@@ -719,6 +719,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def filter_combo_box_changed(self):
         elem = self.filter_combo_box.currentText()
         # Update the filter
+        self.measurement_model.beginResetModel()
         if self._currently_plotted_element not in ["All", "", "None"]:
             try:
                 self.measurement_model.delete_filter_function(self._currently_plotted_element)
@@ -738,7 +739,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     return np.any([species in specie for specie in model.species])
             self.measurement_model.add_filter_function(elem, filter_function)
         self._currently_plotted_element = elem
-        self.measurement_model.reset()
+        self.measurement_model.endResetModel()
         self.summarize_current_table()
         self.refresh_plots()
         self.measurement_view.selectRow(0)
@@ -777,8 +778,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         session = self.parent.session
         if session is None: return None
         #self._check_for_spectral_models()
+        self.measurement_model.beginResetModel()
         self.full_measurement_model.new_session(session)
-        self.measurement_model.reset()
+        self.measurement_model.endResetModel()
         self.measurement_view.update_session(session)
         self.populate_filter_combo_box()
         self.calculate_FeH()
@@ -793,6 +795,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         current_element_index = self.filter_combo_box.currentIndex()
 
         # Fit all acceptable
+        self.measurement_model.beginResetModel()
         num_unacceptable = 0
         for i,spectral_model in enumerate(self.full_measurement_model.spectral_models):
             if not spectral_model.is_acceptable:
@@ -830,7 +833,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                         logger.debug("Fitting error",spectral_model)
                         logger.debug(e)
 
-        self.measurement_model.reset()
+        self.measurement_model.endResetModel()
         self.populate_filter_combo_box()
         self.summarize_current_table()
         self.refresh_plots()
@@ -847,9 +850,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             current_table_index = None
 
         # Gets abundances and uncertainties into session
+        self.measurement_model.beginResetModel()
         self.parent.session.measure_abundances()
 
-        self.measurement_model.reset()
+        self.measurement_model.endResetModel()
         self.populate_filter_combo_box()
         self.summarize_current_table()
         self.refresh_plots()

@@ -222,9 +222,10 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
                 # Update the table options.
                 N = self.metadata["continuum_order"]
+                self.p1_model_options.beginResetModel()
                 self.p1_model_options.model()._parameters \
                     += ["c{}".format(i) for i in range(1 + int(N))]
-                self.p1_model_options.model().reset()
+                self.p1_model_options.model().endResetModel()
 
                 # Update the masks.
                 self.p1_figure.dragged_masks \
@@ -953,6 +954,7 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
 
             # Continuum is a special case.
             if index.row() == 2:
+                self.beginResetModel()
                 if value:
 
                     N, is_ok = QtGui.QInputDialog.getItem(None, 
@@ -970,14 +972,15 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
                 else:
                     self._parameters = self._parameters[:3]
 
-                self.reset()
+                self.endResetModel()
 
             elif not value and parameter in self.parent.metadata["bounds"]:
 
+                self.beginResetModel()
                 del self.parent.metadata["bounds"][parameter]
                 self.parent.metadata[parameter] = bool(value)
 
-                self.reset()
+                self.endResetModel()
                 return True
 
             self.parent.metadata[parameter] = bool(value)

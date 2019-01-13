@@ -206,12 +206,12 @@ class SMHSpecDisplay(mpl.MPLWidget):
         """
         Clear all internal variables (except session)
         """
-        logger.debug("Resetting Spectrum Figure ({})".format(self))
+        #logger.debug("Resetting Spectrum Figure ({})".format(self))
         self.selected_model = None
         
         if self.session is not None:
             drawstyle = self.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
-            logger.debug("drawstyle: {}".format(drawstyle))
+            #logger.debug("drawstyle: {}".format(drawstyle))
             self._lines["spectrum"].set_drawstyle(drawstyle)
             self._lines["comparison_spectrum"].set_drawstyle(drawstyle)
         for key in ["spectrum", "transitions_center_main", "transitions_center_residual",
@@ -754,8 +754,8 @@ class SMHScatterplot(mpl.MPLWidget):
         assert self.yattr in self.tablemodel.attrs, (self.yattr, self.tablemodel.attrs)
         self.xcol = self.tablemodel.attrs.index(self.xattr)
         self.ycol = self.tablemodel.attrs.index(self.yattr)
-        logger.debug("Linked {} to {}/{}".format(self, self.tableview, self.tablemodel))
-        logger.debug("{}->{}, {}->{}".format(self.xattr, self.xcol, self.yattr, self.ycol))
+        #logger.debug("Linked {} to {}/{}".format(self, self.tableview, self.tablemodel))
+        #logger.debug("{}->{}, {}->{}".format(self.xattr, self.xcol, self.yattr, self.ycol))
     def _load_value_from_table(self, index):
         val = self.tablemodel.data(index, QtCore.Qt.DisplayRole)
         try:
