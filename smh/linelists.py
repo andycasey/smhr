@@ -18,7 +18,7 @@ logger.addHandler(handler)
 
 import os
 
-import md5
+import hashlib
 
 class LineListConflict(Exception):
     """Exception raised for merging conflicts"""
@@ -442,7 +442,8 @@ class LineList(Table):
     def hash(line):
         s = "{:.3f}_{:.3f}_{:.3f}_{}_{}_{}_{}_{}".format(line['wavelength'],line['expot'],line['loggf'],
                                                          line['elem1'],line['elem2'],line['ion'],line['isotope1'],line['isotope2'])
-        return md5.new(s).hexdigest()
+        #return md5.new(s).hexdigest()
+        return hashlib.md5(s.encode("utf-8")).hexdigest()
 
     @staticmethod
     def lines_equal(l1,l2,dwl_thresh=.001,dEP_thresh=.01,dgf_thresh=.001):

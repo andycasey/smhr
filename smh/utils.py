@@ -15,7 +15,7 @@ import tempfile
 
 from collections import Counter
 
-from commands import getstatusoutput
+from subprocess import getstatusoutput
 from hashlib import sha1 as sha
 from random import choice
 from socket import gethostname, gethostbyname
@@ -262,7 +262,7 @@ def hashed_id():
     except:
         import uuid
         salt = uuid.uuid3(uuid.NAMESPACE_DNS, "")
-    return sha(salt).hexdigest()
+    return sha(salt.encode("utf-8")).hexdigest()
 hashed_id = hashed_id()
 
 
