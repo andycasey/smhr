@@ -13,7 +13,7 @@ import sys
 import traceback as tb
 #from tempfile import mkstemp
 from smh.utils import mkstemp
-from urllib import quote
+from urllib.parse import quote
 from PyQt5 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 
 from smh import __git_status__

@@ -9,7 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 import logging
 from os import system
 from PyQt5 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
-from urllib import quote
+from urllib.parse import quote
 
 import mpl
 

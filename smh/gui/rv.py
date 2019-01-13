@@ -1240,7 +1240,7 @@ class RVRegionDialog(QtGui.QDialog):
         if not isinstance(template, specutils.Spectrum1D):
             try:
                 path = self.rv_tab._cache["input"]["template_spectrum_path"]
-            except AttributeError, KeyError:
+            except (AttributeError, KeyError):
                 return
             if not os.path.exists(path): return
             template = specutils.Spectrum1D.read(path)

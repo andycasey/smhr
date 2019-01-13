@@ -426,7 +426,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
         if self.session is None: return None
         try:
             signal_time, signal_cid = self._interactive_mask_region_signal
-        except AttributeError, TypeError:
+        except (AttributeError, TypeError):
             return None
         xy = self._lines["interactive_mask"][0].get_xy()
         if event.xdata is None:
