@@ -316,7 +316,7 @@ class Session(BaseSession):
         """
 
         with open(path, 'rb') as fp:
-            spectral_model_states = pickle.load(fp)
+            spectral_model_states = pickle.load(fp,encoding="latin1")
         spectral_models = self.reconstruct_spectral_models(spectral_model_states)
         self.metadata["spectral_models"].extend(spectral_models)
         return len(spectral_models)
@@ -397,7 +397,7 @@ class Session(BaseSession):
 
         # Reconstruct the session, starting with the initial paths.
         with open(os.path.join(twd, "session.pkl"), "rb") as fp:
-            metadata = pickle.load(fp)
+            metadata = pickle.load(fp,encoding="latin1")
 
         # Load in the template spectrum.
         template_spectrum_path \
