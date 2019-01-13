@@ -146,6 +146,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                                                      "species","wavelength",
                                                      "abundances",
                                                      "equivalent_width","reduced_equivalent_width",
+                                                     "fwhm",
                                                      "equivalent_width_uncertainty",
                                                      "expot","loggf",
                                                      "is_upper_limit","user_flag"])

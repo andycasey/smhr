@@ -204,6 +204,13 @@ class SpectralSynthesisModel(BaseSpectralModel):
     def measurement_type(self):
         return "syn"
 
+    @property
+    def fwhm(self):
+        try:
+            return self.metadata["manual_sigma_smooth"]*2.355
+        except (IndexError, ValueError): # Otherwise, use manual value
+            return None
+
     def _verify_elements(self, elements):
         """
         Verify that the atomic or molecular transitions associated with this

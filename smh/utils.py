@@ -167,7 +167,7 @@ def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species",
 #                #group_lines[x_column] = (m, b, np.median(y), (np.std(y), np.sqrt(cov[1,1])), len(x))
 #                group_lines[x_column] = (m, b+m*xbar, np.median(y), (np.std(y), np.sqrt(cov[1,1])), len(x))
             m, b, r, p, m_stderr = stats.linregress(x, y)
-            group_lines[x_column] = (m, b+m*xbar, np.median(y), (np.std(y), m_stderr), len(x))
+            group_lines[x_column] = (m, b-m*xbar, np.median(y), (np.std(y), m_stderr), len(x))
 
         identifier = transitions[group_by][start_index]
         if group_lines:
