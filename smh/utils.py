@@ -12,6 +12,7 @@ import string
 import sys
 import traceback
 import tempfile
+from six import string_types
 
 from collections import Counter
 
@@ -317,7 +318,7 @@ def element_to_species(element_repr):
     """ Converts a string representation of an element and its ionization state
     to a floating point """
     
-    if not isinstance(element_repr, (unicode, str)):
+    if not isinstance(element_repr, string_types):
         raise TypeError("element must be represented by a string-type")
         
     if element_repr.count(" ") > 0:
@@ -347,7 +348,7 @@ def element_to_atomic_number(element_repr):
         'Ti I', 'si'.
     """
     
-    if not isinstance(element_repr, (unicode, str)):
+    if not isinstance(element_repr,  string_types):
         raise TypeError("element must be represented by a string-type")
     
     element = element_repr.title().strip().split()[0]
