@@ -389,17 +389,17 @@ class RVTab(QtGui.QWidget):
         self.ax_order.set_ylabel("Flux")
 
         # Draw an initial line for data and continuum.
-        self.ax_order.plot([], [], c='k', drawstyle='steps-mid')
-        self.ax_order.plot([], [], c='r', zorder=2)
+        self.ax_order.plot([np.nan], [np.nan], c='k', drawstyle='steps-mid')
+        self.ax_order.plot([np.nan], [np.nan], c='r', zorder=2)
         self.ax_order.set_ylim([0, 1])
 
         self.ax_order_norm.axhline(1, linestyle=":", c="#666666", zorder=-1)
-        self.ax_order_norm.plot([], [], c='k', drawstyle='steps-mid')
-        self.ax_order_norm.plot([], [], c='b') # Template.
+        self.ax_order_norm.plot([np.nan], [np.nan], c='k', drawstyle='steps-mid')
+        self.ax_order_norm.plot([np.nan], [np.nan], c='b') # Template.
         self.ax_order_norm.set_ylabel("Normalized flux")
 
 
-        self.ax_ccf.plot([], [], c='k')
+        self.ax_ccf.plot([np.nan], [np.nan], c='k')
         self.ax_ccf.set_xlabel("Velocity (km/s)")
         self.ax_ccf.set_ylabel("CCF")
         self.ax_ccf.set_yticks([0, 0.5, 1.0])
@@ -991,12 +991,12 @@ class RVRegionDialog(QtGui.QDialog):
         self.ax_order_norm.set_ylim(0, 1.2)
         self.ax_order_norm.set_xlabel(u"Wavelength (Å)")
         self.ax_order.set_ylabel("Flux")
-        self.ax_order.plot([], [], c='k', drawstyle='steps-mid')
-        self.ax_order.plot([], [], c='r', zorder=2)
+        self.ax_order.plot([np.nan], [np.nan], c='k', drawstyle='steps-mid')
+        self.ax_order.plot([np.nan], [np.nan], c='r', zorder=2)
         self.ax_order.set_ylim([0, 1])
         self.ax_order_norm.axhline(1, linestyle=":", c="#666666", zorder=-1)
-        self.ax_order_norm.plot([], [], c='k', drawstyle='steps-mid')
-        self.ax_order_norm.plot([], [], c='b') # Template.
+        self.ax_order_norm.plot([np.nan], [np.nan], c='k', drawstyle='steps-mid')
+        self.ax_order_norm.plot([np.nan], [np.nan], c='b') # Template.
         self.ax_order_norm.set_ylabel("Normalized flux")
 
         # Right column wavelength regions

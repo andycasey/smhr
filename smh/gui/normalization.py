@@ -276,14 +276,14 @@ class NormalizationTab(QtGui.QWidget):
         gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
         self.ax_order = self.norm_plot.figure.add_subplot(gs[0])
         # Line for the data.
-        self.ax_order.plot([], [], c='k', zorder=3)#, drawstyle='steps-mid')
+        self.ax_order.plot([np.nan], [np.nan], c='k', zorder=3)#, drawstyle='steps-mid')
         # Line for the continuum.
-        self.ax_order.plot([], [], linestyle="--", linewidth=2, c='r', zorder=4)
+        self.ax_order.plot([np.nan], [np.nan], linestyle="--", linewidth=2, c='r', zorder=4)
 
         # Line for the neighbouring order(s) (joined by a NaN).
-        self.ax_order.plot([], [], c='#666666', zorder=1, drawstyle='steps-mid')
+        self.ax_order.plot([np.nan], [np.nan], c='#666666', zorder=1, drawstyle='steps-mid')
         # Line for the neighbouring order(s) continuum (joined by a NaN)
-        self.ax_order.plot([], [], c='b', zorder=2)
+        self.ax_order.plot([np.nan], [np.nan], c='b', zorder=2)
 
         # Additional point markers.
         self.ax_order.scatter([], [], facecolor="k", zorder=5, picker=5)
@@ -293,7 +293,7 @@ class NormalizationTab(QtGui.QWidget):
 
         self.ax_order_norm = self.norm_plot.figure.add_subplot(gs[1])
         self.ax_order_norm.axhline(1, linestyle=":", c="#666666", zorder=1)
-        self.ax_order_norm.plot([], [], c='k', zorder=2)
+        self.ax_order_norm.plot([np.nan], [np.nan], c='k', zorder=2)
 
         # TODO: Make (0, 1.2) a default view setting.
         self.ax_order_norm.set_ylim(0, 1.2)

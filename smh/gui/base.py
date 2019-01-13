@@ -164,8 +164,10 @@ class SMHSpecDisplay(mpl.MPLWidget):
 
         # Internal MPL variables
         self._lines = {
-            "comparison_spectrum": self.ax_spectrum.plot([], [], c="c", alpha=.5, drawstyle="steps-mid")[0],
-            "spectrum": self.ax_spectrum.plot([], [], c="k", drawstyle="steps-mid")[0], #None,
+            "comparison_spectrum": self.ax_spectrum.plot([np.nan], [np.nan],
+                                                         c="c", alpha=.5, drawstyle="steps-mid")[0],
+            "spectrum": self.ax_spectrum.plot(
+                [np.nan], [np.nan], c="k", drawstyle="steps-mid")[0], #None,
             "spectrum_fill": None,
             "residual_fill": None,
             "transitions_center_main": self.ax_spectrum.axvline(
@@ -178,9 +180,9 @@ class SMHSpecDisplay(mpl.MPLWidget):
                 np.nan, np.nan, np.nan, color="blue", linestyle=':', lw=1),
             "model_masks": [],
             "nearby_lines": [],
-            "model_fit": self.ax_spectrum.plot([], [], c="r")[0],
+            "model_fit": self.ax_spectrum.plot([np.nan], [np.nan], c="r")[0],
             "model_residual": self.ax_residual.plot(
-                [], [], c="k", drawstyle="steps-mid")[0],
+                [np.nan], [np.nan], c="k", drawstyle="steps-mid")[0],
             "interactive_mask": [
                 self.ax_spectrum.axvspan(xmin=np.nan, xmax=np.nan, ymin=np.nan,
                                          ymax=np.nan, facecolor="r", edgecolor="none", alpha=0.25,
@@ -1475,7 +1477,7 @@ class MeasurementSummaryTableModel(QtCore.QAbstractTableModel):
         else:
             self.what_fe = session.setting("what_fe", 1)
         self.summarize()
-        self.all_species = np.sort(self.summary.keys())
+        self.all_species = np.sort(list(self.summary.keys()))
         self.endResetModel()
     def update_summary(self, species=None):
         """
