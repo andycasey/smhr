@@ -216,7 +216,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
             self._lines["comparison_spectrum"].set_drawstyle(drawstyle)
         for key in ["spectrum", "transitions_center_main", "transitions_center_residual",
                     "model_fit", "model_residual"]:
-            self._lines[key].set_data([],[])
+            self._lines[key].set_data([np.nan],[np.nan])
         self.label_lines(None)
     def new_session(self, session):
         self.session = session
@@ -495,7 +495,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
         try:
             # Fix the memory leak!
             #self.ax_spectrum.lines.remove(self._lines["spectrum"])
-            self._lines["spectrum"].set_data([], [])
+            self._lines["spectrum"].set_data([np.nan], [np.nan])
             self.ax_spectrum.collections.remove(self._lines["spectrum_fill"])
             self.ax_residual.collections.remove(self._lines["residual_fill"])
         except Exception as e:
@@ -530,14 +530,14 @@ class SMHSpecDisplay(mpl.MPLWidget):
     
     def _plot_comparison_spectrum(self, limits, extra_disp=10):
         if self.comparison_spectrum is None: 
-            self._lines["comparison_spectrum"].set_data([], [])
+            self._lines["comparison_spectrum"].set_data([np.nan], [np.nan])
             return False            
         spectrum = self.comparison_spectrum
         
         plot_ii = np.logical_and(spectrum.dispersion > limits[0]-extra_disp,
                                  spectrum.dispersion < limits[1]+extra_disp)
         if np.sum(plot_ii)==0: # Can't plot, no points!
-            self._lines["comparison_spectrum"].set_data([], [])
+            self._lines["comparison_spectrum"].set_data([np.nan], [np.nan])
             return False            
         
         self._lines["comparison_spectrum"].set_data(
@@ -617,8 +617,8 @@ class SMHSpecDisplay(mpl.MPLWidget):
 
         except KeyError:
             meta = {}
-            self._lines["model_fit"].set_data([], [])
-            self._lines["model_residual"].set_data([], [])
+            self._lines["model_fit"].set_data([np.nan], [np.nan])
+            self._lines["model_residual"].set_data([np.nan], [np.nan])
 
         else:
             assert len(meta[plotxkey]) == len(meta[plotykey])
@@ -1237,8 +1237,10 @@ class MeasurementTableModelProxy(QtCore.QSortFilterProxyModel):
         self.reindex()
         return None
     def reset(self, *args):
-        super(MeasurementTableModelProxy, self).reset(*args)
+        #super(MeasurementTableModelProxy, self).reset(*args)
+        self.beginResetModel()
         self.reindex()
+        self.endResetModel()
         return None
     def reindex(self):
         try: 

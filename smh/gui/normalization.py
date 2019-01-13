@@ -688,7 +688,7 @@ class NormalizationTab(QtGui.QWidget):
             self.continuum_mask.addItem(name)
 
         self.continuum_mask.setCurrentIndex(
-            self._cache["masks"].keys().index(
+            list(self._cache["masks"].keys()).index(
                 self._cache["default_mask"]))
 
         self.order_slide.setMaximum(len(self.parent.session.input_spectra) - 1)
