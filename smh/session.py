@@ -280,17 +280,19 @@ class Session(BaseSession):
         # Tar it up.
         exception_occurred = False
         tarball = tarfile.open(name=session_path, mode="w:gz")
+        failed_paths = []
         for path in twd_paths:
             try:
                 tarball.add(path, arcname=os.path.basename(path))
 
             except:
-                logger.exception(
+                logger.warn(
                     "Cannot save path '{}' to session:".format(path))
 
                 logger.warn(
                     "Continuing to save session without this path "
                     "before raising the issue")
+                failed_paths.append(path)
                 exception_occurred = True
                 continue
 
@@ -301,6 +303,7 @@ class Session(BaseSession):
         rmtree(twd)
 
         if exception_occurred:
+            logger.exception("Paths unable to save to session: {}".format(failed_paths))
             raise
 
 
@@ -1549,9 +1552,6 @@ class Session(BaseSession):
         """
         assert os.path.exists(filename), filename
 
-        if copy_to_working_dir:
-            self.copy_file_to_working_directory(filename)
-
         start = time.time()
         line_list = LineList.read(filename, verbose=True)
         logger.debug("Time to load linelist {:.1f}".format(time.time()-start))
@@ -1583,6 +1583,10 @@ class Session(BaseSession):
         self.metadata["spectral_models"].extend(spectral_models_to_add)
         logger.debug("Created {} profile models in {:.1f}s".format(len(line_list),
                                                                    time.time()-start))
+        
+        if copy_to_working_dir:
+            self.copy_file_to_working_directory(filename)
+
         return
         
     def import_linelist_as_synthesis_model(self, filename, elements,
@@ -1598,9 +1602,6 @@ class Session(BaseSession):
         """
         assert os.path.exists(filename), filename
 
-        if copy_to_working_dir:
-            self.copy_file_to_working_directory(filename)
-
         start = time.time()
         line_list = LineList.read(filename, verbose=True)
         logger.debug("Time to load linelist {:.1f}".format(time.time()-start))
@@ -1610,6 +1611,10 @@ class Session(BaseSession):
         self.metadata["spectral_models"].append(spectral_model)
         logger.debug("Created synthesis model with {} lines in {:.1f}s".format(len(line_list),
                                                                                time.time()-start))
+
+        if copy_to_working_dir:
+            self.copy_file_to_working_directory(filename)
+
         return
 
     def import_master_list(self, filename,
@@ -1620,9 +1625,6 @@ class Session(BaseSession):
         """
         assert os.path.exists(filename), filename
 
-        if copy_to_working_dir:
-            self.copy_file_to_working_directory(filename)
-            
         master_list = ascii.read(filename, **kwargs).filled()
         logger.debug(master_list)
         types = np.array(map(lambda x: x.lower(), np.array(master_list["type"])))
@@ -1665,6 +1667,8 @@ class Session(BaseSession):
                     spectral_models_to_add.append(model)
                 self.metadata["spectral_models"].extend(spectral_models_to_add)
                 num_added += len(ll)
+                if copy_to_working_dir:
+                    self.copy_file_to_working_directory(_filename)
 
         ## Add SYN
         syn = master_list[types=="syn"]
@@ -1700,6 +1704,10 @@ class Session(BaseSession):
         if num_added != len(master_list):
             logger.warn("Created {} models out of {} in the master list".format(
                     num_added, len(master_list)))
+
+        if copy_to_working_dir:
+            self.copy_file_to_working_directory(filename)
+            
         return None
     
     def export_normalized_spectrum(self, path):
