@@ -534,6 +534,15 @@ class SpectralSynthesisModel(BaseSpectralModel):
             assert meta["model_yerr"].shape[0] == 2, meta["model_yerr"].shape
             ivar = (np.nanmean(meta["model_yerr"], axis=0))**-2.
         #synth_spec = Spectrum1D(meta["model_x"], meta["model_y"], ivar)
+        try:
+            plot_x = meta["plot_x"]
+            plot_y = meta["plot_y"]
+        except KeyError:
+            plot_x = meta["model_x"]
+            plot_y = meta["model_y"]
+            if self.session.setting("full_synth_resolution", False):
+                logger.warn("Note: exporting synthesis sampled at data points, not full synth resolution!")
+
         if len(meta["plot_x"]) != len(ivar):
             synth_spec = Spectrum1D(meta["plot_x"], meta["plot_y"], np.ones(len(meta["plot_x"]))*1e6)
         else:
