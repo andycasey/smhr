@@ -85,7 +85,10 @@ class QualityControlDialog(QtGui.QDialog):
         self.edit_wavelength_upper.setMinimumSize(QtCore.QSize(60, 0))
         self.edit_wavelength_upper.setMaximumSize(QtCore.QSize(60, 16777215))
 
-        index = 0
+        grid.addWidget(self.make_label("min"), 0, 2, 1, 1)
+        grid.addWidget(self.make_label("max"), 0, 3, 1, 1)
+        
+        index = 1
         grid.addWidget(label_wavelength, index, 0, 1, 1)
         grid.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding,
             QtGui.QSizePolicy.Minimum), index, 1, 1, 1)
@@ -388,6 +391,12 @@ class QualityControlDialog(QtGui.QDialog):
                 s="" if N == 1 else "s"))
 
         return self.close()
+
+    
+    def make_label(self, text):
+        label = QtGui.QLabel(self)
+        label.setText(text)
+        return label
 
 
     def closeEvent(self, event):
