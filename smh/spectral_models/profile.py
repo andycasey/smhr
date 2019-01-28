@@ -187,7 +187,7 @@ class ProfileFittingModel(BaseSpectralModel):
                 return popt["fwhm"] # I may be wrong about this value
             else:
                 return None
-        except KeyError:
+        except (KeyError, TypeError):
             return None
 
     _profiles = {
