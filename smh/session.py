@@ -29,6 +29,7 @@ from . import (photospheres, radiative_transfer, specutils, isoutils, utils)
 from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 from . import (smh_plotting, __version__)
+from .optimize_stellar_params import optimize_stellar_parameters as run_optimize_stellar_parameters
 
 logger = logging.getLogger(__name__)
 
@@ -1175,21 +1176,84 @@ class Session(BaseSession):
 
 
 
+    def _spectral_models_to_transitions(self, spectral_models):
+        equivalent_widths = []
+        equivalent_width_errs = []
+        transitions = []
+        spectral_model_indices = []
+        abundances = []
+        for i,spectral_model in enumerate(spectral_models):
+            if isinstance(spectral_model, ProfileFittingModel):
+                spectral_model_indices.append(i)
+                transitions.append(spectral_model.transitions[0])
+                if spectral_model.is_acceptable:
+                    try:
+                        equivalent_widths.append(1000.* \
+                            spectral_model.metadata["fitted_result"][-1]["equivalent_width"][0])
+                    except:
+                        equivalent_widths.append(np.nan)
+                    try:
+                        equivalent_width_errs.append(1000.* \
+                            np.nanmax(spectral_model.metadata["fitted_result"][-1]["equivalent_width"][1:3]))
+                    except:
+                        equivalent_width_errs.append(np.nan)
+                    try:
+                        abundances.append(spectral_model.metadata["fitted_result"][-1]["abundances"][0])
+                    except:
+                        abundances.append(np.nan)
+                else:
+                    equivalent_widths.append(np.nan)
+                    equivalent_width_errs.append(np.nan)
+                    abundances.append(np.nan)
+            elif isinstance(spectral_model, SpectralSynthesisModel):
+                #logger.info("Ignoring synthesis",spectral_model)
+                pass
+            else:
+                raise RuntimeError("Unknown model type: {}".format(type(spectral_model)))
+        transitions = LineList.vstack(transitions)
+        spectral_model_indices = np.array(spectral_model_indices)
+        transitions["equivalent_width"] = equivalent_widths
+        transitions["abundance"] = abundances
+        return transitions
+
     def optimize_stellar_parameters(self, **kwargs):
         """
         Optimize the stellar parameters for this star using the spectral models
         associated with stellar parameter inference.
         """
-
-        # Get the list of relevant spectral models.
-
-        # Any synth?
-        # raise NotImplementedError yet.
-
+        
+        Teff, logg, vt, MH = self.stellar_parameters
+        initial_guess = [Teff, vt, logg, MH] # stupid me did not change the ordering to match
+        logger.info("Initializing optimization at Teff={:.0f} logg={:.2f} vt={:.2f} MH={:.2f}".format(
+            Teff, logg, vt, MH))
+        
+        # get the list of relevant spectral models.
+        stellar_parameter_spectral_models = []
+        for spectral_model in self.spectral_models:
+            if spectral_model.use_for_stellar_parameter_inference and spectral_model.is_acceptable:
+                if isinstance(spectral_model, SpectralSynthesisModel):
+                    raise NotImplementedError("Syntheses cannot be used for stellar parameter state (check the Transitions manager)")
+                stellar_parameter_spectral_models.append(spectral_model)
+        transitions = self._spectral_models_to_transitions(stellar_parameter_spectral_models)
+        finite = np.logical_and(np.isfinite(transitions["equivalent_width"]), transitions["equivalent_width"] > 0.01)
+        if finite.sum() != len(finite):
+            logger.warn("Number of finite transitions ({}) != number of transitions ({})".format(
+                finite.sum(), len(finite)))
+        transitions = transitions[finite]
+        logger.info("Optimizing with {} transitions".format(len(transitions)))
+        
         # interpolator, do obj. function
-
-        raise NotImplementedError
-
+        out = run_optimize_stellar_parameters(initial_guess, transitions, **kwargs)
+        final_parameters = out[5]
+        new_Teff, new_vt, new_logg, new_MH = final_parameters
+        
+        if not out[0]:
+            logger.warn("Optimization did not converge, stopped at Teff={:.0f} logg={:.2f} vt={:.2f} MH={:.2f}".format(
+                new_Teff, new_logg, new_vt, new_MH))
+            
+        
+        self.set_stellar_parameters(new_Teff, new_logg, new_vt, new_MH)
+        return None
 
     def measure_abundances(self, spectral_models=None, 
                            save_abundances=True,
