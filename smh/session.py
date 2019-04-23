@@ -1532,6 +1532,8 @@ class Session(BaseSession):
         #ii_bad = np.logical_or(np.isnan(linedata[:,5]), np.isnan(linedata[:,4]))
         ii_bad = np.isnan(linedata[:,5])
         linedata = linedata[~ii_bad,:]
+        if len(linedata) == 0:
+            raise RuntimeError("No lines have abundances measured!")
 
         if filepath.endswith(".tex"):
             self._export_latex_measurement_table(filepath, linedata)
