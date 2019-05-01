@@ -33,6 +33,7 @@ brew tap-pin cartr/qt4
 brew install qt@4
 ```
 - `conda install matplotlib=1.5.1` (fixing this is very painful because I need to update to qt5; I have started doing this but it will take a long time)
+- `conda install numpy=1.11.3` (this is an issue with pyside)
 - `conda install qt=4.8.7` (you may have to uninstall and downgrade some things for this to work; it should be safe to upgrade those later)
 - Clone smhr
 - Go into the smhr directory and `python setup.py develop`
