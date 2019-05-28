@@ -1004,7 +1004,8 @@ class Session(BaseSession):
 
         return Teff_error, logg_error, vt_error, mh_error
 
-    def propagate_stellar_parameter_error_to_equivalent_widths(self, Teff_error, logg_error, vt_error, mh_error):
+    def propagate_stellar_parameter_error_to_equivalent_widths(self, Teff_error, logg_error, vt_error, mh_error,
+                                                               output_array=False):
         """
         Measure EQW abundances at multiple different stellar parameters
         Output:
@@ -1054,8 +1055,29 @@ class Session(BaseSession):
             error_output[spname] = sperr_list
         # Reset abundance measurements in session
         self.measure_abundances(eqw_models, save_abundances=True, calculate_uncertainties=True)
+        if output_array:
+            def simplify_sperr_output(error_output):
+                all_species = []
+                for x in error_output["effective_temperature"][0].keys():
+                    if isinstance(x, float): all_species.append(x)
+                all_species = np.sort(all_species)
+                spnames = ["effective_temperature","surface_gravity","microturbulence","metallicity"]
+                fmt = "{:5.1f},{:5.2f},{:5.2f},{:5.2f},{:5.2f},{:5.2f},{:5.2f},{:5.2f},{:5.2f},{:5.2f}"
+                data = np.zeros((len(all_species), 10))
+                for i, species in enumerate(all_species):
+                    data[i,0] = species
+                    for j0, spname in enumerate(spnames):
+                        sperr_list = error_output[spname]
+                        for k0, (sign, sperr) in enumerate(zip([+1,-1], sperr_list)):
+                            icol = 1 + 2*j0 + k0
+                            data[i,icol] = sperr[species]
+                        data[i,9] += (np.max(np.abs([data[i,1+2*j0],data[i,2*j0+1]])))**2
+                    data[i,9] = np.sqrt(data[i,9])
+                for row in data:
+                    print(fmt.format(*row))
+                return data
+            error_output = simplify_sperr_output(error_output)
         return error_output
-    
 
     def stellar_parameter_state(self, full_output=False, **kwargs):
         """
@@ -1349,7 +1371,8 @@ class Session(BaseSession):
     
     
     def summarize_spectral_models(self, spectral_models=None, organize_by_element=False,
-                                  use_weights = None, use_finite = True, what_fe = 1):
+                                  use_weights = None, use_finite = True, what_fe = 1,
+                                  default_error = 0.1):
         """
         Loop through all spectral_models and return a summary dict
 
@@ -1380,20 +1403,33 @@ class Session(BaseSession):
             spectral_models = self.metadata.get("spectral_models", [])
 
         all_logeps = {}
-        # TODO abundance uncertainties too
         def update_one_key(key,logeps):
             if key not in all_logeps:
                 all_logeps[key] = []
             all_logeps[key].append(logeps)
+            return
+        # TODO abundance uncertainties too
+        all_weights = {}
+        def update_one_weight(key,err):
+            if key not in all_weights:
+                all_weights[key] = []
+            all_weights[key].append(err**-2.)
             return
         for spectral_model in spectral_models:
             if not spectral_model.is_acceptable or spectral_model.is_upper_limit: continue
             
             abundances = spectral_model.abundances
             if abundances is None: continue
-
-            for elem,species,logeps in zip(spectral_model.elements, \
-                                          spectral_model.species, abundances):
+            # Try to get the abundance uncertainties
+            try:
+                errval = spectral_model.abundance_uncertainties or default_error
+            except:
+                errval = default_error
+            errors = [errval for _ in abundances]
+            
+            for elem,species,logeps,logepserr in zip(spectral_model.elements, \
+                                                     spectral_model.species, \
+                                                     abundances, errors):
                 # Elements doesn't have the ionization
                 # Species do
                 if organize_by_element:
@@ -1406,20 +1442,26 @@ class Session(BaseSession):
                     for species in key:
                         if isinstance(species,float):
                             update_one_key(species, logeps)
+                            update_one_weight(species, logepserr)
                         elif isinstance(species,list):
-                            for _species in species: update_one_key(_species, logeps)
+                            for _species, _logeps, _logepserr in zip(species,logeps,logepserr):
+                                update_one_key(_species, _logeps)
+                                update_one_weight(_species, _logepserr)
                         else:
                             raise TypeError("key {} is of type {} (organized by {})".format(\
                                     species,type(species),what_key_type))
                 elif isinstance(key,float):
                     assert not organize_by_element
                     update_one_key(key, logeps)
+                    update_one_weight(key, logepserr)
                 elif isinstance(key,str):
                     assert organize_by_element
                     update_one_key(key, logeps)
+                    update_one_weight(key, logepserr)
                 else:
                     raise TypeError("key {} is of type {} (organized by {})".format(\
                             key,type(key),what_key_type))
+            
 
         summary_dict = {}
         for key in all_logeps:
@@ -1431,10 +1473,15 @@ class Session(BaseSession):
             else:
                 num_models = len(logepss)
 
-            logeps = np.mean(logepss)
-            # TODO weight
-            stdev = np.std(logepss)
-            stderr= stdev/np.sqrt(num_models)
+            if use_weights:
+                weights = np.array(all_weights[key])
+                logeps = np.sum(weights*logepss)/np.sum(weights)
+                stdev = np.sqrt(np.sum(weights*(logepss-logeps)**2)/np.sum(weights))
+                stderr= stdev/np.sqrt(num_models)
+            else:
+                logeps = np.mean(logepss)
+                stdev = np.std(logepss)
+                stderr= stdev/np.sqrt(num_models)
             XH = logeps - solar_composition(key)
             summary_dict[key] = [num_models, logeps, stdev, stderr, XH, np.nan]
 
@@ -1460,9 +1507,9 @@ class Session(BaseSession):
         total_num_models_summarized = np.sum([len(x) for x in all_logeps.values()])
         return summary_dict
     
-    def export_abundance_table(self, filepath):
+    def export_abundance_table(self, filepath, use_weights=False):
         ## TODO: put in upper limits too.
-        summary_dict = self.summarize_spectral_models()
+        summary_dict = self.summarize_spectral_models(use_weights=use_weights)
         if filepath.endswith(".tex"):
             self._export_latex_abundance_table(filepath, summary_dict)
         else:
@@ -1605,7 +1652,7 @@ class Session(BaseSession):
         logger.info("Made copy of {} in {}".format(filename, path_to_copy))
 
     def import_linelist_as_profile_models(self, filename, import_equivalent_widths=False,
-                                          copy_to_working_dir=True):
+                                          copy_to_working_dir=False):
         """
         :param filename:
             path to a valid line list to be converted into (many) profile models
@@ -1614,7 +1661,7 @@ class Session(BaseSession):
             if True, add equivalent width in line list to the profile model 
             and mark as acceptable (used for importing literature values)
         :param copy_to_working_dir:
-            if True [default], copy the linelist to the session's working directory
+            if True, copy the linelist to the session's working directory
         """
         assert os.path.exists(filename), filename
 
@@ -1656,14 +1703,14 @@ class Session(BaseSession):
         return
         
     def import_linelist_as_synthesis_model(self, filename, elements,
-                                           copy_to_working_dir=True, **kwargs):
+                                           copy_to_working_dir=False, **kwargs):
         """
         :param filename:
             path to a valid line list to be converted into one synthesis model
         :param elements:
             elements to measure in this synthesis model
         :param copy_to_working_dir:
-            if True [default], copy the linelist to the session's working directory
+            if True, copy the linelist to the session's working directory
         kwargs are passed to SpectralSynthesisModel.__init__
         """
         assert os.path.exists(filename), filename
@@ -1684,7 +1731,7 @@ class Session(BaseSession):
         return
 
     def import_master_list(self, filename,
-                           copy_to_working_dir=True, **kwargs):
+                           copy_to_working_dir=False, **kwargs):
         """
         Use a "master" list to create a bunch of measurements
         wavelength, species, expot, loggf, type, filename(for syn or list)
@@ -1766,6 +1813,8 @@ class Session(BaseSession):
                 logger.warn(e)
             else:
                 num_added += 1
+                if copy_to_working_dir:
+                    self.copy_file_to_working_directory(_filename)
         
         if num_added != len(master_list):
             logger.warn("Created {} models out of {} in the master list".format(
