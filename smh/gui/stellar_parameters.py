@@ -185,6 +185,10 @@ class StellarParametersTab(QtGui.QWidget):
         ## Add RT buttons
         hbox_layout = self._init_rt_buttons(parent)
         lhs_layout.addLayout(hbox_layout)
+        # TODO hacked button for now
+        self.btn_sperrors = QtGui.QPushButton(self)
+        self.btn_sperrors.setText("Stellar Parameter Uncertainties..")
+        lhs_layout.addWidget(self.btn_sperrors)
 
         ## Add state table (slopes)
         self._init_state_table(parent)
@@ -244,6 +248,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.btn_measure.clicked.connect(self.measure_abundances)
         self.btn_options.clicked.connect(self.options)
         self.btn_solve.clicked.connect(self.solve_parameters)
+        self.btn_sperrors.clicked.connect(self.sperrors_dialog)
         self.btn_filter.clicked.connect(self.filter_models)
         self.btn_quality_control.clicked.connect(self.quality_control)
         self.edit_teff.returnPressed.connect(self.btn_measure.clicked)
@@ -930,6 +935,9 @@ class StellarParametersTab(QtGui.QWidget):
 
         return SolveOptionsDialog(self.parent.session).exec_()
 
+    def sperrors_dialog(self):
+        """ Open a GUI for the stellar parameter errors. """
+        return StellarParameterUncertaintiesDialog(self.parent.session).exec_()
 
     def solve_parameters(self):
         """ Solve the stellar parameters. """
@@ -1661,3 +1669,172 @@ class SpectralModelsTableModel(SpectralModelsTableModelBase):
         
         return value
 
+
+
+class StellarParameterUncertaintiesDialog(QtGui.QDialog):
+    def __init__(self, session,
+                 default_tols=[5,0.01,0.01],
+                 default_syserrs=[150,0.3,0.2],**kwargs):
+        """
+        A widget to calculate stellar parameter uncertainties.
+        default_tols = [Teff, logg, vt] (5K, 0.01, 0.01)
+        default_syserrs = [Teff, logg, vt] (150K, 0.3, 0.2)
+        """
+        super(StellarParameterUncertaintiesDialog, self).__init__(**kwargs)
+        
+        self.session = session
+        Teff, logg, vt, MH = session.stellar_parameters
+        stat_Teff, stat_logg, stat_vt, stat_MH = session.stellar_parameters_staterr
+        sys_Teff, sys_logg, sys_vt, sys_MH = session.stellar_parameters_syserr
+        tot_Teff, tot_logg, tot_vt, tot_MH = session.stellar_parameters_syserr
+        
+        # Display dialog in center and set size policy.
+        self.setGeometry(320, 160, 320, 160)
+        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+            - self.rect().center())
+        self.setWindowTitle("Stellar parameter uncertainty analysis")
+        
+        sp = QtGui.QSizePolicy(
+            QtGui.QSizePolicy.MinimumExpanding, 
+            QtGui.QSizePolicy.MinimumExpanding)
+        sp.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
+        self.setSizePolicy(sp)
+        
+        vbox = QtGui.QVBoxLayout(self)
+        ### Create table grid layout
+        grid = QtGui.QGridLayout()
+        collabel, coltol, colstaterr, colsyserr, coltoterr = 0,1,2,3,4
+        ## Column Labels
+        grid.addWidget(QtGui.QLabel("Tolerance",self), 0, coltol)
+        grid.addWidget(QtGui.QLabel("Stat Error",self), 0, colstaterr)
+        grid.addWidget(QtGui.QLabel("Sys Error",self), 0, colsyserr)
+        grid.addWidget(QtGui.QLabel("Total Error",self), 0, coltoterr)
+        ## Row Labels
+        self.label_Teff = QtGui.QLabel(self)
+        self.label_logg = QtGui.QLabel(self)
+        self.label_MH = QtGui.QLabel(self)
+        self.label_vt = QtGui.QLabel(self)
+        for i, label in enumerate([self.label_Teff, self.label_logg, self.label_MH, self.label_vt]):
+            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            grid.addWidget(label, i+1, collabel)
+        ## Tolerances
+        self.edit_tol_Teff = QtGui.QLineEdit(self)
+        self.edit_tol_logg = QtGui.QLineEdit(self)
+        self.edit_tol_vt = QtGui.QLineEdit(self)
+        self.edit_tol_Teff.setText(str(default_tols[0]))
+        self.edit_tol_logg.setText(str(default_tols[1]))
+        self.edit_tol_vt.setText(str(default_tols[2]))
+        for i, edit in zip([0,1,3],[self.edit_tol_Teff, self.edit_tol_logg, self.edit_tol_vt]):
+            edit.setMinimumSize(QtCore.QSize(40, 0))
+            edit.setMaximumSize(QtCore.QSize(50, 16777215))
+            edit.setAlignment(QtCore.Qt.AlignCenter)
+            edit.setValidator(QtGui.QDoubleValidator(0.001, 50, 3, edit))
+            edit.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            grid.addWidget(edit, i+1, coltol)
+        ## StatErrs
+        self.label_staterr_Teff = QtGui.QLabel(self)
+        self.label_staterr_logg = QtGui.QLabel(self)
+        self.label_staterr_MH = QtGui.QLabel(self)
+        self.label_staterr_vt = QtGui.QLabel(self)
+        for i, label in enumerate([self.label_staterr_Teff, self.label_staterr_logg,
+                                   self.label_staterr_MH, self.label_staterr_vt]):
+            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            grid.addWidget(label, i+1, colstaterr)
+        ## SysErrs
+        self.edit_syserr_Teff = QtGui.QLineEdit(self)
+        self.edit_syserr_logg = QtGui.QLineEdit(self)
+        self.edit_syserr_MH = QtGui.QLineEdit(self)
+        self.edit_syserr_vt = QtGui.QLineEdit(self)
+        for i, edit in enumerate([self.edit_syserr_Teff, self.edit_syserr_logg,
+                                  self.edit_syserr_MH, self.edit_syserr_vt]):
+            edit.setMinimumSize(QtCore.QSize(40, 0))
+            edit.setMaximumSize(QtCore.QSize(50, 16777215))
+            edit.setAlignment(QtCore.Qt.AlignCenter)
+            edit.setValidator(QtGui.QDoubleValidator(0.01, 1000, 2, edit))
+            edit.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            grid.addWidget(edit, i+1, colsyserr)
+        ## TotErrs
+        self.label_toterr_Teff = QtGui.QLabel(self)
+        self.label_toterr_logg = QtGui.QLabel(self)
+        self.label_toterr_MH = QtGui.QLabel(self)
+        self.label_toterr_vt = QtGui.QLabel(self)
+        for i, label in enumerate([self.label_toterr_Teff, self.label_toterr_logg,
+                                   self.label_toterr_MH, self.label_toterr_vt]):
+            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            grid.addWidget(label, i+1, coltoterr)
+        
+        self.refresh_table()
+        vbox.addLayout(grid)
+        
+        ### Add buttons to bottom
+        hbox = QtGui.QHBoxLayout()
+        self.btn_staterr = QtGui.QPushButton(self)
+        self.btn_staterr.setText("Calculate Stat Err")
+        self.btn_staterr.clicked.connect(self.calc_stat_err)
+        hbox.addWidget(self.btn_staterr)
+        self.btn_exit = QtGui.QPushButton(self)
+        self.btn_exit.setText("Save to Session and Exit")
+        self.btn_exit.setDefault(True)
+        self.btn_exit.clicked.connect(self.save_and_exit)
+        hbox.addWidget(self.btn_exit)
+        vbox.addLayout(hbox)
+
+    def refresh_table(self):
+        Teff, logg, vt, MH = self.session.stellar_parameters
+        stat_Teff, stat_logg, stat_vt, stat_MH = self.session.stellar_parameters_staterr
+        sys_Teff, sys_logg, sys_vt, sys_MH = self.session.stellar_parameters_syserr
+        tot_Teff, tot_logg, tot_vt, tot_MH = self.session.stellar_parameters_err
+        
+        self.label_Teff.setText("Teff={:.0f}".format(Teff))
+        self.label_logg.setText("logg={:.2f}".format(logg))
+        self.label_MH.setText("[M/H]={:.2f}".format(MH))
+        self.label_vt.setText("vt={:.2f}".format(vt))
+        
+        self.label_staterr_Teff.setText("{:.0f}".format(stat_Teff))
+        self.label_staterr_logg.setText("{:.2f}".format(stat_logg))
+        self.label_staterr_MH.setText("{:.2f}".format(stat_MH))
+        self.label_staterr_vt.setText("{:.2f}".format(stat_vt))
+        
+        self.edit_syserr_Teff.setText("{:.0f}".format(sys_Teff))
+        self.edit_syserr_logg.setText("{:.2f}".format(sys_logg))
+        self.edit_syserr_MH.setText("{:.2f}".format(sys_MH))
+        self.edit_syserr_vt.setText("{:.2f}".format(sys_vt))
+        
+        self.label_toterr_Teff.setText("{:.0f}".format(tot_Teff))
+        self.label_toterr_logg.setText("{:.2f}".format(tot_logg))
+        self.label_toterr_MH.setText("{:.2f}".format(tot_MH))
+        self.label_toterr_vt.setText("{:.2f}".format(tot_vt))
+        
+    def calc_stat_err(self):
+        self.btn_staterr.setText("Calculating Stat Err...(may take a while)")
+        tols = [float(x.text()) for x in [self.edit_tol_Teff, self.edit_tol_logg, self.edit_tol_vt]]
+        syserrs = [float(x.text()) for x in [self.edit_syserr_Teff, self.edit_syserr_logg,
+                                             self.edit_syserr_vt, self.edit_syserr_MH]]
+        staterr_Teff, staterr_logg, staterr_vt, staterr_MH = self.session.stellar_parameter_uncertainty_analysis(
+            tolerances=tols, systematic_errors=syserrs)
+        self.label_staterr_Teff.setText("{:.0f}".format(staterr_Teff))
+        self.label_staterr_logg.setText("{:.2f}".format(staterr_logg))
+        self.label_staterr_MH.setText("{:.2f}".format(staterr_MH))
+        self.label_staterr_vt.setText("{:.2f}".format(staterr_vt))
+        self.btn_staterr.setText("Calculate Stat Err")
+        self.save_to_session()
+    def save_to_session(self):
+        self.session.set_stellar_parameters_errors("stat",
+            float(self.label_staterr_Teff.text()),
+            float(self.label_staterr_logg.text()),
+            float(self.label_staterr_MH.text()),
+            float(self.label_staterr_vt.text()))
+        self.session.set_stellar_parameters_errors("sys",
+            float(self.edit_syserr_Teff.text()),
+            float(self.edit_syserr_logg.text()),
+            float(self.edit_syserr_MH.text()),
+            float(self.edit_syserr_vt.text()))
+        self.refresh_table()
+    
+    def save_and_exit(self):
+        """
+        Save to session metadata
+        """
+        self.save_to_session()
+        self.close()
+        

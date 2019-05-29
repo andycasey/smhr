@@ -121,6 +121,22 @@ class Session(BaseSession):
                     self.setting("default_vt",1.06), # km/s
                 "alpha":
                     self.setting("default_aFe",0.4),
+                "syserr_effective_temperature":
+                    self.setting("default_Teff_syserr",150),
+                "syserr_surface_gravity":
+                    self.setting("default_logg_syserr",0.3),
+                "syserr_metallicity":
+                    self.setting("default_MH_syserr",0.0),
+                "syserr_microturbulence":
+                    self.setting("default_vt_syserr",0.2),
+                "staterr_effective_temperature":
+                    self.setting("default_Teff_staterr",10),
+                "staterr_surface_gravity":
+                    self.setting("default_logg_staterr",0.1),
+                "staterr_metallicity":
+                    self.setting("default_MH_staterr",0.1),
+                "staterr_microturbulence":
+                    self.setting("default_vt_staterr",0.1),
             }
         })
 
@@ -429,7 +445,15 @@ class Session(BaseSession):
         session.metadata = metadata
         # A hack to maintain backwards compatibility
         session.metadata["stellar_parameters"].setdefault("alpha", 0.4)
-
+        session.metadata["stellar_parameters"].setdefault("syserr_effective_temperature", 150)
+        session.metadata["stellar_parameters"].setdefault("syserr_surface_gravity", 0.3)
+        session.metadata["stellar_parameters"].setdefault("syserr_metallicity", 0.0)
+        session.metadata["stellar_parameters"].setdefault("syserr_microturbulence", 0.2)
+        session.metadata["stellar_parameters"].setdefault("staterr_effective_temperature", 10)
+        session.metadata["stellar_parameters"].setdefault("staterr_surface_gravity", 0.1)
+        session.metadata["stellar_parameters"].setdefault("staterr_metallicity", 0.1)
+        session.metadata["stellar_parameters"].setdefault("staterr_microturbulence", 0.1)
+        
         if skip_spectral_models:
             atexit.register(rmtree, twd)
             return session
@@ -822,6 +846,33 @@ class Session(BaseSession):
                self.metadata["stellar_parameters"]["surface_gravity"], \
                self.metadata["stellar_parameters"]["microturbulence"], \
                self.metadata["stellar_parameters"]["metallicity"]
+    @property
+    def stellar_parameters_staterr(self):
+        """
+        Return Teff, logg, vt, MH
+        """
+        return self.metadata["stellar_parameters"]["staterr_effective_temperature"], \
+               self.metadata["stellar_parameters"]["staterr_surface_gravity"], \
+               self.metadata["stellar_parameters"]["staterr_microturbulence"], \
+               self.metadata["stellar_parameters"]["staterr_metallicity"]
+    @property
+    def stellar_parameters_syserr(self):
+        """
+        Return Teff, logg, vt, MH
+        """
+        return self.metadata["stellar_parameters"]["syserr_effective_temperature"], \
+               self.metadata["stellar_parameters"]["syserr_surface_gravity"], \
+               self.metadata["stellar_parameters"]["syserr_microturbulence"], \
+               self.metadata["stellar_parameters"]["syserr_metallicity"]
+    @property
+    def stellar_parameters_err(self):
+        """
+        Return Teff, logg, vt, MH
+        """
+        e1,e2,e3,e4 = self.stellar_parameters_staterr
+        s1,s2,s3,s4 = self.stellar_parameters_syserr
+        return np.sqrt(e1**2 + s1**2), np.sqrt(e2**2 + s2**2), \
+               np.sqrt(e3**2 + s3**2), np.sqrt(e4**2 + s4**2)
 
     def set_stellar_parameters(self, Teff, logg, vt, MH, alpha=None):
         """ 
@@ -834,9 +885,20 @@ class Session(BaseSession):
         if alpha is not None:
             self.metadata["stellar_parameters"]["alpha"] = alpha
         return None
+    def set_stellar_parameters_errors(self, sysstat, dTeff, dlogg, dvt, dMH):
+        """ 
+        Set stellar parameter errors (sys/stat, Teff, logg, MH, vt)
+        """
+        assert sysstat in ["sys","stat"], sysstat
+        self.metadata["stellar_parameters"][sysstat+"err_effective_temperature"] = dTeff
+        self.metadata["stellar_parameters"][sysstat+"err_surface_gravity"] = dlogg
+        self.metadata["stellar_parameters"][sysstat+"err_metallicity"] = dMH
+        self.metadata["stellar_parameters"][sysstat+"err_microturbulence"] = dvt
+        return None
     
     def stellar_parameter_uncertainty_analysis(self, transitions=None,
-                                               tolerances=[5,0.01,0.01]):
+                                               tolerances=[5,0.01,0.01],
+                                               systematic_errors=None):
         """
         Performs an uncertainty analysis on the stellar parameters.
         Teff from varying Teff until the slope is +1 sigma off from its current value
@@ -846,6 +908,9 @@ class Session(BaseSession):
         microturbulence is changing Teff until slope is +1 sigma off from its current value
         MH is maximum standard deviation of Fe 1 and Fe 2
         alpha has no error
+        
+        systematic_errors: if a 4-length value, then the order is
+        [dTeff, dlogg, dvt, dMH]
         
         tolerances for accuracy in Teff, logg, vt can be specified with tolerances keyword
         (default 5, .01, .01)
@@ -995,24 +1060,46 @@ class Session(BaseSession):
             raise
         else:
             self.metadata["stellar_parameters"] = saved_stellar_params
-            self.metadata["stellar_parameters"]["error_effective_temperature"] = Teff_error
-            self.metadata["stellar_parameters"]["error_surface_gravity"] = logg_error
-            self.metadata["stellar_parameters"]["error_microturbulence"] = vt_error
-            self.metadata["stellar_parameters"]["error_metallicity"] = mh_error
+            self.set_stellar_parameters_errors("stat", Teff_error, logg_error, mh_error, vt_error)
             logger.info("Uncertainties: dTeff={:.0f} dlogg={:.2f} dvt={:.2f} dmh={:.2f}, took {:.1f}s".format(
                     Teff_error, logg_error, vt_error, mh_error, time.time()-start))
-
+            if systematic_errors is not None:
+                if len(systematic_errors) != 4:
+                    logger.warn("Systematic errors are not length 4! {}".format(systematic_errors))
+                    logger.warn("Skipping...")
+                else:
+                    self.set_stellar_parameters_errors("sys",
+                                                       systematic_errors[0], systematic_errors[1],
+                                                       systematic_errors[2], systematic_errors[3])
         return Teff_error, logg_error, vt_error, mh_error
 
+    """
+    Abundance uncertainty analysis.
+    For every measurement, there is sigma_r and sigma_s (random and systematic error)
+    Equivalent widths:
+        sigma_r = spectral_model.abundance_uncertainties[0]; take weighted stdev
+                  Stored in every spectral model individually
+        sigma_s = session.propagate_stellar_parameter_error_to_equivalent_widths
+                  Stored in session.metadata["abundance_uncertainies_EQWsys"]
+    Synthesis:
+        sigma_r = spectral_model.find_error(sigma=1)
+                  stored in spectral_model.metadata["1_sigma_abundance_error"]
+        sigma_s = spectral_model.propagate_stellar_parameter_error()
+                  stored in spectral_model.metadata["systematic_abundance_error"]
+    """
     def propagate_stellar_parameter_error_to_equivalent_widths(self, Teff_error, logg_error, vt_error, mh_error,
-                                                               output_array=False):
+                                                               output_array=True, save_to_session=True):
         """
         Measure EQW abundances at multiple different stellar parameters
         Output:
-        Dict[stellar_param] -> [+err, -err]
-        Each err dict has two types of keys:
-            species -> abundance difference for that species (logeps)
-            (species1, species2) -> abundance difference for the ratio between those species
+        if output_array==True (default):
+          An N x 10 array, where N is the number of species, and the columns are:
+            species, +Teff, -Teff, +logg, -logg, +vt, -vt, +MH, -MH, total
+        else:
+          Dict[stellar_param] -> [+err, -err]
+          Each err dict has two types of keys:
+              species -> abundance difference for that species (logeps)
+              (species1, species2) -> abundance difference for the ratio between those species
         """
         spnames = ["effective_temperature","surface_gravity","microturbulence","metallicity"]
         eqw_models = []
@@ -1077,6 +1164,8 @@ class Session(BaseSession):
                     print(fmt.format(*row))
                 return data
             error_output = simplify_sperr_output(error_output)
+        if save_to_session:
+            self.metadata["abundance_uncertainies_EQWsys"] = error_output
         return error_output
 
     def stellar_parameter_state(self, full_output=False, **kwargs):
