@@ -885,7 +885,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
             return _chi2 - target_chi2
         
         abund1 = op.brentq(minfn, abund0, abund0+max_elem_diff, xtol = abundtol)
-        logger.debug("orig abund={:.2f} error abund={:.2f}", abund0, abund1)
+        logger.debug("orig abund={:.2f} error abund={:.2f}".format(abund0, abund1))
         # Reset the raw synthetic spectrum back to what it was and return
         _ = self(x, *orig_p_opt.values())
 
@@ -935,4 +935,48 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
     def export_line_list(self, fname):
         self.transitions.write(fname, format="moog")
+        return None
+
+    def propagate_stellar_parameter_error(self):
+        e_Teff, e_logg, e_vt, e_MH = self.session.stellar_parameters_err
+        Teff, logg, vt, MH = self.session.stellar_parameters
+        alpha = self.session.metadata["stellar_parameters"]["alpha"]
+        # Save a copy to reset later
+        current_metadata = self.metadata.copy()
+        try:
+            self.session.set_stellar_parameters(
+                Teff, logg, vt, MH, alpha)
+            abund0 = self.iterfit()
+            self.session.set_stellar_parameters(
+                Teff+e_Teff, logg, vt, MH, alpha)
+            abund1 = self.iterfit()
+            self.session.set_stellar_parameters(
+                Teff, logg+e_logg, vt, MH, alpha)
+            abund2 = self.iterfit()
+            self.session.set_stellar_parameters(
+                Teff, logg, vt+e_vt, MH, alpha)
+            abund3 = self.iterfit()
+            self.session.set_stellar_parameters(
+                Teff, logg, vt, MH+e_MH, alpha)
+            abund4 = self.iterfit()
+            dTeff_error = abund1-abund0
+            dlogg_error = abund2-abund0
+            dvt_error = abund3-abund0
+            dMH_error = abund4-abund0
+        except:
+            self.metadata = current_metadata
+            self.session.set_stellar_parameters(
+                Teff, logg, vt, MH, alpha)
+        else:
+            self.metadata = current_metadata
+            self.session.set_stellar_parameters(
+                Teff, logg, vt, MH, alpha)
+            self.metadata["systematic_abundance_error"] = np.sqrt(
+                dTeff_error**2 + dlogg_error**2 + dvt_error**2 + dMH_error**2)
+            self.metadata["systematic_stellar_parameter_abundance_error"] = {
+                "effective_temperature": dTeff_error,
+                "surface_gravity": dlogg_error,
+                "microturbulence": dvt_error,
+                "metallicity": dMH_error
+            }
         return None
