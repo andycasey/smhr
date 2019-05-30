@@ -29,6 +29,7 @@ from . import (photospheres, radiative_transfer, specutils, isoutils, utils)
 from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 from . import (smh_plotting, __version__)
+from .optimize_stellar_params import optimize_stellar_parameters as run_optimize_stellar_parameters
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,22 @@ class Session(BaseSession):
                     self.setting("default_vt",1.06), # km/s
                 "alpha":
                     self.setting("default_aFe",0.4),
+                "syserr_effective_temperature":
+                    self.setting("default_Teff_syserr",150),
+                "syserr_surface_gravity":
+                    self.setting("default_logg_syserr",0.3),
+                "syserr_metallicity":
+                    self.setting("default_MH_syserr",0.0),
+                "syserr_microturbulence":
+                    self.setting("default_vt_syserr",0.2),
+                "staterr_effective_temperature":
+                    self.setting("default_Teff_staterr",10),
+                "staterr_surface_gravity":
+                    self.setting("default_logg_staterr",0.1),
+                "staterr_metallicity":
+                    self.setting("default_MH_staterr",0.1),
+                "staterr_microturbulence":
+                    self.setting("default_vt_staterr",0.1),
             }
         })
 
@@ -428,7 +445,15 @@ class Session(BaseSession):
         session.metadata = metadata
         # A hack to maintain backwards compatibility
         session.metadata["stellar_parameters"].setdefault("alpha", 0.4)
-
+        session.metadata["stellar_parameters"].setdefault("syserr_effective_temperature", 150)
+        session.metadata["stellar_parameters"].setdefault("syserr_surface_gravity", 0.3)
+        session.metadata["stellar_parameters"].setdefault("syserr_metallicity", 0.0)
+        session.metadata["stellar_parameters"].setdefault("syserr_microturbulence", 0.2)
+        session.metadata["stellar_parameters"].setdefault("staterr_effective_temperature", 10)
+        session.metadata["stellar_parameters"].setdefault("staterr_surface_gravity", 0.1)
+        session.metadata["stellar_parameters"].setdefault("staterr_metallicity", 0.1)
+        session.metadata["stellar_parameters"].setdefault("staterr_microturbulence", 0.1)
+        
         if skip_spectral_models:
             atexit.register(rmtree, twd)
             return session
@@ -821,6 +846,33 @@ class Session(BaseSession):
                self.metadata["stellar_parameters"]["surface_gravity"], \
                self.metadata["stellar_parameters"]["microturbulence"], \
                self.metadata["stellar_parameters"]["metallicity"]
+    @property
+    def stellar_parameters_staterr(self):
+        """
+        Return Teff, logg, vt, MH
+        """
+        return self.metadata["stellar_parameters"]["staterr_effective_temperature"], \
+               self.metadata["stellar_parameters"]["staterr_surface_gravity"], \
+               self.metadata["stellar_parameters"]["staterr_microturbulence"], \
+               self.metadata["stellar_parameters"]["staterr_metallicity"]
+    @property
+    def stellar_parameters_syserr(self):
+        """
+        Return Teff, logg, vt, MH
+        """
+        return self.metadata["stellar_parameters"]["syserr_effective_temperature"], \
+               self.metadata["stellar_parameters"]["syserr_surface_gravity"], \
+               self.metadata["stellar_parameters"]["syserr_microturbulence"], \
+               self.metadata["stellar_parameters"]["syserr_metallicity"]
+    @property
+    def stellar_parameters_err(self):
+        """
+        Return Teff, logg, vt, MH
+        """
+        e1,e2,e3,e4 = self.stellar_parameters_staterr
+        s1,s2,s3,s4 = self.stellar_parameters_syserr
+        return np.sqrt(e1**2 + s1**2), np.sqrt(e2**2 + s2**2), \
+               np.sqrt(e3**2 + s3**2), np.sqrt(e4**2 + s4**2)
 
     def set_stellar_parameters(self, Teff, logg, vt, MH, alpha=None):
         """ 
@@ -833,9 +885,20 @@ class Session(BaseSession):
         if alpha is not None:
             self.metadata["stellar_parameters"]["alpha"] = alpha
         return None
+    def set_stellar_parameters_errors(self, sysstat, dTeff, dlogg, dvt, dMH):
+        """ 
+        Set stellar parameter errors (sys/stat, Teff, logg, MH, vt)
+        """
+        assert sysstat in ["sys","stat"], sysstat
+        self.metadata["stellar_parameters"][sysstat+"err_effective_temperature"] = dTeff
+        self.metadata["stellar_parameters"][sysstat+"err_surface_gravity"] = dlogg
+        self.metadata["stellar_parameters"][sysstat+"err_metallicity"] = dMH
+        self.metadata["stellar_parameters"][sysstat+"err_microturbulence"] = dvt
+        return None
     
     def stellar_parameter_uncertainty_analysis(self, transitions=None,
-                                               tolerances=[5,0.01,0.01]):
+                                               tolerances=[5,0.01,0.01],
+                                               systematic_errors=None):
         """
         Performs an uncertainty analysis on the stellar parameters.
         Teff from varying Teff until the slope is +1 sigma off from its current value
@@ -845,6 +908,9 @@ class Session(BaseSession):
         microturbulence is changing Teff until slope is +1 sigma off from its current value
         MH is maximum standard deviation of Fe 1 and Fe 2
         alpha has no error
+        
+        systematic_errors: if a 4-length value, then the order is
+        [dTeff, dlogg, dvt, dMH]
         
         tolerances for accuracy in Teff, logg, vt can be specified with tolerances keyword
         (default 5, .01, .01)
@@ -994,23 +1060,94 @@ class Session(BaseSession):
             raise
         else:
             self.metadata["stellar_parameters"] = saved_stellar_params
-            self.metadata["stellar_parameters"]["error_effective_temperature"] = Teff_error
-            self.metadata["stellar_parameters"]["error_surface_gravity"] = logg_error
-            self.metadata["stellar_parameters"]["error_microturbulence"] = vt_error
-            self.metadata["stellar_parameters"]["error_metallicity"] = mh_error
+            self.set_stellar_parameters_errors("stat", Teff_error, logg_error, mh_error, vt_error)
             logger.info("Uncertainties: dTeff={:.0f} dlogg={:.2f} dvt={:.2f} dmh={:.2f}, took {:.1f}s".format(
                     Teff_error, logg_error, vt_error, mh_error, time.time()-start))
-
+            if systematic_errors is not None:
+                if len(systematic_errors) != 4:
+                    logger.warn("Systematic errors are not length 4! {}".format(systematic_errors))
+                    logger.warn("Skipping...")
+                else:
+                    self.set_stellar_parameters_errors("sys",
+                                                       systematic_errors[0], systematic_errors[1],
+                                                       systematic_errors[2], systematic_errors[3])
         return Teff_error, logg_error, vt_error, mh_error
 
-    def propagate_stellar_parameter_error_to_equivalent_widths(self, Teff_error, logg_error, vt_error, mh_error):
+    """
+    Abundance uncertainty analysis.
+    For every measurement, there is sigma_r and sigma_s (random and systematic error)
+    Equivalent widths (fast, but not uniform):
+        sigma_r = spectral_model.abundance_uncertainties[0]
+                  Stored in every spectral model individually
+        sigma_s = session.propagate_stellar_parameter_error_to_equivalent_widths
+                  Stored in session.metadata["abundance_uncertainies_EQWsys"]
+    Equivalent widths (slow, but same interface and a bit more flexibility):
+        sigma_r = spectral_model.find_error(sigma=1)
+                  Stored in spectral_model.metadata["1_sigma_abundance_error"]
+        sigma_s = spectral_model.propagate_stellar_parameter_error()
+                  Stored in spectral_model.metadata["systematic_abundance_error"]
+    Synthesis:
+        sigma_r = spectral_model.find_error(sigma=1)
+                  stored in spectral_model.metadata["1_sigma_abundance_error"]
+        sigma_s = spectral_model.propagate_stellar_parameter_error()
+                  stored in spectral_model.metadata["systematic_abundance_error"]
+    """
+    def compute_all_abundance_uncertainties(self):
+        """
+        Call model.find_error() and model.propagate_stellar_parameter_error() for every
+        acceptable spectral model that is not an upper limit.
+        Tabulate and return all the results.
+        """
+        self.measure_abundances()
+        data = np.zeros((len(self.spectral_models), 8)) + np.nan
+        data[:,0] = -1
+        logger.info("Starting abundance uncertainty loop")
+        start = time.time()
+        for i, model in enumerate(self.spectral_models):
+            if not model.is_acceptable: continue
+            if model.is_upper_limit: continue
+            # Save the data
+            wavelength = model.wavelength
+            species = np.ravel(model.species)[0]
+            try:
+                logeps = model.abundances[0]
+            except:
+                logeps = np.nan
+            whattype = 0 if isinstance(model, ProfileFittingModel) else 1
+            # Compute uncertainty
+            try:
+                staterr = model.find_error()
+            except:
+                staterr = np.nan
+            try:
+                syserr = model.propagate_stellar_parameter_error()
+            except:
+                syserr = np.nan
+            
+            data[i,0] = i
+            data[i,1] = wavelength
+            data[i,2] = species
+            data[i,3] = whattype
+            data[i,4] = logeps
+            data[i,5] = staterr
+            data[i,6] = syserr
+            data[i,7] = np.sqrt(staterr**2 + syserr**2)
+        self.metadata["all_line_data"] = data
+        logger.info("Finished abundance uncertainty loop in {:.1f}s".format(time.time()-start))
+        return data
+    def propagate_stellar_parameter_error_to_equivalent_widths(self, Teff_error, logg_error, vt_error, mh_error,
+                                                               output_array=True, save_to_session=True):
         """
         Measure EQW abundances at multiple different stellar parameters
         Output:
-        Dict[stellar_param] -> [+err, -err]
-        Each err dict has two types of keys:
-            species -> abundance difference for that species (logeps)
-            (species1, species2) -> abundance difference for the ratio between those species
+        if output_array==True (default):
+          An N x 10 array, where N is the number of species, and the columns are:
+            species, +Teff, -Teff, +logg, -logg, +vt, -vt, +MH, -MH, total
+        else:
+          Dict[stellar_param] -> [+err, -err]
+          Each err dict has two types of keys:
+              species -> abundance difference for that species (logeps)
+              (species1, species2) -> abundance difference for the ratio between those species
         """
         spnames = ["effective_temperature","surface_gravity","microturbulence","metallicity"]
         eqw_models = []
@@ -1053,8 +1190,31 @@ class Session(BaseSession):
             error_output[spname] = sperr_list
         # Reset abundance measurements in session
         self.measure_abundances(eqw_models, save_abundances=True, calculate_uncertainties=True)
+        if output_array:
+            def simplify_sperr_output(error_output):
+                all_species = []
+                for x in error_output["effective_temperature"][0].keys():
+                    if isinstance(x, float): all_species.append(x)
+                all_species = np.sort(all_species)
+                spnames = ["effective_temperature","surface_gravity","microturbulence","metallicity"]
+                fmt = "{:5.1f},{:5.2f},{:5.2f},{:5.2f},{:5.2f},{:5.2f},{:5.2f},{:5.2f},{:5.2f},{:5.2f}"
+                data = np.zeros((len(all_species), 10))
+                for i, species in enumerate(all_species):
+                    data[i,0] = species
+                    for j0, spname in enumerate(spnames):
+                        sperr_list = error_output[spname]
+                        for k0, (sign, sperr) in enumerate(zip([+1,-1], sperr_list)):
+                            icol = 1 + 2*j0 + k0
+                            data[i,icol] = sperr[species]
+                        data[i,9] += (np.max(np.abs([data[i,1+2*j0],data[i,2*j0+1]])))**2
+                    data[i,9] = np.sqrt(data[i,9])
+                for row in data:
+                    print(fmt.format(*row))
+                return data
+            error_output = simplify_sperr_output(error_output)
+        if save_to_session:
+            self.metadata["abundance_uncertainies_EQWsys"] = error_output
         return error_output
-    
 
     def stellar_parameter_state(self, full_output=False, **kwargs):
         """
@@ -1175,21 +1335,84 @@ class Session(BaseSession):
 
 
 
+    def _spectral_models_to_transitions(self, spectral_models):
+        equivalent_widths = []
+        equivalent_width_errs = []
+        transitions = []
+        spectral_model_indices = []
+        abundances = []
+        for i,spectral_model in enumerate(spectral_models):
+            if isinstance(spectral_model, ProfileFittingModel):
+                spectral_model_indices.append(i)
+                transitions.append(spectral_model.transitions[0])
+                if spectral_model.is_acceptable:
+                    try:
+                        equivalent_widths.append(1000.* \
+                            spectral_model.metadata["fitted_result"][-1]["equivalent_width"][0])
+                    except:
+                        equivalent_widths.append(np.nan)
+                    try:
+                        equivalent_width_errs.append(1000.* \
+                            np.nanmax(spectral_model.metadata["fitted_result"][-1]["equivalent_width"][1:3]))
+                    except:
+                        equivalent_width_errs.append(np.nan)
+                    try:
+                        abundances.append(spectral_model.metadata["fitted_result"][-1]["abundances"][0])
+                    except:
+                        abundances.append(np.nan)
+                else:
+                    equivalent_widths.append(np.nan)
+                    equivalent_width_errs.append(np.nan)
+                    abundances.append(np.nan)
+            elif isinstance(spectral_model, SpectralSynthesisModel):
+                #logger.info("Ignoring synthesis",spectral_model)
+                pass
+            else:
+                raise RuntimeError("Unknown model type: {}".format(type(spectral_model)))
+        transitions = LineList.vstack(transitions)
+        spectral_model_indices = np.array(spectral_model_indices)
+        transitions["equivalent_width"] = equivalent_widths
+        transitions["abundance"] = abundances
+        return transitions
+
     def optimize_stellar_parameters(self, **kwargs):
         """
         Optimize the stellar parameters for this star using the spectral models
         associated with stellar parameter inference.
         """
-
-        # Get the list of relevant spectral models.
-
-        # Any synth?
-        # raise NotImplementedError yet.
-
+        
+        Teff, logg, vt, MH = self.stellar_parameters
+        initial_guess = [Teff, vt, logg, MH] # stupid me did not change the ordering to match
+        logger.info("Initializing optimization at Teff={:.0f} logg={:.2f} vt={:.2f} MH={:.2f}".format(
+            Teff, logg, vt, MH))
+        
+        # get the list of relevant spectral models.
+        stellar_parameter_spectral_models = []
+        for spectral_model in self.spectral_models:
+            if spectral_model.use_for_stellar_parameter_inference and spectral_model.is_acceptable:
+                if isinstance(spectral_model, SpectralSynthesisModel):
+                    raise NotImplementedError("Syntheses cannot be used for stellar parameter state (check the Transitions manager)")
+                stellar_parameter_spectral_models.append(spectral_model)
+        transitions = self._spectral_models_to_transitions(stellar_parameter_spectral_models)
+        finite = np.logical_and(np.isfinite(transitions["equivalent_width"]), transitions["equivalent_width"] > 0.01)
+        if finite.sum() != len(finite):
+            logger.warn("Number of finite transitions ({}) != number of transitions ({})".format(
+                finite.sum(), len(finite)))
+        transitions = transitions[finite]
+        logger.info("Optimizing with {} transitions".format(len(transitions)))
+        
         # interpolator, do obj. function
-
-        raise NotImplementedError
-
+        out = run_optimize_stellar_parameters(initial_guess, transitions, **kwargs)
+        final_parameters = out[5]
+        new_Teff, new_vt, new_logg, new_MH = final_parameters
+        
+        if not out[0]:
+            logger.warn("Optimization did not converge, stopped at Teff={:.0f} logg={:.2f} vt={:.2f} MH={:.2f}".format(
+                new_Teff, new_logg, new_vt, new_MH))
+            
+        
+        self.set_stellar_parameters(new_Teff, new_logg, new_vt, new_MH)
+        return None
 
     def measure_abundances(self, spectral_models=None, 
                            save_abundances=True,
@@ -1285,7 +1508,8 @@ class Session(BaseSession):
     
     
     def summarize_spectral_models(self, spectral_models=None, organize_by_element=False,
-                                  use_weights = None, use_finite = True, what_fe = 1):
+                                  use_weights = None, use_finite = True, what_fe = 1,
+                                  default_error = 0.1):
         """
         Loop through all spectral_models and return a summary dict
 
@@ -1316,20 +1540,33 @@ class Session(BaseSession):
             spectral_models = self.metadata.get("spectral_models", [])
 
         all_logeps = {}
-        # TODO abundance uncertainties too
         def update_one_key(key,logeps):
             if key not in all_logeps:
                 all_logeps[key] = []
             all_logeps[key].append(logeps)
+            return
+        # TODO abundance uncertainties too
+        all_weights = {}
+        def update_one_weight(key,err):
+            if key not in all_weights:
+                all_weights[key] = []
+            all_weights[key].append(err**-2.)
             return
         for spectral_model in spectral_models:
             if not spectral_model.is_acceptable or spectral_model.is_upper_limit: continue
             
             abundances = spectral_model.abundances
             if abundances is None: continue
-
-            for elem,species,logeps in zip(spectral_model.elements, \
-                                          spectral_model.species, abundances):
+            # Try to get the abundance uncertainties
+            try:
+                errval = spectral_model.abundance_uncertainties or default_error
+            except:
+                errval = default_error
+            errors = [errval for _ in abundances]
+            
+            for elem,species,logeps,logepserr in zip(spectral_model.elements, \
+                                                     spectral_model.species, \
+                                                     abundances, errors):
                 # Elements doesn't have the ionization
                 # Species do
                 if organize_by_element:
@@ -1342,20 +1579,26 @@ class Session(BaseSession):
                     for species in key:
                         if isinstance(species,float):
                             update_one_key(species, logeps)
+                            update_one_weight(species, logepserr)
                         elif isinstance(species,list):
-                            for _species in species: update_one_key(_species, logeps)
+                            for _species, _logeps, _logepserr in zip(species,logeps,logepserr):
+                                update_one_key(_species, _logeps)
+                                update_one_weight(_species, _logepserr)
                         else:
                             raise TypeError("key {} is of type {} (organized by {})".format(\
                                     species,type(species),what_key_type))
                 elif isinstance(key,float):
                     assert not organize_by_element
                     update_one_key(key, logeps)
+                    update_one_weight(key, logepserr)
                 elif isinstance(key,str):
                     assert organize_by_element
                     update_one_key(key, logeps)
+                    update_one_weight(key, logepserr)
                 else:
                     raise TypeError("key {} is of type {} (organized by {})".format(\
                             key,type(key),what_key_type))
+            
 
         summary_dict = {}
         for key in all_logeps:
@@ -1367,10 +1610,15 @@ class Session(BaseSession):
             else:
                 num_models = len(logepss)
 
-            logeps = np.mean(logepss)
-            # TODO weight
-            stdev = np.std(logepss)
-            stderr= stdev/np.sqrt(num_models)
+            if use_weights:
+                weights = np.array(all_weights[key])
+                logeps = np.sum(weights*logepss)/np.sum(weights)
+                stdev = np.sqrt(np.sum(weights*(logepss-logeps)**2)/np.sum(weights))
+                stderr= stdev/np.sqrt(num_models)
+            else:
+                logeps = np.mean(logepss)
+                stdev = np.std(logepss)
+                stderr= stdev/np.sqrt(num_models)
             XH = logeps - solar_composition(key)
             summary_dict[key] = [num_models, logeps, stdev, stderr, XH, np.nan]
 
@@ -1396,9 +1644,9 @@ class Session(BaseSession):
         total_num_models_summarized = np.sum([len(x) for x in all_logeps.values()])
         return summary_dict
     
-    def export_abundance_table(self, filepath):
+    def export_abundance_table(self, filepath, use_weights=False):
         ## TODO: put in upper limits too.
-        summary_dict = self.summarize_spectral_models()
+        summary_dict = self.summarize_spectral_models(use_weights=use_weights)
         if filepath.endswith(".tex"):
             self._export_latex_abundance_table(filepath, summary_dict)
         else:
@@ -1468,6 +1716,8 @@ class Session(BaseSession):
         #ii_bad = np.logical_or(np.isnan(linedata[:,5]), np.isnan(linedata[:,4]))
         ii_bad = np.isnan(linedata[:,5])
         linedata = linedata[~ii_bad,:]
+        if len(linedata) == 0:
+            raise RuntimeError("No lines have abundances measured!")
 
         if filepath.endswith(".tex"):
             self._export_latex_measurement_table(filepath, linedata)
@@ -1539,7 +1789,7 @@ class Session(BaseSession):
         logger.info("Made copy of {} in {}".format(filename, path_to_copy))
 
     def import_linelist_as_profile_models(self, filename, import_equivalent_widths=False,
-                                          copy_to_working_dir=True):
+                                          copy_to_working_dir=False):
         """
         :param filename:
             path to a valid line list to be converted into (many) profile models
@@ -1548,7 +1798,7 @@ class Session(BaseSession):
             if True, add equivalent width in line list to the profile model 
             and mark as acceptable (used for importing literature values)
         :param copy_to_working_dir:
-            if True [default], copy the linelist to the session's working directory
+            if True, copy the linelist to the session's working directory
         """
         assert os.path.exists(filename), filename
 
@@ -1590,14 +1840,14 @@ class Session(BaseSession):
         return
         
     def import_linelist_as_synthesis_model(self, filename, elements,
-                                           copy_to_working_dir=True, **kwargs):
+                                           copy_to_working_dir=False, **kwargs):
         """
         :param filename:
             path to a valid line list to be converted into one synthesis model
         :param elements:
             elements to measure in this synthesis model
         :param copy_to_working_dir:
-            if True [default], copy the linelist to the session's working directory
+            if True, copy the linelist to the session's working directory
         kwargs are passed to SpectralSynthesisModel.__init__
         """
         assert os.path.exists(filename), filename
@@ -1618,7 +1868,7 @@ class Session(BaseSession):
         return
 
     def import_master_list(self, filename,
-                           copy_to_working_dir=True, **kwargs):
+                           copy_to_working_dir=False, **kwargs):
         """
         Use a "master" list to create a bunch of measurements
         wavelength, species, expot, loggf, type, filename(for syn or list)
@@ -1700,6 +1950,8 @@ class Session(BaseSession):
                 logger.warn(e)
             else:
                 num_added += 1
+                if copy_to_working_dir:
+                    self.copy_file_to_working_directory(_filename)
         
         if num_added != len(master_list):
             logger.warn("Created {} models out of {} in the master list".format(
