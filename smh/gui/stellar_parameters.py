@@ -55,7 +55,7 @@ class StateTableModel(QtCore.QAbstractTableModel):
     #header = ["Species", "N", u"〈[X/H]〉\n[dex]", u"σ\n[dex]", 
     #    u"∂A/∂χ\n[dex/eV]", u"∂A/∂REW\n[-]"]
 
-    header = ["Species", "N", u"〈[X/H]", u"σ", 
+    header = ["Species", "N", u"〈[X/H]〉", u"σ", 
         u"∂A/∂χ", u"∂A/∂REW"]
 
 
@@ -1300,9 +1300,10 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
 
             # Update trend lines and scatter points.
             if len(indices) > 0:
-                self.update_scatter_plots()
-                self.update_selected_scatter_point()
-                self.update_trend_lines(redraw=True)
+                self.parent.update_scatter_plots()
+                #self.parent.update_selected_scatter_point()
+                self.parent.update_trend_lines(redraw=True)
+                self.parent.proxy_spectral_models.reset()
 
 
         elif action == mark_as_acceptable:
@@ -1314,9 +1315,10 @@ class SpectralModelsTableView(SpectralModelsTableViewBase):
 
             # Update trend lines and scatter points.
             if len(indices) > 0:
-                self.update_scatter_plots()
-                self.update_selected_scatter_point()
-                self.update_trend_lines(redraw=True)
+                self.parent.update_scatter_plots()
+                #self.parent.update_selected_scatter_point()
+                self.parent.update_trend_lines(redraw=True)
+                self.parent.proxy_spectral_models.reset()
 
 
         elif action == set_fitting_window:
