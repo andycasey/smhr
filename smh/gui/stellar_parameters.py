@@ -185,10 +185,6 @@ class StellarParametersTab(QtGui.QWidget):
         ## Add RT buttons
         hbox_layout = self._init_rt_buttons(parent)
         lhs_layout.addLayout(hbox_layout)
-        # TODO hacked button for now
-        self.btn_sperrors = QtGui.QPushButton(self)
-        self.btn_sperrors.setText("Stellar Parameter Uncertainties..")
-        lhs_layout.addWidget(self.btn_sperrors)
 
         ## Add state table (slopes)
         self._init_state_table(parent)
@@ -204,6 +200,10 @@ class StellarParametersTab(QtGui.QWidget):
         ## Add table buttons
         hbox_layout = self._init_table_buttons(parent)
         lhs_layout.addLayout(hbox_layout)
+        # TODO hacked button for now
+        self.btn_sperrors = QtGui.QPushButton(self)
+        self.btn_sperrors.setText("Stellar Parameter Uncertainties..")
+        lhs_layout.addWidget(self.btn_sperrors)
 
         self.parent_layout.addLayout(lhs_layout)
         ###########################################
