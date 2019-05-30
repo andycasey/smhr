@@ -20,6 +20,7 @@ from scipy import integrate
 
 from .base import BaseSpectralModel
 from ..specutils import Spectrum1D
+from ..linelists import LineList
 
 logger = logging.getLogger(__name__)
 
@@ -652,6 +653,86 @@ class ProfileFittingModel(BaseSpectralModel):
         self.metadata["fitted_result"][2]["equivalent_width"] = (ew, ew_uncertainty[0], ew_uncertainty[1])
         self.metadata["fitted_result"][2]["reduced_equivalent_width"] = np.hstack([rew, rew_uncertainty])
         return 1000.*ew, 1000.*np.max(np.abs(ew_uncertainty))
+
+    def _find_abund(self, ew_err=None):
+        eqw = self.equivalent_width
+        if eqw is None: return None
+        if ew_err is not None:
+            transitions = LineList.vstack([self.transitions[0], self.transitions[0]])
+            transitions["equivalent_width"] = [eqw, eqw + ew_err]
+            failure_message = "Failed to compute abundances for {:.1f} {:.3f}, eqws={:.2f}, {:.2f}".format(
+                self.species[0], self.wavelength, eqw, eqw+ew_err)
+        else:
+            transitions = self.transitions.copy()
+            transitions["equivalent_width"] = [eqw]
+            failure_message = "Failed to compute abundances for {:.1f} {:.3f}, eqw={:.2f}".format(
+                self.species[0], self.wavelength, eqw)
+            
+        try:
+            abundances = self.session.rt.abundance_cog(
+                self.session.stellar_photosphere, transitions, twd=self.session.twd)
+        except Exception as e:
+            logger.warn(failure_message)
+            return None
+        else:
+            if len(abundances)==2:
+                return np.abs(abundances[1] - abundances[0])
+            else:
+                return abundances[0]
+    def find_error(self, sigma=1, ew_err_scale=1.0):
+        """
+        Find the sigma-th abundance uncertainty corresponding to sigma-th deviation in EQW
+        Scale the equivalent width error by ew_err_scale
+        """
+        eqw = self.equivalent_width
+        ew_err = self.equivalent_width_uncertainty
+        if eqw is None or ew_err is None: return None
+        ew_err *= ew_err_scale*sigma
+        abund_err = self._find_abund(ew_err)
+        self.metadata["{}_sigma_abundance_error".format(sigma)] = abund_err
+        self.metadata["{}_sigma_eqw_error".format(sigma)] = ew_err
+        return abund_err
+        
+    def propagate_stellar_parameter_error(self):
+        e_Teff, e_logg, e_vt, e_MH = self.session.stellar_parameters_err
+        Teff, logg, vt, MH = self.session.stellar_parameters
+        alpha = self.session.metadata["stellar_parameters"]["alpha"]
+        try:
+            self.session.set_stellar_parameters(
+                Teff, logg, vt, MH, alpha)
+            abund0 = self._find_abund()
+            self.session.set_stellar_parameters(
+                Teff+e_Teff, logg, vt, MH, alpha)
+            abund1 = self._find_abund()
+            self.session.set_stellar_parameters(
+                Teff, logg+e_logg, vt, MH, alpha)
+            abund2 = self._find_abund()
+            self.session.set_stellar_parameters(
+                Teff, logg, vt+e_vt, MH, alpha)
+            abund3 = self._find_abund()
+            self.session.set_stellar_parameters(
+                Teff, logg, vt, MH+e_MH, alpha)
+            abund4 = self._find_abund()
+            dTeff_error = abund1-abund0
+            dlogg_error = abund2-abund0
+            dvt_error = abund3-abund0
+            dMH_error = abund4-abund0
+        except:
+            self.session.set_stellar_parameters(
+                Teff, logg, vt, MH, alpha)
+        else:
+            self.session.set_stellar_parameters(
+                Teff, logg, vt, MH, alpha)
+            self.metadata["systematic_abundance_error"] = np.sqrt(
+                dTeff_error**2 + dlogg_error**2 + dvt_error**2 + dMH_error**2)
+            self.metadata["systematic_stellar_parameter_abundance_error"] = {
+                "effective_temperature": dTeff_error,
+                "surface_gravity": dlogg_error,
+                "microturbulence": dvt_error,
+                "metallicity": dMH_error
+            }
+        return self.metadata["systematic_abundance_error"]
+        
 
     def __call__(self, dispersion, *parameters):
         """

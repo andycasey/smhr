@@ -1076,17 +1076,65 @@ class Session(BaseSession):
     """
     Abundance uncertainty analysis.
     For every measurement, there is sigma_r and sigma_s (random and systematic error)
-    Equivalent widths:
-        sigma_r = spectral_model.abundance_uncertainties[0]; take weighted stdev
+    Equivalent widths (fast, but not uniform):
+        sigma_r = spectral_model.abundance_uncertainties[0]
                   Stored in every spectral model individually
         sigma_s = session.propagate_stellar_parameter_error_to_equivalent_widths
                   Stored in session.metadata["abundance_uncertainies_EQWsys"]
+    Equivalent widths (slow, but same interface and a bit more flexibility):
+        sigma_r = spectral_model.find_error(sigma=1)
+                  Stored in spectral_model.metadata["1_sigma_abundance_error"]
+        sigma_s = spectral_model.propagate_stellar_parameter_error()
+                  Stored in spectral_model.metadata["systematic_abundance_error"]
     Synthesis:
         sigma_r = spectral_model.find_error(sigma=1)
                   stored in spectral_model.metadata["1_sigma_abundance_error"]
         sigma_s = spectral_model.propagate_stellar_parameter_error()
                   stored in spectral_model.metadata["systematic_abundance_error"]
     """
+    def compute_all_abundance_uncertainties(self):
+        """
+        Call model.find_error() and model.propagate_stellar_parameter_error() for every
+        acceptable spectral model that is not an upper limit.
+        Tabulate and return all the results.
+        """
+        self.measure_abundances()
+        data = np.zeros((len(self.spectral_models), 8)) + np.nan
+        data[:,0] = -1
+        logger.info("Starting abundance uncertainty loop")
+        start = time.time()
+        for i, model in enumerate(self.spectral_models):
+            if not model.is_acceptable: continue
+            if model.is_upper_limit: continue
+            # Save the data
+            wavelength = model.wavelength
+            species = model.species[0]
+            try:
+                logeps = model.abundances[0]
+            except:
+                logeps = np.nan
+            whattype = 0 if isinstance(model, ProfileFittingModel) else 1
+            # Compute uncertainty
+            try:
+                staterr = model.find_error()
+            except:
+                staterr = np.nan
+            try:
+                syserr = model.propagate_stellar_parameter_error()
+            except:
+                syserr = np.nan
+            
+            data[:,0] = i
+            data[:,1] = wavelength
+            data[:,2] = species
+            data[:,3] = whattype
+            data[:,4] = logeps
+            data[:,5] = staterr
+            data[:,6] = syserr
+            data[:,7] = np.sqrt(staterr**2 + syserr**2)
+        self.metadata["all_line_data"] = data
+        logger.info("Finsihed abundance uncertainty loop in {:.1f}s".format(time.time()-start))
+        return data
     def propagate_stellar_parameter_error_to_equivalent_widths(self, Teff_error, logg_error, vt_error, mh_error,
                                                                output_array=True, save_to_session=True):
         """

@@ -979,4 +979,4 @@ class SpectralSynthesisModel(BaseSpectralModel):
                 "microturbulence": dvt_error,
                 "metallicity": dMH_error
             }
-        return None
+        return self.metadata["systematic_abundance_error"]
