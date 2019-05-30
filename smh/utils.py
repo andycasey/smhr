@@ -13,7 +13,7 @@ import sys
 import traceback
 import tempfile
 
-from collections import Counter
+from collections import Counter, OrderedDict
 
 from commands import getstatusoutput
 from hashlib import sha1 as sha
@@ -548,3 +548,135 @@ def get_version():
 
 
     
+def process_session_uncertainties(session):
+    """
+    After you have run session.compute_all_abundance_uncertainties(),
+    this pulls out a big array of line data
+    and computes the final abundance table and errors
+    """
+    from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
+    from .photospheres.abundances import asplund_2009 as solar_composition
+    cols = ["index","wavelength","species","expot","loggf",
+            "logeps","e_stat","eqw","e_eqw",
+            "e_Teff","e_logg","e_MH","e_vt","e_sys",
+            "e_tot","weight"]
+    data = OrderedDict(zip(cols, [[] for col in cols]))
+    for i, model in enumerate(session.spectral_models):
+        if not model.is_acceptable: continue
+        if model.is_upper_limit: continue
+        
+        wavelength = model.wavelength
+        species = np.ravel(model.species)[0]
+        expot = model.expot or np.nan
+        loggf = model.loggf or np.nan
+        try:
+            logeps = model.abundances[0]
+            staterr = model.metadata["1_sigma_abundance_error"]
+            sperrdict = model.metadata["systematic_stellar_parameter_abundance_error"]
+            e_Teff = sperrdict["effective_temperature"]
+            e_logg = sperrdict["surface_gravity"]
+            e_MH = sperrdict["metallicity"]
+            e_vt = sperrdict["microturbulence"]
+            syserr = model.metadata["systematic_abundance_error"]
+        except:
+            logeps, staterr, e_Teff, e_logg, e_MH, e_vt, syserr = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
+
+        if isinstance(model, ProfileFittingModel):
+            eqw = model.equivalent_width or np.nan
+            e_eqw = model.equivalent_width_uncertainty or np.nan
+        else:
+            eqw = -999
+            e_eqw = -999
+        toterr = np.sqrt(staterr**2 + syserr**2)
+        
+        input_data = [i, wavelength, species, expot, loggf,
+                      logeps, staterr, eqw, e_eqw,
+                      e_Teff, e_logg, e_MH, e_vt, syserr, toterr, toterr**-2]
+        for col, x in zip(cols, input_data):
+            data[col].append(x)
+    tab = astropy.table.Table(data)
+    for col in tab.colnames:
+        if col in ["index", "wavelength", "species", "loggf", "star"]: continue
+        tab[col].format = ".3f"
+    
+    unique_species = np.unique(tab["species"])
+    cols = ["species","elem","N",
+            "logeps","sigma","stderr",
+            "logeps_w","sigma_w","stderr_w",
+            "e_Teff","e_logg","e_MH","e_vt","e_sys",
+            "e_Teff_w","e_logg_w","e_MH_w","e_vt_w","e_sys_w",
+            "[X/H]","e_XH"]
+            #"[X/Fe1]","e_XFe1","[X/Fe2]","e_XFe2",
+            #"[X/H]","e_XH","[X/Fe]","e_XFe"]
+    data = OrderedDict(zip(cols, [[] for col in cols]))
+    for species in unique_species:
+        ttab = tab[tab["species"]==species]
+        elem = species_to_element(species)
+        N = len(ttab)
+        logeps = np.mean(ttab["logeps"])
+        stdev = np.std(ttab["logeps"])
+        stderr = stdev/np.sqrt(N)
+        
+        w = ttab["weight"]
+        finite = w > 0
+        if finite.sum() != N:
+            print("WARNING: species {:.1f} N={} != finite weights {}".format(species, N, finite.sum()))
+        x = ttab["logeps"]
+        logeps_w = np.sum(w*x)/np.sum(w)
+        stdev_w = np.sqrt(np.sum(w*(x-logeps_w)**2)/np.sum(w) + 1/np.sum(w))
+        stderr_w = stdev_w/np.sqrt(N)
+        
+        sperrs = []
+        sperrs_w = []
+        for spcol in ["Teff","logg","MH","vt"]:
+            x_new = x + ttab["e_"+spcol]
+            e_sp = np.mean(x_new) - logeps
+            sperrs.append(e_sp)
+            e_sp_w = np.sum(w*x_new)/np.sum(w) - logeps_w
+            sperrs_w.append(e_sp_w)
+        sperrs = np.array(sperrs)
+        sperrs_w = np.array(sperrs_w)
+        sperrtot = np.sqrt(np.sum(sperrs**2))
+        sperrtot_w = np.sqrt(np.sum(sperrs_w**2))
+        
+        XH = logeps_w - solar_composition(species)
+        e_XH = np.sqrt(stderr_w**2 + sperrtot_w**2)
+        input_data = [species, elem, N,
+                      logeps, stdev, stderr,
+                      logeps_w, stdev_w, stderr_w,
+                      sperrs[0], sperrs[1], sperrs[2], sperrs[3], sperrtot,
+                      sperrs_w[0], sperrs_w[1], sperrs_w[2], sperrs_w[3], sperrtot_w,
+                      XH, e_XH
+        ]
+        assert len(cols) == len(input_data)
+        for col, x in zip(cols, input_data):
+            data[col].append(x)
+    summary_tab = astropy.table.Table(data)
+    feh1 = summary_tab[summary_tab["species"]==26.0]["[X/H]"][0]
+    feh2 = summary_tab[summary_tab["species"]==26.1]["[X/H]"][0]
+    e1_stat, e1_Teff, e1_logg, e1_MH, e1_vt = [summary_tab[summary_tab["species"]==26.0][col][0] for
+                                               col in ["stderr_w","e_Teff_w","e_logg_w","e_MH_w","e_vt_w"]]
+    e2_stat, e2_Teff, e2_logg, e2_MH, e2_vt = [summary_tab[summary_tab["species"]==26.1][col][0] for
+                                               col in ["stderr_w","e_Teff_w","e_logg_w","e_MH_w","e_vt_w"]]
+    efe1 = np.sqrt(summary_tab["stderr_w"]**2 + e1_stat**2 + (summary_tab["e_Teff_w"]-e1_Teff)**2
+                   + (summary_tab["e_logg_w"]-e1_logg)**2 + (summary_tab["e_MH_w"]-e1_MH)**2
+                   + (summary_tab["e_vt_w"]-e1_vt)**2)
+    efe2 = np.sqrt(summary_tab["stderr_w"]**2 + e2_stat**2 + (summary_tab["e_Teff_w"]-e2_Teff)**2
+                   + (summary_tab["e_logg_w"]-e2_logg)**2 + (summary_tab["e_MH_w"]-e2_MH)**2
+                   + (summary_tab["e_vt_w"]-e2_vt)**2)
+    summary_tab["[X/Fe1]"] = summary_tab["[X/H]"] - feh1
+    summary_tab["e_XFe1"] = efe1
+    summary_tab["[X/Fe2]"] = summary_tab["[X/H]"] - feh2
+    summary_tab["e_XFe2"] = efe2
+    
+    ixion = np.array([x - int(x) > .01 for x in summary_tab["species"]])
+    summary_tab["[X/Fe]"] = summary_tab["[X/Fe1]"]
+    summary_tab["e_XFe"] = summary_tab["e_XFe1"]
+    summary_tab["[X/Fe]"][ixion] = summary_tab["[X/Fe2]"][ixion]
+    summary_tab["e_XFe"][ixion] = summary_tab["e_XFe2"][ixion]
+    
+    for col in summary_tab.colnames:
+        if col=="N" or col=="species" or col=="elem": continue
+        summary_tab[col].format = ".3f"
+        
+    return tab, summary_tab
