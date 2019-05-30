@@ -1108,7 +1108,7 @@ class Session(BaseSession):
             if model.is_upper_limit: continue
             # Save the data
             wavelength = model.wavelength
-            species = model.species[0]
+            species = np.ravel(model.species)[0]
             try:
                 logeps = model.abundances[0]
             except:
@@ -1124,16 +1124,16 @@ class Session(BaseSession):
             except:
                 syserr = np.nan
             
-            data[:,0] = i
-            data[:,1] = wavelength
-            data[:,2] = species
-            data[:,3] = whattype
-            data[:,4] = logeps
-            data[:,5] = staterr
-            data[:,6] = syserr
-            data[:,7] = np.sqrt(staterr**2 + syserr**2)
+            data[i,0] = i
+            data[i,1] = wavelength
+            data[i,2] = species
+            data[i,3] = whattype
+            data[i,4] = logeps
+            data[i,5] = staterr
+            data[i,6] = syserr
+            data[i,7] = np.sqrt(staterr**2 + syserr**2)
         self.metadata["all_line_data"] = data
-        logger.info("Finsihed abundance uncertainty loop in {:.1f}s".format(time.time()-start))
+        logger.info("Finished abundance uncertainty loop in {:.1f}s".format(time.time()-start))
         return data
     def propagate_stellar_parameter_error_to_equivalent_widths(self, Teff_error, logg_error, vt_error, mh_error,
                                                                output_array=True, save_to_session=True):
