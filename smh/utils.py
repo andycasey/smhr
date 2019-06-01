@@ -606,8 +606,6 @@ def process_session_uncertainties(session):
             "e_Teff","e_logg","e_MH","e_vt","e_sys",
             "e_Teff_w","e_logg_w","e_MH_w","e_vt_w","e_sys_w",
             "[X/H]","e_XH"]
-            #"[X/Fe1]","e_XFe1","[X/Fe2]","e_XFe2",
-            #"[X/H]","e_XH","[X/Fe]","e_XFe"]
     data = OrderedDict(zip(cols, [[] for col in cols]))
     for species in unique_species:
         ttab = tab[tab["species"]==species]
@@ -652,6 +650,7 @@ def process_session_uncertainties(session):
         for col, x in zip(cols, input_data):
             data[col].append(x)
     summary_tab = astropy.table.Table(data)
+    # Add in [X/Fe]
     feh1 = summary_tab[summary_tab["species"]==26.0]["[X/H]"][0]
     feh2 = summary_tab[summary_tab["species"]==26.1]["[X/H]"][0]
     e1_stat, e1_Teff, e1_logg, e1_MH, e1_vt = [summary_tab[summary_tab["species"]==26.0][col][0] for
@@ -664,6 +663,7 @@ def process_session_uncertainties(session):
     efe2 = np.sqrt(summary_tab["stderr_w"]**2 + e2_stat**2 + (summary_tab["e_Teff_w"]-e2_Teff)**2
                    + (summary_tab["e_logg_w"]-e2_logg)**2 + (summary_tab["e_MH_w"]-e2_MH)**2
                    + (summary_tab["e_vt_w"]-e2_vt)**2)
+
     summary_tab["[X/Fe1]"] = summary_tab["[X/H]"] - feh1
     summary_tab["e_XFe1"] = efe1
     summary_tab["[X/Fe2]"] = summary_tab["[X/H]"] - feh2
@@ -674,9 +674,71 @@ def process_session_uncertainties(session):
     summary_tab["e_XFe"] = summary_tab["e_XFe1"]
     summary_tab["[X/Fe]"][ixion] = summary_tab["[X/Fe2]"][ixion]
     summary_tab["e_XFe"][ixion] = summary_tab["e_XFe2"][ixion]
-    
     for col in summary_tab.colnames:
         if col=="N" or col=="species" or col=="elem": continue
         summary_tab[col].format = ".3f"
+    
+    
+    ## Add in upper limits to line data
+    cols = ["index","wavelength","species","expot","loggf",
+            "logeps","e_stat","eqw","e_eqw",
+            "e_Teff","e_logg","e_MH","e_vt","e_sys",
+            "e_tot","weight"]
+    assert len(cols)==len(tab.colnames)
+    data = OrderedDict(zip(cols, [[] for col in cols]))
+    for i, model in enumerate(session.spectral_models):
+        if not model.is_upper_limit: continue
         
+        wavelength = model.wavelength
+        species = np.ravel(model.species)[0]
+        expot = model.expot or np.nan
+        loggf = model.loggf or np.nan
+        try:
+            logeps = model.abundances[0]
+        except:
+            logeps = np.nan
+
+        input_data = [i, wavelength, species, expot, loggf,
+                      logeps, np.nan, np.nan, np.nan,
+                      np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]
+        for col, x in zip(cols, input_data):
+            data[col].append(x)
+    tab_ul = astropy.table.Table(data)
+    tab_ul["logeps"].format = ".3f"
+    tab = astropy.table.vstack([tab, tab_ul])
+    
+    ## Add in upper limits to summary table
+    ul_species = np.unique(tab_ul["species"])
+    cols = ["species","elem","N",
+            "logeps","sigma","stderr",
+            "logeps_w","sigma_w","stderr_w",
+            "e_Teff","e_logg","e_MH","e_vt","e_sys",
+            "e_Teff_w","e_logg_w","e_MH_w","e_vt_w","e_sys_w",
+            "[X/H]","e_XH"] + ["[X/Fe1]","e_XFe1","[X/Fe2]","e_XFe2","[X/Fe]","e_XFe"]
+    assert len(cols)==len(summary_tab.colnames)
+    data = OrderedDict(zip(cols, [[] for col in cols]))
+    for species in ul_species:
+        if species in summary_tab["species"]: continue
+        ttab_ul = tab_ul[tab_ul["species"]==species]
+        elem = species_to_element(species)
+        print
+        limit_logeps = np.min(ttab_ul["logeps"])
+        limit_XH = limit_logeps - solar_composition(species)
+        limit_XFe1 = limit_XH - feh1
+        limit_XFe2 = limit_XH - feh2
+        limit_XFe = limit_XFe2 if (species - int(species) > .01) else limit_XFe1
+        input_data = [species, elem, N,
+                      limit_logeps, np.nan, np.nan,
+                      limit_logeps, np.nan, np.nan,
+                      np.nan, np.nan, np.nan, np.nan, np.nan,
+                      np.nan, np.nan, np.nan, np.nan, np.nan,
+                      limit_XH, np.nan, limit_XFe1, np.nan, limit_XFe2, np.nan,
+                      limit_XFe, np.nan
+        ]
+        for col, x in zip(cols, input_data):
+            data[col].append(x)
+    summary_tab_ul = astropy.table.Table(data)
+    if len(summary_tab_ul) > 0:
+        summary_tab = astropy.table.vstack([summary_tab, summary_tab_ul])
+    
     return tab, summary_tab

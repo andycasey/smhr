@@ -507,12 +507,12 @@ class SpectralSynthesisModel(BaseSpectralModel):
         ## Only do this with a single value right now
         assert len(self.elements) == 1, self.elements
 
-        lastabund = init_abund
+        abund = init_abund
         for i in range(maxiter):
+            lastabund = abund
             self.fit(**kwargs)
             abund = self.abundances[0]
             if np.abs(abund - lastabund) < tol: break
-            lastabund = abund
         else:
             logger.warn("iterfit: Reached {}/{} iter without converging. Now {:.3f}, last {:.3f}, tol={:.3f}".format(
                     i, maxiter, abund, lastabund, tol))
@@ -937,7 +937,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         self.transitions.write(fname, format="moog")
         return None
 
-    def propagate_stellar_parameter_error(self):
+    def propagate_stellar_parameter_error(self, **kwargs):
         e_Teff, e_logg, e_vt, e_MH = self.session.stellar_parameters_err
         Teff, logg, vt, MH = self.session.stellar_parameters
         alpha = self.session.metadata["stellar_parameters"]["alpha"]
@@ -946,19 +946,19 @@ class SpectralSynthesisModel(BaseSpectralModel):
         try:
             self.session.set_stellar_parameters(
                 Teff, logg, vt, MH, alpha)
-            abund0 = self.iterfit()
+            abund0 = self.iterfit(**kwargs)
             self.session.set_stellar_parameters(
                 Teff+e_Teff, logg, vt, MH, alpha)
-            abund1 = self.iterfit()
+            abund1 = self.iterfit(**kwargs)
             self.session.set_stellar_parameters(
                 Teff, logg+e_logg, vt, MH, alpha)
-            abund2 = self.iterfit()
+            abund2 = self.iterfit(**kwargs)
             self.session.set_stellar_parameters(
                 Teff, logg, vt+e_vt, MH, alpha)
-            abund3 = self.iterfit()
+            abund3 = self.iterfit(**kwargs)
             self.session.set_stellar_parameters(
                 Teff, logg, vt, MH+e_MH, alpha)
-            abund4 = self.iterfit()
+            abund4 = self.iterfit(**kwargs)
             dTeff_error = abund1-abund0
             dlogg_error = abund2-abund0
             dvt_error = abund3-abund0
@@ -967,6 +967,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
             self.metadata = current_metadata
             self.session.set_stellar_parameters(
                 Teff, logg, vt, MH, alpha)
+            raise
         else:
             self.metadata = current_metadata
             self.session.set_stellar_parameters(
