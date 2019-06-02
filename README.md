@@ -39,5 +39,14 @@ brew install qt@4
 - Clone smhr
 - Go into the smhr directory and `python setup.py develop`
 - Go to `smhr/smh/gui` and open with `ipython __main__.py`
-- If you have problems with `qt_menu.nib`, use `~/anaconda/bin/python.app __main__.py` instead of ipython. (I have fixed this on my laptop by copying it somewhere but I cannot find where.)
+- If you have problems with `qt_menu.nib`, use `~/anaconda/bin/python.app __main__.py` instead of ipython. (I have fixed this on my laptop by copying it somewhere but I cannot find where.) Some possible places that could help:
+```
+~/anaconda/python.app/Contents/Resources/qt_menu.nib
+~/anaconda/pkgs/launcher-1.0.0-1/launcherapp/Contents/Resources/qt_menu.nib
+~/anaconda/pkgs/launcher-1.0.0-2/launcherapp/Contents/Resources/qt_menu.nib
+~/anaconda/pkgs/python.app-1.2-py27_3/pythonapp/Contents/Resources/qt_menu.nib
+~/anaconda/pkgs/python.app-1.2-py27_4/pythonapp/Contents/Resources/qt_menu.nib
+~/anaconda/Launcher.app/Contents/Resources/qt_menu.nib
+/usr/local/Cellar/qt/4.8.7_1/lib/QtGui.framework/Versions/4/Resources/qt_menu.nib
+```
 - There are some problems with segfaults that we are working out.
