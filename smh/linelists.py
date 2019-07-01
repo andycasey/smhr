@@ -579,10 +579,11 @@ class LineList(Table):
             ew = ew[1:]
         
         # check if gf by assuming there is at least one line with loggf < 0
-        if np.all(loggf >= 0): 
-            loggf = np.log10(loggf)
-            # TODO this is the MOOG default, but it may not be a good idea...
-            logger.warn("MOOG: no lines with loggf < 0 in {}, assuming input is gf".format(filename))
+        ## TURNED THIS OFF IT WAS CAUSING HUGE PROBLEMS
+        #if np.all(loggf >= 0): 
+        #    loggf = np.log10(loggf)
+        #    # TODO this is the MOOG default, but it may not be a good idea...
+        #    logger.warn("MOOG: no lines with loggf < 0 in {}, assuming input is gf".format(filename))
         
         # TODO
         # Cite the filename as the reference for now
