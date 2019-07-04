@@ -20,6 +20,7 @@ from six import string_types, iteritems
 from six.moves import cPickle as pickle
 from shutil import copyfile, rmtree
 #from tempfile import mkdtemp
+from copy import deepcopy
 
 import astropy.table
 from astropy.io import ascii
@@ -919,7 +920,7 @@ class Session(BaseSession):
         from scipy.optimize import fmin
         from scipy.stats import linregress
         start = time.time()
-        saved_stellar_params = self.metadata["stellar_parameters"].copy()
+        saved_stellar_params = deepcopy(self.metadata["stellar_parameters"])
         
         # Use abundance errors in fit? Should just not use this by default for now
         if self.setting(("stellar_parameter_inference", 
@@ -965,13 +966,13 @@ class Session(BaseSession):
         # (Might be unnecessary)
         try:
             # MH: stdev of all Fe lines (including Fe I and II)
-            self.metadata["stellar_parameters"] = saved_stellar_params
+            self.metadata["stellar_parameters"] = deepcopy(saved_stellar_params)
             abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
             mh_error = np.nanstd(abundances)
             
             # Teff
             try:
-                self.metadata["stellar_parameters"] = saved_stellar_params
+                self.metadata["stellar_parameters"] = deepcopy(saved_stellar_params)
                 m, b, median, sigma, N = initial_slopes[26.0].get("expot", (np.nan,np.nan,np.nan,np.nan,0))
                 logger.info("Finding error in Teff slope: {:.3f} +/- {:.3f}".format(m, sigma[1]))
                 Teff = saved_stellar_params["effective_temperature"]
@@ -988,7 +989,7 @@ class Session(BaseSession):
                 minfn = lambda teff: (m_target - _calculate_teff_slope(teff[0]))**2
                 Teff_positive_slope = fmin(minfn, [Teff], xtol=tolerances[0], ftol=0.00001)[0]
                 Teff_error = int(round(np.abs(Teff_positive_slope - Teff)))
-                self.metadata["stellar_parameters"] = saved_stellar_params
+                self.metadata["stellar_parameters"] = deepcopy(saved_stellar_params)
                 logger.info("Teff: {} + {}".format(Teff, Teff_error))
             except:
                 logger.warn("Error calculating uncertainties in Teff")
@@ -996,7 +997,7 @@ class Session(BaseSession):
 
             # logg
             try:
-                self.metadata["stellar_parameters"] = saved_stellar_params
+                self.metadata["stellar_parameters"] = deepcopy(saved_stellar_params)
                 def _get_fe_values(abundances, transitions):
                     ii1 = transitions["species"] == 26.0
                     ii2 = transitions["species"] == 26.1
@@ -1024,7 +1025,7 @@ class Session(BaseSession):
                 minfn = lambda logg: (dFe_target - _calculate_logg_dFe(logg[0]))**2
                 logg_positive_error = fmin(minfn, [logg], xtol=tolerances[1], ftol=0.00001)[0]
                 logg_error = np.abs(logg_positive_error - logg)
-                self.metadata["stellar_parameters"] = saved_stellar_params
+                self.metadata["stellar_parameters"] = deepcopy(saved_stellar_params)
                 logger.info("logg: {:.2f} + {:.2f}".format(logg, logg_error))
             except:
                 logger.warn("Error calculating uncertainties in logg")
@@ -1032,7 +1033,7 @@ class Session(BaseSession):
 
             # vt
             try:
-                self.metadata["stellar_parameters"] = saved_stellar_params
+                self.metadata["stellar_parameters"] = deepcopy(saved_stellar_params)
                 m, b, median, sigma, N = initial_slopes[26.0].get("reduced_equivalent_width", (np.nan,np.nan,np.nan,np.nan,0))
                 logger.info("Finding error in vt slope: {:.3f} +/- {:.3f}".format(m, sigma[1]))
                 vt = saved_stellar_params["microturbulence"]
@@ -1049,17 +1050,17 @@ class Session(BaseSession):
                 minfn = lambda vt: (m_target - _calculate_vt_slope(vt[0]))**2
                 vt_positive_slope = fmin(minfn, [vt], xtol=tolerances[2], ftol=0.00001)[0]
                 vt_error = round(np.abs(vt_positive_slope - vt),2)
-                self.metadata["stellar_parameters"] = saved_stellar_params
+                self.metadata["stellar_parameters"] = deepcopy(saved_stellar_params)
                 logger.info("vt: {:.2f} + {:.2f}".format(vt, vt_error))
             except:
                 logger.warn("Error calculating uncertainties in vt")
                 raise
 
         except Exception as e:
-            self.metadata["stellar_parameters"] = saved_stellar_params
+            self.metadata["stellar_parameters"] = deepcopy(saved_stellar_params)
             raise
         else:
-            self.metadata["stellar_parameters"] = saved_stellar_params
+            self.metadata["stellar_parameters"] = deepcopy(saved_stellar_params)
             self.set_stellar_parameters_errors("stat", Teff_error, logg_error, mh_error, vt_error)
             logger.info("Uncertainties: dTeff={:.0f} dlogg={:.2f} dvt={:.2f} dmh={:.2f}, took {:.1f}s".format(
                     Teff_error, logg_error, vt_error, mh_error, time.time()-start))
@@ -1103,6 +1104,8 @@ class Session(BaseSession):
         data[:,0] = -1
         logger.info("Starting abundance uncertainty loop")
         start = time.time()
+        saved_stellar_params = self.metadata["stellar_parameters"].copy()
+        print("ORIGINAL STELLAR PARAMETERS:",saved_stellar_params)
         for i, model in enumerate(self.spectral_models):
             if not model.is_acceptable: continue
             if model.is_upper_limit: continue
@@ -1123,6 +1126,7 @@ class Session(BaseSession):
                 syserr = model.propagate_stellar_parameter_error()
             except:
                 syserr = np.nan
+            print("ORIGINAL VS CURRENT STELLAR PARAMETERS:",saved_stellar_params,self.metadata["stellar_parameters"])
             
             data[i,0] = i
             data[i,1] = wavelength
