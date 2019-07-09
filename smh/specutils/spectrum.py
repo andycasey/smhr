@@ -1022,6 +1022,62 @@ class Spectrum1D(object):
         return normalized_spectrum
 
 
+    def get_knots(self, knot_spacing, exclude=None):
+        """
+        This is a hack to get the knots used in the fit_continuum spline
+        """
+        dispersion = self.dispersion.copy()
+
+        continuum_indices = range(len(self.flux))
+        
+        # See if there are any regions we need to exclude
+        if exclude is not None and len(exclude) > 0:
+            exclude_indices = []
+            
+            if isinstance(exclude[0], float) and len(exclude) == 2:
+                # Only two floats given, so we only have one region to exclude
+                exclude_indices.extend(range(*np.searchsorted(dispersion, exclude)))
+                
+            else:
+                # Multiple regions provided
+                for exclude_region in exclude:
+                    exclude_indices.extend(
+                        range(*np.searchsorted(dispersion, exclude_region)))
+        
+            continuum_indices = np.sort(list(set(continuum_indices).difference(
+                np.sort(exclude_indices))))
+
+        # We should exclude non-finite values from the fit.
+        non_finite_indices = np.where(~np.isfinite(self.flux * self.ivar))[0]
+        continuum_indices = np.sort(list(set(continuum_indices).difference(
+            non_finite_indices)))
+
+        # We should also exclude zero or negative flux points from the fit
+        zero_flux_indices = np.where(0 >= self.flux)[0]
+        continuum_indices = np.sort(list(set(continuum_indices).difference(
+            zero_flux_indices)))
+
+
+        if knot_spacing is None or knot_spacing == 0:
+            knots = []
+        else:
+            knot_spacing = abs(knot_spacing)
+            
+            end_spacing = ((dispersion[-1] - dispersion[0]) % knot_spacing) /2.
+            if knot_spacing/2. > end_spacing: end_spacing += knot_spacing/2.
+                
+            knots = np.arange(dispersion[0] + end_spacing, 
+                dispersion[-1] - end_spacing + knot_spacing, 
+                knot_spacing)
+
+            if len(knots) > 0 and knots[-1] > dispersion[continuum_indices][-1]:
+                knots = knots[:knots.searchsorted(dispersion[continuum_indices][-1])]
+                
+            if len(knots) > 0 and knots[0] < dispersion[continuum_indices][0]:
+                knots = knots[knots.searchsorted(dispersion[continuum_indices][0]):]
+        return knots
+        
+
     def add_noise(self, seed=None):
         if seed is not None:
             np.random.seed(seed)

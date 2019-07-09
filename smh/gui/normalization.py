@@ -279,6 +279,8 @@ class NormalizationTab(QtGui.QWidget):
         self.ax_order.plot([], [], c='k', zorder=3)#, drawstyle='steps-mid')
         # Line for the continuum.
         self.ax_order.plot([], [], linestyle="--", linewidth=2, c='r', zorder=4)
+        # Points for the continuum knots.
+        self.ax_order.plot([], [], 'o', mfc='none', mec='r', zorder=5, mew=1, ms=10)
 
         # Line for the neighbouring order(s) (joined by a NaN).
         self.ax_order.plot([], [], c='#666666', zorder=1, drawstyle='steps-mid')
@@ -336,6 +338,7 @@ class NormalizationTab(QtGui.QWidget):
         self.low_sigma_clip.textChanged.connect(self.check_state)
         self.high_sigma_clip.textChanged.connect(self.check_state)
         self.knot_spacing.textChanged.connect(self.check_state)
+
         return None
 
 
@@ -446,6 +449,26 @@ class NormalizationTab(QtGui.QWidget):
                 if key in self._cache["input"]:
                     del self._cache["input"][key]
 
+            # Force refit.
+            self.fit_continuum(clobber=True)
+            self.draw_continuum(refresh=False)
+            self.update_continuum_mask(refresh=True)
+            self.norm_plot.reset_zoom_limits()
+
+            return True
+
+
+        # 'r': Reset the zoom limits without refitting/clearing masks
+        if event.key in "rR":
+            self.norm_plot.reset_zoom_limits()
+            self.draw_continuum(refresh=False)
+            self.update_continuum_mask(refresh=True)
+
+            return True
+
+
+        # 'f': Refit without resetting the zoom limits
+        if event.key in "fF":
             # Force refit.
             self.fit_continuum(clobber=True)
             self.draw_continuum(refresh=False)
@@ -1157,8 +1180,8 @@ class NormalizationTab(QtGui.QWidget):
         try:
             normalized_spectrum, continuum, left, right \
                 = self.current_order.fit_continuum(**kwds)
-            if kwds["knot_spacing"] == 201:
-                raise KeyError("what") #HACK #TESTING #TODO
+            #if kwds["knot_spacing"] == 201:
+            #    raise KeyError("what") #HACK #TESTING #TODO
         except:
             logger.exception("No continuum could be fit.")
             self.parent.statusbar.showMessage(
@@ -1171,7 +1194,7 @@ class NormalizationTab(QtGui.QWidget):
                 print("Sender is ", sender) #TODO: This is broken..
                 sender.setStyleSheet("{0} {{ background-color: #f6989d; }}"\
                     .format(sender.__class__.__name__))
-
+        
         session.metadata["normalization"]["continuum"][index] = continuum
         session.metadata["normalization"]["normalization_kwargs"][index] = kwds
 
@@ -1192,20 +1215,27 @@ class NormalizationTab(QtGui.QWidget):
 
         meta = self.parent.session.metadata["normalization"]
         continuum = meta["continuum"][index]
+        kwds = meta["normalization_kwargs"][index]
 
         self.ax_order.lines[1].set_data([
             self.current_order.dispersion, continuum])
 
         # Set the color of the line.
-        self.ax_order.lines[1].set_color(wavelength_to_hex(
-            np.nanmean(self.current_order.dispersion)))
-
+        #self.ax_order.lines[1].set_color(wavelength_to_hex(
+        #    np.nanmean(self.current_order.dispersion)))
+        self.ax_order.lines[1].set_color("r")
+        
+        # Add points showing knot locations
+        knots = self.current_order.get_knots(kwds["knot_spacing"], kwds["exclude"])
+        knoty = continuum[np.searchsorted(self.current_order.dispersion, knots)]
+        self.ax_order.lines[2].set_data([
+            knots, knoty])
+        
         # Update the normalization preview in the lower axis.
         self.ax_order_norm.lines[1].set_data([
             self.current_order.dispersion, 
             self.current_order.flux/continuum])
         self.ax_order_norm.set_xlim(self.ax_order.get_xlim())
-        self.norm_plot.reset_zoom_limits()
 
         # Draw the additional points.
         ap = meta["normalization_kwargs"][index].get("additional_points", None)

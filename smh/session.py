@@ -1105,7 +1105,6 @@ class Session(BaseSession):
         logger.info("Starting abundance uncertainty loop")
         start = time.time()
         saved_stellar_params = self.metadata["stellar_parameters"].copy()
-        print("ORIGINAL STELLAR PARAMETERS:",saved_stellar_params)
         for i, model in enumerate(self.spectral_models):
             if not model.is_acceptable: continue
             if model.is_upper_limit: continue
@@ -1126,7 +1125,6 @@ class Session(BaseSession):
                 syserr = model.propagate_stellar_parameter_error()
             except:
                 syserr = np.nan
-            print("ORIGINAL VS CURRENT STELLAR PARAMETERS:",saved_stellar_params,self.metadata["stellar_parameters"])
             
             data[i,0] = i
             data[i,1] = wavelength
