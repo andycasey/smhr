@@ -1226,10 +1226,12 @@ class NormalizationTab(QtGui.QWidget):
         self.ax_order.lines[1].set_color("r")
         
         # Add points showing knot locations
-        knots = self.current_order.get_knots(kwds["knot_spacing"], kwds["exclude"])
-        knoty = continuum[np.searchsorted(self.current_order.dispersion, knots)]
-        self.ax_order.lines[2].set_data([
-            knots, knoty])
+        try:
+            knots = self.current_order.get_knots(kwds["knot_spacing"], kwds["exclude"])
+            knoty = continuum[np.searchsorted(self.current_order.dispersion, knots)]
+            self.ax_order.lines[2].set_data([knots, knoty])
+        except KeyError:
+            self.ax_order.lines[2].set_data([[np.nan], [np.nan]])
         
         # Update the normalization preview in the lower axis.
         self.ax_order_norm.lines[1].set_data([
