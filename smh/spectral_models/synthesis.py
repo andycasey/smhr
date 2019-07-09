@@ -734,6 +734,21 @@ class SpectralSynthesisModel(BaseSpectralModel):
         
         return None
 
+    def get_synth(self, abundances):
+        try:
+            (named_p_opt, cov, meta) = self.metadata["fitted_result"]
+        except KeyError:
+            logger.info("Please run a fit first!")
+            return None
+        abundances = _fix_rt_abundances(abundances)
+        synth_dispersion, intensities, meta = self.session.rt.synthesize(
+            self.session.stellar_photosphere, self.transitions,
+            abundances=abundances, 
+            isotopes=self.session.metadata["isotopes"],
+            twd=self.session.twd)[0] # TODO: Other RT kwargs......
+        return synth_dispersion, self._nuisance_methods(
+            synth_dispersion, synth_dispersion, intensities, *named_p_opt.values())
+
     def __call__(self, dispersion, *parameters):
         """
         Generate data at the dispersion points, given the parameters.

@@ -14,6 +14,7 @@ import numpy as np
 import sys
 from PySide import QtCore, QtGui
 import time
+from copy import deepcopy
 
 import smh
 from smh.gui.base import SMHSpecDisplay
@@ -70,6 +71,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.parent_layout.addWidget(self.figure)
         self.figure.add_callback_after_fit(self.refresh_current_model)
         self.figure.add_callback_after_fit(self.summarize_current_table)
+        ## Stuff for extra synthesis
+        self.extra_spec_1 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#cea2fd', lw=1.5, zorder=9999)[0]
+        self.extra_spec_2 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#ffb07c', lw=1.5, zorder=9999)[0]
         
         ################
         # BOTTOM
@@ -896,6 +900,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def synthesize_current_model(self):
+        # When we get selected model, it erases the extra_abundances.
+        # So let's cache it then put it back in...
+        extra_abundances = self.synth_abund_table_model.get_extra_abundances()
+        
         spectral_model, proxy_index, index = self._get_selected_model(True)
         if spectral_model is None: return None
         spectral_model.update_fit_after_parameter_change()
@@ -904,6 +912,29 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.update_fitting_options()
         #self.refresh_plots()
         self.update_spectrum_figure(redraw=True,reset_limits=False)
+        ### TODO
+        try:
+            fitted_result = spectral_model.metadata["fitted_result"]
+        except:
+            pass
+        else:
+            if extra_abundances is not None:
+                logger.debug(extra_abundances)
+                abundances1 = deepcopy(spectral_model.metadata["rt_abundances"])
+                for i, elem in enumerate(spectral_model.elements):
+                    abundances1[elem] = fitted_result[-1]["abundances"][i]
+                abundances2 = deepcopy(abundances1)
+                for elem, abunddiff in extra_abundances[0].items():
+                    abundances1[elem] += abunddiff
+                    self.synth_abund_table_model.extra_abundances[elem][0] = abunddiff
+                for elem, abunddiff in extra_abundances[1].items():
+                    abundances2[elem] += abunddiff
+                    self.synth_abund_table_model.extra_abundances[elem][1] = abunddiff
+                x, y = spectral_model.get_synth(abundances1)
+                self.extra_spec_1.set_data([x,y])
+                x, y = spectral_model.get_synth(abundances2)
+                self.extra_spec_2.set_data([x,y])
+            self.figure.draw()
         return None
         
     def _check_for_spectral_models(self):
@@ -948,6 +979,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def update_spectrum_figure(self, redraw=False, reset_limits=True):
         ## If synthesis, label selected lines
+        self.extra_spec_1.set_data([[np.nan], [np.nan]])
+        self.extra_spec_2.set_data([[np.nan], [np.nan]])
         try:
             selected_model = self._get_selected_model()
         except IndexError:
@@ -1489,6 +1522,8 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
         self.spectral_model = None
         self.elem_order = None
         self.num_fit_elems = 0
+        # Extra synthesis table info
+        self.extra_abundances = {}
 
     def load_new_model(self, spectral_model):
         """
@@ -1509,13 +1544,17 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
             # Put in rt_abundances indices
             self.elem_order = dict(zip(self.num_fit_elems + np.arange(len(elems)), \
                                        np.array(elems)[sorted_indices]))
-            # Put in parameters indices
+            # Put in parameters indices and extra_abundances
+            for elem in self.extra_abundances:
+                self.extra_abundances[elem] = [None, None]
             for i,elem in enumerate(spectral_model.elements):
                 self.elem_order[i] = elem
+                self.extra_abundances[elem] = [None, None]
         else:
             self.num_fit_elems = 0
             self.elem_order = None
         self.endResetModel()
+        
         return None
     def rowCount(self, parent):
         try:
@@ -1525,7 +1564,7 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
             logger.info(e)
             return 0
     def columnCount(self, parent):
-        return 3
+        return 5
     def data(self, index, role):
         if role==QtCore.Qt.FontRole:
             return _QFONT
@@ -1550,6 +1589,9 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
             return "{:.3f}".format(logeps)
         elif index.column()==2:
             return "{:.3f}".format(logeps-solar_composition(elem)-self.parent.FeH)
+        elif (index.column()==3) or (index.column()==4):
+            if (elem not in self.extra_abundances) or (self.extra_abundances[elem][index.column()-3] is None): return ""
+            return "{:.3f}".format(self.extra_abundances[elem][index.column()-3])
         return None
     def headerData(self, col, orientation, role):
         if orientation == QtCore.Qt.Horizontal \
@@ -1566,6 +1608,19 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
         if self.spectral_model is None: return False
         # Modify the spectral model abundance
         elem = self.elem_order[index.row()]
+        if (index.column() == 3) or (index.column() == 4):
+            if elem not in self.extra_abundances:
+                self.extra_abundances[elem] = [None, None]
+            if value == "":
+                self.extra_abundances[elem][index.column()-3] = None
+                return True
+            try:
+                value = float(value)
+            except:
+                return False
+            else:
+                self.extra_abundances[elem][index.column()-3] = value
+                return True
         if elem in self.spectral_model.metadata["rt_abundances"]:
             try:
                 value = float(value)
@@ -1616,3 +1671,22 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
         if index.column()==1 or index.column(): #abundance
             flags |= QtCore.Qt.ItemIsEditable
         return flags
+
+    def get_extra_abundances(self):
+        """
+        Returns None if no extra abundances, otherwise two dictionaries of the extra abundances
+        """
+        if self.elem_order is None: return None
+        extra_abundances_1 = {}
+        extra_abundances_2 = {}
+        for elem in self.elem_order.values():
+            if elem not in self.extra_abundances:
+                self.extra_abundances[elem] = [None, None]
+                continue
+            if self.extra_abundances[elem][0] is not None:
+                extra_abundances_1[elem] = self.extra_abundances[elem][0]
+            if self.extra_abundances[elem][1] is not None:
+                extra_abundances_2[elem] = self.extra_abundances[elem][1]
+        if (extra_abundances_1 == {}) and (extra_abundances_2 == {}):
+            return None
+        return extra_abundances_1, extra_abundances_2
