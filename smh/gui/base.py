@@ -675,6 +675,31 @@ class SMHScatterplot(mpl.MPLWidget):
     Scatterplot of things in a spectral model table.
     Gets all information using self.tablemodel.data(), so does not see the session.
     Interfaces with other things only by using the tableview to select or the tablemodel to set.
+    
+    SMHScatterplot.__init__:
+        parent = parent of the widget
+        xattr: name of x variable in the tablemodel to plot
+        yattr: name of y variable in the tablemodel to plot
+        tableview: the tableview that interacts with this plot [also used to access tablemodel]
+        enable_zoom: allow zoom with rightclick
+        enable_pick: allow point selection with leftclick
+        enable_keyboard_shortcuts: enable ability to do things with selected points
+        e_xattr, e_yattr: name of the error on x and y variable to plot, required if error_styles is not None
+    The following things are used for setting styles and subselections.
+    They are all lists, and must be the same length or None.
+    Can put None into a list to skip that type of plot for that filter
+        filters: list of additional spectral_model filters for substyling
+        point_styles: list of plt.scatterplot keyword dictionaries
+        error_styles: list of plt.errorbar keyword dictionaries (e.g. ecolor, elinewidth)
+        linefit_styles: list of plt.plot keyword dictionaries (e.g. color, linestyle)
+        linemean_styles: list of plt.plot keyword dictionaries (e.g. color, linestyle)
+                         [note we actually plot median instead of mean, sorry for misnomer]
+
+    Once you have set up __init__ properly, that sets what and how you want to plot.
+    Then to update the figure, things you need to call:
+    - linkToTable(tableview)
+    - update_scatterplot()
+    - update_selected_points()
     """
     allattrs = _allattrs
     labels = _labels
@@ -683,11 +708,24 @@ class SMHScatterplot(mpl.MPLWidget):
                  tableview=None,
                  enable_zoom=True, enable_pick=True,
                  enable_keyboard_shortcuts=True,
+                 ## These are settings for multiple things
+                 exattr=None, eyattr=None,
+                 filters=[lambda sm: True],
+                 point_styles=[{"s":30,"facecolor":"k","edgecolor":"k","alpha":0.5}],
+                 error_styles=None,
+                 linefit_styles=None,
+                 linemean_styles=None,
                  **kwargs):
         assert xattr in self.allattrs, xattr
         assert yattr in self.allattrs, yattr
         self.xattr = xattr
         self.yattr = yattr
+        if error_styles is not None:
+            assert (e_xattr is not None) or (e_yattr is not None), "Must specify e_xattr and/or e_yattr for error_styles"
+            assert (exattr is None) or (exattr in self.allattrs), exattr
+            assert (eyattr is None) or (eyattr in self.allattrs), eyattr
+        self.exattr = exattr
+        self.eyattr = eyattr
 
         super(SMHScatterplot, self).__init__(parent=parent,
                                              **kwargs)
@@ -702,16 +740,65 @@ class SMHScatterplot(mpl.MPLWidget):
         self.ax.set_xlabel(self.attr2label[xattr])
         self.ax.set_ylabel(self.attr2label[yattr])
 
-        self._points = {
-            "points": self.ax.scatter([], [], s=30,
-                                      facecolor="k", edgecolor="k", 
-                                      picker=PICKER_TOLERANCE,
-                                      alpha=0.5),
-            "selected_points": self.ax.scatter([], [],
-                                               edgecolor="b", facecolor="none", 
-                                               s=150, linewidth=3, zorder=2)
-        }
-
+        ## Verify that all the style inputs are the right length
+        assert len(filters) == len(point_styles)
+        if error_styles is None:
+            error_styles = [None for f in filters]
+        else:
+            assert len(filters)==len(error_styles)
+            raise NotImplementedError("Need to implement error bar graphics updating!")
+        if linefit_styles is None:
+            linefit_styles = [None for f in filters]
+        else:
+            assert len(filters)==len(linefit_styles)
+        if linemean_styles is None:
+            linemean_styles = [None for f in filters]
+        else:
+            assert len(filters)==len(linemean_styles)
+        
+        ## Create graphic objects
+        point_objs = []
+        error_objs = []
+        linefit_objs = []
+        linemean_objs = []
+        for filt, point_kw, error_kw, linefit_kw, linemean_kw in zip(
+                filters, point_styles, error_styles, linefit_styles, linemean_styles):
+            if point_kw is None: point_objs.append(None)
+            else:
+                point_objs.append(
+                    self.ax.scatter([np.nan], [np.nan], picker=PICKER_TOLERANCE,
+                                    **point_kw))
+            
+            if error_kw is None: error_objs.append(None)
+            else:
+                error_objs.append(
+                    self.ax.errorbar(np.nan * np.ones(2), np.nan * np.ones(2),
+                                     yerr=np.nan * np.ones((2, 2)),
+                                     fmt=None,zorder=-10,
+                                     **error_kw))
+            
+            if linefit_kw is None: linefit_objs.append(None)
+            else:
+                linefit_objs.append(
+                    self.ax.plot([np.nan], [np.nan], **linefit_kw)[0])
+            
+            if linemean_kw is None: linemean_objs.append(None)
+            else:
+                linemean_objs.append(
+                    self.ax.plot([np.nan], [np.nan], **linemean_kw)[0])
+        
+        ## Save graphic objects
+        self._selected_points = self.ax.scatter([], [],
+                                                edgecolor="b", facecolor="none", 
+                                                s=150, linewidth=3, zorder=2)
+        self._filters = filters
+        self._points = point_objs
+        self._errors = error_objs
+        self._linefits = linefit_objs
+        self._linemeans = linemean_objs
+        self._graphics = zip(self._filters, self._points, self._errors, self._linefits, self._linemeans)
+        logger.debug(self._graphics)
+        
         ## Connect Interactivity
         if enable_zoom:
             self.enable_interactive_zoom()
@@ -730,8 +817,12 @@ class SMHScatterplot(mpl.MPLWidget):
     def minimumSizeHint(self):
         return QtCore.QSize(10,10)
     def reset(self):
-        for key in ["points", "selected_points"]:
-            self._points[key].set_offsets(np.array([np.nan, np.nan]).T)
+        self._selected_points.set_offsets(np.array([np.nan, np.nan]).T)
+        for filt, point, error, linefit, linemean in self._graphics:
+            if point is not None: point.set_offsets(np.array([np.nan, np.nan]).T)
+            if error is not None: pass # TODO!!!
+            if linefit is not None: linefit.set_data([np.nan],[np.nan])
+            if linemean is not None: linemean.set_data([np.nan],[np.nan])
     def linkToTable(self, tableview):
         """
         view for selection; model for data
@@ -752,8 +843,20 @@ class SMHScatterplot(mpl.MPLWidget):
         assert self.yattr in self.tablemodel.attrs, (self.yattr, self.tablemodel.attrs)
         self.xcol = self.tablemodel.attrs.index(self.xattr)
         self.ycol = self.tablemodel.attrs.index(self.yattr)
+        if self.exattr is None:
+            self.excol = None
+        else:
+            assert self.exattr in self.tablemodel.attrs, (self.exattr, self.tablemodel.attrs)
+            self.excol = self.tablemodel.attrs.index(self.exattr)
+        if self.eyattr is None:
+            self.eycol = None
+        else:
+            assert self.eyattr in self.tablemodel.attrs, (self.eyattr, self.tablemodel.attrs)
+            self.eycol = self.tablemodel.attrs.index(self.eyattr)
         logger.debug("Linked {} to {}/{}".format(self, self.tableview, self.tablemodel))
         logger.debug("{}->{}, {}->{}".format(self.xattr, self.xcol, self.yattr, self.ycol))
+        if (self.exattr is not None) or (self.eyattr is not None):
+            logger.debug("Err col: {}->{}, {}->{}".format(self.exattr, self.excol, self.eyattr, self.eycol))
     def _load_value_from_table(self, index):
         val = self.tablemodel.data(index, QtCore.Qt.DisplayRole)
         try:
@@ -762,21 +865,69 @@ class SMHScatterplot(mpl.MPLWidget):
             if val != "": logger.debug(e)
             val = np.nan
         return val
+    def _get_spectral_models_from_rows(self, rows):
+        ### TODO
+        try:
+            spectral_models = self.tablemodel().get_models_from_rows(rows)
+            return spectral_models
+        except:
+            return None
     def update_scatterplot(self, redraw=False):
         if self.tableview is None or self.tablemodel is None: return None
-        #logger.debug("update_scatterplot ({}, {})".format(self, redraw))
-        #xs = self.tablemodel.get_data_column(self.xcol)
-        #ys = self.tablemodel.get_data_column(self.ycol)
-        xs = []
-        ys = []
-        for i in range(self.tablemodel.rowCount()):
+        xs, ys, exs, eys = [], [], [], []
+        Nrows = self.tablemodel.rowCount()
+        if Nrows==0: return None
+        spectral_models = self.tablemodel.get_models_from_rows(np.arange(Nrows))
+        for i in range(Nrows):
             ix = self._ix(i, self.xcol)
             x = self._load_value_from_table(ix)
             ix = self._ix(i, self.ycol)
             y = self._load_value_from_table(ix)
+            if self.excol is None: ex = np.nan
+            else:
+                ix = self._ix(i, self.excol)
+                ex = self._load_value_from_table(ix)
+            if self.eycol is None: ey = np.nan
+            else:
+                ix = self._ix(i, self.eycol)
+                ey = self._load_value_from_table(ix)
             xs.append(x)
             ys.append(y)
-        self._points["points"].set_offsets(np.array([xs,ys]).T)
+            exs.append(ex)
+            eys.append(ey)
+        xs = np.array(xs); ys = np.array(ys); exs = np.array(exs); eys = np.array(eys)
+        valids = []
+        for filt in self._filters:
+            valids.append([filt(sm) for sm in spectral_models])
+        valids = np.atleast_2d(np.array(valids))
+        logger.debug(str(valids.shape))
+        logger.debug(str(valids))
+        for ifilt,(filt, point, error, linefit, linemean) in enumerate(self._graphics):
+            valid = valids[ifilt,:]
+            nonzero = valid.sum() > 0
+            x, y = xs[valid], ys[valid]
+            logger.debug("Updating ifilt={}".format(ifilt))
+            logger.debug(str(x))
+            logger.debug(str(y))
+            if point is not None:
+                if nonzero: point.set_offsets(np.array([x,y]).T)
+                else: point.set_offsets(np.array([np.nan],[np.nan]).T)
+            if error is not None:
+                ## TODO not doing anything with error bars right now
+                pass
+            if (linefit is not None) or (linemean is not None):
+                ## TODO: Figure out how best to save and return info about the lines
+                ## For now, just refitting whenever needed
+                m, b, medy, stdy, stdm, N = utils.fit_line(x, y, None)
+                xlim = self.ax.get_xlim()
+                if (linefit is not None) and nonzero:
+                    linefit.set_data(xlim, m*xlim + b)
+                else:
+                    linefit.set_data([np.nan], [np.nan])
+                if (linemean is not None) and nonzero:
+                    linemean.set_data(xlim, [medy, medy])
+                else:
+                    linemean.set_data([np.nan], [np.nan])
         style_utils.relim_axes(self.ax)
         self.reset_zoom_limits()
         if redraw: self.draw()
@@ -795,7 +946,7 @@ class SMHScatterplot(mpl.MPLWidget):
             y = self._load_value_from_table(ix)
             xs.append(x)
             ys.append(y)
-        self._points["selected_points"].set_offsets(np.array([xs,ys]).T)
+        self._selected_points.set_offsets(np.array([xs,ys]).T)
         if redraw: self.draw()
         return None
 

@@ -144,29 +144,32 @@ def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species",
                 #group_lines[x_column] = (np.nan, np.nan, np.nan, np.nan, 0)
                 continue
 
-            x, y, yerr = np.array(x[finite]), np.array(y[finite]), np.array(yerr[finite])
-
-            # Let's remove the covariance between m and b by making the mean of x = 0
-            xbar = np.mean(x)
-            x = x - xbar
-            # y = mx+b = m(x-xbar) + (b+m*xbar), so m is unchanged but b is shifted.
-
-#            A = np.vstack((np.ones_like(x), x)).T
-#            C = np.diag(yerr**2)
-#            try:
-#                cov = np.linalg.inv(np.dot(A.T, np.linalg.solve(C, A)))
-#                b, m = np.dot(cov, np.dot(A.T, np.linalg.solve(C, y)))
+            m, b, medy, stdy, stdm, N = fit_line(x, y, None)
+            group_lines[x_column] = (m, b, medy, (stdy, stdm), N)
+#            x, y, yerr = np.array(x[finite]), np.array(y[finite]), np.array(yerr[finite])
 #
-#            except np.linalg.LinAlgError:
-#                #group_lines[x_column] \
-#                #    = (np.nan, np.nan, np.median(y), np.std(y), len(x))
-#                None
+#            # Let's remove the covariance between m and b by making the mean of x = 0
+#            xbar = np.mean(x)
+#            x = x - xbar
+#            # y = mx+b = m(x-xbar) + (b+m*xbar), so m is unchanged but b is shifted.
 #
-#            else:
-#                #group_lines[x_column] = (m, b, np.median(y), (np.std(y), np.sqrt(cov[1,1])), len(x))
-#                group_lines[x_column] = (m, b+m*xbar, np.median(y), (np.std(y), np.sqrt(cov[1,1])), len(x))
-            m, b, r, p, m_stderr = stats.linregress(x, y)
-            group_lines[x_column] = (m, b-m*xbar, np.median(y), (np.std(y), m_stderr), len(x))
+##            A = np.vstack((np.ones_like(x), x)).T
+##            C = np.diag(yerr**2)
+##            try:
+##                cov = np.linalg.inv(np.dot(A.T, np.linalg.solve(C, A)))
+##                b, m = np.dot(cov, np.dot(A.T, np.linalg.solve(C, y)))
+##
+##            except np.linalg.LinAlgError:
+##                #group_lines[x_column] \
+##                #    = (np.nan, np.nan, np.median(y), np.std(y), len(x))
+##                None
+##
+##            else:
+##                #group_lines[x_column] = (m, b, np.median(y), (np.std(y), np.sqrt(cov[1,1])), len(x))
+##                group_lines[x_column] = (m, b+m*xbar, np.median(y), (np.std(y), np.sqrt(cov[1,1])), len(x))
+#            m, b, r, p, m_stderr = stats.linregress(x, y)
+#            group_lines[x_column] = (m, b-m*xbar, np.median(y), (np.std(y), m_stderr), len(x))
+
 
         identifier = transitions[group_by][start_index]
         if group_lines:
@@ -174,6 +177,16 @@ def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species",
 
     return lines
 
+
+def fit_line(x, y, yerr=None):
+    if yerr is not None: raise NotImplementedError("Does not fit with error bars yet")
+    finite = np.isfinite(x) & np.isfinite(y)
+    x, y = x[finite], y[finite]
+    xbar = np.mean(x)
+    x = x - xbar
+    m, b_bar, r, p, m_stderr = stats.linregress(x, y)
+    b = b_bar - m*xbar
+    return m, b, np.median(y), np.std(y), m_stderr, len(x)
 
 def spectral_model_conflicts(spectral_models, line_list):
     """
