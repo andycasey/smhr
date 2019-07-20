@@ -710,7 +710,7 @@ class SMHScatterplot(mpl.MPLWidget):
                  enable_keyboard_shortcuts=True,
                  ## These are settings for multiple things
                  exattr=None, eyattr=None,
-                 filters=[lambda sm: True],
+                 filters=[lambda x: True],
                  point_styles=[{"s":30,"facecolor":"k","edgecolor":"k","alpha":0.5}],
                  error_styles=None,
                  linefit_styles=None,
@@ -766,7 +766,7 @@ class SMHScatterplot(mpl.MPLWidget):
             if point_kw is None: point_objs.append(None)
             else:
                 point_objs.append(
-                    self.ax.scatter([np.nan], [np.nan], picker=PICKER_TOLERANCE,
+                    self.ax.scatter([], [], picker=PICKER_TOLERANCE,
                                     **point_kw))
             
             if error_kw is None: error_objs.append(None)
@@ -797,7 +797,6 @@ class SMHScatterplot(mpl.MPLWidget):
         self._linefits = linefit_objs
         self._linemeans = linemean_objs
         self._graphics = zip(self._filters, self._points, self._errors, self._linefits, self._linemeans)
-        logger.debug(self._graphics)
         
         ## Connect Interactivity
         if enable_zoom:
@@ -900,15 +899,10 @@ class SMHScatterplot(mpl.MPLWidget):
         for filt in self._filters:
             valids.append([filt(sm) for sm in spectral_models])
         valids = np.atleast_2d(np.array(valids))
-        logger.debug(str(valids.shape))
-        logger.debug(str(valids))
         for ifilt,(filt, point, error, linefit, linemean) in enumerate(self._graphics):
             valid = valids[ifilt,:]
             nonzero = valid.sum() > 0
             x, y = xs[valid], ys[valid]
-            logger.debug("Updating ifilt={}".format(ifilt))
-            logger.debug(str(x))
-            logger.debug(str(y))
             if point is not None:
                 if nonzero: point.set_offsets(np.array([x,y]).T)
                 else: point.set_offsets(np.array([np.nan],[np.nan]).T)
