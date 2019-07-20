@@ -63,10 +63,18 @@ _formats = [":.1f",":.2f",":.1f","",":.2f",
             ":.2f",":.2f",":.2f",
             "","","","",
             "","",":.2f"]
+_dtypes = [float, float, float, object, float,
+           float, float,
+           float,
+           float, float, float,
+           bool, bool, bool,
+           bool, bool,
+           object, float]
 _formats = ["{"+fmt+"}" for fmt in _formats]
 _attr2label = dict(zip(_allattrs,_labels))
 _attr2slabel = dict(zip(_allattrs,_short_labels))
 _attr2format = dict(zip(_allattrs,_formats))
+_attr2dtype = dict(zip(_allattrs,_dtypes))
 
 class SMHSpecDisplay(mpl.MPLWidget):
     """
@@ -785,7 +793,7 @@ class SMHScatterplot(mpl.MPLWidget):
             if linemean_kw is None: linemean_objs.append(None)
             else:
                 linemean_objs.append(
-                    self.ax.plot([np.nan], [np.nan], **linemean_kw)[0])
+                    self.ax.axhline(np.nan, **linemean_kw))
         
         ## Save graphic objects
         self._selected_points = self.ax.scatter([], [],
@@ -821,7 +829,7 @@ class SMHScatterplot(mpl.MPLWidget):
             if point is not None: point.set_offsets(np.array([np.nan, np.nan]).T)
             if error is not None: pass # TODO!!!
             if linefit is not None: linefit.set_data([np.nan],[np.nan])
-            if linemean is not None: linemean.set_data([np.nan],[np.nan])
+            if linemean is not None: linemean.set_data([0,1],[np.nan,np.nan])
     def linkToTable(self, tableview):
         """
         view for selection; model for data
@@ -898,30 +906,31 @@ class SMHScatterplot(mpl.MPLWidget):
         valids = []
         for filt in self._filters:
             valids.append([filt(sm) for sm in spectral_models])
-        valids = np.atleast_2d(np.array(valids))
+        valids = np.atleast_2d(np.array(valids, dtype=bool))
         for ifilt,(filt, point, error, linefit, linemean) in enumerate(self._graphics):
             valid = valids[ifilt,:]
             nonzero = valid.sum() > 0
             x, y = xs[valid], ys[valid]
             if point is not None:
                 if nonzero: point.set_offsets(np.array([x,y]).T)
-                else: point.set_offsets(np.array([np.nan],[np.nan]).T)
+                else: point.set_offsets(np.array([np.nan,np.nan]).T)
             if error is not None:
                 ## TODO not doing anything with error bars right now
                 pass
-            if (linefit is not None) or (linemean is not None):
+            if nonzero and ((linefit is not None) or (linemean is not None)):
                 ## TODO: Figure out how best to save and return info about the lines
                 ## For now, just refitting whenever needed
                 m, b, medy, stdy, stdm, N = utils.fit_line(x, y, None)
-                xlim = self.ax.get_xlim()
+                #xlim = np.array(self.ax.get_xlim())
+                xlim = np.array([x.min(), x.max()])
                 if (linefit is not None) and nonzero:
                     linefit.set_data(xlim, m*xlim + b)
                 else:
                     linefit.set_data([np.nan], [np.nan])
                 if (linemean is not None) and nonzero:
-                    linemean.set_data(xlim, [medy, medy])
+                    linemean.set_data([0,1], [medy, medy])
                 else:
-                    linemean.set_data([np.nan], [np.nan])
+                    linemean.set_data([0,1], [np.nan, np.nan])
         style_utils.relim_axes(self.ax)
         self.reset_zoom_limits()
         if redraw: self.draw()
@@ -950,7 +959,18 @@ class SMHScatterplot(mpl.MPLWidget):
 
     def figure_mouse_pick(self, event):
         if event.mouseevent.button != 1: return None
-        self.tableview.selectRow(event.ind[0])
+        ## this is fast but broken when multiple points are on the scatterplot.
+        #self.tableview.selectRow(event.ind[0])
+        xscale = np.ptp(self.ax.get_xlim())
+        yscale = np.ptp(self.ax.get_ylim())
+        xall = self.tablemodel.get_data_column(self.xcol)
+        yall = self.tablemodel.get_data_column(self.ycol)
+        xpick = event.mouseevent.xdata
+        ypick = event.mouseevent.ydata
+        dist = np.sqrt((xall-xpick)**2 + (yall-ypick)**2)
+        ix = np.nanargmin(dist)
+        logger.debug("picked row {} with {} {}".format(ix, xpick, ypick))
+        self.tableview.selectRow(ix)
         return None
     
     def key_press_event(self, event):
@@ -1477,14 +1497,15 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
 
     def get_data_column(self, column, rows=None):
         """ Function to quickly go under the hood and access one column """
+        #start = time.time()
         attr = self.attrs[column]
         models = self.spectral_models
         if rows is None:
             rows = np.arange(len(models))
-        # TODO replace np.nan with something else
         getter = lambda ix: getattr(models[ix], attr, np.nan)
-        data = map(getter, rows)
-        return np.array(data)
+        data = np.array([np.ravel(getter(r)) for r in rows], dtype=_attr2dtype[attr])
+        #logger.debug("get_data_column {}: {:.1f}".format(column,time.time()-start))
+        return data
 
     def get_models_from_rows(self, rows):
         models_to_return = []

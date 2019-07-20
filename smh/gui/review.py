@@ -161,12 +161,25 @@ class ReviewTab(QtGui.QWidget):
         return vbox
 
     def _init_scatterplots(self):
+        filters = [lambda x: x.is_acceptable, lambda x: not x.is_acceptable,
+                   lambda x: x.user_flag]
+        point_styles = [{"s":30,"facecolor":"k","edgecolor":"k","alpha":0.5},
+                        {"s":30,"c":"r","marker":"x"},
+                        {"s":60,"edgecolor":"r","facecolor":"none","marker":"o","zorder":-9999}]
+        linefit_styles = [{"color":"k","linestyle":"--","zorder":-99},None,None]
+        linemean_styles = [{"color":"k","linestyle":":","zorder":-999},None,None]
         self.plot1 = SMHScatterplot(None, "expot", "abundances",
-                                    tableview=self.measurement_view)
+                                    tableview=self.measurement_view,
+                                    filters=filters, point_styles=point_styles,
+                                    linefit_styles=linefit_styles,linemean_styles=linemean_styles)
         self.plot2 = SMHScatterplot(None, "reduced_equivalent_width", "abundances",
-                                    tableview=self.measurement_view)
+                                    tableview=self.measurement_view,
+                                    filters=filters, point_styles=point_styles,
+                                    linefit_styles=linefit_styles,linemean_styles=linemean_styles)
         self.plot3 = SMHScatterplot(None, "wavelength", "abundances",
-                                    tableview=self.measurement_view)
+                                    tableview=self.measurement_view,
+                                    filters=filters, point_styles=point_styles,
+                                    linefit_styles=linefit_styles,linemean_styles=linemean_styles)
         
         sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
                                QtGui.QSizePolicy.MinimumExpanding)

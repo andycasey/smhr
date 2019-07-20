@@ -181,6 +181,8 @@ def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species",
 def fit_line(x, y, yerr=None):
     if yerr is not None: raise NotImplementedError("Does not fit with error bars yet")
     finite = np.isfinite(x) & np.isfinite(y)
+    if finite.sum()==0:
+        return np.nan, np.nan, np.nan, np.nan, np.nan, 0
     x, y = x[finite], y[finite]
     xbar = np.mean(x)
     x = x - xbar
