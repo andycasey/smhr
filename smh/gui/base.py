@@ -212,12 +212,12 @@ class SMHSpecDisplay(mpl.MPLWidget):
         """
         Clear all internal variables (except session)
         """
-        logger.debug("Resetting Spectrum Figure ({})".format(self))
+        #logger.debug("Resetting Spectrum Figure ({})".format(self))
         self.selected_model = None
         
         if self.session is not None:
             drawstyle = self.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
-            logger.debug("drawstyle: {}".format(drawstyle))
+            #logger.debug("drawstyle: {}".format(drawstyle))
             self._lines["spectrum"].set_drawstyle(drawstyle)
             self._lines["comparison_spectrum"].set_drawstyle(drawstyle)
         for key in ["spectrum", "transitions_center_main", "transitions_center_residual",
@@ -969,7 +969,7 @@ class SMHScatterplot(mpl.MPLWidget):
         ypick = event.mouseevent.ydata
         dist = np.sqrt((xall-xpick)**2 + (yall-ypick)**2)
         ix = np.nanargmin(dist)
-        logger.debug("picked row {} with {} {}".format(ix, xpick, ypick))
+        #logger.debug("picked row {} with {} {}".format(ix, xpick, ypick))
         self.tableview.selectRow(ix)
         return None
     
@@ -1497,14 +1497,12 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
 
     def get_data_column(self, column, rows=None):
         """ Function to quickly go under the hood and access one column """
-        #start = time.time()
         attr = self.attrs[column]
         models = self.spectral_models
         if rows is None:
             rows = np.arange(len(models))
         getter = lambda ix: getattr(models[ix], attr, np.nan)
         data = np.array([np.ravel(getter(r)) for r in rows], dtype=_attr2dtype[attr])
-        #logger.debug("get_data_column {}: {:.1f}".format(column,time.time()-start))
         return data
 
     def get_models_from_rows(self, rows):
