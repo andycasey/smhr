@@ -547,8 +547,13 @@ class StellarParametersTab(QtGui.QWidget):
         sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
                                QtGui.QSizePolicy.MinimumExpanding)
         self.specfig.setSizePolicy(sp)
+        self.specfig.add_callback_after_fit(self.refresh_current_model)
         self.ax_spectrum = self.specfig.ax_spectrum
         self.ax_residual = self.specfig.ax_residual
+    def refresh_current_model(self):
+        spectral_model, proxy_index, index = self._get_selected_model(True)
+        if spectral_model is None: return None
+        self.measurement_view.update_row(proxy_index.row())
     
     def _check_lineedit_state(self, *args, **kwargs):
         """

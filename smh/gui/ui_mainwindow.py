@@ -439,13 +439,17 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.setTabEnabled(3, True)
         self.tabs.setTabEnabled(4, True)
         self.tabs.setTabEnabled(5, True)
+        
         self.stellar_parameters_tab.new_session_loaded()
-
         self.chemical_abundances_tab.new_session_loaded()
         self.review_tab.new_session_loaded()
         
         self._update_window_title(os.path.basename(self.session_path))
 
+        # Bring to top after loading
+        self.raise_()
+        self.activateWindow()
+        self.showNormal()
         return None
 
 
