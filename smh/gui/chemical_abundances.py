@@ -1491,6 +1491,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def refresh_current_model(self):
         spectral_model, proxy_index, index = self._get_selected_model(True)
+        if spectral_model is None: return None
         self.measurement_view.update_row(proxy_index.row())
         self.update_fitting_options()
 

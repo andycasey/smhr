@@ -716,6 +716,7 @@ class SMHScatterplot(mpl.MPLWidget):
                  tableview=None,
                  enable_zoom=True, enable_pick=True,
                  enable_keyboard_shortcuts=True,
+                 do_not_select_unacceptable=False,
                  ## These are settings for multiple things
                  exattr=None, eyattr=None,
                  filters=[lambda x: True],
@@ -813,6 +814,7 @@ class SMHScatterplot(mpl.MPLWidget):
             self.canvas.callbacks.connect("pick_event", self.figure_mouse_pick)
         if enable_keyboard_shortcuts:
             self.mpl_connect("key_press_event", self.key_press_event)
+        self.do_not_select_unacceptable = do_not_select_unacceptable
         self.setFocusPolicy(QtCore.Qt.ClickFocus)
 
         self.reset()
@@ -940,9 +942,14 @@ class SMHScatterplot(mpl.MPLWidget):
         #logger.debug("update_selected_points ({}, {})".format(self, redraw))
         xs = []
         ys = []
-        rows = self.tableview.selectionModel().selectedRows()
-        for row in rows:
-            i = row.row()
+        rows = np.array([row.row() for row in self.tableview.selectionModel().selectedRows()])
+        if self.do_not_select_unacceptable and len(rows)>0:
+            not_acceptable = np.logical_not(self.tablemodel.get_data_column("is_acceptable"))
+            is_upper_limit = self.tablemodel.get_data_column("is_upper_limit")
+            skip_plot = not_acceptable | is_upper_limit
+        for i in rows:
+            if self.do_not_select_unacceptable and skip_plot[i]:
+                continue
             ix = self._ix(i, self.xcol)
             x = self._load_value_from_table(ix)
             ix = self._ix(i, self.ycol)
@@ -1497,7 +1504,10 @@ class MeasurementTableModelBase(QtCore.QAbstractTableModel):
 
     def get_data_column(self, column, rows=None):
         """ Function to quickly go under the hood and access one column """
-        attr = self.attrs[column]
+        if isinstance(column, int):
+            attr = self.attrs[column]
+        else:
+            attr = column
         models = self.spectral_models
         if rows is None:
             rows = np.arange(len(models))

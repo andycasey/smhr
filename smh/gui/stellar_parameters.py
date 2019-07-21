@@ -20,6 +20,7 @@ from time import time
 import mpl, style_utils
 import astropy.table
 import smh
+from smh.gui import base
 from smh.gui.base import SMHSpecDisplay
 from smh.gui.base import BaseTableView, MeasurementTableView, MeasurementTableDelegate
 from smh.gui.base import MeasurementTableModelBase, MeasurementTableModelProxy
@@ -91,12 +92,12 @@ class StellarParametersTab(QtGui.QWidget):
         lhs_layout.addLayout(hbox_layout)
 
         ## Add state table (slopes)
-        self._init_state_table(parent)
-        lhs_layout.addWidget(self.state_table_view)
-
+        grid_layout = self._init_state_table(parent)
+        lhs_layout.addLayout(grid_layout)
+        
         ## Add measurement table
-        self._init_measurement_table(parent)
-        lhs_layout.addWidget(self.measurement_view)
+        vbox = self._init_measurement_table(parent)
+        lhs_layout.addLayout(vbox)
 
         ## Add table buttons
         hbox_layout = self._init_other_buttons(parent)
@@ -131,15 +132,16 @@ class StellarParametersTab(QtGui.QWidget):
         - update table and plots
         - update plots
         """
+        print("Pushed measure abundances")
         if self.parent.session is None or not self._check_for_spectral_models():
             return None
         # If no acceptable measurements, fit all
-        for model in self.parent.session.metadata["spectral_models"]:
+        for model in self.parent.session.spectral_models:
              if model.use_for_stellar_parameter_inference \
             and "fitted_result" in model.metadata:
                 break # do not fit if any stellar parameter lines are already fit
         else:
-            for model in self.parent.session.metadata["spectral_models"]:
+            for model in self.parent.session.spectral_models:
                 if isinstance(model, SpectralSynthesisModel): continue
                 try:
                     model.fit()
@@ -149,18 +151,182 @@ class StellarParametersTab(QtGui.QWidget):
                     continue
         self.update_stellar_parameter_session()
         
-        ## Loop through the spectral model table and measure relevant abundances
+        ## Loop through the spectral models and measure relevant abundances
+        ## Note, have to do ALL the spectral models because might have added new measurements
         spectral_models = []
-        for i,spectral_model in enumerate(self.full_measurement_model.spectral_models):
+        for spectral_model in self.parent.session.spectral_models:
             if isinstance(spectral_model, ProfileFittingModel) and spectral_model.is_acceptable \
                and spectral_model.use_for_stellar_parameter_inference and (not spectral_model.is_upper_limit):
                 spectral_models.append(spectral_model)
-        self.parent.session.measure_abundances(spectral_models=spectral_models)
+        if len(spectral_models)==0:
+            logger.debug("StellarParametersTab.measure_abundances: no spectral models to measure!")
+        else:
+            self.parent.session.measure_abundances(spectral_models=spectral_models)
+        
         self.measurement_model.reset()
         self.update_stellar_parameter_state_table()
         self.refresh_plots()
         return None
     
+    def new_session_loaded(self):
+        if not hasattr(self.parent, "session") or self.parent.session is None:
+            return None
+        self.update_stellar_parameter_labels()
+        self.full_measurement_model.new_session(self.parent.session)
+        self.measurement_model.reset()
+        self.measurement_view.update_session(self.parent.session)
+        self.specfig.new_session(self.parent.session)
+        self.update_stellar_parameter_state_table()
+        self.refresh_plots()
+        return None
+    def update_stellar_parameter_session(self):
+        """ Update the stellar parameters with the values in the GUI. """
+        self.parent.session.metadata["stellar_parameters"].update({
+            "effective_temperature": float(self.edit_teff.text()),
+            "surface_gravity": float(self.edit_logg.text()),
+            "metallicity": float(self.edit_metallicity.text()),
+            "microturbulence": float(self.edit_xi.text()),
+            "alpha": float(self.edit_alpha.text())
+        })
+        return True
+    def update_stellar_parameter_labels(self):
+        if not hasattr(self.parent, "session") or self.parent.session is None:
+            return None
+        widget_info = [
+            (self.edit_teff, "{0:.0f}", "effective_temperature"),
+            (self.edit_logg, "{0:.2f}", "surface_gravity"),
+            (self.edit_metallicity, "{0:+.2f}", "metallicity"),
+            (self.edit_xi, "{0:.2f}", "microturbulence"),
+            (self.edit_alpha, "{0:.2f}", "alpha")
+        ]
+        for widget, fmt, key in widget_info:
+            widget.setText(fmt.format(self.parent.session.metadata["stellar_parameters"][key]))
+        return None
+        
+    def selected_measurement_changed(self):
+        ta = time()
+        try:
+            selected_model = self._get_selected_model()
+        except IndexError:
+            self.update_selected_points(redraw=True)
+            logger.debug("Time taken B: {}".format(time() - ta))
+            return None
+        if selected_model is None:
+            logger.debug("No selected model: {}".format(time() - ta))
+            return None
+        logger.debug("selected model is at {}".format(selected_model._repr_wavelength))
+        self.refresh_plots()
+        logger.debug("Time taken: {}".format(time() - ta))
+        return None
+    def update_stellar_parameter_state_table(self):
+        """ Update the text labels """
+        ## Note: this uses self.measurement_model to get a good list of measurements.
+        ##       So, have to call measurement_model.reset() before doing this
+        ## Note: I have scrapped the Ti I/II in favor of hardcoding.
+        
+        ## Get data
+        # species, abundance, expot, rew
+        acceptable = self.measurement_model.get_data_column("is_acceptable")
+        not_upper_limit = np.logical_not(self.measurement_model.get_data_column("is_upper_limit"))
+        species = self.measurement_model.get_data_column("species")
+        abundance = self.measurement_model.get_data_column("abundances")
+        expot = self.measurement_model.get_data_column("expot")
+        rew = self.measurement_model.get_data_column("reduced_equivalent_width")
+        ii1 = acceptable & (not_upper_limit) & (np.round(species,1)==26.0)
+        ii2 = acceptable & (not_upper_limit) & (np.round(species,1)==26.1)
+        chi1, eps1, REW1 = expot[ii1], abundance[ii1], rew[ii1]
+        chi2, eps2, REW2 = expot[ii2], abundance[ii2], rew[ii2]
+        
+        finite = np.isfinite(chi1*eps1*REW1)
+        chi1, eps1, REW1 = chi1[finite], eps1[finite], REW1[finite]
+        finite = np.isfinite(chi2*eps2*REW2)
+        chi2, eps2, REW2 = chi2[finite], eps2[finite], REW2[finite]
+        
+        ## Fit lines
+        try:
+            mchi1, bchi1, med1, eXH1, emchi1, N1 = utils.fit_line(chi1, eps1)
+        except Exception as e:
+            logger.debug(e)
+            mchi1, bchi1, med1, eXH1, emchi1, N1 = np.nan, np.nan, np.nan, np.nan, np.nan, len(eps1)
+        try:
+            mREW1, bREW1, med1, eXH1, emREW1, N1 = utils.fit_line(REW1, eps1)
+        except Exception as e:
+            logger.debug(e)
+            mREW1, bREW1, med1, eXH1, emREW1, N1 = np.nan, np.nan, np.nan, np.nan, np.nan, len(eps1)
+        try:
+            mchi2, bchi2, med2, eXH2, emchi2, N2 = utils.fit_line(chi2, eps2)
+        except Exception as e:
+            logger.debug(e)
+            mchi2, bchi2, med2, eXH2, emchi2, N2 = np.nan, np.nan, np.nan, np.nan, np.nan, len(eps2)
+        try:
+            mREW2, bREW2, med2, eXH2, emREW2, N2 = utils.fit_line(REW2, eps2)
+        except Exception as e:
+            logger.debug(e)
+            mREW2, bREW2, med2, eXH2, emREW2, N2 = np.nan, np.nan, np.nan, np.nan, np.nan, len(eps2)
+        
+        ## Update table
+        XH1 = med1 - solar_composition(26.0)
+        XH2 = med2 - solar_composition(26.1)
+        self.state_fe1_N.setText(u"Fe I ({})".format(N1))
+        self.state_fe1_XH.setText(u"{:.2f} ± {:.2f}".format(XH1,eXH1))
+        self.state_fe1_dAdchi.setText(u"{:.3f} ± {:.3f}".format(mchi1, emchi1))
+        self.state_fe1_dAdREW.setText(u"{:.3f} ± {:.3f}".format(mREW1, emREW1))
+        self.state_fe2_N.setText(u"Fe II ({})".format(N2))
+        self.state_fe2_XH.setText(u"{:.2f} ± {:.2f}".format(XH2,eXH2))
+        self.state_fe2_dAdchi.setText(u"{:.3f} ± {:.3f}".format(mchi2, emchi2))
+        self.state_fe2_dAdREW.setText(u"{:.3f} ± {:.3f}".format(mREW2, emREW2))
+        return None
+    def refresh_plots(self):
+        self.expotfig.update_scatterplot(False)
+        self.rewfig.update_scatterplot(False)
+        self.expotfig.update_selected_points(True)
+        self.rewfig.update_selected_points(True)
+        self.specfig.update_spectrum_figure(True)
+        return None
+    def refresh_selected_points(self):
+        self.expotfig.update_selected_points(True)
+        self.rewfig.update_selected_points(True)
+        return None
+    def _get_selected_model(self, full_output=False):
+        # Map the first selected row back to the source model index.
+        try:
+            proxy_index = self.measurement_view.selectionModel().selectedIndexes()[-1]
+        except IndexError:
+            return (None, None, None) if full_output else None
+        index = self.measurement_model.mapToSource(proxy_index).row()
+        model = self.parent.session.metadata["spectral_models"][index]
+        return (model, proxy_index, index) if full_output else model
+
+    def options(self):
+        """ Open a GUI for the radiative transfer and solver options. """
+        return SolveOptionsDialog(self.parent.session).exec_()
+    def quality_control(self):
+        """
+        Show a dialog to specify quality control constraints for spectral models
+        used in the determination of stellar parameters.
+        """
+        dialog = QualityControlDialog(self.parent.session,
+            filter_spectral_models=lambda m: m.use_for_stellar_parameter_inference)
+        dialog.exec_()
+        if len(dialog.affected_indices) > 0:
+            self.measurement_model.reset()
+            self.refresh_plots()
+        return None
+    def sperrors_dialog(self):
+        """ Open a GUI for the stellar parameter errors. """
+        return StellarParameterUncertaintiesDialog(self.parent.session).exec_()
+    def solve_parameters(self):
+        """ Solve the stellar parameters. """
+        if self.parent.session is None or not self._check_for_spectral_models():
+            return None
+        ## use current state as initial guess
+        logger.info("Setting [alpha/Fe]=0.4 to solve")
+        self.update_stellar_parameter_session()
+        self.parent.session.optimize_stellar_parameters()
+        ## refresh everything
+        self.measure_abundances()
+        self.new_session_loaded()
+
     def _init_rt_options(self, parent):
         grid_layout = QtGui.QGridLayout()
         # Effective temperature.
@@ -242,152 +408,13 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_alpha.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_alpha, 4, 1)
 
+        self.edit_teff.returnPressed.connect(self.measure_abundances)
+        self.edit_logg.returnPressed.connect(self.measure_abundances)
+        self.edit_metallicity.returnPressed.connect(self.measure_abundances)
+        self.edit_xi.returnPressed.connect(self.measure_abundances)
+        self.edit_alpha.returnPressed.connect(self.measure_abundances)
+
         return grid_layout
-
-    def new_session_loaded(self):
-        if not hasattr(self.parent, "session") or self.parent.session is None:
-            return None
-        self.update_stellar_parameter_labels()
-        self.full_measurement_model.new_session(session)
-        self.measurement_model.reset()
-        self.measurement_view.update_session(session)
-        self.specfig.new_session(self.parent.session)
-        self.update_stellar_parameter_state_table()
-        self.refresh_plots()
-        return None
-    def update_stellar_parameter_session(self):
-        """ Update the stellar parameters with the values in the GUI. """
-        self.parent.session.metadata["stellar_parameters"].update({
-            "effective_temperature": float(self.edit_teff.text()),
-            "surface_gravity": float(self.edit_logg.text()),
-            "metallicity": float(self.edit_metallicity.text()),
-            "microturbulence": float(self.edit_xi.text()),
-            "alpha": float(self.edit_alpha.text())
-        })
-        return True
-    def update_stellar_parameter_labels(self):
-        if not hasattr(self.parent, "session") or self.parent.session is None:
-            return None
-        widget_info = [
-            (self.edit_teff, "{0:.0f}", "effective_temperature"),
-            (self.edit_logg, "{0:.2f}", "surface_gravity"),
-            (self.edit_metallicity, "{0:+.2f}", "metallicity"),
-            (self.edit_xi, "{0:.2f}", "microturbulence"),
-            (self.edit_alpha, "{0:.2f}", "alpha")
-        ]
-        for widget, fmt, key in widget_info:
-            widget.setText(fmt.format(self.parent.session.metadata["stellar_parameters"][key]))
-        return None
-        
-    def selected_measurement_changed(self):
-        ta = time()
-        try:
-            selected_model = self._get_selected_model()
-        except IndexError:
-            self.update_selected_points(redraw=True)
-            logger.debug("Time taken B: {}".format(time() - ta))
-            return None
-        if selected_model is None:
-            logger.debug("No selected model: {}".format(time() - ta))
-            return None
-        logger.debug("selected model is at {}".format(selected_model._repr_wavelength))
-        self.refresh_plots()
-        logger.debug("Time taken: {}".format(time() - ta))
-        return None
-    def update_stellar_parameter_state_table(self):
-        raise NotImplementedError
-    def refresh_plots(self):
-        self.expotfig.update_scatterplot(False)
-        self.rewfig.update_scatterplot(False)
-        self.expotfig.update_selected_points(True)
-        self.rewfig.update_selected_points(True)
-        self.specfig.update_spectrum_figure(True)
-        return None
-    def refresh_selected_points(self):
-        self.expotfig.update_selected_points(True)
-        self.rewfig.update_selected_points(True)
-        return None
-    def _get_selected_model(self, full_output=False):
-        # Map the first selected row back to the source model index.
-        try:
-            proxy_index = self.measurement_view.selectionModel().selectedIndexes()[-1]
-        except IndexError:
-            return (None, None, None) if full_output else None
-        index = self.measurement_model.mapToSource(proxy_index).row()
-        model = self.parent.session.metadata["spectral_models"][index]
-        return (model, proxy_index, index) if full_output else model
-
-    def options(self):
-        """ Open a GUI for the radiative transfer and solver options. """
-        return SolveOptionsDialog(self.parent.session).exec_()
-    def sperrors_dialog(self):
-        """ Open a GUI for the stellar parameter errors. """
-        return StellarParameterUncertaintiesDialog(self.parent.session).exec_()
-
-    def solve_parameters(self):
-        """ Solve the stellar parameters. """
-        if self.parent.session is None or not self._check_for_spectral_models():
-            return None
-
-        ## use current state as initial guess
-        logger.info("Setting [alpha/Fe]=0.4 to solve")
-        self.update_stellar_parameters()
-        sp = self.parent.session.metadata["stellar_parameters"]
-        sp["alpha"] = 0.4
-        initial_guess = [sp["effective_temperature"], sp["microturbulence"],
-                         sp["surface_gravity"], sp["metallicity"]]
-
-        ## grab transitions for stellar parameters
-        transitions = []
-        EWs = []
-        for i, model in enumerate(self.parent.session.metadata["spectral_models"]):
-            if model.use_for_stellar_parameter_inference and model.is_acceptable and not model.is_upper_limit:
-                transitions.append(model.transitions[0])
-                EWs.append(1e3 * model.metadata["fitted_result"][-1]["equivalent_width"][0])
-        transitions = smh.LineList.vstack(transitions)
-        transitions["equivalent_width"] = EWs
-        
-        ## TODO the optimization does not use the error weights yet
-        ## TODO allow specification of tolerances and other params in QDialog widget
-        out = optimize_stellar_parameters(initial_guess, transitions, \
-                                              max_attempts=5, total_tolerance=1e-4, \
-                                              individual_tolerances=None, \
-                                              maxfev=30, use_nlte_grid=None)
-        tolerance_achieved, initial_guess, num_moog_iterations, i, \
-            t_elapsed, final_parameters, final_parameters_result, \
-            all_sampled_points = out
-        logger.info("Optimization took {:.1f}s".format(t_elapsed))
-        if not tolerance_achieved:
-            logger.warn("Did not converge in {}/{}!!! {:.5f} > {:.5f}".format( \
-                    num_moog_iterations, i, 
-                    np.sum(np.array(final_parameters_result)**2), 1e-4))
-        
-        ## update stellar params in metadata and gui
-        sp["effective_temperature"] = final_parameters[0]
-        sp["microturbulence"] = final_parameters[1]
-        sp["surface_gravity"] = final_parameters[2]
-        sp["metallicity"] = final_parameters[3]
-        self.update_stellar_parameter_labels()
-        ## refresh plot
-        self.measure_abundances()
-
-
-    def quality_control(self):
-        """
-        Show a dialog to specify quality control constraints for spectral models
-        used in the determination of stellar parameters.
-        """
-        dialog = QualityControlDialog(self.parent.session,
-            filter_spectral_models=lambda m: m.use_for_stellar_parameter_inference)
-        dialog.exec_()
-        if len(dialog.affected_indices) > 0:
-            self.measurement_model.reset()
-            self.refresh_plots()
-        return None
-
-
-
-
     def _init_rt_buttons(self, parent):
         # Buttons for solving/measuring.        
         hbox = QtGui.QHBoxLayout()
@@ -395,43 +422,54 @@ class StellarParametersTab(QtGui.QWidget):
         self.btn_measure.setAutoDefault(True)
         self.btn_measure.setDefault(True)
         self.btn_measure.setText("Measure abundances")
+        self.btn_measure.clicked.connect(self.measure_abundances)
         hbox.addWidget(self.btn_measure)
 
         self.btn_options = QtGui.QPushButton(self)
         self.btn_options.setText("Options..")
+        self.btn_options.clicked.connect(self.options)
         hbox.addWidget(self.btn_options)
 
         self.btn_solve = QtGui.QPushButton(self)
         self.btn_solve.setText("Solve")
+        self.btn_solve.clicked.connect(self.solve_parameters)
         hbox.addWidget(self.btn_solve)
 
         return hbox
     def _init_state_table(self, parent):
-        self.state_table_view = QtGui.QTableView(self)
-        self.state_table_view.setModel(StateTableModel(self))
-        self.state_table_view.setSortingEnabled(False)
-        self.state_table_view.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
-        self.state_table_view.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
-        self.state_table_view.setMaximumSize(QtCore.QSize(400, 3*(_ROWHEIGHT+1))) # MAGIC
-        self.state_table_view.setSizePolicy(QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
-        self.state_table_view.setSelectionBehavior(
-            QtGui.QAbstractItemView.SelectRows)
-
-        self.state_table_view.horizontalHeader().setResizeMode(
-            QtGui.QHeaderView.Stretch)
-
-        self.state_table_view.horizontalHeader().setResizeMode(
-            1, QtGui.QHeaderView.Fixed)
-        self.state_table_view.horizontalHeader().resizeSection(1, 35) # MAGIC
-        return None
+        grid_layout = QtGui.QGridLayout()
+        def create_label(text, row, col, rowspan=1, colspan=1, align=QtCore.Qt.AlignCenter):
+            label = QtGui.QLabel(self)
+            label.setText(text)
+            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            grid_layout.addWidget(label, row, col, rowspan, colspan, align)
+            return label
+        # Create Header
+        create_label("Species", 0, 0, align=QtCore.Qt.AlignLeft)
+        create_label(u"〈[X/H]〉", 0, 1)
+        create_label(u"∂A/∂χ", 0, 2)
+        create_label(u"∂A/∂REW", 0, 3)
+        
+        # Create State Labels
+        self.state_fe1_N = create_label(u"Fe I (nan)", 1, 0, align=QtCore.Qt.AlignLeft)
+        self.state_fe1_XH = create_label(u"nan ± nan", 1, 1)
+        self.state_fe1_dAdchi = create_label(u"nan ± nan", 1, 2)
+        self.state_fe1_dAdREW = create_label(u"nan ± nan", 1, 3)
+        
+        self.state_fe2_N = create_label(u"Fe II (nan)", 2, 0, align=QtCore.Qt.AlignLeft)
+        self.state_fe2_XH = create_label(u"nan ± nan", 2, 1)
+        self.state_fe2_dAdchi = create_label(u"nan ± nan", 2, 2)
+        self.state_fe2_dAdREW = create_label(u"nan ± nan", 2, 3)
+        
+        return grid_layout
     def _init_measurement_table(self, parent):
         self.full_measurement_model = MeasurementTableModelBase(self, self.parent.session, 
                                                     ["is_acceptable",
                                                      "wavelength","species","equivalent_width",
                                                      "equivalent_width_uncertainty",
                                                      "abundances","abundance_uncertainties",
-                                                     "user_flag"])
+                                                     "is_upper_limit","user_flag",
+                                                     "expot","reduced_equivalent_width"])
         self.measurement_model = MeasurementTableModelProxy(self)
         self.measurement_model.setSourceModel(self.full_measurement_model)
         vbox, measurement_view, btn_filter, btn_refresh = base.create_measurement_table_with_buttons(
@@ -444,7 +482,7 @@ class StellarParametersTab(QtGui.QWidget):
         _.selectionChanged.connect(self.selected_measurement_changed)
         self.measurement_view.setSizePolicy(QtGui.QSizePolicy(
             QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
-        self.measurement_view.add_filter_function(
+        self.measurement_model.add_filter_function(
             "use_for_stellar_parameter_inference",
             lambda model: model.use_for_stellar_parameter_inference)
         
@@ -458,22 +496,28 @@ class StellarParametersTab(QtGui.QWidget):
         hbox = QtGui.QHBoxLayout()
         self.btn_quality_control = QtGui.QPushButton(self)
         self.btn_quality_control.setText("Quality control..")
+        self.btn_quality_control.clicked.connect(self.quality_control)
+        
         self.btn_sperrors = QtGui.QPushButton(self)
         self.btn_sperrors.setText("Stellar Parameter Uncertainties..")
+        self.btn_sperrors.clicked.connect(self.sperrors_dialog)
+        
         hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Preferred,
             QtGui.QSizePolicy.Minimum))
         hbox.addWidget(self.btn_quality_control)
+        hbox.addWidget(self.btn_sperrors)
         return hbox
     def _init_scatterplots(self, parent):
+        ## Only plot acceptable measurements that are not upper limits
         filters = [lambda x: (x.is_acceptable) and (x.species[0]==26.0) and (not x.is_upper_limit),
                    lambda x: (x.is_acceptable) and (x.species[0]==26.1) and (not x.is_upper_limit),
                    lambda x: (x.is_acceptable) and (x.species[0]==26.0) and (x.user_flag) and (not x.is_upper_limit),
                    lambda x: (x.is_acceptable) and (x.species[0]==26.1) and (x.user_flag) and (not x.is_upper_limit),
         ]
-        point_styles = [{"s":40,"facecolor":"#FFFFFF","edgecolor":"k","linewidths":1,zorder=1},
-                        {"s":40,"facecolor":"r","edgecolor":"k","linewidths":1,zorder=9},
-                        {"s":70,"facecolor":"none","edgecolor":"red","linewidths":3,zorder=10},
-                        {"s":70,"facecolor":"none","edgecolor":"red","linewidths":3,zorder=19},
+        point_styles = [{"s":40,"facecolor":"#FFFFFF","edgecolor":"k","linewidths":1,"zorder":1},
+                        {"s":40,"facecolor":"r","edgecolor":"k","linewidths":1,"zorder":9},
+                        {"s":70,"facecolor":"none","edgecolor":"red","linewidths":3,"zorder":10},
+                        {"s":70,"facecolor":"none","edgecolor":"red","linewidths":3,"zorder":19},
         ]
         linefit_styles = [{"color":"k","linestyle":"--","zorder":-99},
                           {"color":"r","linestyle":"--","zorder":-99},
@@ -484,11 +528,13 @@ class StellarParametersTab(QtGui.QWidget):
         self.expotfig = SMHScatterplot(None, "expot", "abundances",
                                        tableview=self.measurement_view,
                                        filters=filters, point_styles=point_styles,
-                                       linefit_styles=linefit_styles,linemean_styles=linemean_styles)
+                                       linefit_styles=linefit_styles,linemean_styles=linemean_styles,
+                                       do_not_select_unacceptable=True)
         self.rewfig = SMHScatterplot(None, "reduced_equivalent_width", "abundances",
                                      tableview=self.measurement_view,
                                      filters=filters, point_styles=point_styles,
-                                     linefit_styles=linefit_styles,linemean_styles=linemean_styles)
+                                     linefit_styles=linefit_styles,linemean_styles=linemean_styles,
+                                     do_not_select_unacceptable=True)
         
         sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
                                QtGui.QSizePolicy.MinimumExpanding)
@@ -498,6 +544,9 @@ class StellarParametersTab(QtGui.QWidget):
     def _init_specfig(self, parent):
         self.specfig = SMHSpecDisplay(None, self.parent.session, enable_masks=True,
                                       get_selected_model=self._get_selected_model)
+        sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
+                               QtGui.QSizePolicy.MinimumExpanding)
+        self.specfig.setSizePolicy(sp)
         self.ax_spectrum = self.specfig.ax_spectrum
         self.ax_residual = self.specfig.ax_residual
     
@@ -553,33 +602,6 @@ class StellarParametersTab(QtGui.QWidget):
 
 
 
-
-        
-class StateTableModel(QtCore.QAbstractTableModel):
-    header = ["Species", "N", u"〈[X/H]〉", u"σ", 
-        u"∂A/∂χ", u"∂A/∂REW"]
-    def __init__(self, parent, *args):
-        super(StateTableModel, self).__init__(parent, *args)
-        self.parent = parent
-    def rowCount(self, parent):
-        raise NotImplementedError
-    def columnCount(self, parent):
-        return len(self.header)
-    def data(self, index, role):
-        raise NotImplementedError
-    def setData(self, index, value, role):
-        return False
-    def headerData(self, col, orientation, role):
-        if orientation == QtCore.Qt.Horizontal \
-        and role == QtCore.Qt.DisplayRole:
-            return self.header[col]
-        if role==QtCore.Qt.FontRole:
-            return _QFONT
-        return None
-    def flags(self, index):
-        if not index.isValid(): return
-        return QtCore.Qt.ItemIsSelectable
-    
 class StellarParameterUncertaintiesDialog(QtGui.QDialog):
     def __init__(self, session,
                  default_tols=[5,0.01,0.01],
