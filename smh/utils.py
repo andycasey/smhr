@@ -582,8 +582,10 @@ def process_session_uncertainties(session):
         
         wavelength = model.wavelength
         species = np.ravel(model.species)[0]
-        expot = model.expot or np.nan
-        loggf = model.loggf or np.nan
+        expot = model.expot# or np.nan
+        loggf = model.loggf# or np.nan
+        if np.isnan(expot) or np.isnan(loggf):
+            print(i, species, model.expot, model.loggf)
         try:
             logeps = model.abundances[0]
             staterr = model.metadata["1_sigma_abundance_error"]

@@ -129,7 +129,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Initialize metadata with default fitting values.
         self.metadata.update({
             "mask": [],
-            "window": 1, 
+            "window": 0, 
             "continuum_order": 1,
             "velocity_tolerance": 5,
             "smoothing_kernel": True,

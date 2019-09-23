@@ -112,6 +112,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
     def __init__(self, parent, session=None, 
                  get_selected_model=None,
                  enable_zoom=True, enable_masks=False,
+                 enable_model_modifications=False,
                  label_ymin=1.0, label_ymax=1.2,
                  callbacks_after_fit=[],
                  comparison_spectrum=None,
@@ -168,6 +169,8 @@ class SMHSpecDisplay(mpl.MPLWidget):
             ## Connect shift and space keys
             self.mpl_connect("key_press_event", self.key_press_flags)
             self.mpl_connect("key_release_event", self.key_release_flags)
+        if enable_model_modifications:
+            self.mpl_connect("key_press_event", self.key_press_model)
         self.setFocusPolicy(QtCore.Qt.ClickFocus)
 
         # Internal MPL variables
@@ -339,6 +342,20 @@ class SMHSpecDisplay(mpl.MPLWidget):
         for x in xs[~ii_strong]:
             paths.append([[x, ymin], [x, ymax]])
         collection2.set_paths(paths)
+        return None
+        
+    def key_press_model(self, event):
+        selected_model = self.selected_model
+        if selected_model is None: return None
+        logger.debug("key_press_model: {}".format(event.key))
+        key = event.key.lower()
+        #if event.key not in "auf": return None
+        if event.key == "a":
+            selected_model.is_acceptable = True
+        elif event.key == "u":
+            selected_model.is_acceptable = False
+        elif event.key == "f":
+            selected_model.user_flag = (~selected_model.user_flag)
         return None
         
     def key_press_zoom(self, event):

@@ -1025,7 +1025,10 @@ class NormalizationTab(QtGui.QWidget):
         session, index = self.parent.session, self.current_order_index
 
         # Is there continuum already for this new order?
-        continuum = session.metadata["normalization"]["continuum"][index]
+        try:
+            continuum = session.metadata["normalization"]["continuum"][index]
+        except:
+            logger.debug("check_for_different_input_settings: no continuum kwd")
         normalization_kwargs \
             = session.metadata["normalization"]["normalization_kwargs"][index]
 
@@ -1136,7 +1139,11 @@ class NormalizationTab(QtGui.QWidget):
         except AttributeError:
             return None
 
-        continuum = session.metadata["normalization"]["continuum"][index]
+        try:
+            continuum = session.metadata["normalization"]["continuum"][index]
+        except KeyError:
+            # Nothing to do
+            return
         if continuum is not None and not clobber:
             # Nothing to do.
             return
@@ -1214,7 +1221,11 @@ class NormalizationTab(QtGui.QWidget):
             return None
 
         meta = self.parent.session.metadata["normalization"]
-        continuum = meta["continuum"][index]
+        try:
+            continuum = meta["continuum"][index]
+        except:
+            logger.debug("draw_continuum: no continuum kw")
+            return None
         kwds = meta["normalization_kwargs"][index]
 
         self.ax_order.lines[1].set_data([
