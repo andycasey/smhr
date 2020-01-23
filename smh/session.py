@@ -1524,7 +1524,6 @@ class Session(BaseSession):
             If False (default), key is species (without isotopes)
             If True, key is element (sum all species together)
         :param use_weights:
-            TODO Not implemented yet!
             If True, use line-by-line weights
             If False, weight all lines equally
             Defaults to session settings

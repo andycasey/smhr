@@ -297,8 +297,13 @@ class BaseSpectralModel(object):
     def parameter_names(self):
         """ Return the model parameter names. """
         return self._parameter_names
-
-
+    
+    @property
+    def snr(self):
+        """ Return the SNR: median of sqrt(ivar) for masked pixels """
+        spectrum = self._verify_spectrum(None)
+        return np.nanmedian(spectrum.ivar[self.mask(spectrum)]**0.5)
+    
     def __call__(self, dispersion, *args, **kwargs):
         """ The data-generating function. """
         raise NotImplementedError(

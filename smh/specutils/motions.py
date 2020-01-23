@@ -23,6 +23,8 @@ import astropy.constants as constants
 import astropy.coordinates as coord
 import astropy.units as u
 from astropy.time import Time
+from astropy.utils import iers
+iers.Conf.iers_auto_url.set('ftp://cddis.gsfc.nasa.gov/pub/products/iers/finals2000A.all')
 
 def celestial_velocities(dje):
     """

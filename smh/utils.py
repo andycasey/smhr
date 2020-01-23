@@ -23,7 +23,7 @@ from socket import gethostname, gethostbyname
 # Third party imports
 import numpy as np
 import astropy.table
-from scipy import stats
+from scipy import stats, integrate
 
 common_molecule_name2Z = {
     'Mg-H': 12,'H-Mg': 12,
@@ -572,7 +572,7 @@ def process_session_uncertainties(session):
     from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
     from .photospheres.abundances import asplund_2009 as solar_composition
     cols = ["index","wavelength","species","expot","loggf",
-            "logeps","e_stat","eqw","e_eqw",
+            "logeps","e_stat","eqw","e_eqw","fwhm",
             "e_Teff","e_logg","e_MH","e_vt","e_sys",
             "e_tot","weight"]
     data = OrderedDict(zip(cols, [[] for col in cols]))
@@ -589,12 +589,18 @@ def process_session_uncertainties(session):
         try:
             logeps = model.abundances[0]
             staterr = model.metadata["1_sigma_abundance_error"]
+            if isinstance(model, SpectralSynthesisModel):
+                (named_p_opt, cov, meta) = model.metadata["fitted_result"]
+                if np.isfinite(cov[0,0]**0.5):
+                    staterr = max(staterr, cov[0,0]**0.5)
+                assert ~np.isnan(staterr)
             sperrdict = model.metadata["systematic_stellar_parameter_abundance_error"]
             e_Teff = sperrdict["effective_temperature"]
             e_logg = sperrdict["surface_gravity"]
             e_MH = sperrdict["metallicity"]
             e_vt = sperrdict["microturbulence"]
             syserr = model.metadata["systematic_abundance_error"]
+            fwhm = model.fwhm
         except:
             logeps, staterr, e_Teff, e_logg, e_MH, e_vt, syserr = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
@@ -607,7 +613,7 @@ def process_session_uncertainties(session):
         toterr = np.sqrt(staterr**2 + syserr**2)
         
         input_data = [i, wavelength, species, expot, loggf,
-                      logeps, staterr, eqw, e_eqw,
+                      logeps, staterr, eqw, e_eqw, fwhm,
                       e_Teff, e_logg, e_MH, e_vt, syserr, toterr, toterr**-2]
         for col, x in zip(cols, input_data):
             data[col].append(x)
@@ -668,37 +674,55 @@ def process_session_uncertainties(session):
             data[col].append(x)
     summary_tab = astropy.table.Table(data)
     # Add in [X/Fe]
-    feh1 = summary_tab[summary_tab["species"]==26.0]["[X/H]"][0]
-    feh2 = summary_tab[summary_tab["species"]==26.1]["[X/H]"][0]
-    e1_stat, e1_Teff, e1_logg, e1_MH, e1_vt = [summary_tab[summary_tab["species"]==26.0][col][0] for
-                                               col in ["stderr_w","e_Teff_w","e_logg_w","e_MH_w","e_vt_w"]]
-    e2_stat, e2_Teff, e2_logg, e2_MH, e2_vt = [summary_tab[summary_tab["species"]==26.1][col][0] for
-                                               col in ["stderr_w","e_Teff_w","e_logg_w","e_MH_w","e_vt_w"]]
-    efe1 = np.sqrt(summary_tab["stderr_w"]**2 + e1_stat**2 + (summary_tab["e_Teff_w"]-e1_Teff)**2
-                   + (summary_tab["e_logg_w"]-e1_logg)**2 + (summary_tab["e_MH_w"]-e1_MH)**2
-                   + (summary_tab["e_vt_w"]-e1_vt)**2)
-    efe2 = np.sqrt(summary_tab["stderr_w"]**2 + e2_stat**2 + (summary_tab["e_Teff_w"]-e2_Teff)**2
-                   + (summary_tab["e_logg_w"]-e2_logg)**2 + (summary_tab["e_MH_w"]-e2_MH)**2
-                   + (summary_tab["e_vt_w"]-e2_vt)**2)
-
-    summary_tab["[X/Fe1]"] = summary_tab["[X/H]"] - feh1
-    summary_tab["e_XFe1"] = efe1
-    summary_tab["[X/Fe2]"] = summary_tab["[X/H]"] - feh2
-    summary_tab["e_XFe2"] = efe2
+    try:
+        feh1 = summary_tab[summary_tab["species"]==26.0]["[X/H]"][0]
+        e1_stat, e1_Teff, e1_logg, e1_MH, e1_vt = [summary_tab[summary_tab["species"]==26.0][col][0] for
+                                                   col in ["stderr_w","e_Teff_w","e_logg_w","e_MH_w","e_vt_w"]]
+        efe1 = np.sqrt(summary_tab["stderr_w"]**2 + e1_stat**2 + (summary_tab["e_Teff_w"]-e1_Teff)**2
+                       + (summary_tab["e_logg_w"]-e1_logg)**2 + (summary_tab["e_MH_w"]-e1_MH)**2
+                       + (summary_tab["e_vt_w"]-e1_vt)**2)
+    except IndexError:
+        print("No feh1: setting to nan")
+        feh1 = np.nan
+        e1_stat, e1_Teff, e1_logg, e1_MH, e1_vt = np.nan, np.nan, np.nan, np.nan, np.nan
+        efe1 = np.nan
+    try:
+        feh2 = summary_tab[summary_tab["species"]==26.1]["[X/H]"][0]
+        e2_stat, e2_Teff, e2_logg, e2_MH, e2_vt = [summary_tab[summary_tab["species"]==26.1][col][0] for
+                                                   col in ["stderr_w","e_Teff_w","e_logg_w","e_MH_w","e_vt_w"]]
+        efe2 = np.sqrt(summary_tab["stderr_w"]**2 + e2_stat**2 + (summary_tab["e_Teff_w"]-e2_Teff)**2
+                       + (summary_tab["e_logg_w"]-e2_logg)**2 + (summary_tab["e_MH_w"]-e2_MH)**2
+                       + (summary_tab["e_vt_w"]-e2_vt)**2)
+    except:
+        print("No feh2: setting to feh1")
+        feh2 = feh1
+        e2_stat, e2_Teff, e2_logg, e2_MH, e2_vt = e1_stat, e1_Teff, e1_logg, e1_MH, e1_vt
+        efe2 = efe1
+        
+    if len(summary_tab["[X/H]"]) > 0:
+        summary_tab["[X/Fe1]"] = summary_tab["[X/H]"] - feh1
+        summary_tab["e_XFe1"] = efe1
+        summary_tab["[X/Fe2]"] = summary_tab["[X/H]"] - feh2
+        summary_tab["e_XFe2"] = efe2
     
-    ixion = np.array([x - int(x) > .01 for x in summary_tab["species"]])
-    summary_tab["[X/Fe]"] = summary_tab["[X/Fe1]"]
-    summary_tab["e_XFe"] = summary_tab["e_XFe1"]
-    summary_tab["[X/Fe]"][ixion] = summary_tab["[X/Fe2]"][ixion]
-    summary_tab["e_XFe"][ixion] = summary_tab["e_XFe2"][ixion]
-    for col in summary_tab.colnames:
-        if col=="N" or col=="species" or col=="elem": continue
-        summary_tab[col].format = ".3f"
-    
-    
+        ixion = np.array([x - int(x) > .01 for x in summary_tab["species"]])
+        summary_tab["[X/Fe]"] = summary_tab["[X/Fe1]"]
+        summary_tab["e_XFe"] = summary_tab["e_XFe1"]
+        summary_tab["[X/Fe]"][ixion] = summary_tab["[X/Fe2]"][ixion]
+        summary_tab["e_XFe"][ixion] = summary_tab["e_XFe2"][ixion]
+        for col in summary_tab.colnames:
+            if col=="N" or col=="species" or col=="elem": continue
+            summary_tab[col].format = ".3f"
+    else:
+        N = 0
+        for col in ["[X/Fe]","[X/Fe1]","[X/Fe2]",
+                    "e_XFe","e_XFe1","e_XFe2"]:
+            summary_tab.add_column(astropy.table.Column(np.zeros(0),col))
+            #summary_tab[col] = np.nan #.add_column(col)
+         
     ## Add in upper limits to line data
     cols = ["index","wavelength","species","expot","loggf",
-            "logeps","e_stat","eqw","e_eqw",
+            "logeps","e_stat","eqw","e_eqw","fwhm",
             "e_Teff","e_logg","e_MH","e_vt","e_sys",
             "e_tot","weight"]
     assert len(cols)==len(tab.colnames)
@@ -716,7 +740,7 @@ def process_session_uncertainties(session):
             logeps = np.nan
 
         input_data = [i, wavelength, species, expot, loggf,
-                      logeps, np.nan, np.nan, np.nan,
+                      logeps, np.nan, np.nan, np.nan, np.nan,
                       np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]
         for col, x in zip(cols, input_data):
             data[col].append(x)
@@ -756,6 +780,54 @@ def process_session_uncertainties(session):
             data[col].append(x)
     summary_tab_ul = astropy.table.Table(data)
     if len(summary_tab_ul) > 0:
-        summary_tab = astropy.table.vstack([summary_tab, summary_tab_ul])
+        if len(summary_tab) > 0:
+            summary_tab = astropy.table.vstack([summary_tab, summary_tab_ul])
+        else:
+            summary_tab = summary_tab_ul
     
     return tab, summary_tab
+
+def get_synth_eqw(model, window=1.0, wavelength=None,
+                  get_spec=False):
+    """
+    Calculate the equivalent width associated with the synthetic line.
+    This is done by synthesizing the line in absence of any other elements,
+    then integrating the synthetic spectrum in a window around the central wavelength.
+    
+    The user can specify the size of the window (default +/-1A) 
+    and the central wavelength (default None -> model.wavelength)
+    """
+    from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
+    assert isinstance(model, SpectralSynthesisModel)
+    assert len(model.elements)==1, model.elements
+    
+    abundances = model.metadata["rt_abundances"].copy()
+    for key in abundances:
+        if key != model.elements[0]: abundances[key] = -9.0
+    abundances[model.elements[0]] = model.metadata["fitted_result"][0].values()[0]
+    print(abundances)
+    
+    synth_dispersion, intensities, meta = model.session.rt.synthesize(
+        model.session.stellar_photosphere, model.transitions,
+        abundances,
+        isotopes=model.session.metadata["isotopes"], twd=model.session.twd)[0]
+    if wavelength is None: wavelength = model.wavelength
+    ii = (synth_dispersion > wavelength - window) & (synth_dispersion < wavelength + window)
+    # integrate with the trapezoid rule, get milliangstroms
+    eqw = 1000.*integrate.trapz(1.0-intensities[ii], synth_dispersion[ii])
+    # integrate everything with the trapezoid rule, get milliangstroms
+    eqw_all = 1000.*integrate.trapz(1.0-intensities, synth_dispersion)
+    
+    for key in abundances:
+        abundances[key] = -9.0
+    blank_dispersion, blank_flux, blank_meta = model.session.rt.synthesize(
+        model.session.stellar_photosphere, model.transitions,
+        abundances,
+        isotopes=model.session.metadata["isotopes"], twd=model.session.twd)[0]
+    blank_eqw = 1000.*integrate.trapz(1.0-blank_flux[ii], blank_dispersion[ii])
+    # integrate everything with the trapezoid rule, get milliangstroms
+    blank_eqw_all = 1000.*integrate.trapz(1.0-blank_flux, blank_dispersion)
+    
+    if get_spec:
+        return eqw, eqw_all, blank_eqw, blank_eqw_all, synth_dispersion, intensities
+    return eqw, eqw_all, blank_eqw, blank_eqw_all
