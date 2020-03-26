@@ -11,7 +11,8 @@ Authors
  - Alex Ji (Carnegie Observatories)
 
 VERSION NOTE:
-- The master branch is currently up to date and being actively developed.
+- The branch `refactor-scatterplot` has an updated and improved GUI (as of Jan 2020). These have not been merged into master yet.
+- The `master` branch is currently frozen to a version from about July 2019.
 - v0.22 (formerly branch `better-errors`) is a frozen version that is the result of a big update on May 30, 2019. It is considered a stable version.
 - v0.2 is a frozen development version, v0.21 is a slightly more recently frozen version. 
 - v0.1 is the current stable version. Things are working and it is being used for papers.
@@ -42,7 +43,8 @@ brew install qt@4
 - Go to `smhr/smh/gui` and open with `ipython __main__.py`. It should crash with a message about `libpyside`, saying something is not found. This is because a file is named wrong within anaconda.
   - Go to `~/anaconda/lib` (or the equivalent if you made a separate environment), and make a symlink or file copy for `libpyside-python2.7.1.1.dylib` from one that looks almost the same (e.g. `libpyside-python2.7.1.1.1.dylib`)
   - Try to open SMHR again, and it will crash. Do the same thing for `libshiboken` when you see this error message.
-- If you have problems with `qt_menu.nib`, use `~/anaconda/bin/python.app __main__.py` instead of `ipython`. (I have fixed this on my laptop by copying it somewhere but I cannot find where.) Some possible places that could help:
+  - If you have multiple anaconda installations: make sure that you are doing all of this with the correct anaconda (e.g. anaconda2)
+- If you have problems with `qt_menu.nib`, use `~/anaconda/bin/python.app __main__.py` instead of `ipython`. If you have multiple anaconda installations, make sure you change `anaconda` to `anaconda2` or whatever you installed it to. (I have fixed this on my laptop by copying it somewhere but I cannot find where. Some possible places that could help):
 ```
 ~/anaconda/python.app/Contents/Resources/qt_menu.nib
 ~/anaconda/pkgs/launcher-1.0.0-1/launcherapp/Contents/Resources/qt_menu.nib
@@ -52,4 +54,4 @@ brew install qt@4
 ~/anaconda/Launcher.app/Contents/Resources/qt_menu.nib
 /usr/local/Cellar/qt/4.8.7_1/lib/QtGui.framework/Versions/4/Resources/qt_menu.nib
 ```
-- There are sometimes some problems with segfaults. We hope this will go away when we move away from pyside. Sorry.
+- There are sometimes some problems with segfaults due to the GUI library. We hope this will go away when we move away from pyside. Sorry.
