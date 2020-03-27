@@ -562,18 +562,35 @@ def get_version():
 
 
 
+def struct2array(x):
+    """ Convert numpy structured array of simple type to normal numpy array """
+    Ncol = len(x.dtype)
+    type = x.dtype[0].type
+    assert np.all([x.dtype[i].type == type for i in range(Ncol)])
+    return x.view(type).reshape((-1,Ncol))
+
     
-def process_session_uncertainties(session):
+def process_session_uncertainties(session,
+                                  rho_Tg=0.0, rho_Tv=0.0, rho_TM=0.0, rho_gv=0.0, rho_gM=0.0, rho_vM=0.0):
     """
     After you have run session.compute_all_abundance_uncertainties(),
     this pulls out a big array of line data
     and computes the final abundance table and errors
+    
+    By default assumes no correlations in stellar parameters. If you specify rho_XY
+    it will include that correlated error.
+    (X,Y) in [T, g, v, M]
     """
     from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
     from .photospheres.abundances import asplund_2009 as solar_composition
+    ## Correlation matrix. This is multiplied by the errors to get the covariance matrix.
+    # rho order = [T, g, v, M]
+    rhomat = np.array([[1.0, rho_Tg, rho_Tv, rho_TM],[rho_Tg, 1.0, rho_gv, rho_gM],
+                       [rho_Tv, rho_gv, 1.0, rho_gM],[rho_TM, rho_gM, rho_vM, 1.0]])
     cols = ["index","wavelength","species","expot","loggf",
             "logeps","e_stat","eqw","e_eqw","fwhm",
             "e_Teff","e_logg","e_MH","e_vt","e_sys",
+            "e_sys2_orig","e_sys2_cross",
             "e_tot","weight"]
     data = OrderedDict(zip(cols, [[] for col in cols]))
     for i, model in enumerate(session.spectral_models):
@@ -599,7 +616,16 @@ def process_session_uncertainties(session):
             e_logg = sperrdict["surface_gravity"]
             e_MH = sperrdict["metallicity"]
             e_vt = sperrdict["microturbulence"]
-            syserr = model.metadata["systematic_abundance_error"]
+            e_all = np.array([e_Teff, e_logg, e_vt, e_MH])
+            ## I have split it up here, but actually a matrix multiplication is better
+            #syserr_1 = model.metadata["systematic_abundance_error"]**2
+            #syserr_2 = 2*(e_Teff*e_logg*rho_Tg + e_Teff*e_vt*rho_Tv + e_Teff*e_MH*rho_TM + \
+            #             e_logg*e_vt*rho_gv + e_logg*e_MH*rho_gM + e_vt*e_MH*rho_vM)
+            #syserr = np.sqrt(syserr_1 + syserr_2)
+            syserr_1 = np.sum(e_all**2)
+            syserr_sq = e_all.T.dot(rhomat.dot(e_all))
+            syserr_2 = syserr_sq - syserr_1
+            syserr = np.sqrt(syserr_sq)
             fwhm = model.fwhm
         except:
             logeps, staterr, e_Teff, e_logg, e_MH, e_vt, syserr = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
@@ -611,10 +637,11 @@ def process_session_uncertainties(session):
             eqw = -999
             e_eqw = -999
         toterr = np.sqrt(staterr**2 + syserr**2)
-        
         input_data = [i, wavelength, species, expot, loggf,
                       logeps, staterr, eqw, e_eqw, fwhm,
-                      e_Teff, e_logg, e_MH, e_vt, syserr, toterr, toterr**-2]
+                      e_Teff, e_logg, e_MH, e_vt, syserr,
+                      syserr_1, syserr_2,
+                      toterr, toterr**-2]
         for col, x in zip(cols, input_data):
             data[col].append(x)
     tab = astropy.table.Table(data)
@@ -649,7 +676,7 @@ def process_session_uncertainties(session):
         
         sperrs = []
         sperrs_w = []
-        for spcol in ["Teff","logg","MH","vt"]:
+        for spcol in ["Teff","logg","vt","MH"]:
             x_new = x + ttab["e_"+spcol]
             e_sp = np.mean(x_new) - logeps
             sperrs.append(e_sp)
@@ -657,8 +684,11 @@ def process_session_uncertainties(session):
             sperrs_w.append(e_sp_w)
         sperrs = np.array(sperrs)
         sperrs_w = np.array(sperrs_w)
-        sperrtot = np.sqrt(np.sum(sperrs**2))
-        sperrtot_w = np.sqrt(np.sum(sperrs_w**2))
+        #sperrtot = np.sqrt(np.sum(sperrs**2))
+        #sperrtot2_w = np.sqrt(np.sum(sperrs_w**2))
+        ## This adds the covariances for "free"!
+        sperrtot = np.sqrt(sperrs.T.dot(rhomat.dot(sperrs)))
+        sperrtot_w = np.sqrt(sperrs_w.T.dot(rhomat.dot(sperrs_w)))
         
         XH = logeps_w - solar_composition(species)
         e_XH = np.sqrt(stderr_w**2 + sperrtot_w**2)
@@ -673,7 +703,42 @@ def process_session_uncertainties(session):
         for col, x in zip(cols, input_data):
             data[col].append(x)
     summary_tab = astropy.table.Table(data)
-    # Add in [X/Fe]
+    
+    ## Add in [X/Fe]
+    # cov_XY = Cov(X,Y). Diagonal entries are Var(X). The matrix is symmetric.
+    delta_XY = struct2array(np.array(summary_tab["e_Teff_w","e_logg_w","e_vt_w","e_MH_w"]))
+    cov_XY = delta_XY.dot(rhomat.dot(delta_XY.T))
+    # Add statistical errors to the diagonal
+    var_X = cov_XY[np.diag_indices_from(cov_XY)] + summary_tab["stderr_w"]**2
+    assert np.all(np.abs(cov_XY - cov_XY.T) < .01**2)
+    # [X/Fe] errors are the Fe1 and Fe2 parts of the covariance matrix
+    try:
+        ix1 = np.where(summary_tab["species"]==26.0)[0][0]
+    except IndexError:
+        print("No feh1: setting to nan")
+        feh1 = np.nan
+        efe1 = np.nan
+    else:
+        feh1 = summary_tab["[X/H]"][ix1]
+        #e1_stat = summary_tab["stderr_w"][ix1]
+        var_fe1 = var_X[ix1]
+        # Var(X/Fe1) = Var(X) + Var(Fe1) - 2*Cov(X,Fe1)
+        efe1 = np.sqrt(var_X + var_fe1 - 2*cov_XY[ix1,:])
+    try:
+        ix2 = np.where(summary_tab["species"]==26.1)[0][0]
+    except IndexError:
+        print("No feh2: setting to feh1")
+        feh2 = feh1
+        efe2 = efe1
+    else:
+        feh2 = summary_tab["[X/H]"][ix2]
+        #e2_stat = summary_tab["stderr_w"][ix2]
+        var_fe2 = var_X[ix2]
+        # Var(X/Fe2) = Var(X) + Var(Fe2) - 2*Cov(X,Fe2)
+        efe2 = np.sqrt(var_X + var_fe2 - 2*cov_XY[ix2,:])
+    
+    ## This stuff below is old, and it does not include covariances!
+    """
     try:
         feh1 = summary_tab[summary_tab["species"]==26.0]["[X/H]"][0]
         e1_stat, e1_Teff, e1_logg, e1_MH, e1_vt = [summary_tab[summary_tab["species"]==26.0][col][0] for
@@ -698,6 +763,7 @@ def process_session_uncertainties(session):
         feh2 = feh1
         e2_stat, e2_Teff, e2_logg, e2_MH, e2_vt = e1_stat, e1_Teff, e1_logg, e1_MH, e1_vt
         efe2 = efe1
+    """
         
     if len(summary_tab["[X/H]"]) > 0:
         summary_tab["[X/Fe1]"] = summary_tab["[X/H]"] - feh1
@@ -724,6 +790,7 @@ def process_session_uncertainties(session):
     cols = ["index","wavelength","species","expot","loggf",
             "logeps","e_stat","eqw","e_eqw","fwhm",
             "e_Teff","e_logg","e_MH","e_vt","e_sys",
+            "e_sys2_orig","e_sys2_cross",
             "e_tot","weight"]
     assert len(cols)==len(tab.colnames)
     data = OrderedDict(zip(cols, [[] for col in cols]))
@@ -740,7 +807,7 @@ def process_session_uncertainties(session):
             logeps = np.nan
 
         input_data = [i, wavelength, species, expot, loggf,
-                      logeps, np.nan, np.nan, np.nan, np.nan,
+                      logeps, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan,
                       np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]
         for col, x in zip(cols, input_data):
             data[col].append(x)
