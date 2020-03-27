@@ -589,7 +589,7 @@ def process_session_uncertainties(session,
                        [rho_Tv, rho_gv, 1.0, rho_gM],[rho_TM, rho_gM, rho_vM, 1.0]])
     cols = ["index","wavelength","species","expot","loggf",
             "logeps","e_stat","eqw","e_eqw","fwhm",
-            "e_Teff","e_logg","e_MH","e_vt","e_sys",
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
             "e_sys2_orig","e_sys2_cross",
             "e_tot","weight"]
     data = OrderedDict(zip(cols, [[] for col in cols]))
@@ -614,8 +614,8 @@ def process_session_uncertainties(session,
             sperrdict = model.metadata["systematic_stellar_parameter_abundance_error"]
             e_Teff = sperrdict["effective_temperature"]
             e_logg = sperrdict["surface_gravity"]
-            e_MH = sperrdict["metallicity"]
             e_vt = sperrdict["microturbulence"]
+            e_MH = sperrdict["metallicity"]
             e_all = np.array([e_Teff, e_logg, e_vt, e_MH])
             ## I have split it up here, but actually a matrix multiplication is better
             #syserr_1 = model.metadata["systematic_abundance_error"]**2
@@ -628,7 +628,7 @@ def process_session_uncertainties(session,
             syserr = np.sqrt(syserr_sq)
             fwhm = model.fwhm
         except:
-            logeps, staterr, e_Teff, e_logg, e_MH, e_vt, syserr = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
+            logeps, staterr, e_Teff, e_logg, e_vt, e_MH, syserr = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
         if isinstance(model, ProfileFittingModel):
             eqw = model.equivalent_width or np.nan
@@ -639,7 +639,7 @@ def process_session_uncertainties(session,
         toterr = np.sqrt(staterr**2 + syserr**2)
         input_data = [i, wavelength, species, expot, loggf,
                       logeps, staterr, eqw, e_eqw, fwhm,
-                      e_Teff, e_logg, e_MH, e_vt, syserr,
+                      e_Teff, e_logg, e_vt, e_MH, syserr,
                       syserr_1, syserr_2,
                       toterr, toterr**-2]
         for col, x in zip(cols, input_data):
@@ -653,8 +653,8 @@ def process_session_uncertainties(session,
     cols = ["species","elem","N",
             "logeps","sigma","stderr",
             "logeps_w","sigma_w","stderr_w",
-            "e_Teff","e_logg","e_MH","e_vt","e_sys",
-            "e_Teff_w","e_logg_w","e_MH_w","e_vt_w","e_sys_w",
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
+            "e_Teff_w","e_logg_w","e_vt_w","e_MH_w","e_sys_w",
             "[X/H]","e_XH"]
     data = OrderedDict(zip(cols, [[] for col in cols]))
     for species in unique_species:
@@ -737,34 +737,6 @@ def process_session_uncertainties(session,
         # Var(X/Fe2) = Var(X) + Var(Fe2) - 2*Cov(X,Fe2)
         efe2 = np.sqrt(var_X + var_fe2 - 2*cov_XY[ix2,:])
     
-    ## This stuff below is old, and it does not include covariances!
-    """
-    try:
-        feh1 = summary_tab[summary_tab["species"]==26.0]["[X/H]"][0]
-        e1_stat, e1_Teff, e1_logg, e1_MH, e1_vt = [summary_tab[summary_tab["species"]==26.0][col][0] for
-                                                   col in ["stderr_w","e_Teff_w","e_logg_w","e_MH_w","e_vt_w"]]
-        efe1 = np.sqrt(summary_tab["stderr_w"]**2 + e1_stat**2 + (summary_tab["e_Teff_w"]-e1_Teff)**2
-                       + (summary_tab["e_logg_w"]-e1_logg)**2 + (summary_tab["e_MH_w"]-e1_MH)**2
-                       + (summary_tab["e_vt_w"]-e1_vt)**2)
-    except IndexError:
-        print("No feh1: setting to nan")
-        feh1 = np.nan
-        e1_stat, e1_Teff, e1_logg, e1_MH, e1_vt = np.nan, np.nan, np.nan, np.nan, np.nan
-        efe1 = np.nan
-    try:
-        feh2 = summary_tab[summary_tab["species"]==26.1]["[X/H]"][0]
-        e2_stat, e2_Teff, e2_logg, e2_MH, e2_vt = [summary_tab[summary_tab["species"]==26.1][col][0] for
-                                                   col in ["stderr_w","e_Teff_w","e_logg_w","e_MH_w","e_vt_w"]]
-        efe2 = np.sqrt(summary_tab["stderr_w"]**2 + e2_stat**2 + (summary_tab["e_Teff_w"]-e2_Teff)**2
-                       + (summary_tab["e_logg_w"]-e2_logg)**2 + (summary_tab["e_MH_w"]-e2_MH)**2
-                       + (summary_tab["e_vt_w"]-e2_vt)**2)
-    except:
-        print("No feh2: setting to feh1")
-        feh2 = feh1
-        e2_stat, e2_Teff, e2_logg, e2_MH, e2_vt = e1_stat, e1_Teff, e1_logg, e1_MH, e1_vt
-        efe2 = efe1
-    """
-        
     if len(summary_tab["[X/H]"]) > 0:
         summary_tab["[X/Fe1]"] = summary_tab["[X/H]"] - feh1
         summary_tab["e_XFe1"] = efe1
@@ -789,7 +761,7 @@ def process_session_uncertainties(session,
     ## Add in upper limits to line data
     cols = ["index","wavelength","species","expot","loggf",
             "logeps","e_stat","eqw","e_eqw","fwhm",
-            "e_Teff","e_logg","e_MH","e_vt","e_sys",
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
             "e_sys2_orig","e_sys2_cross",
             "e_tot","weight"]
     assert len(cols)==len(tab.colnames)
@@ -820,8 +792,8 @@ def process_session_uncertainties(session,
     cols = ["species","elem","N",
             "logeps","sigma","stderr",
             "logeps_w","sigma_w","stderr_w",
-            "e_Teff","e_logg","e_MH","e_vt","e_sys",
-            "e_Teff_w","e_logg_w","e_MH_w","e_vt_w","e_sys_w",
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
+            "e_Teff_w","e_logg_w","e_vt_w","e_MH_w","e_sys_w",
             "[X/H]","e_XH"] + ["[X/Fe1]","e_XFe1","[X/Fe2]","e_XFe2","[X/Fe]","e_XFe"]
     assert len(cols)==len(summary_tab.colnames)
     data = OrderedDict(zip(cols, [[] for col in cols]))
