@@ -11,13 +11,13 @@ Authors
  - Alex Ji (Carnegie Observatories)
 
 VERSION NOTE:
-- The branch `refactor-scatterplot` has an updated and improved GUI (as of Jan 2020). These have not been merged into master yet.
+- The branch `refactor-scatterplot` has an updated and improved GUI (as of Jan 2020). These have not been merged into master yet but should be soon.
 - The `master` branch is currently frozen to a version from about July 2019.
 - v0.22 (formerly branch `better-errors`) is a frozen version that is the result of a big update on May 30, 2019. It is considered a stable version.
 - v0.2 is a frozen development version, v0.21 is a slightly more recently frozen version. 
 - v0.1 is the current stable version. Things are working and it is being used for papers.
 
-If you are new to SMHR, you should use the master branch or v0.22.
+If you are new to SMHR, you should use the branch `refactor-scatterplot`.
 Note v0.1 and v0.2 files are not compatible, but there is a script to convert old save files into new save files.
 There is not a way to convert files from the old SMH to new SMHR.
 
@@ -55,3 +55,11 @@ brew install qt@4
 /usr/local/Cellar/qt/4.8.7_1/lib/QtGui.framework/Versions/4/Resources/qt_menu.nib
 ```
 - There are sometimes some problems with segfaults due to the GUI library. We hope this will go away when we move away from pyside. Sorry.
+
+MOOG
+----
+It is currently recommended that you use this version of MOOG: https://github.com/alexji/moog17scat
+
+This version is not the most efficient, and it computes synthetic spectra only to about 0.003 accuracy. It is modified from the 2017 February version of MOOG from Chris Sneden's website (there has been an update made in Nov 2019 that Alex has not investigated yet). It includes Jennifer Sobeck's scattering routines (turned on and off with the flag `scat`, which is not true in the default MOOG 2017) and the fixes to the Barklem damping that were implemented in the 2014 MOOG refactoring.
+
+Note that by default right now, we require you to have an executable called `MOOGSILENT` callable from your `$PATH` environment variable. Specifically, we use the version of MOOG that you get from `which MOOGSILENT`. We may change this in the future.
