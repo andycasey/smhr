@@ -710,7 +710,7 @@ def process_session_uncertainties(session,
     cov_XY = delta_XY.dot(rhomat.dot(delta_XY.T))
     # Add statistical errors to the diagonal
     var_X = cov_XY[np.diag_indices_from(cov_XY)] + summary_tab["stderr_w"]**2
-    assert np.all(np.abs(cov_XY - cov_XY.T) < .01**2)
+    assert np.all(np.abs(cov_XY - cov_XY.T) < 0.1**2), np.max(np.abs(np.abs(cov_XY - cov_XY.T)))
     # [X/Fe] errors are the Fe1 and Fe2 parts of the covariance matrix
     try:
         ix1 = np.where(summary_tab["species"]==26.0)[0][0]
@@ -768,6 +768,7 @@ def process_session_uncertainties(session,
     data = OrderedDict(zip(cols, [[] for col in cols]))
     for i, model in enumerate(session.spectral_models):
         if not model.is_upper_limit: continue
+        if not model.is_acceptable: continue
         
         wavelength = model.wavelength
         species = np.ravel(model.species)[0]
