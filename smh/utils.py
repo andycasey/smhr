@@ -328,6 +328,53 @@ def approximate_sun_hermes_jacobian(stellar_parameters, *args):
     return full_jacobian.T
 
 
+def approximate_stellar_jacobian_2(stellar_parameters, *args):
+    """ Approximate the Jacobian of the stellar parameters and
+    minimisation parameters, based on calculations from the Sun """
+
+    logger.info("Updated approximation of the Jacobian")
+
+    teff, logg, vt, feh = stellar_parameters[:4]
+
+    # This is the black magic.
+    full_jacobian = np.array([
+        [ 5.4393e-08*teff - 4.8623e-04,  1.6258e-02*logg - 8.2654e-02, -7.2560e-02*vt + 1.2853e-01,  1.0897e-02*feh - 2.3837e-02],
+        [ 4.2613e-08*teff - 4.2039e-04, -5.7948e-02*logg - 1.2402e-01, -4.3985e-01*vt + 8.0592e-02, -1.1533e-01*feh - 9.2341e-02],
+        [-3.2710e-08*teff + 2.8178e-04, -1.2006e-02*logg - 3.5816e-03,  3.8185e-03*vt - 1.6601e-02, -2.8592e-05*feh + 1.4257e-03],
+        [-1.7822e-08*teff + 1.8250e-04, -1.2114e-02*logg + 4.1779e-02,  3.5564e-02*vt - 1.1024e-01, -1.8847e-02*feh - 1.0949e-01]
+    ])
+    return full_jacobian.T
+
+
+def approximate_sun_hermes_jacobian_2(stellar_parameters, *args):
+    """
+    Approximate the Jacobian of the stellar parameters and
+    minimisation parameters, based on calculations using the Sun
+    and the HERMES atomic line list, after equivalent widths
+    were carefully inspected.
+    """
+
+#    logger.info("Updated approximation of the Jacobian")
+
+    teff, logg, vt, feh = stellar_parameters[:4]
+
+#    full_jacobian = np.array([
+#        [ 4.4973e-08*teff - 4.2747e-04, -1.2404e-03*vt + 2.4748e-02,  1.6481e-02*logg - 5.1979e-02,  1.0470e-02*feh - 8.5645e-03],
+#        [-9.3371e-08*teff + 6.9953e-04,  5.0115e-02*vt - 3.0106e-01, -6.0800e-02*logg + 6.7056e-02, -4.1281e-02*feh - 6.2085e-02],
+#        [-2.1326e-08*teff + 1.9121e-04,  1.0508e-03*vt + 1.1099e-03, -6.1479e-03*logg - 1.7401e-02,  3.4172e-03*feh + 3.7851e-03],
+#        [-9.4547e-09*teff + 1.1280e-04,  1.0033e-02*vt - 3.6439e-02, -9.5015e-03*logg + 3.2700e-02, -1.7947e-02*feh - 1.0383e-01]
+#    ])
+
+    # After culling abundance outliers,..
+    full_jacobian = np.array([
+        [ 4.5143e-08*teff - 4.3018e-04,  1.7168e-02*logg - 5.3255e-02, -6.4264e-04*vt + 2.4581e-02,  1.1205e-02*feh - 7.3342e-03],
+        [-1.0055e-07*teff + 7.5583e-04, -6.7963e-02*logg + 7.3189e-02,  5.0811e-02*vt - 3.1919e-01, -4.1335e-02*feh - 6.0225e-02],
+        [-1.9097e-08*teff + 1.8040e-04, -6.4754e-03*logg - 2.0095e-02, -3.8736e-03*vt + 7.6987e-03, -4.1837e-03*feh - 4.1084e-03],
+        [-7.3958e-09*teff + 1.0175e-04, -9.7692e-03*logg + 3.2322e-02,  6.5783e-03*vt - 3.6509e-02, -1.7391e-02*feh - 1.0502e-01]
+    ])
+    return full_jacobian.T
+
+
 def element_to_species(element_repr):
     """ Converts a string representation of an element and its ionization state
     to a floating point """
