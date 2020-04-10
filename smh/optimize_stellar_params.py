@@ -418,7 +418,7 @@ def optimize_stellar_parameters_2(initial_guess, transitions, EWs=None,
             logger.info(e)
             t_elapsed = time.time() - start
             point_results = np.sum(np.array(sampled_points)[:, 4:]**2, axis=1)
-            min_index = np.argmin(point_results)
+            min_index = np.nanargmin(point_results)
         else:
             min_index = -1
         
