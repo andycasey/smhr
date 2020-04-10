@@ -358,13 +358,13 @@ def optimize_stellar_parameters_2(initial_guess, transitions, EWs=None,
         """
         
         teff, logg, vt, feh = stellar_parameters
-
         sampled_points, total_tolerance, individual_tolerances, use_nlte_grid = args
         
         if teff < parameter_ranges["teff"][0] or teff > parameter_ranges["teff"][1] or \
            logg < parameter_ranges["logg"][0] or logg > parameter_ranges["logg"][1] or \
            vt < parameter_ranges["vt"][0] or vt > parameter_ranges["vt"][1] or \
-           feh < parameter_ranges["[Fe/H]"][0] or feh > parameter_ranges["[Fe/H]"][1]:
+           feh < parameter_ranges["[Fe/H]"][0] or feh > parameter_ranges["[Fe/H]"][1] or \
+           np.isnan(teff) or np.isnan(logg) or np.isnan(vt) or np.isnan(feh):
             #return np.array([np.nan, np.nan, np.nan, np.nan])
             return np.array([np.inf, np.inf, np.inf, np.inf])
         
