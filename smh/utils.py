@@ -328,17 +328,17 @@ def approximate_sun_hermes_jacobian(stellar_parameters, *args):
     return full_jacobian.T
 
 
-def approximate_stellar_jacobian_2(stellar_parameters, *args, default_params=[5000.,2.00,1.50,-2.00]]):
+def approximate_stellar_jacobian_2(stellar_parameters, *args):
     """ Approximate the Jacobian of the stellar parameters and
     minimisation parameters, based on calculations from the Sun """
 
-    logger.info("Updated approximation of the Jacobian")
+    logger.info("Updated approximation of the Jacobian {}".format(stellar_parameters))
 
     teff, logg, vt, feh = stellar_parameters[:4]
-    if np.isnan(teff): teff = default_params[0]
-    if np.isnan(logg): logg = default_params[1]
-    if np.isnan(vt): vt = default_params[2]
-    if np.isnan(feh): feh = default_params[3]
+    #if np.isnan(teff): teff = 5000.; logger.info("jacobian: teff=nan->5000")
+    #if np.isnan(logg): logg = 2.0; logger.info("jacobian: logg=nan->2.0")
+    #if np.isnan(vt): vt = 1.75; logger.info("jacobian: vt=nan->1.75")
+    #if np.isnan(feh): feh = -2.0; logger.info("jacobian: feh=nan->-2.0")
 
     # This is the black magic.
     full_jacobian = np.array([
