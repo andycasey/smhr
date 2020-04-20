@@ -621,23 +621,16 @@ def struct2array(x):
     return x.view(type).reshape((-1,Ncol))
 
     
-def process_session_uncertainties(session,
-                                  rho_Tg=0.0, rho_Tv=0.0, rho_TM=0.0, rho_gv=0.0, rho_gM=0.0, rho_vM=0.0):
+
+def _make_rhomat(rho_Tg=0.0, rho_Tv=0.0, rho_TM=0.0, rho_gv=0.0, rho_gM=0.0, rho_vM=0.0):
+    rhomat = np.array([[1.0, rho_Tg, rho_Tv, rho_TM],[rho_Tg, 1.0, rho_gv, rho_gM],
+                       [rho_Tv, rho_gv, 1.0, rho_gM],[rho_TM, rho_gM, rho_vM, 1.0]])
+    return rhomat
+def process_session_uncertainties_lines(session, rhomat):
     """
-    After you have run session.compute_all_abundance_uncertainties(),
-    this pulls out a big array of line data
-    and computes the final abundance table and errors
-    
-    By default assumes no correlations in stellar parameters. If you specify rho_XY
-    it will include that correlated error.
-    (X,Y) in [T, g, v, M]
     """
     from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
     from .photospheres.abundances import asplund_2009 as solar_composition
-    ## Correlation matrix. This is multiplied by the errors to get the covariance matrix.
-    # rho order = [T, g, v, M]
-    rhomat = np.array([[1.0, rho_Tg, rho_Tv, rho_TM],[rho_Tg, 1.0, rho_gv, rho_gM],
-                       [rho_Tv, rho_gv, 1.0, rho_gM],[rho_TM, rho_gM, rho_vM, 1.0]])
     cols = ["index","wavelength","species","expot","loggf",
             "logeps","e_stat","eqw","e_eqw","fwhm",
             "e_Teff","e_logg","e_vt","e_MH","e_sys",
@@ -700,6 +693,49 @@ def process_session_uncertainties(session,
         if col in ["index", "wavelength", "species", "loggf", "star"]: continue
         tab[col].format = ".3f"
     
+    return tab
+def process_session_uncertainties_covariance(summary_tab, rhomat):
+    ## Add in [X/Fe]
+    # cov_XY = Cov(X,Y). Diagonal entries are Var(X). The matrix is symmetric.
+    delta_XY = struct2array(np.array(summary_tab["e_Teff_w","e_logg_w","e_vt_w","e_MH_w"]))
+    cov_XY = delta_XY.dot(rhomat.dot(delta_XY.T))
+    # Add statistical errors to the diagonal
+    var_X = cov_XY[np.diag_indices_from(cov_XY)] + summary_tab["stderr_w"]**2
+    #assert np.all(np.abs(cov_XY - cov_XY.T) < 0.1**2), np.max(np.abs(np.abs(cov_XY - cov_XY.T)))
+    return var_X, cov_XY
+def process_session_uncertainties_getfeh(summary_tab, var_X, cov_XY):
+    # [X/Fe] errors are the Fe1 and Fe2 parts of the covariance matrix
+    try:
+        ix1 = np.where(summary_tab["species"]==26.0)[0][0]
+    except IndexError:
+        print("No feh1: setting to nan")
+        feh1 = np.nan
+        efe1 = np.nan
+    else:
+        feh1 = summary_tab["[X/H]"][ix1]
+        #e1_stat = summary_tab["stderr_w"][ix1]
+        var_fe1 = var_X[ix1]
+        # Var(X/Fe1) = Var(X) + Var(Fe1) - 2*Cov(X,Fe1)
+        efe1 = np.sqrt(var_X + var_fe1 - 2*cov_XY[ix1,:])
+    try:
+        ix2 = np.where(summary_tab["species"]==26.1)[0][0]
+    except IndexError:
+        print("No feh2: setting to feh1")
+        feh2 = feh1
+        efe2 = efe1
+    else:
+        feh2 = summary_tab["[X/H]"][ix2]
+        #e2_stat = summary_tab["stderr_w"][ix2]
+        var_fe2 = var_X[ix2]
+        # Var(X/Fe2) = Var(X) + Var(Fe2) - 2*Cov(X,Fe2)
+        efe2 = np.sqrt(var_X + var_fe2 - 2*cov_XY[ix2,:])
+    return feh1, efe1, feh2, efe2
+def process_session_uncertainties_abundancesummary(tab, rhomat):
+    """
+    Take a table of lines and turn them into standard abundance table
+    """
+    from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
+    from .photospheres.abundances import asplund_2009 as solar_composition
     unique_species = np.unique(tab["species"])
     cols = ["species","elem","N",
             "logeps","sigma","stderr",
@@ -756,37 +792,8 @@ def process_session_uncertainties(session,
     summary_tab = astropy.table.Table(data)
     
     ## Add in [X/Fe]
-    # cov_XY = Cov(X,Y). Diagonal entries are Var(X). The matrix is symmetric.
-    delta_XY = struct2array(np.array(summary_tab["e_Teff_w","e_logg_w","e_vt_w","e_MH_w"]))
-    cov_XY = delta_XY.dot(rhomat.dot(delta_XY.T))
-    # Add statistical errors to the diagonal
-    var_X = cov_XY[np.diag_indices_from(cov_XY)] + summary_tab["stderr_w"]**2
-    #assert np.all(np.abs(cov_XY - cov_XY.T) < 0.1**2), np.max(np.abs(np.abs(cov_XY - cov_XY.T)))
-    # [X/Fe] errors are the Fe1 and Fe2 parts of the covariance matrix
-    try:
-        ix1 = np.where(summary_tab["species"]==26.0)[0][0]
-    except IndexError:
-        print("No feh1: setting to nan")
-        feh1 = np.nan
-        efe1 = np.nan
-    else:
-        feh1 = summary_tab["[X/H]"][ix1]
-        #e1_stat = summary_tab["stderr_w"][ix1]
-        var_fe1 = var_X[ix1]
-        # Var(X/Fe1) = Var(X) + Var(Fe1) - 2*Cov(X,Fe1)
-        efe1 = np.sqrt(var_X + var_fe1 - 2*cov_XY[ix1,:])
-    try:
-        ix2 = np.where(summary_tab["species"]==26.1)[0][0]
-    except IndexError:
-        print("No feh2: setting to feh1")
-        feh2 = feh1
-        efe2 = efe1
-    else:
-        feh2 = summary_tab["[X/H]"][ix2]
-        #e2_stat = summary_tab["stderr_w"][ix2]
-        var_fe2 = var_X[ix2]
-        # Var(X/Fe2) = Var(X) + Var(Fe2) - 2*Cov(X,Fe2)
-        efe2 = np.sqrt(var_X + var_fe2 - 2*cov_XY[ix2,:])
+    var_X, cov_XY = process_session_uncertainties_covariance(summary_tab, rhomat)
+    feh1, efe1, feh2, efe2 = process_session_uncertainties_getfeh(summary_tab, var_X, cov_XY)
     
     if len(summary_tab["[X/H]"]) > 0:
         summary_tab["[X/Fe1]"] = summary_tab["[X/H]"] - feh1
@@ -808,13 +815,19 @@ def process_session_uncertainties(session,
                     "e_XFe","e_XFe1","e_XFe2"]:
             summary_tab.add_column(astropy.table.Column(np.zeros(0),col))
             #summary_tab[col] = np.nan #.add_column(col)
-         
+    return summary_tab
+def process_session_uncertainties_limits(session, tab, summary_tab, rhomat):
+    from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
+    from .photospheres.abundances import asplund_2009 as solar_composition
     ## Add in upper limits to line data
     cols = ["index","wavelength","species","expot","loggf",
             "logeps","e_stat","eqw","e_eqw","fwhm",
             "e_Teff","e_logg","e_vt","e_MH","e_sys",
             "e_sys2_orig","e_sys2_cross",
             "e_tot","weight"]
+    var_X, cov_XY = process_session_uncertainties_covariance(summary_tab, rhomat)
+    feh1, efe1, feh2, efe2 = process_session_uncertainties_getfeh(summary_tab, var_X, cov_XY)
+
     assert len(cols)==len(tab.colnames)
     data = OrderedDict(zip(cols, [[] for col in cols]))
     for i, model in enumerate(session.spectral_models):
@@ -853,6 +866,7 @@ def process_session_uncertainties(session,
         if species in summary_tab["species"]: continue
         ttab_ul = tab_ul[tab_ul["species"]==species]
         elem = species_to_element(species)
+        N = len(ttab_ul)
         print
         limit_logeps = np.min(ttab_ul["logeps"])
         limit_XH = limit_logeps - solar_composition(species)
@@ -876,6 +890,27 @@ def process_session_uncertainties(session,
         else:
             summary_tab = summary_tab_ul
     
+    return tab, summary_tab
+def process_session_uncertainties(session,
+                                  rho_Tg=0.0, rho_Tv=0.0, rho_TM=0.0, rho_gv=0.0, rho_gM=0.0, rho_vM=0.0):
+    """
+    After you have run session.compute_all_abundance_uncertainties(),
+    this pulls out a big array of line data
+    and computes the final abundance table and errors
+    
+    By default assumes no correlations in stellar parameters. If you specify rho_XY
+    it will include that correlated error.
+    (X,Y) in [T, g, v, M]
+    """
+    ## Correlation matrix. This is multiplied by the errors to get the covariance matrix.
+    # rho order = [T, g, v, M]
+    rhomat = _make_rhomat(rho_Tg, rho_Tv, rho_TM, rho_gv, rho_gM, rho_vM)
+    ## Make line measurement table (no upper limits yet)
+    tab = process_session_uncertainties_lines(session, rhomat)
+    ## Summarize measurements
+    summary_tab = process_session_uncertainties_abundancesummary(tab, rhomat)
+    ## Add upper limits
+    tab, summary_tab = process_session_uncertainties_limits(session, tab, summary_tab, rhomat)
     return tab, summary_tab
 
 def get_synth_eqw(model, window=1.0, wavelength=None,
