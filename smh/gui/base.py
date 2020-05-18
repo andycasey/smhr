@@ -385,7 +385,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
         ## Doubleclick: remove mask, and if so refit/redraw
         if event.dblclick:
             mask_removed = self._remove_mask(selected_model, event)
-            if mask_removed:
+            if mask_removed and isinstance(selected_model, ProfileFittingModel):
                 selected_model.fit()
                 self.update_spectrum_figure(True,False)
                 for callback in self.callbacks_after_fit:
@@ -478,9 +478,10 @@ class SMHSpecDisplay(mpl.MPLWidget):
             spectral_model.metadata["mask"].append([minx,maxx])
 
             # Re-fit the spectral model and send to other widgets.
-            spectral_model.fit()
-            for callback in self.callbacks_after_fit:
-                callback()
+            if isinstance(spectral_model, ProfileFittingModel):
+                spectral_model.fit()
+                for callback in self.callbacks_after_fit:
+                    callback()
 
         # Clean up interactive mask
         xy[:, 0] = np.nan
