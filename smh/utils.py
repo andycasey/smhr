@@ -23,7 +23,7 @@ from socket import gethostname, gethostbyname
 # Third party imports
 import numpy as np
 import astropy.table
-from scipy import stats, integrate
+from scipy import stats, integrate, optimize
 
 common_molecule_name2Z = {
     'Mg-H': 12,'H-Mg': 12,
@@ -628,15 +628,15 @@ def _make_rhomat(rho_Tg=0.0, rho_Tv=0.0, rho_TM=0.0, rho_gv=0.0, rho_gM=0.0, rho
                        [rho_Tv, rho_gv, 1.0, rho_vM],
                        [rho_TM, rho_gM, rho_vM, 1.0]])
     return rhomat
-def process_session_uncertainties_lines(session, rhomat):
+def process_session_uncertainties_lines(session, rhomat, minerr=0.001):
     """
+    Using Sergey's estimator
     """
     from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
     from .photospheres.abundances import asplund_2009 as solar_composition
     cols = ["index","wavelength","species","expot","loggf",
             "logeps","e_stat","eqw","e_eqw","fwhm",
             "e_Teff","e_logg","e_vt","e_MH","e_sys",
-            "e_sys2_orig","e_sys2_cross",
             "e_tot","weight"]
     data = OrderedDict(zip(cols, [[] for col in cols]))
     for i, model in enumerate(session.spectral_models):
@@ -645,8 +645,8 @@ def process_session_uncertainties_lines(session, rhomat):
         
         wavelength = model.wavelength
         species = np.ravel(model.species)[0]
-        expot = model.expot# or np.nan
-        loggf = model.loggf# or np.nan
+        expot = model.expot
+        loggf = model.loggf
         if np.isnan(expot) or np.isnan(loggf):
             print(i, species, model.expot, model.loggf)
         try:
@@ -657,20 +657,15 @@ def process_session_uncertainties_lines(session, rhomat):
                 if np.isfinite(cov[0,0]**0.5):
                     staterr = max(staterr, cov[0,0]**0.5)
                 assert ~np.isnan(staterr)
+            # apply minimum
+            staterr = np.sqrt(staterr**2 + minerr**2)
             sperrdict = model.metadata["systematic_stellar_parameter_abundance_error"]
             e_Teff = sperrdict["effective_temperature"]
             e_logg = sperrdict["surface_gravity"]
             e_vt = sperrdict["microturbulence"]
             e_MH = sperrdict["metallicity"]
             e_all = np.array([e_Teff, e_logg, e_vt, e_MH])
-            ## I have split it up here, but actually a matrix multiplication is better
-            #syserr_1 = model.metadata["systematic_abundance_error"]**2
-            #syserr_2 = 2*(e_Teff*e_logg*rho_Tg + e_Teff*e_vt*rho_Tv + e_Teff*e_MH*rho_TM + \
-            #             e_logg*e_vt*rho_gv + e_logg*e_MH*rho_gM + e_vt*e_MH*rho_vM)
-            #syserr = np.sqrt(syserr_1 + syserr_2)
-            syserr_1 = np.sum(e_all**2)
             syserr_sq = e_all.T.dot(rhomat.dot(e_all))
-            syserr_2 = syserr_sq - syserr_1
             syserr = np.sqrt(syserr_sq)
             fwhm = model.fwhm
         except:
@@ -682,15 +677,56 @@ def process_session_uncertainties_lines(session, rhomat):
         else:
             eqw = -999
             e_eqw = -999
-        toterr = np.sqrt(staterr**2 + syserr**2)
+        #toterr = np.sqrt(staterr**2 + syserr**2)
         input_data = [i, wavelength, species, expot, loggf,
                       logeps, staterr, eqw, e_eqw, fwhm,
                       e_Teff, e_logg, e_vt, e_MH, syserr,
-                      syserr_1, syserr_2,
-                      toterr, toterr**-2]
+                      np.nan, np.nan]
         for col, x in zip(cols, input_data):
             data[col].append(x)
     tab = astropy.table.Table(data)
+
+    # Calculate systematic error and effective weights for each species
+    tab["e_sys"] = np.nan
+    for species in np.unique(tab["species"]):
+        ix = np.where(tab["species"]==species)[0]
+        t = tab[ix]
+        
+        # Estimate systematic error s
+        s = s_old = 0.
+        s_max = 2.
+        delta = struct2array(t["e_Teff","e_logg","e_vt","e_MH"].as_array())
+        ex = t["e_stat"]
+        for i in range(35):
+            sigma_tilde = np.diag(s**2 + ex**2) + (delta.dot(rhomat.dot(delta.T)))
+            sigma_tilde_inv = np.linalg.inv(sigma_tilde)
+            w = np.sum(sigma_tilde_inv, axis=1)
+            
+            xhat = np.sum(w*t["logeps"])/np.sum(w)
+            dx = t["logeps"] - xhat
+            def func(s):
+                return np.sum(dx**2 / (ex**2 + s**2)**2) - np.sum(1/(ex**2 + s**2))
+            if func(0) < func(s_max):
+                s = 0
+                break
+            s = optimize.brentq(func, 0, s_max, xtol=.001)
+            
+            if np.abs(s_old - s) < 0.01:
+                break
+            s_old = s
+        else:
+            print(species,"s did not converge!")
+        print("Final in {} iter: {:.1f} {:.3f}".format(i+1, species, s))
+        tab["e_sys"][ix] = s
+        tab["e_tot"][ix] = np.sqrt(s**2 + ex**2)
+        
+        sigma_tilde = np.diag(tab["e_tot"][ix]**2) + (delta.dot(rhomat.dot(delta.T)))
+        sigma_tilde_inv = np.linalg.inv(sigma_tilde)
+        w = np.sum(sigma_tilde_inv, axis=1)
+        wb = np.sum(sigma_tilde_inv, axis=0)
+        assert np.allclose(w,wb,rtol=1e-6)
+        tab["weight"][ix] = w
+        
     for col in tab.colnames:
         if col in ["index", "wavelength", "species", "loggf", "star"]: continue
         tab[col].format = ".3f"
@@ -701,9 +737,10 @@ def process_session_uncertainties_covariance(summary_tab, rhomat):
     # cov_XY = Cov(X,Y). Diagonal entries are Var(X). The matrix is symmetric.
     delta_XY = struct2array(np.array(summary_tab["e_Teff_w","e_logg_w","e_vt_w","e_MH_w"]))
     cov_XY = delta_XY.dot(rhomat.dot(delta_XY.T))
+    assert np.all(np.abs(cov_XY - cov_XY.T) < 0.01**2), np.max(np.abs(np.abs(cov_XY - cov_XY.T)))
     # Add statistical errors to the diagonal
-    var_X = cov_XY[np.diag_indices_from(cov_XY)] + summary_tab["stderr_w"]**2
-    #assert np.all(np.abs(cov_XY - cov_XY.T) < 0.1**2), np.max(np.abs(np.abs(cov_XY - cov_XY.T)))
+    #var_X = cov_XY[np.diag_indices_from(cov_XY)] + summary_tab["stderr_w"]**2
+    var_X = summary_tab["e_XH"]**2 #cov_XY[np.diag_indices_from(cov_XY)] + 
     return var_X, cov_XY
 def process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY):
     """
@@ -722,7 +759,6 @@ def process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY):
         exfe1 = np.nan
     else:
         feh1 = summary_tab["[X/H]"][ix1]
-        #e1_stat = summary_tab["stderr_w"][ix1]
         var_fe1 = var_X[ix1]
         # Var(X/Fe1) = Var(X) + Var(Fe1) - 2*Cov(X,Fe1)
         exfe1 = np.sqrt(var_X + var_fe1 - 2*cov_XY[ix1,:])
@@ -734,15 +770,10 @@ def process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY):
         exfe2 = efe1
     else:
         feh2 = summary_tab["[X/H]"][ix2]
-        #e2_stat = summary_tab["stderr_w"][ix2]
         var_fe2 = var_X[ix2]
         # Var(X/Fe2) = Var(X) + Var(Fe2) - 2*Cov(X,Fe2)
         exfe2 = np.sqrt(var_X + var_fe2 - 2*cov_XY[ix2,:])
     
-    #covxfe1fe1 = cov_XY[ix1,:] - cov_XY[ix1,ix1] 
-    #covxfe1fe2 = cov_XY[ix1,:] - cov_XY[ix1,ix2]
-    #covxfe2fe1 = cov_XY[ix2,:] - cov_XY[ix1,ix2]
-    #covxfe2fe2 = cov_XY[ix2,:] - cov_XY[ix2,ix2]
     return feh1, exfe1, feh2, exfe2
 def process_session_uncertainties_abundancesummary(tab, rhomat):
     """
@@ -756,7 +787,7 @@ def process_session_uncertainties_abundancesummary(tab, rhomat):
             "logeps_w","sigma_w","stderr_w",
             "e_Teff","e_logg","e_vt","e_MH","e_sys",
             "e_Teff_w","e_logg_w","e_vt_w","e_MH_w","e_sys_w",
-            "[X/H]","e_XH"]
+            "[X/H]","e_XH","s_X"]
     data = OrderedDict(zip(cols, [[] for col in cols]))
     for species in unique_species:
         ttab = tab[tab["species"]==species]
@@ -767,13 +798,13 @@ def process_session_uncertainties_abundancesummary(tab, rhomat):
         stderr = stdev/np.sqrt(N)
         
         w = ttab["weight"]
-        finite = w > 0
+        finite = np.isfinite(w)
         if finite.sum() != N:
             print("WARNING: species {:.1f} N={} != finite weights {}".format(species, N, finite.sum()))
         x = ttab["logeps"]
         logeps_w = np.sum(w*x)/np.sum(w)
-        stdev_w = np.sqrt(np.sum(w*(x-logeps_w)**2)/np.sum(w) + 1/np.sum(w))
-        stderr_w = stdev_w/np.sqrt(N)
+        stdev_w = np.sqrt(np.sum(w*(x-logeps_w)**2)/np.sum(w))
+        stderr_w = np.sqrt(1/np.sum(w))
         
         sperrs = []
         sperrs_w = []
@@ -781,24 +812,25 @@ def process_session_uncertainties_abundancesummary(tab, rhomat):
             x_new = x + ttab["e_"+spcol]
             e_sp = np.mean(x_new) - logeps
             sperrs.append(e_sp)
-            e_sp_w = np.sum(w*x_new)/np.sum(w) - logeps_w
+            #e_sp_w = np.sum(w*x_new)/np.sum(w) - logeps_w
+            e_sp_w = np.sum(w*ttab["e_"+spcol])/np.sum(w)
             sperrs_w.append(e_sp_w)
         sperrs = np.array(sperrs)
         sperrs_w = np.array(sperrs_w)
-        #sperrtot = np.sqrt(np.sum(sperrs**2))
-        #sperrtot2_w = np.sqrt(np.sum(sperrs_w**2))
-        ## This adds the covariances for "free"!
         sperrtot = np.sqrt(sperrs.T.dot(rhomat.dot(sperrs)))
         sperrtot_w = np.sqrt(sperrs_w.T.dot(rhomat.dot(sperrs_w)))
         
         XH = logeps_w - solar_composition(species)
-        e_XH = np.sqrt(stderr_w**2 + sperrtot_w**2)
+        #e_XH = np.sqrt(stderr_w**2 + sperrtot_w**2)
+        e_XH = stderr_w
+        s_X = ttab["e_sys"][0]
+        assert np.allclose(ttab["e_sys"], s_X), s_X
         input_data = [species, elem, N,
                       logeps, stdev, stderr,
                       logeps_w, stdev_w, stderr_w,
                       sperrs[0], sperrs[1], sperrs[2], sperrs[3], sperrtot,
                       sperrs_w[0], sperrs_w[1], sperrs_w[2], sperrs_w[3], sperrtot_w,
-                      XH, e_XH
+                      XH, e_XH, s_X
         ]
         assert len(cols) == len(input_data)
         for col, x in zip(cols, input_data):
@@ -836,7 +868,6 @@ def process_session_uncertainties_limits(session, tab, summary_tab, rhomat):
     cols = ["index","wavelength","species","expot","loggf",
             "logeps","e_stat","eqw","e_eqw","fwhm",
             "e_Teff","e_logg","e_vt","e_MH","e_sys",
-            "e_sys2_orig","e_sys2_cross",
             "e_tot","weight"]
     var_X, cov_XY = process_session_uncertainties_covariance(summary_tab, rhomat)
     feh1, efe1, feh2, efe2 = process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY)
@@ -872,7 +903,7 @@ def process_session_uncertainties_limits(session, tab, summary_tab, rhomat):
             "logeps_w","sigma_w","stderr_w",
             "e_Teff","e_logg","e_vt","e_MH","e_sys",
             "e_Teff_w","e_logg_w","e_vt_w","e_MH_w","e_sys_w",
-            "[X/H]","e_XH"] + ["[X/Fe1]","e_XFe1","[X/Fe2]","e_XFe2","[X/Fe]","e_XFe"]
+            "[X/H]","e_XH","s_X"] + ["[X/Fe1]","e_XFe1","[X/Fe2]","e_XFe2","[X/Fe]","e_XFe"]
     assert len(cols)==len(summary_tab.colnames)
     data = OrderedDict(zip(cols, [[] for col in cols]))
     for species in ul_species:
@@ -890,7 +921,7 @@ def process_session_uncertainties_limits(session, tab, summary_tab, rhomat):
                       limit_logeps, np.nan, np.nan,
                       np.nan, np.nan, np.nan, np.nan, np.nan,
                       np.nan, np.nan, np.nan, np.nan, np.nan,
-                      limit_XH, np.nan, limit_XFe1, np.nan, limit_XFe2, np.nan,
+                      limit_XH, np.nan, np.nan, limit_XFe1, np.nan, limit_XFe2, np.nan,
                       limit_XFe, np.nan
         ]
         for col, x in zip(cols, input_data):
