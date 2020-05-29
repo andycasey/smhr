@@ -15,7 +15,7 @@ import tempfile
 
 from collections import Counter, OrderedDict
 
-from commands import getstatusoutput
+from subprocess import getstatusoutput
 from hashlib import sha1 as sha
 from random import choice
 from socket import gethostname, gethostbyname
