@@ -14,7 +14,7 @@ import numpy as np
 import os
 import sys
 from copy import deepcopy
-from PySide import QtCore, QtGui
+from PySide2 import QtCore, QtGui
 from six import string_types
 from six.moves import cPickle as pickle
 from time import time # DEBUG TODO

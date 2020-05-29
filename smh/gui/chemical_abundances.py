@@ -12,7 +12,7 @@ import logging
 import matplotlib.gridspec
 import numpy as np
 import sys
-from PySide import QtCore, QtGui
+from PySide2 import QtCore, QtGui
 import time
 from copy import deepcopy
 

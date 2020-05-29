@@ -2013,7 +2013,7 @@ class Session(BaseSession):
                     warnings.warn("Spectral model has multiple species: {}".format(model.species))
                 species = round(model.species[0][0],1)
             # Use setdefault instead of get, not sure why it has to be this way
-	    species_models = all_models.setdefault(species, [])
-	    species_models.append(model)
+            species_models = all_models.setdefault(species, [])
+            species_models.append(model)
         return all_models
     

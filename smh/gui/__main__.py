@@ -7,7 +7,7 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
 import logging
-from PySide import QtCore, QtGui
+from PySide2 import QtCore, QtGui
 import yaml
 import os
 

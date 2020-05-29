@@ -13,7 +13,7 @@ import sys
 import time
 from glob import glob
 from matplotlib.ticker import MaxNLocator
-from PySide import QtCore, QtGui
+from PySide2 import QtCore, QtGui
 from scipy import interpolate
 
 from smh.balmer import BalmerLineModel

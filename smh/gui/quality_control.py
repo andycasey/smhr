@@ -11,7 +11,7 @@ __all__ = ["QualityControlDialog"]
 import logging
 import numpy as np
 
-from PySide import QtCore, QtGui
+from PySide2 import QtCore, QtGui
 
 logger = logging.getLogger(__name__)
 

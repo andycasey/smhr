@@ -11,7 +11,7 @@ from __future__ import (division, print_function, absolute_import,
 import logging
 import numpy as np
 import sys
-from PySide import QtCore, QtGui
+from PySide2 import QtCore, QtGui
 import time
 
 import smh

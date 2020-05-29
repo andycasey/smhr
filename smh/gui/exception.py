@@ -14,7 +14,7 @@ import traceback as tb
 #from tempfile import mkstemp
 from smh.utils import mkstemp
 from urllib import quote
-from PySide import QtCore, QtGui
+from PySide2 import QtCore, QtGui
 
 from smh import __git_status__
 
