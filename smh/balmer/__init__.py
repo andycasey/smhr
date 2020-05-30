@@ -1,3 +1,3 @@
 
 
-from model import BalmerLineModel
+from .model import BalmerLineModel

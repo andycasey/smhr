@@ -8,7 +8,7 @@ from __future__ import (division, print_function, absolute_import,
 
 import logging
 logging.basicConfig()
-from PySide2 import QtCore, QtGui
+from PySide2 import (QtCore, QtWidgets as QtGui)
 import yaml
 import time, os, sys
 

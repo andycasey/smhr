@@ -154,7 +154,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         unique_elements = np.unique(unique_elements)
         
         rt_abundances = {}
-        for elem in unique_elements:
+        for elem in map(lambda x: x.decode("utf-8"), unique_elements):
             if elem in ["","H"]: continue
             if elem in self.elements: continue
             assert elem in utils.periodic_table, elem

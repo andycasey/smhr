@@ -1,5 +1,5 @@
-backend     : qt4agg
-backend.qt4 : PySide
+#backend     : qt4agg
+#backend.qt4 : PySide
 
 axes.titlesize  : 9.0
 axes.labelsize  : 9.0  # fontsize of the x any y labels  
@@ -13,7 +13,7 @@ font.family     : serif
 font.serif      : Computer Modern Roman  
 
 text.antialiased : True
-text.dvipnghack  : None
+#text.dvipnghack  : None
 #text.usetex     : True  # use latex for all text handling  
 
 figure.figsize  : 7.3, 4.2  

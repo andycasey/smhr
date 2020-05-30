@@ -7,7 +7,7 @@ import tarfile
 import atexit
 import os, sys, glob, time
 from shutil import copyfile, rmtree
-import cPickle as pickle
+import pickle
 
 from .utils import mkdtemp
 from . import (Session, LineList, specutils, __version__)
@@ -45,7 +45,7 @@ def identify_smh_version(filename):
         raise RuntimeError("Old SMH?")
 
     with open(metadata_path, "rb") as fp:
-        metadata = pickle.load(fp)
+        metadata = pickle.load(fp,encoding="latin1")
     if "VERSION" in metadata.keys():
         return session.metadata["VERSION"]
 
@@ -76,7 +76,7 @@ def convert_v0_1_to_v0_2(fname_in, fname_out, overwrite=False):
     twd = extract_filename_to_twd(fname_in)
     metadata_path = os.path.join(twd, "session.pkl")
     with open(metadata_path, "rb") as fp:
-        metadata = pickle.load(fp)
+        metadata = pickle.load(fp,encoding="latin1")
 
     # Create the object using the temporary working directory input spectra.
     session = Session([os.path.join(twd, basename) \

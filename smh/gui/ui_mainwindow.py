@@ -9,7 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 import sys
 import logging
 import os
-from PySide2 import QtCore, QtGui
+from PySide2 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 import yaml
 import numpy as np
 
@@ -29,9 +29,11 @@ class Ui_MainWindow(QtGui.QMainWindow):
     The main GUI window for Spectroscopy Made Hard.
     """
 
-    def __init__(self, session_path=None, spectrum_filenames=None):
+    def __init__(self, parent=None, session_path=None, spectrum_filenames=None):
         super(Ui_MainWindow, self).__init__()
 
+        self.parent = parent
+        
         self.unsaved_session_changes = False
         self.session = None
         self.session_path = None
@@ -45,8 +47,10 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         self.setObjectName("smh")
         self.resize(1200, 600)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
-            - self.rect().center())
+        var1 = QtGui.QApplication.desktop()
+        var2 = var1.screen().rect().center()
+        var3 = self.rect().center()
+        self.move(var2 - var3)
 
         # Initialise the menus and associated actions.
         self.__init_menus__()
@@ -68,17 +72,17 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         # File menu.
         new_session = QtGui.QAction("&New", self,
-            shortcut=QtGui.QKeySequence.New,
+            shortcut=QtGui2.QKeySequence.New,
             statusTip="Create a new session",
             triggered=self.new_session)
 
         open_session = QtGui.QAction("&Open...", self,
-            shortcut=QtGui.QKeySequence.Open,
+            shortcut=QtGui2.QKeySequence.Open,
             statusTip="Open an existing session from disk",
             triggered=self.open_session)
 
         save_session = QtGui.QAction("&Save", self,
-            shortcut=QtGui.QKeySequence.Save,
+            shortcut=QtGui2.QKeySequence.Save,
             statusTip="Save the session to disk",
             triggered=self.save_session)
 
@@ -220,7 +224,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         default_settings["_gui_recently_opened"] \
             = default_settings["_gui_recently_opened"][-5:]
 
-        with open(smh.Session._default_settings_path, "wb") as fp:
+        with open(smh.Session._default_settings_path, "w") as fp:
             fp.write(yaml.dump(default_settings))
 
         self.update_recently_opened(default_settings["_gui_recently_opened"])
@@ -235,7 +239,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         :param event:
             The close event.
         """
-
+        ## TODO in PyQt5 something causes this to display twice sometimes???
 
         if self.session is None:
             # There is no session.
@@ -320,9 +324,11 @@ class Ui_MainWindow(QtGui.QMainWindow):
                 return
 
         # Get filenames of input spectra.
-        if filenames is None:
+        print("filenames:",filenames)
+        if filenames is None or filenames is False:
             filenames, selected_filter = QtGui.QFileDialog.getOpenFileNames(
-                self, caption="Select input spectra", dir="")
+                self, caption="Select input spectra", directory="", filter="*")
+            print("filenames:",filenames)
             if not filenames:
                 return None
 
@@ -390,10 +396,12 @@ class Ui_MainWindow(QtGui.QMainWindow):
     def open_session(self, path=None):
         """ Open existing session. """
 
-        if path is None:
+        print("Testing path:",path)
+        if path is None or path is False:
             path, _ = QtGui.QFileDialog.getOpenFileName(self,
-                caption="Select session", dir="", filter="*.smh")
+                caption="Select session", directory="", filter="*.smh")
             if not path: return
+        print("We got:",path)
 
 
         self.add_to_recently_opened(path)
@@ -475,9 +483,9 @@ class Ui_MainWindow(QtGui.QMainWindow):
             The filename where to save the session.
         """
 
-        if path is None:
+        if path is None or path is False:
             path, _ = QtGui.QFileDialog.getSaveFileName(self,
-                caption="Enter filename", dir="", filter="*.smh")
+                caption="Enter filename", directory="", filter="*.smh")
             if not path: return
 
         self.session_path = path
@@ -518,7 +526,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         """ Export a normalized, rest-frame spectrum. """
         if self.session is None: return
         path, _ = QtGui.QFileDialog.getSaveFileName(self,
-            caption="Enter normalized rest frame spectrum filename", dir="", filter="")
+            caption="Enter normalized rest frame spectrum filename", directory="", filter="")
         if not path: return
         self.session.export_normalized_spectrum(path)
 
@@ -526,7 +534,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         """ Export a stitched, unnormalized, rest-frame spectrum. """
         if self.session is None: return
         path, _ = QtGui.QFileDialog.getSaveFileName(self,
-            caption="Enter unnormalized rest frame spectrum filename", dir="", filter="")
+            caption="Enter unnormalized rest frame spectrum filename", directory="", filter="")
         if not path: return
         self.session.export_unnormalized_spectrum(path)
 
@@ -534,7 +542,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         """ Export a stitched continuum. """
         if self.session is None: return
         path, _ = QtGui.QFileDialog.getSaveFileName(self,
-            caption="Enter continuum filename", dir="", filter="")
+            caption="Enter continuum filename", directory="", filter="")
         if not path: return
         self.session.export_stitched_continuum(path)
 
@@ -552,14 +560,14 @@ class Ui_MainWindow(QtGui.QMainWindow):
     def export_abundance_table(self):
         if self.session is None: return
         path, _ = QtGui.QFileDialog.getSaveFileName(self,
-            caption="Enter abundance table filename", dir="", filter="")
+            caption="Enter abundance table filename", directory="", filter="")
         if not path: return
         self.session.export_abundance_table(path)
     
     def export_spectral_model_measurements(self):
         if self.session is None: return
         path, _ = QtGui.QFileDialog.getSaveFileName(self,
-            caption="Enter spectral model measurements filename", dir="", filter="")
+            caption="Enter spectral model measurements filename", directory="", filter="")
         if not path: return
         self.session.export_spectral_model_measurements(path)
     
@@ -595,7 +603,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         Open a dialog to pick comparison spectrum
         """
         path, _ = QtGui.QFileDialog.getOpenFileName(self,
-            caption="Pick comparison spectrum", dir="", filter="")
+            caption="Pick comparison spectrum", directory="", filter="")
         if not path: return
         spectrum = smh.specutils.Spectrum1D.read(path)
         self.stellar_parameters_tab.specfig.update_comparison_spectrum(spectrum)

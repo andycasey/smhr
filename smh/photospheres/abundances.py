@@ -4,6 +4,7 @@
 """ Solar abundances """
 
 from __future__ import division, absolute_import, print_function
+from six import string_types
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
@@ -116,7 +117,7 @@ def asplund_2009(elements):
 
     def parse(x):
 
-        if isinstance(x, (str, unicode)):
+        if isinstance(x, string_types):
             try:
                 return (asplund_2009[x], True)
             except KeyError:

@@ -51,7 +51,7 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
     
     # Load the synth driver template.
     with resource_stream(__name__, "synth.in") as fp:
-        template = fp.read()
+        template = fp.read().decode("utf-8")
 
     # Not these are SMH defaults, not MOOG defaults.
     kwds = _moog_defaults.copy()

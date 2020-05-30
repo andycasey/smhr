@@ -3,7 +3,7 @@ from __future__ import (division, print_function, absolute_import,
 from six import iteritems
 
 import numpy as np
-import cPickle as pickle
+import pickle
 import os
 
 from .linelists import LineList
@@ -52,7 +52,7 @@ def convert_isodict_to_array(isotopes,sort_by_Z=True):
                 A2 = A-100*A1
                 A = A1+A2
             return Z,A
-        out = map(_sorter,zip(tab[:,0],tab[:,1]))
+        out = list(map(_sorter,zip(tab[:,0],tab[:,1])))
         out = np.array(out)
         ii = np.lexsort([out[:,1],out[:,0]])
         #Z = [int(element_to_species(elem)) for elem in tab[:,0]]
@@ -217,8 +217,8 @@ def load_isotope_data(whichdata,include_molecules=False):
                'sproc':'sneden08_sproc_isotopes.pkl',
                'sneden':'sneden08_all_isotopes.pkl',
                'asplund':'asplund09_isotopes.pkl'}
-    with open(_datadir+'/'+datamap[whichdata],'r') as f:
-        isotopes = pickle.load(f)
+    with open(_datadir+'/'+datamap[whichdata],'rb') as f:
+        isotopes = pickle.load(f, encoding="latin1")
     if include_molecules:
         isotopes = add_molecules(isotopes)
     validate_isotopes(isotopes)

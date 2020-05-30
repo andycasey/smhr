@@ -9,7 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 __all__ = ["PeriodicTableDialog"]
 
 from numpy import ceil
-from PySide2 import QtCore, QtGui
+from PySide2 import (QtCore, QtWidgets as QtGui)
 from textwrap import dedent
 
 class PeriodicTableDialog(QtGui.QDialog):

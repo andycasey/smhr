@@ -67,7 +67,7 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
     
     # Load the abfind driver template.
     with resource_stream(__name__, "abfind.in") as fp:
-        template = fp.read()
+        template = fp.read().decode("utf-8")
 
     # Not these are SMH defaults, not MOOG defaults.
     kwds = _moog_defaults.copy()
@@ -208,7 +208,7 @@ def _parse_abfind_summary(summary_out_path):
             if species is None:
                 raise IOError("Could not find the species!")
                 
-            line = map(float, line.split())
+            line = list(map(float, line.split()))
 
             # July 2014 version of MOOG has an additional column w/ the species
             if len(line) == 7:
@@ -223,8 +223,8 @@ def _parse_abfind_summary(summary_out_path):
         elif 'corr. coeff.' in line:
             line = line.split()
             moog_slopes[species][name_map[line[0].replace('.', '').lower()]] \
-                = map(float, [value.replace('D-', 'E-') for value in \
-                    [line[4], line[7], line[11]]])
+                = list(map(float, [value.replace('D-', 'E-') for value in \
+                    [line[4], line[7], line[11]]]))
             
     transitions_array = np.array(abundances, dtype=np.float).reshape((-1, 8))
 

@@ -5,7 +5,7 @@ from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 import sys
 import os
-from PySide2 import QtCore, QtGui
+from PySide2 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 import time
 from six import iteritems
 import numpy as np
@@ -29,11 +29,11 @@ if sys.platform == "darwin":
         (".Helvetica Neue DeskInterface", "Helvetica Neue")
     ]
     for substitute in substitutes:
-        QtGui.QFont.insertSubstitution(*substitute)
+        QtGui2.QFont.insertSubstitution(*substitute)
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 PICKER_TOLERANCE = 10 # MAGIC HACK
-_QFONT = QtGui.QFont("Helvetica Neue", 10)
+_QFONT = QtGui2.QFont("Helvetica Neue", 10)
 _ROWHEIGHT = 20
 
 ## These are valid attrs of a spectral model
@@ -175,8 +175,10 @@ class SMHSpecDisplay(mpl.MPLWidget):
 
         # Internal MPL variables
         self._lines = {
-            "comparison_spectrum": self.ax_spectrum.plot([], [], c="c", alpha=.5, drawstyle="steps-mid")[0],
-            "spectrum": self.ax_spectrum.plot([], [], c="k", drawstyle="steps-mid")[0], #None,
+            "comparison_spectrum": self.ax_spectrum.plot([np.nan], [np.nan],
+                                                         c="c", alpha=.5, drawstyle="steps-mid")[0],
+            "spectrum": self.ax_spectrum.plot(
+                [np.nan], [np.nan], c="k", drawstyle="steps-mid")[0], #None,
             "spectrum_fill": None,
             "residual_fill": None,
             "transitions_center_main": self.ax_spectrum.axvline(
@@ -189,9 +191,9 @@ class SMHSpecDisplay(mpl.MPLWidget):
                 np.nan, np.nan, np.nan, color="blue", linestyle=':', lw=1),
             "model_masks": [],
             "nearby_lines": [],
-            "model_fit": self.ax_spectrum.plot([], [], c="r")[0],
+            "model_fit": self.ax_spectrum.plot([np.nan], [np.nan], c="r")[0],
             "model_residual": self.ax_residual.plot(
-                [], [], c="k", drawstyle="steps-mid")[0],
+                [np.nan], [np.nan], c="k", drawstyle="steps-mid")[0],
             "interactive_mask": [
                 self.ax_spectrum.axvspan(xmin=np.nan, xmax=np.nan, ymin=np.nan,
                                          ymax=np.nan, facecolor="r", edgecolor="none", alpha=0.25,
@@ -225,7 +227,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
             self._lines["comparison_spectrum"].set_drawstyle(drawstyle)
         for key in ["spectrum", "transitions_center_main", "transitions_center_residual",
                     "model_fit", "model_residual"]:
-            self._lines[key].set_data([],[])
+            self._lines[key].set_data([np.nan],[np.nan])
         self.label_lines(None)
     def new_session(self, session):
         self.session = session
@@ -451,7 +453,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
         if self.session is None: return None
         try:
             signal_time, signal_cid = self._interactive_mask_region_signal
-        except AttributeError, TypeError:
+        except (AttributeError, TypeError):
             return None
         xy = self._lines["interactive_mask"][0].get_xy()
         if event.xdata is None:
@@ -519,7 +521,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
         try:
             # Fix the memory leak!
             #self.ax_spectrum.lines.remove(self._lines["spectrum"])
-            self._lines["spectrum"].set_data([], [])
+            self._lines["spectrum"].set_data([np.nan], [np.nan])
             self.ax_spectrum.collections.remove(self._lines["spectrum_fill"])
             self.ax_residual.collections.remove(self._lines["residual_fill"])
         except Exception as e:
@@ -554,14 +556,14 @@ class SMHSpecDisplay(mpl.MPLWidget):
     
     def _plot_comparison_spectrum(self, limits, extra_disp=10):
         if self.comparison_spectrum is None: 
-            self._lines["comparison_spectrum"].set_data([], [])
+            self._lines["comparison_spectrum"].set_data([np.nan], [np.nan])
             return False            
         spectrum = self.comparison_spectrum
         
         plot_ii = np.logical_and(spectrum.dispersion > limits[0]-extra_disp,
                                  spectrum.dispersion < limits[1]+extra_disp)
         if np.sum(plot_ii)==0: # Can't plot, no points!
-            self._lines["comparison_spectrum"].set_data([], [])
+            self._lines["comparison_spectrum"].set_data([np.nan], [np.nan])
             return False            
         
         self._lines["comparison_spectrum"].set_data(
@@ -641,8 +643,8 @@ class SMHSpecDisplay(mpl.MPLWidget):
 
         except KeyError:
             meta = {}
-            self._lines["model_fit"].set_data([], [])
-            self._lines["model_residual"].set_data([], [])
+            self._lines["model_fit"].set_data([np.nan], [np.nan])
+            self._lines["model_residual"].set_data([np.nan], [np.nan])
 
         else:
             assert len(meta[plotxkey]) == len(meta[plotykey])
@@ -880,10 +882,10 @@ class SMHScatterplot(mpl.MPLWidget):
         else:
             assert self.eyattr in self.tablemodel.attrs, (self.eyattr, self.tablemodel.attrs)
             self.eycol = self.tablemodel.attrs.index(self.eyattr)
-        logger.debug("Linked {} to {}/{}".format(self, self.tableview, self.tablemodel))
-        logger.debug("{}->{}, {}->{}".format(self.xattr, self.xcol, self.yattr, self.ycol))
-        if (self.exattr is not None) or (self.eyattr is not None):
-            logger.debug("Err col: {}->{}, {}->{}".format(self.exattr, self.excol, self.eyattr, self.eycol))
+        #logger.debug("Linked {} to {}/{}".format(self, self.tableview, self.tablemodel))
+        #logger.debug("{}->{}, {}->{}".format(self.xattr, self.xcol, self.yattr, self.ycol))
+        #if (self.exattr is not None) or (self.eyattr is not None):
+        #    logger.debug("Err col: {}->{}, {}->{}".format(self.exattr, self.excol, self.eyattr, self.eycol))
     def _load_value_from_table(self, index):
         val = self.tablemodel.data(index, QtCore.Qt.DisplayRole)
         try:
@@ -1030,7 +1032,7 @@ class BaseTableView(QtGui.QTableView):
         self.setSortingEnabled(False)
         self.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
         self.horizontalHeader().setStretchLastSection(True)
-        self.horizontalHeader().setResizeMode(QtGui.QHeaderView.Stretch)
+        self.horizontalHeader().setSectionResizeMode(QtGui.QHeaderView.Stretch)
         self.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
     def sizeHint(self):
         return QtCore.QSize(125,100)
@@ -1317,9 +1319,9 @@ class MeasurementTableDelegate(QtGui.QItemDelegate):
         self.view = view
     def paint(self, painter, option, index):
         painter.save()
-        painter.setPen(QtGui.QPen(QtCore.Qt.NoPen))
+        painter.setPen(QtGui2.QPen(QtCore.Qt.NoPen))
         if option.state & QtGui.QStyle.State_Selected:
-            painter.setBrush(QtGui.QBrush(
+            painter.setBrush(QtGui2.QBrush(
                 self.parent().palette().highlight().color()))
         else:
             model = self.view.model()
@@ -1328,18 +1330,18 @@ class MeasurementTableDelegate(QtGui.QItemDelegate):
                 col = model.attrs.index("user_flag")
                 state = model.data(model.createIndex(row,col))
                 if state == QtCore.Qt.Checked:
-                    painter.setBrush(QtGui.QBrush(QtGui.QColor(self.COLOR)))
+                    painter.setBrush(QtGui2.QBrush(QtGui2.QColor(self.COLOR)))
                 else:
-                    painter.setBrush(QtGui.QBrush(QtCore.Qt.white))
+                    painter.setBrush(QtGui2.QBrush(QtCore.Qt.white))
             else:
-                painter.setBrush(QtGui.QBrush(QtCore.Qt.white))
+                painter.setBrush(QtGui2.QBrush(QtCore.Qt.white))
         painter.drawRect(option.rect)
-        painter.setPen(QtGui.QPen(QtCore.Qt.black))
+        painter.setPen(QtGui2.QPen(QtCore.Qt.black))
         painter.drawText(option.rect, QtCore.Qt.AlignLeft|QtCore.Qt.AlignCenter, index.data())
         painter.restore()
         
 
-class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
+class MeasurementTableModelProxy(QtCore.QSortFilterProxyModel):
     """
     Proxy model allowing for filtering (and eventually sorting) of the full MeasurementTableModelBase
     Based on the old SpectralModelsFilterProxyModel
@@ -1425,8 +1427,10 @@ class MeasurementTableModelProxy(QtGui.QSortFilterProxyModel):
         self.reindex()
         return None
     def reset(self, *args):
-        super(MeasurementTableModelProxy, self).reset(*args)
+        #super(MeasurementTableModelProxy, self).reset(*args)
+        self.beginResetModel()
         self.reindex()
+        self.endResetModel()
         return None
     def reindex(self):
         try: 
@@ -1667,7 +1671,7 @@ class MeasurementSummaryTableModel(QtCore.QAbstractTableModel):
         else:
             self.what_fe = session.setting("what_fe", 1)
         self.summarize()
-        self.all_species = np.sort(self.summary.keys())
+        self.all_species = np.sort(list(self.summary.keys()))
         self.endResetModel()
     def update_summary(self, species=None):
         """

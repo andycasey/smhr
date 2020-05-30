@@ -119,7 +119,7 @@ def moogsilent(input_filename, cwd=None, timeout=30, shell=False, env=None,
         pipe_input = "\n" if -6 in acceptable_moog_return_codes else ""
         pipe_input += os.path.basename(input_filename) + "\n"*100
 
-        stdout, stderr = p.communicate(input=pipe_input)
+        stdout, stderr = p.communicate(input=pipe_input.encode())
 
         # Parse the version of MOOG.
         #index = stdout.find("VERSION")

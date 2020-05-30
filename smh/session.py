@@ -338,7 +338,7 @@ class Session(BaseSession):
         """
 
         with open(path, 'rb') as fp:
-            spectral_model_states = pickle.load(fp)
+            spectral_model_states = pickle.load(fp,encoding="latin1")
         spectral_models = self.reconstruct_spectral_models(spectral_model_states)
         self.metadata["spectral_models"].extend(spectral_models)
         return len(spectral_models)
@@ -419,7 +419,7 @@ class Session(BaseSession):
 
         # Reconstruct the session, starting with the initial paths.
         with open(os.path.join(twd, "session.pkl"), "rb") as fp:
-            metadata = pickle.load(fp)
+            metadata = pickle.load(fp,encoding="latin1")
 
         # Load in the template spectrum.
         template_spectrum_path \
@@ -1166,7 +1166,7 @@ class Session(BaseSession):
             if model.is_acceptable and isinstance(model, ProfileFittingModel) and (not model.is_upper_limit):
                 eqw_models.append(model)
         
-        all_species = np.unique(map(lambda m: m.species[0], eqw_models))
+        all_species = np.unique(list(map(lambda m: m.species[0], eqw_models)))
         all_ratios = []
         for _s1 in all_species:
             for _s2 in all_species:
@@ -1887,8 +1887,8 @@ class Session(BaseSession):
 
         master_list = ascii.read(filename, **kwargs).filled()
         logger.debug(master_list)
-        types = np.array(map(lambda x: x.lower(), np.array(master_list["type"])))
-        assert np.all(map(lambda x: (x=="eqw") or (x=="syn") or (x=="list"), types)), types
+        types = np.array(list(map(lambda x: x.lower(), np.array(master_list["type"]))))
+        assert np.all(list(map(lambda x: (x=="eqw") or (x=="syn") or (x=="list"), types)), types)
 
         num_added = 0
 

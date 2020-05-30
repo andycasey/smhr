@@ -274,7 +274,7 @@ class Spectrum1D(object):
         # NOTE: Most multi-spec data previously used with SMH have been from
         #       Magellan/MIKE, and reduced with CarPy.
         md5_hash = md5(";".join([v for k, v in metadata.items() \
-            if k.startswith("BANDID")])).hexdigest()
+                                 if k.startswith("BANDID")]).encode("utf-8")).hexdigest()
         is_carpy_mike_product = (md5_hash == "0da149208a3c8ba608226544605ed600")
         is_carpy_mike_product_old = (md5_hash == "e802331006006930ee0e60c7fbc66cec")
         is_carpy_mage_product = (md5_hash == "6b2c2ec1c4e1b122ccab15eb9bd305bc")

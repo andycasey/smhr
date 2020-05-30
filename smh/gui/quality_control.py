@@ -11,7 +11,7 @@ __all__ = ["QualityControlDialog"]
 import logging
 import numpy as np
 
-from PySide2 import QtCore, QtGui
+from PySide2 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ class QualityControlDialog(QtGui.QDialog):
         line_list = session.metadata.get("line_list", None)
         if line_list is not None:
             for item in (self.edit_wavelength_lower, self.edit_wavelength_upper):
-                item.setValidator(QtGui.QDoubleValidator(
+                item.setValidator(QtGui2.QDoubleValidator(
                     min(line_list["wavelength"]),
                     max(line_list["wavelength"]),
                     3, item))
@@ -131,7 +131,7 @@ class QualityControlDialog(QtGui.QDialog):
             expot_range = (-np.inf, +np.inf)
 
         for item in (self.edit_expot_lower, self.edit_expot_upper):
-            item.setValidator(QtGui.QDoubleValidator(
+            item.setValidator(QtGui2.QDoubleValidator(
                 expot_range[0], expot_range[1], 3, item))
             item.textChanged.connect(self.check_lineedit_state)
 
@@ -156,7 +156,7 @@ class QualityControlDialog(QtGui.QDialog):
         grid.addWidget(self.edit_ew_upper, index, 3, 1, 1)
 
         for item in (self.edit_ew_lower, self.edit_ew_upper):
-            item.setValidator(QtGui.QDoubleValidator(0, np.inf, 2, item))
+            item.setValidator(QtGui2.QDoubleValidator(0, np.inf, 2, item))
             item.textChanged.connect(self.check_lineedit_state)
 
 
@@ -180,7 +180,7 @@ class QualityControlDialog(QtGui.QDialog):
         grid.addWidget(self.edit_ew_u_upper, index, 3, 1, 1)
 
         for item in (self.edit_ew_u_lower, self.edit_ew_u_upper):
-            item.setValidator(QtGui.QDoubleValidator(0, np.inf, 1, item))
+            item.setValidator(QtGui2.QDoubleValidator(0, np.inf, 1, item))
             item.textChanged.connect(self.check_lineedit_state)
 
 
@@ -204,7 +204,7 @@ class QualityControlDialog(QtGui.QDialog):
         grid.addWidget(self.edit_ew_u_percent_upper, index, 3, 1, 1)
 
         for item in (self.edit_ew_u_percent_lower, self.edit_ew_u_percent_upper):
-            item.setValidator(QtGui.QDoubleValidator(0, 100, 0, item))
+            item.setValidator(QtGui2.QDoubleValidator(0, 100, 0, item))
             item.textChanged.connect(self.check_lineedit_state)
 
 
@@ -228,7 +228,7 @@ class QualityControlDialog(QtGui.QDialog):
         grid.addWidget(self.edit_rew_upper, index, 3, 1, 1)
 
         for item in (self.edit_rew_lower, self.edit_rew_upper):
-            item.setValidator(QtGui.QDoubleValidator(-np.inf, np.inf, 2, item))
+            item.setValidator(QtGui2.QDoubleValidator(-np.inf, np.inf, 2, item))
             item.textChanged.connect(self.check_lineedit_state)
 
 
@@ -252,7 +252,7 @@ class QualityControlDialog(QtGui.QDialog):
         grid.addWidget(self.edit_abundance_upper, index, 3, 1, 1)
 
         for item in (self.edit_abundance_lower, self.edit_abundance_upper):
-            item.setValidator(QtGui.QDoubleValidator(-np.inf, np.inf, 2, item))
+            item.setValidator(QtGui2.QDoubleValidator(-np.inf, np.inf, 2, item))
             item.textChanged.connect(self.check_lineedit_state)
 
 
@@ -276,7 +276,7 @@ class QualityControlDialog(QtGui.QDialog):
         grid.addWidget(self.edit_abundance_u_upper, index, 3, 1, 1)
 
         for item in (self.edit_abundance_u_lower, self.edit_abundance_u_upper):
-            item.setValidator(QtGui.QDoubleValidator(-np.inf, np.inf, 2, item))
+            item.setValidator(QtGui2.QDoubleValidator(-np.inf, np.inf, 2, item))
             item.textChanged.connect(self.check_lineedit_state)
 
 
@@ -312,8 +312,8 @@ class QualityControlDialog(QtGui.QDialog):
         state = sender.validator().validate(sender.text(), 0)[0]
 
         color = {
-            QtGui.QValidator.Acceptable: 'none',        # Normal background
-            QtGui.QValidator.Intermediate: "#FFF79A",   # Yellow
+            QtGui2.QValidator.Acceptable: 'none',        # Normal background
+            QtGui2.QValidator.Intermediate: "#FFF79A",   # Yellow
         }.get(state, "#F6989D")                         # Red
 
         sender.setStyleSheet("QLineEdit {{ background-color: {} }}".format(color))
