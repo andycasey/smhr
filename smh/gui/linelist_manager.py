@@ -57,7 +57,8 @@ class TransitionsDialog(QtGui.QDialog):
         self.callbacks = callbacks or []
         
         self.setGeometry(900, 400, 900, 400)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+        desktop = QtGui.QApplication.desktop()
+        self.move(desktop.screen().rect().center() \
             - self.rect().center())
         self.setWindowTitle("Manage Measurements")
         

@@ -47,10 +47,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         self.setObjectName("smh")
         self.resize(1200, 600)
-        var1 = QtGui.QApplication.desktop()
-        var2 = var1.screen().rect().center()
-        var3 = self.rect().center()
-        self.move(var2 - var3)
+        desktop = QtGui.QApplication.desktop()
+        self.move(desktop.screen().rect().center() - self.rect().center()
 
         # Initialise the menus and associated actions.
         self.__init_menus__()

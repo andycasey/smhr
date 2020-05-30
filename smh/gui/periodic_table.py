@@ -67,7 +67,8 @@ class PeriodicTableDialog(QtGui.QDialog):
 
         # Display dialog in center and set size policy.
         self.setGeometry(800, 500, 800, 500)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+        desktop = QtGui.QApplication.desktop()
+        self.move(desktop.screen().rect().center() \
             - self.rect().center())
         self.setWindowTitle(
             "Select element{s}".format(s="s" if multiple_select else ""))

@@ -181,7 +181,8 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
         # Start creating GUI.
         self.setGeometry(800, 600, 800, 600)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+        desktop = QtGui.QApplication.desktop()
+        self.move(desktop.screen().rect().center() \
             - self.rect().center())
         self.setWindowTitle("Balmer-line fitting")
 

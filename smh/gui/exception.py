@@ -224,7 +224,8 @@ class ExceptionWidget(QtGui.QDialog):
         self.traceback = traceback
 
         self.setGeometry(600, 400, 600, 400)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+        desktop = QtGui.QApplication.desktop()
+        self.move(desktop.screen().rect().center() \
             - self.rect().center())
         self.setWindowTitle("Exception")
 

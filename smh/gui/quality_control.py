@@ -52,7 +52,8 @@ class QualityControlDialog(QtGui.QDialog):
 
         # Display dialog in center and set size policy.
         self.setGeometry(400, 400, 400, 400)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+        desktop = QtGui.QApplication.desktop()
+        self.move(desktop.screen().rect().center() \
             - self.rect().center())
         self.setWindowTitle("Quality criteria for spectral models")
 

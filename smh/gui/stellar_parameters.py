@@ -626,8 +626,8 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
         
         # Display dialog in center and set size policy.
         self.setGeometry(320, 160, 320, 160)
-        var1 = QtGui.QApplication.desktop()
-        self.move(var1.screen().rect().center() \
+        desktop = QtGui.QApplication.desktop()
+        self.move(desktop.screen().rect().center() \
             - self.rect().center())
         self.setWindowTitle("Stellar parameter uncertainty analysis")
         

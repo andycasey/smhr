@@ -917,7 +917,8 @@ class RVRegionDialog(QtGui.QDialog):
         self.rv_tab = rv_tab
 
         self.setGeometry(900, 900, 900, 600)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+        desktop = QtGui.QApplication.desktop()
+        self.move(desktop.screen().rect().center() \
             - self.rect().center())
 
         sp = QtGui.QSizePolicy(

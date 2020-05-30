@@ -825,7 +825,7 @@ class SMHScatterplot(mpl.MPLWidget):
         self._errors = error_objs
         self._linefits = linefit_objs
         self._linemeans = linemean_objs
-        self._graphics = zip(self._filters, self._points, self._errors, self._linefits, self._linemeans)
+        self._graphics = list(zip(self._filters, self._points, self._errors, self._linefits, self._linemeans))
         
         ## Connect Interactivity
         if enable_zoom:
