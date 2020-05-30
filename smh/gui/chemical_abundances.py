@@ -525,6 +525,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._connect_profile_signals()
 
     def _disconnect_profile_signals(self):
+        ## TODO NEXT: in PySide2, there is a bug with disconnecting signals.
+        ## Recommended to switch to PyQt5 for this, which introduces other issues...
         for signal_obj, method in self._profile_signals:
             signal_obj.disconnect(method)
         for signal_obj, method in self._synth_signals:
