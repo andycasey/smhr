@@ -213,10 +213,10 @@ def load_isotope_data(whichdata,include_molecules=False):
     'asplund': Asplund et al. 2009 solar (doesn't get the heaviest elements)
     """
     assert whichdata in ['rproc','sproc','sneden','asplund']
-    datamap = {'rproc':'sneden08_rproc_isotopes.pkl',
-               'sproc':'sneden08_sproc_isotopes.pkl',
-               'sneden':'sneden08_all_isotopes.pkl',
-               'asplund':'asplund09_isotopes.pkl'}
+    datamap = {'rproc':'sneden08_rproc_isotopes_unicode.pkl',
+               'sproc':'sneden08_sproc_isotopes_unicode.pkl',
+               'sneden':'sneden08_all_isotopes_unicode.pkl',
+               'asplund':'asplund09_isotopes_unicode.pkl'}
     with open(_datadir+'/'+datamap[whichdata],'rb') as f:
         isotopes = pickle.load(f, encoding="latin1")
     if include_molecules:

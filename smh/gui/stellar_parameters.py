@@ -665,7 +665,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
             edit.setMinimumSize(QtCore.QSize(40, 0))
             edit.setMaximumSize(QtCore.QSize(50, 16777215))
             edit.setAlignment(QtCore.Qt.AlignCenter)
-            edit.setValidator(QtGui.QDoubleValidator(0.001, 50, 3, edit))
+            edit.setValidator(QtGui2.QDoubleValidator(0.001, 50, 3, edit))
             edit.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
             grid.addWidget(edit, i+1, coltol)
         ## StatErrs
@@ -687,7 +687,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
             edit.setMinimumSize(QtCore.QSize(40, 0))
             edit.setMaximumSize(QtCore.QSize(50, 16777215))
             edit.setAlignment(QtCore.Qt.AlignCenter)
-            edit.setValidator(QtGui.QDoubleValidator(0.01, 1000, 2, edit))
+            edit.setValidator(QtGui2.QDoubleValidator(0.01, 1000, 2, edit))
             edit.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
             grid.addWidget(edit, i+1, colsyserr)
         ## TotErrs

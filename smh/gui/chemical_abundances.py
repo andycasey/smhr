@@ -1545,7 +1545,8 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
             # Other rows are rt_abundances
             self.num_fit_elems = len(spectral_model.elements)
 
-            elems = spectral_model.metadata["rt_abundances"].keys()
+            #elems = [k.decode() for k in spectral_model.metadata["rt_abundances"].keys()]
+            elems = list(spectral_model.metadata["rt_abundances"].keys())
             Zs = [utils.element_to_atomic_number(elem) for elem in elems]
             sorted_indices = np.argsort(Zs)
             # Put in rt_abundances indices

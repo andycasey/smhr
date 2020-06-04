@@ -174,7 +174,7 @@ def optimize_stellar_parameters(initial_guess, transitions, EWs=None,
     all_sampled_points = []
         
     start = time.time()
-    for i in xrange(1, 1 + max_attempts):
+    for i in range(1, 1 + max_attempts):
         sampled_points = []
         args = (sampled_points, total_tolerance, individual_tolerances, 
                 use_nlte_grid)

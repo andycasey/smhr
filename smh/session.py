@@ -1887,8 +1887,10 @@ class Session(BaseSession):
 
         master_list = ascii.read(filename, **kwargs).filled()
         logger.debug(master_list)
+        print(master_list["type"])
         types = np.array(list(map(lambda x: x.lower(), np.array(master_list["type"]))))
-        assert np.all(list(map(lambda x: (x=="eqw") or (x=="syn") or (x=="list"), types)), types)
+        print(types)
+        assert np.all([(x=="eqw") or (x=="syn") or (x=="list") for x in types]), types
 
         num_added = 0
 
