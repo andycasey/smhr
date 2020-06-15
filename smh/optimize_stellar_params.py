@@ -14,7 +14,7 @@ from shutil import rmtree
 import warnings
 from copy import deepcopy
 
-from astropy.stats.biweight import biweight_scale
+#from astropy.stats.biweight import biweight_scale
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 from smh.utils import mkdtemp
 
@@ -440,7 +440,8 @@ def optimize_stellar_parameters_2(initial_guess, transitions, EWs=None,
         for species in unique_species:
             ii = (transitions["species"]==species) & valid
             med = np.median(abundances[ii])
-            scale = biweight_scale(abundances[ii])
+            #scale = biweight_scale(abundances[ii])
+            raise NotImplementedError("Import errors for others")
             this_clip = ii & (np.abs(abundances-med) > sigma_clip*scale)
             to_clip = to_clip | this_clip
         logger.info("Iteration {}/{}: clipping {} lines".format(i,max_attempts,to_clip.sum()))
