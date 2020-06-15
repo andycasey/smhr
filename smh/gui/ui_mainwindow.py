@@ -426,6 +426,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         and "rv_applied" not in self.session.metadata["rv"]: return None
         
         self.normalization_tab._populate_widgets()
+        print("populated normalization widgets")
         if "normalization" not in self.session.metadata: return None
         self.tabs.setTabEnabled(2, True)
         #self.normalization_tab.new_session_loaded()

@@ -458,6 +458,18 @@ class NormalizationTab(QtGui.QWidget):
             return True
 
 
+        # undo/remove the last mask
+        if event.key in ("u", "U"):
+            if "exclude" in self._cache["input"]:
+                exclude_regions = self._cache["input"]["exclude"]
+                if len(exclude_regions) > 0:
+                    exclude_regions = exclude_regions[1:]
+                    self._cache["input"]["exclude"] = exclude_regions
+                    
+                    self.fit_continuum(clobber=True)
+                    self.draw_continuum(refresh=False)
+                    self.update_continuum_mask(refresh=True)
+        
         # 'r': Reset the zoom limits without refitting/clearing masks
         if event.key in "rR":
             self.norm_plot.reset_zoom_limits()
