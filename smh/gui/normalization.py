@@ -416,16 +416,24 @@ class NormalizationTab(QtGui.QWidget):
 
         # Scale the continuum up/down.
         if event.key in ("up", "down"):
-            logger.info("Removed up/down to scale because it's not recommended")
+            clip = self._cache["input"]["high_sigma_clip"]
+            if event.key == "up":
+                clip = max(clip-0.01, 0)
+            if event.key == "down":
+                clip += 0.01
+            self._cache["input"]["high_sigma_clip"] = clip
+            self.high_sigma_clip.setText(
+                str(self._cache["input"]["high_sigma_clip"]))
+            
             """
             scale = self._cache["input"].get("scale", 1.0)
             sign = +1 if event.key == "up" else -1
 
             self._cache["input"]["scale"] = scale + sign * 0.01
+            """
 
             self.fit_continuum(True)
             self.draw_continuum(True)
-            """
 
             return None
 
