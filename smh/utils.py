@@ -767,7 +767,10 @@ def process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY):
     except IndexError:
         print("No feh2: setting to feh1")
         feh2 = feh1
-        exfe2 = efe1
+        try:
+            exfe2 = np.sqrt(var_X[ix1])
+        except UnboundLocalError: # no ix1 either
+            exfe2 = np.nan
     else:
         feh2 = summary_tab["[X/H]"][ix2]
         var_fe2 = var_X[ix2]
