@@ -323,6 +323,8 @@ class StellarParametersTab(QtGui.QWidget):
         logger.info("Setting [alpha/Fe]=0.4 to solve")
         self.update_stellar_parameter_session()
         self.parent.session.optimize_stellar_parameters()
+        ## Overwrite the GUI labels with the new results
+        self.update_stellar_parameter_labels()
         ## refresh everything
         self.measure_abundances()
         self.new_session_loaded()

@@ -1393,6 +1393,7 @@ class Session(BaseSession):
         """
         
         Teff, logg, vt, MH = self.stellar_parameters
+        alpha = self.metadata["stellar_parameters"]["alpha"]
         initial_guess = [Teff, vt, logg, MH] # stupid me did not change the ordering to match
         logger.info("Initializing optimization at Teff={:.0f} logg={:.2f} vt={:.2f} MH={:.2f}".format(
             Teff, logg, vt, MH))
@@ -1413,7 +1414,7 @@ class Session(BaseSession):
         logger.info("Optimizing with {} transitions".format(len(transitions)))
         
         # interpolator, do obj. function
-        out = run_optimize_stellar_parameters(initial_guess, transitions, **kwargs)
+        out = run_optimize_stellar_parameters(initial_guess, transitions, alpha=alpha, **kwargs)
         final_parameters = out[5]
         new_Teff, new_vt, new_logg, new_MH = final_parameters
         

@@ -89,7 +89,8 @@ def optimize_stellar_parameters(initial_guess, transitions, EWs=None,
                                 rt=radiative_transfer.moog,
                                 max_attempts=5, total_tolerance=1e-4, 
                                 individual_tolerances=None, 
-                                maxfev=30, use_nlte_grid=None):
+                                maxfev=30, use_nlte_grid=None,
+                                alpha=0.4):
     """
     Assumes these are all transitions you want to use for stellar parameters
     Assumes you only want to balance neutral ions against Expot and REW
@@ -146,7 +147,7 @@ def optimize_stellar_parameters(initial_guess, transitions, EWs=None,
         #if not (5 > vt > 0):
         #    return np.array([np.nan, np.nan, np.nan, np.nan])
         
-        photosphere = photosphere_interpolator(teff, logg, feh)
+        photosphere = photosphere_interpolator(teff, logg, feh, alpha)
         photosphere.meta["stellar_parameters"]["microturbulence"] = vt
         
         ## TODO: ADJUST ABUNDANCES TO ASPLUND?
@@ -167,7 +168,7 @@ def optimize_stellar_parameters(initial_guess, transitions, EWs=None,
         all_sampled_points.append(point)
 
         logger.info("Atmosphere with Teff = {0:.0f} K, vt = {1:.2f} km/s, logg = {2:.2f}, [Fe/H] = {3:.2f}, [alpha/Fe] = {4:.2f}"
-                    " yields sum {5:.1e}:\n\t\t\t[{6:.1e}, {7:.1e}, {8:.1e}, {9:.1e}]".format(teff, vt, logg, feh, 0.4,
+                    " yields sum {5:.1e}:\n\t\t\t[{6:.1e}, {7:.1e}, {8:.1e}, {9:.1e}]".format(teff, vt, logg, feh, alpha,
                                                                                               acquired_total_tolerance, *results))
         return results
 
