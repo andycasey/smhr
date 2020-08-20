@@ -129,7 +129,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Initialize metadata with default fitting values.
         self.metadata.update({
             "mask": [],
-            "window": 1, 
+            "window": 0, 
             "continuum_order": 1,
             "velocity_tolerance": 5,
             "smoothing_kernel": True,
@@ -733,6 +733,21 @@ class SpectralSynthesisModel(BaseSpectralModel):
         meta["plot_y"] = plot_y
         
         return None
+
+    def get_synth(self, abundances):
+        try:
+            (named_p_opt, cov, meta) = self.metadata["fitted_result"]
+        except KeyError:
+            logger.info("Please run a fit first!")
+            return None
+        abundances = _fix_rt_abundances(abundances)
+        synth_dispersion, intensities, meta = self.session.rt.synthesize(
+            self.session.stellar_photosphere, self.transitions,
+            abundances=abundances, 
+            isotopes=self.session.metadata["isotopes"],
+            twd=self.session.twd)[0] # TODO: Other RT kwargs......
+        return synth_dispersion, self._nuisance_methods(
+            synth_dispersion, synth_dispersion, intensities, *named_p_opt.values())
 
     def __call__(self, dispersion, *parameters):
         """

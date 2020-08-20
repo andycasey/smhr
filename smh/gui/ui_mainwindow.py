@@ -17,7 +17,8 @@ import numpy as np
 import rv, normalization, summary, stellar_parameters, chemical_abundances, review
 
 import smh
-from balmer import BalmerLineFittingDialog
+#from balmer import BalmerLineFittingDialog
+from balmer import *
 from linelist_manager import TransitionsDialog
 from isotope_manager import IsotopeDialog
 from plotting import SummaryPlotDialog, SNRPlotDialog
@@ -353,7 +354,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.summary_tab._populate_widgets()
         self.rv_tab.update_from_new_session()
         self.normalization_tab._populate_widgets()
-        self.stellar_parameters_tab.populate_widgets()
+        self.stellar_parameters_tab.new_session_loaded()
         self.chemical_abundances_tab.new_session_loaded()
         self.review_tab.new_session_loaded()
 
@@ -425,11 +426,12 @@ class Ui_MainWindow(QtGui.QMainWindow):
         if "rv_measured" not in self.session.metadata["rv"] \
         and "rv_applied" not in self.session.metadata["rv"]: return None
         
+        self.normalization_tab._populate_widgets()
+        print("populated normalization widgets")
         if "normalization" not in self.session.metadata: return None
         self.tabs.setTabEnabled(2, True)
         #self.normalization_tab.new_session_loaded()
         # TODO put all these in normalization tab
-        self.normalization_tab._populate_widgets()
         #self.normalization_tab.draw_order()
         #self.normalization_tab.current_order_index = 0
         # TODO seems to not save the stitched normalized spectrum?
@@ -439,15 +441,17 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self.tabs.setTabEnabled(3, True)
         self.tabs.setTabEnabled(4, True)
         self.tabs.setTabEnabled(5, True)
-        #self.stellar_parameters_tab.new_session_loaded()
-        # TODO there are likely more things needed here!
-        self.stellar_parameters_tab.populate_widgets()
-
+        
+        self.stellar_parameters_tab.new_session_loaded()
         self.chemical_abundances_tab.new_session_loaded()
         self.review_tab.new_session_loaded()
         
         self._update_window_title(os.path.basename(self.session_path))
 
+        # Bring to top after loading
+        self.raise_()
+        self.activateWindow()
+        self.showNormal()
         return None
 
 
@@ -570,8 +574,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         # Ensure to update the proxy data models when the transitions dialog has
         # been closed.
         window = TransitionsDialog(self.session, callbacks=[
-            self.stellar_parameters_tab.proxy_spectral_models.reset,
-            self.chemical_abundances_tab.refresh_table,
+            self.stellar_parameters_tab.new_session_loaded,
+            self.chemical_abundances_tab.new_session_loaded,
             self.review_tab.new_session_loaded
             ])
         window.exec_()
@@ -696,8 +700,8 @@ class Ui_MainWindow(QtGui.QMainWindow):
         self._update_window_title()
 
     def transition_dialog_callback(self):
-        self.stellar_parameters_tab.proxy_spectral_models.reset()
-        self.chemical_abundances_tab.refresh_table()
+        self.stellar_parameters_tab.new_session_loaded()
+        self.chemical_abundances_tab.new_session_loaded()
         self.review_tab.new_session_loaded()
 
     def refresh_all_guis(self):

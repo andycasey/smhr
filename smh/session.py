@@ -21,6 +21,7 @@ from six.moves import cPickle as pickle
 from shutil import copyfile, rmtree
 #from tempfile import mkdtemp
 from copy import deepcopy
+import warnings
 
 import astropy.table
 from astropy.io import ascii
@@ -31,6 +32,7 @@ from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 from . import (smh_plotting, __version__)
 from .optimize_stellar_params import optimize_stellar_parameters as run_optimize_stellar_parameters
+from .optimize_stellar_params import optimize_feh as run_optimize_feh
 
 logger = logging.getLogger(__name__)
 
@@ -885,7 +887,9 @@ class Session(BaseSession):
         self.metadata["stellar_parameters"]["microturbulence"] = vt
         if alpha is not None:
             self.metadata["stellar_parameters"]["alpha"] = alpha
+        
         return None
+        
     def set_stellar_parameters_errors(self, sysstat, dTeff, dlogg, dvt, dMH):
         """ 
         Set stellar parameter errors (sys/stat, Teff, logg, MH, vt)
@@ -899,7 +903,11 @@ class Session(BaseSession):
     
     def stellar_parameter_uncertainty_analysis(self, transitions=None,
                                                tolerances=[5,0.01,0.01],
-                                               systematic_errors=None):
+                                               systematic_errors=None,
+                                               expot_balance_species=26.0,
+                                               ionization_balance_species_1=26.0,
+                                               ionization_balance_species_2=26.1,
+                                               rew_balance_species=26.0):
         """
         Performs an uncertainty analysis on the stellar parameters.
         Teff from varying Teff until the slope is +1 sigma off from its current value
@@ -915,6 +923,10 @@ class Session(BaseSession):
         
         tolerances for accuracy in Teff, logg, vt can be specified with tolerances keyword
         (default 5, .01, .01)
+        
+        expot_balance_species, ionization_balance_species_1, ionization_balance_species_2,
+        rew_balance_species: set by default to be 26.0, 26.0, 26.1, 26.0.
+        Most likely you'll only change rew_balance_species to 26.1 as needed.
         """
         
         from scipy.optimize import fmin
@@ -973,7 +985,7 @@ class Session(BaseSession):
             # Teff
             try:
                 self.metadata["stellar_parameters"] = deepcopy(saved_stellar_params)
-                m, b, median, sigma, N = initial_slopes[26.0].get("expot", (np.nan,np.nan,np.nan,np.nan,0))
+                m, b, median, sigma, N = initial_slopes[expot_balance_species].get("expot", (np.nan,np.nan,np.nan,np.nan,0))
                 logger.info("Finding error in Teff slope: {:.3f} +/- {:.3f}".format(m, sigma[1]))
                 Teff = saved_stellar_params["effective_temperature"]
                 Teff_error = np.nan
@@ -983,7 +995,7 @@ class Session(BaseSession):
                     abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
                     transitions["abundance"] = abundances
                     m, b, median, sigma, N = utils.equilibrium_state(transitions, columns=("expot",), ycolumn="abundance",
-                                                                     yerr_column=yerr_column)[26.0]["expot"]
+                                                                     yerr_column=yerr_column)[expot_balance_species]["expot"]
                     logger.debug("Teff={:.0f} m={:.3f} m_target={:.3f}".format(teff,m,m_target))
                     return m
                 minfn = lambda teff: (m_target - _calculate_teff_slope(teff[0]))**2
@@ -999,8 +1011,8 @@ class Session(BaseSession):
             try:
                 self.metadata["stellar_parameters"] = deepcopy(saved_stellar_params)
                 def _get_fe_values(abundances, transitions):
-                    ii1 = transitions["species"] == 26.0
-                    ii2 = transitions["species"] == 26.1
+                    ii1 = transitions["species"] == ionization_balance_species_1
+                    ii2 = transitions["species"] == ionization_balance_species_2
                     N1 = np.sum(ii1); N2 = np.sum(ii2)
                     ab1 = np.mean(abundances[ii1]); ab2 = np.mean(abundances[ii2])
                     std1 = np.std(abundances[ii1])/np.sqrt(N1)
@@ -1034,7 +1046,7 @@ class Session(BaseSession):
             # vt
             try:
                 self.metadata["stellar_parameters"] = deepcopy(saved_stellar_params)
-                m, b, median, sigma, N = initial_slopes[26.0].get("reduced_equivalent_width", (np.nan,np.nan,np.nan,np.nan,0))
+                m, b, median, sigma, N = initial_slopes[rew_balance_species].get("reduced_equivalent_width", (np.nan,np.nan,np.nan,np.nan,0))
                 logger.info("Finding error in vt slope: {:.3f} +/- {:.3f}".format(m, sigma[1]))
                 vt = saved_stellar_params["microturbulence"]
                 vt_error = np.nan
@@ -1044,7 +1056,7 @@ class Session(BaseSession):
                     abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
                     transitions["abundance"] = abundances
                     m, b, median, sigma, N = utils.equilibrium_state(transitions, columns=("reduced_equivalent_width",),ycolumn="abundance",
-                                                                     yerr_column=yerr_column)[26.0]["reduced_equivalent_width"]
+                                                                     yerr_column=yerr_column)[rew_balance_species]["reduced_equivalent_width"]
                     logger.debug("vt={:.2f} m={:.3f} m_target={:.3f}".format(vt,m,m_target))
                     return m
                 minfn = lambda vt: (m_target - _calculate_vt_slope(vt[0]))**2
@@ -1405,6 +1417,47 @@ class Session(BaseSession):
         
         # interpolator, do obj. function
         out = run_optimize_stellar_parameters(initial_guess, transitions, **kwargs)
+        final_parameters = out[1]
+        new_Teff, new_vt, new_logg, new_MH = final_parameters
+        
+        if not out[0]:
+            logger.warn("Optimization did not converge, stopped at Teff={:.0f} logg={:.2f} vt={:.2f} MH={:.2f}".format(
+                new_Teff, new_logg, new_vt, new_MH))
+            
+        
+        self.set_stellar_parameters(new_Teff, new_logg, new_vt, new_MH)
+        return None
+
+    
+    # E. Holmbeck added this function to call the other "Solve" function
+    def optimize_feh(self, params_to_optimize, **kwargs):
+        """
+        Optimize the stellar parameters for this star using the spectral models
+        associated with stellar parameter inference.
+        """
+        
+        Teff, logg, vt, MH = self.stellar_parameters
+        initial_guess = np.array([Teff, vt, logg, MH]) # stupid me did not change the ordering to match
+        logger.info("Initializing optimization at Teff={:.0f} logg={:.2f} vt={:.2f} MH={:.2f}".format(
+            Teff, logg, vt, MH))
+        
+        # get the list of relevant spectral models.
+        stellar_parameter_spectral_models = []
+        for spectral_model in self.spectral_models:
+            if spectral_model.use_for_stellar_parameter_inference and spectral_model.is_acceptable:
+                if isinstance(spectral_model, SpectralSynthesisModel):
+                    raise NotImplementedError("Syntheses cannot be used for stellar parameter state (check the Transitions manager)")
+                stellar_parameter_spectral_models.append(spectral_model)
+        transitions = self._spectral_models_to_transitions(stellar_parameter_spectral_models)
+        finite = np.logical_and(np.isfinite(transitions["equivalent_width"]), transitions["equivalent_width"] > 0.01)
+        if finite.sum() != len(finite):
+            logger.warn("Number of finite transitions ({}) != number of transitions ({})".format(
+                finite.sum(), len(finite)))
+        transitions = transitions[finite]
+        logger.info("Optimizing with {} transitions".format(len(transitions)))
+        
+        # interpolator, do obj. function
+        out = run_optimize_feh(initial_guess, transitions, params_to_optimize, **kwargs)
         final_parameters = out[5]
         new_Teff, new_vt, new_logg, new_MH = final_parameters
         
@@ -1524,7 +1577,6 @@ class Session(BaseSession):
             If False (default), key is species (without isotopes)
             If True, key is element (sum all species together)
         :param use_weights:
-            TODO Not implemented yet!
             If True, use line-by-line weights
             If False, weight all lines equally
             Defaults to session settings
@@ -1995,4 +2047,17 @@ class Session(BaseSession):
         new_spectrum.redshift(self.metadata["rv"]["rv_applied"])
         new_spectrum.write(path)
         return None
+    
+    def get_spectral_models_species_dict(self):
+        all_models = {}
+        for model in self.spectral_models:
+            if isinstance(model, ProfileFittingModel): species = round(model.species[0],1)
+            if isinstance(model, SpectralSynthesisModel):
+                if len(model.species) > 1:
+                    warnings.warn("Spectral model has multiple species: {}".format(model.species))
+                species = round(model.species[0][0],1)
+            # Use setdefault instead of get, not sure why it has to be this way
+	    species_models = all_models.setdefault(species, [])
+	    species_models.append(model)
+        return all_models
     

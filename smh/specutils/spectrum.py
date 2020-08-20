@@ -196,8 +196,9 @@ class Spectrum1D(object):
             
             ## Compute ivar assuming Poisson noise
             ivar = 1./flux
-            
-        return (dispersion, flux, ivar, metadata)
+        
+        # E. Holmbeck changed from tuple to list
+        return [dispersion, flux, ivar, metadata]
 
     @classmethod
     def read_fits_multispec(cls, path, flux_ext=None, ivar_ext=None,
@@ -1058,7 +1059,7 @@ class Spectrum1D(object):
             zero_flux_indices)))
 
 
-        if knot_spacing is None or knot_spacing == 0:
+        if knot_spacing is None or knot_spacing == 0 or continuum_indices == []:
             knots = []
         else:
             knot_spacing = abs(knot_spacing)
@@ -1070,11 +1071,16 @@ class Spectrum1D(object):
                 dispersion[-1] - end_spacing + knot_spacing, 
                 knot_spacing)
 
-            if len(knots) > 0 and knots[-1] > dispersion[continuum_indices][-1]:
-                knots = knots[:knots.searchsorted(dispersion[continuum_indices][-1])]
+            #print(continuum_indices)
+            try:
+                if len(knots) > 0 and knots[-1] > dispersion[continuum_indices][-1]:
+                    knots = knots[:knots.searchsorted(dispersion[continuum_indices][-1])]
                 
-            if len(knots) > 0 and knots[0] < dispersion[continuum_indices][0]:
-                knots = knots[knots.searchsorted(dispersion[continuum_indices][0]):]
+                if len(knots) > 0 and knots[0] < dispersion[continuum_indices][0]:
+                    knots = knots[knots.searchsorted(dispersion[continuum_indices][0]):]
+            except IndexError:
+                print("Spectrum error: continuum indices:",continuum_indices)
+                knots = []
         return knots
         
 

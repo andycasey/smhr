@@ -46,7 +46,7 @@ logger.addHandler(handler)
 # Get the location for the Session defaults file.
 from .session import Session
 from . import (photospheres, radiative_transfer, spectral_models)
-from .optimize_stellar_params import optimize_stellar_parameters
+from .optimize_stellar_params import optimize_stellar_parameters, optimize_stellar_parameters_2, optimize_feh
 from .linelists import LineList
 
 # If there isn't a local copy of the default Session settings file, create one.

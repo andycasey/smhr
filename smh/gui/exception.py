@@ -13,10 +13,11 @@ import sys
 import traceback as tb
 #from tempfile import mkstemp
 from smh.utils import mkstemp
+#from smh.utils import *
 from urllib import quote
 from PySide import QtCore, QtGui
 
-from smh import __git_status__
+#from smh import __git_status__
 
 logger = logging.getLogger("smh")
 

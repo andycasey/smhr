@@ -16,6 +16,7 @@ import mpl
 from matplotlib import (gridspec, pyplot as plt)
 
 from smh import (Session, specutils)
+import smh
 from smh.linelists import LineList
 
 import logging

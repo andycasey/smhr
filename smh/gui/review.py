@@ -161,12 +161,29 @@ class ReviewTab(QtGui.QWidget):
         return vbox
 
     def _init_scatterplots(self):
+        filters = [lambda x: (x.is_acceptable) and (not x.user_flag) and (not x.is_upper_limit),
+                   lambda x: not x.is_acceptable,
+                   lambda x: x.user_flag,
+                   lambda x: x.is_upper_limit]
+        point_styles = [{"s":30,"facecolor":"k","edgecolor":"k","alpha":0.5},
+                        {"s":30,"c":"c","marker":"x","linewidths":3},
+                        {"s":30,"edgecolor":"r","facecolor":"k","alpha":0.5,"linewidths":3},
+                        {"s":30,"edgecolor":"r","facecolor":"none","marker":"v"}
+        ]
+        linefit_styles = [{"color":"k","linestyle":"--","zorder":-99},None,None,None]
+        linemean_styles = [{"color":"k","linestyle":":","zorder":-999},None,None,None]
         self.plot1 = SMHScatterplot(None, "expot", "abundances",
-                                    tableview=self.measurement_view)
+                                    tableview=self.measurement_view,
+                                    filters=filters, point_styles=point_styles,
+                                    linefit_styles=linefit_styles,linemean_styles=linemean_styles)
         self.plot2 = SMHScatterplot(None, "reduced_equivalent_width", "abundances",
-                                    tableview=self.measurement_view)
+                                    tableview=self.measurement_view,
+                                    filters=filters, point_styles=point_styles,
+                                    linefit_styles=linefit_styles,linemean_styles=linemean_styles)
         self.plot3 = SMHScatterplot(None, "wavelength", "abundances",
-                                    tableview=self.measurement_view)
+                                    tableview=self.measurement_view,
+                                    filters=filters, point_styles=point_styles,
+                                    linefit_styles=linefit_styles,linemean_styles=linemean_styles)
         
         sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
                                QtGui.QSizePolicy.MinimumExpanding)

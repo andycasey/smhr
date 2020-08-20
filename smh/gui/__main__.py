@@ -6,6 +6,10 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+import sys
+sys.path.remove('/Volumes/Files/Code/smh')
+sys.path.insert(0,'/Volumes/Files/Code/smhr/smh')
+
 import logging
 from PySide import QtCore, QtGui
 import yaml
