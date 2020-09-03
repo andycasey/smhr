@@ -13,6 +13,11 @@ from PySide import QtCore, QtGui
 import yaml
 import os
 
+# Hacky path solution to override the original path to smhr
+here = os.path.abspath(os.path.dirname(__file__))
+smhr_rpa_path = '/'.join(here.split('/')[:-2])
+sys.path.insert(0,smhr_rpa_path)
+
 # Functions related to warnings and exceptions.
 import exception
 
