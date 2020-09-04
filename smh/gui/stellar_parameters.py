@@ -137,7 +137,6 @@ class StellarParametersTab(QtGui.QWidget):
         - update plots
         """
 
-        print("Pushed 'Derive abundances'")
         if self.parent.session is None or not self._check_for_spectral_models():
             return None
         # If no acceptable measurements, fit all
