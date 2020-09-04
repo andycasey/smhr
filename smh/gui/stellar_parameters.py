@@ -154,8 +154,6 @@ class StellarParametersTab(QtGui.QWidget):
                         "Exception in fitting spectral model {}".format(model))
                     continue
         
-        # If you just pushed "derive abundances," then the parameters update as expected.
-        # But when you use "Solve," it does not overwrite the parameters
         self.update_stellar_parameter_session()
         		        
         ## Loop through the spectral models and measure relevant abundances
@@ -348,7 +346,6 @@ class StellarParametersTab(QtGui.QWidget):
         logger.info("Setting [alpha/Fe]=0.4 to solve")
         self.update_stellar_parameter_session()
         self.parent.session.optimize_feh(self.params_to_optimize)
-        #self.parent.session.optimize_stellar_parameters()
         ## refresh everything
         # E. Holmbeck switched the order of these two lines.
         self.new_session_loaded()
