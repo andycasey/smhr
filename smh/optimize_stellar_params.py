@@ -583,7 +583,7 @@ def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None,
 	'''
 
     plist = ['Teff','vt','logg','[Fe/H]']	
-    logger.info('Holding {:} parameters constant: '+', '.join([plist[p]+'='+str(initial_guess[p]) for p in range(len(plist)) if not params_to_optimize[p]]))
+    logger.info('Holding %s parameter(s) constant: '%int(4-sum(params_to_optimize))+', '.join([plist[p]+'='+str(initial_guess[p]) for p in range(len(plist)) if not params_to_optimize[p]]))
     parameter_ranges = {}
     if params_to_optimize[0] == True:
         parameter_ranges["teff"] = (3500, 7000)
