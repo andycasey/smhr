@@ -546,7 +546,7 @@ def optimize_stellar_parameters_2(initial_guess, transitions, EWs=None,
 
 # E. Holmbeck copied the above function and basically changed teff and logg to constant.
 def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None, 
-                                jacobian=utils.approximate_sun_hermes_jacobian,
+                                jacobian=utils.approximate_feh_jacobian,
                                 rt=radiative_transfer.moog,
                                 max_attempts=5, total_tolerance=1e-4, 
                                 individual_tolerances=None, 
@@ -572,18 +572,18 @@ def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None,
     idx_II = transitions["ion"] == 2
 
     photosphere_interpolator = photospheres.interpolator()
+    
     '''
     parameter_ranges = {
-        "teff": (initial_guess[0], initial_guess[0]),
-        "vt": (0.0, 4.0),
-        "logg": (initial_guess[2], initial_guess[2]),
-        "[Fe/H]": (-5, 0.5)
-        }
         "teff": (3500, 7000),
         "vt": (0.0, 4.0),
         "logg": (0, 5),
         "[Fe/H]": (-5, 0.5)
+        }
 	'''
+
+    plist = ['Teff','vt','logg','[Fe/H]']	
+    logger.info('Holding {:} parameters constant: '+', '.join([plist[p]+'='+str(initial_guess[p]) for p in range(len(plist)) if not params_to_optimize[p]]))
     parameter_ranges = {}
     if params_to_optimize[0] == True:
         parameter_ranges["teff"] = (3500, 7000)
@@ -601,9 +601,9 @@ def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None,
         parameter_ranges["logg"] = (initial_guess[2], initial_guess[2])
 
     if params_to_optimize[1] == True:
-        parameter_ranges["feh"] = (-5, 0.5)
+        parameter_ranges["[Fe/H]"] = (-5, 0.5)
     else:
-        parameter_ranges["feh"] = (initial_guess[3], initial_guess[3])
+        parameter_ranges["[Fe/H]"] = (initial_guess[3], initial_guess[3])
 	
     
     # Create a mutable copy for the initial guess
@@ -680,7 +680,7 @@ def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None,
             t_elapsed = time.time() - start
             
             cut = int(len(sampled_points[0])/2)
-    
+
             point_results = np.sum(np.array(sampled_points)[:, cut:]**2, axis=1)
             min_index = np.argmin(point_results)
 
@@ -696,14 +696,26 @@ def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None,
                     np.array(all_sampled_points))
         else:
             t_elapsed = time.time() - start
-            ier, mesg = results[-len(sampled_points)/2:]
+            #ier, mesg = results[-len(sampled_points)/2:]
+            ier, mesg = results[-2:]
             
+            final_parameters = (results[0]*params_to_optimize) + (initial_guess*(-1*params_to_optimize + 1))
+            final_parameters[0] = int(np.round(final_parameters[0])) # Effective temperature
+            final_parameters_result = results[1]["fvec"]
+            num_moog_iterations = len(sampled_points)
+            all_sampled_points.extend(sampled_points)
+            acquired_total_tolerance = sum(pow(np.array(final_parameters_result), 2))
+
+            '''
+            cut = int(len(sampled_points[0])/2)
+            min_index = 0
             final_parameters = (sampled_points[min_index][:cut]*params_to_optimize) + (initial_guess*(-1*params_to_optimize + 1))
+            final_parameters_result = (sampled_points[min_index][cut:]*params_to_optimize) + (initial_guess*(-1*params_to_optimize + 1))
         	
             num_moog_iterations = len(sampled_points)
             all_sampled_points.extend(sampled_points)
             acquired_total_tolerance = sum(pow(np.array(results[1]["fvec"]), 2))
-
+            '''
             # Have we achieved tolerance?
             if total_tolerance >= acquired_total_tolerance and \
                     (individual_tolerances is None or np.all(np.less_equal(np.abs(final_parameters_result), individual_tolerances))):
@@ -713,7 +725,7 @@ def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None,
                 # This solution will fail. Try a new starting point
                 # It should select a new point where teff and logg are constant though...
                 #solver_guess = [teff, np.random.uniform(*parameter_ranges["vt"]), logg, np.random.uniform(*parameter_ranges["[Fe/H]"])]
-                solver_guess = [np.random.uniform(*parameter_ranges[parameter]) for parameter in ["teff", "vt", "logg", "[Fe/H]"]]
+                solver_guess = [np.random.uniform(*parameter_ranges[parameter]) for parameter in ['teff', 'vt', 'logg', '[Fe/H]']]
                 
         t_elapsed = time.time() - start
 
