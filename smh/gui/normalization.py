@@ -416,6 +416,8 @@ class NormalizationTab(QtGui.QWidget):
 
         # Scale the continuum up/down.
         if event.key in ("up", "down"):
+            # E. Holmbeck changed this back to shift up/down
+            """
             clip = self._cache["input"]["high_sigma_clip"]
             if event.key == "up":
                 clip = max(clip-0.01, 0)
@@ -430,7 +432,7 @@ class NormalizationTab(QtGui.QWidget):
             sign = +1 if event.key == "up" else -1
 
             self._cache["input"]["scale"] = scale + sign * 0.01
-            """
+            
 
             self.fit_continuum(True)
             self.draw_continuum(True)
