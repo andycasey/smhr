@@ -100,8 +100,6 @@ def feh_optimization(func):
 
         previously_sampled_points = np.array(previously_sampled_points)
         
-        cut = len(previously_sampled_points.T)/2
-
         # Checking if this point is sampled already
         if len(previously_sampled_points) > 0:
 
@@ -109,9 +107,9 @@ def feh_optimization(func):
             #import pdb; pdb.set_trace()
 
             try:
-                sampled_before = (previously_sampled_points[:, :cut] == this_point).all(axis=1)
+                sampled_before = (previously_sampled_points[:, :4] == this_point).all(axis=1)
             except:
-                sampled_before = (previously_sampled_points[:, :cut] == this_point)
+                sampled_before = (previously_sampled_points[:, :4] == this_point)
                 #np.arange(previously_sampled_points[:, :4].ndim - this_point.ndim, previously_sampled_points[:, :4].ndim))
             #print sampled_before
 
@@ -120,7 +118,7 @@ def feh_optimization(func):
                 logger.debug("Sampled these stellar parameters already, so we're just returning those values.")
                 logger.debug(previously_sampled_points[index])
 
-                return previously_sampled_points[index, cut:]
+                return previously_sampled_points[index, 4:]
 
         # Perform the optimization
         response = func(request, *args, **kwargs)
@@ -582,8 +580,13 @@ def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None,
         }
 	'''
 
-    plist = ['Teff','vt','logg','[Fe/H]']	
-    logger.info('Holding %s parameter(s) constant: '%int(4-sum(params_to_optimize))+', '.join([plist[p]+'='+str(initial_guess[p]) for p in range(len(plist)) if not params_to_optimize[p]]))
+    plist = ['Teff','vt','logg','[Fe/H]']
+    nconst = int(4-sum(params_to_optimize))
+    if nconst == 1:
+        logger.info('Holding 1 parameter constant: '+', '.join([plist[p]+'='+str(initial_guess[p]) for p in range(len(plist)) if not params_to_optimize[p]]))
+    elif nconst > 1:
+        logger.info('Holding %s parameters constant: '%nconst +', '.join([plist[p]+'='+str(initial_guess[p]) for p in range(len(plist)) if not params_to_optimize[p]]))
+
     parameter_ranges = {}
     if params_to_optimize[0] == True:
         parameter_ranges["teff"] = (3500, 7000)
@@ -679,13 +682,13 @@ def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None,
             
             t_elapsed = time.time() - start
             
-            cut = int(len(sampled_points[0])/2)
+            sampled_points_tols = np.array(sampled_points)[:,4:]*params_to_optimize
 
-            point_results = np.sum(np.array(sampled_points)[:, cut:]**2, axis=1)
+            point_results = np.sum(sampled_points_tols**2, axis=1)
             min_index = np.argmin(point_results)
 
-            final_parameters = (sampled_points[min_index][:cut]*params_to_optimize) + (initial_guess*(-1*params_to_optimize + 1))
-            final_parameters_result = (sampled_points[min_index][cut:]*params_to_optimize) + (initial_guess*(-1*params_to_optimize + 1))
+            final_parameters = (sampled_points[min_index][:4]*params_to_optimize) + (initial_guess*(-1*params_to_optimize + 1))
+            final_parameters_result = (sampled_points[min_index][4:]*params_to_optimize) + (initial_guess*(-1*params_to_optimize + 1))
 
             num_moog_iterations = len(sampled_points)
             all_sampled_points.extend(sampled_points)
@@ -706,16 +709,6 @@ def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None,
             all_sampled_points.extend(sampled_points)
             acquired_total_tolerance = sum(pow(np.array(final_parameters_result), 2))
 
-            '''
-            cut = int(len(sampled_points[0])/2)
-            min_index = 0
-            final_parameters = (sampled_points[min_index][:cut]*params_to_optimize) + (initial_guess*(-1*params_to_optimize + 1))
-            final_parameters_result = (sampled_points[min_index][cut:]*params_to_optimize) + (initial_guess*(-1*params_to_optimize + 1))
-        	
-            num_moog_iterations = len(sampled_points)
-            all_sampled_points.extend(sampled_points)
-            acquired_total_tolerance = sum(pow(np.array(results[1]["fvec"]), 2))
-            '''
             # Have we achieved tolerance?
             if total_tolerance >= acquired_total_tolerance and \
                     (individual_tolerances is None or np.all(np.less_equal(np.abs(final_parameters_result), individual_tolerances))):
