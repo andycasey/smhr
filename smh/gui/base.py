@@ -1004,7 +1004,6 @@ class SMHScatterplot(mpl.MPLWidget):
         return None
     
     def key_press_event(self, event):
-        print("Key pressed")
         if event.key not in "uUaA": return None
         if self.tableview is None or self.tablemodel is None: return None
         if event.key in "uU":
