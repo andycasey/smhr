@@ -356,13 +356,13 @@ class StellarParametersTab(QtGui.QWidget):
         # Effective temperature.
         label = QtGui.QLabel(self)
         label.setText("Teff")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         grid_layout.addWidget(label, 0, 0, 1, 1)
         self.edit_teff = QtGui.QLineEdit(self)
         self.edit_teff.setMinimumSize(QtCore.QSize(40, 0))
         self.edit_teff.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_teff.setAlignment(QtCore.Qt.AlignCenter)
-        self.edit_teff.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        self.edit_teff.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_teff.setValidator(
             QtGui.QDoubleValidator(3000, 8000, 0, self.edit_teff))
         self.edit_teff.textChanged.connect(self._check_lineedit_state)
@@ -377,7 +377,7 @@ class StellarParametersTab(QtGui.QWidget):
         # Surface gravity.
         label = QtGui.QLabel(self)
         label.setText("logg")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
 
         grid_layout.addWidget(label, 1, 0, 1, 1)
         self.edit_logg = QtGui.QLineEdit(self)
@@ -386,7 +386,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_logg.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_logg.setValidator(
             QtGui.QDoubleValidator(-1, 6, 3, self.edit_logg))
-        self.edit_logg.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        self.edit_logg.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_logg.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_logg, 1, 1)
         # E. Holmbeck added checkbox
@@ -398,7 +398,7 @@ class StellarParametersTab(QtGui.QWidget):
         # Metallicity.
         label = QtGui.QLabel(self)
         label.setText("[M/H]")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
 
         grid_layout.addWidget(label, 2, 0, 1, 1)
         self.edit_metallicity = QtGui.QLineEdit(self)
@@ -407,7 +407,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_metallicity.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_metallicity.setValidator(
             QtGui.QDoubleValidator(-5, 1, 3, self.edit_metallicity))
-        self.edit_metallicity.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        self.edit_metallicity.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_metallicity.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_metallicity, 2, 1)
         # E. Holmbeck added checkbox
@@ -420,7 +420,7 @@ class StellarParametersTab(QtGui.QWidget):
         # Microturbulence.
         label = QtGui.QLabel(self)
         label.setText("vt")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
 
         grid_layout.addWidget(label, 3, 0, 1, 1)
         self.edit_xi = QtGui.QLineEdit(self)
@@ -428,7 +428,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_xi.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_xi.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_xi.setValidator(QtGui.QDoubleValidator(0, 5, 3, self.edit_xi))
-        self.edit_xi.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        self.edit_xi.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_xi.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_xi, 3, 1)
         # E. Holmbeck added checkbox
@@ -440,7 +440,7 @@ class StellarParametersTab(QtGui.QWidget):
         # Alpha-enhancement.
         label = QtGui.QLabel(self)
         label.setText("alpha")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         
         grid_layout.addWidget(label, 4, 0, 1, 1)
         self.edit_alpha = QtGui.QLineEdit(self)
@@ -449,7 +449,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_alpha.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_alpha.setValidator(QtGui.QDoubleValidator(-1, 1, 3, self.edit_alpha))
         #self.edit_alpha.setValidator(QtGui.QDoubleValidator(0, 0.4, 3, self.edit_alpha))
-        self.edit_alpha.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        self.edit_alpha.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_alpha.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_alpha, 4, 1)
 
@@ -499,7 +499,7 @@ class StellarParametersTab(QtGui.QWidget):
         def create_label(text, row, col, rowspan=1, colspan=1, align=QtCore.Qt.AlignCenter):
             label = QtGui.QLabel(self)
             label.setText(text)
-            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
             grid_layout.addWidget(label, row, col, rowspan, colspan, align)
             return label
         # Create Header
@@ -539,7 +539,7 @@ class StellarParametersTab(QtGui.QWidget):
         _ = self.measurement_view.selectionModel()
         _.selectionChanged.connect(self.selected_measurement_changed)
         self.measurement_view.setSizePolicy(QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
+            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.MinimumExpanding))
         self.measurement_model.add_filter_function(
             "use_for_stellar_parameter_inference",
             lambda model: model.use_for_stellar_parameter_inference)
@@ -560,7 +560,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.btn_sperrors.setText("Stellar Parameter Uncertainties..")
         self.btn_sperrors.clicked.connect(self.sperrors_dialog)
         
-        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Preferred,
+        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.MinimumExpanding,
             QtGui.QSizePolicy.Minimum))
         hbox.addWidget(self.btn_quality_control)
         hbox.addWidget(self.btn_sperrors)
@@ -717,7 +717,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
         self.label_MH = QtGui.QLabel(self)
         self.label_vt = QtGui.QLabel(self)
         for i, label in enumerate([self.label_Teff, self.label_logg, self.label_MH, self.label_vt]):
-            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
             grid.addWidget(label, i+1, collabel)
         ## Tolerances
         self.edit_tol_Teff = QtGui.QLineEdit(self)
@@ -731,7 +731,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
             edit.setMaximumSize(QtCore.QSize(50, 16777215))
             edit.setAlignment(QtCore.Qt.AlignCenter)
             edit.setValidator(QtGui.QDoubleValidator(0.001, 50, 3, edit))
-            edit.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            edit.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
             grid.addWidget(edit, i+1, coltol)
         ## StatErrs
         self.label_staterr_Teff = QtGui.QLabel(self)
@@ -740,7 +740,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
         self.label_staterr_vt = QtGui.QLabel(self)
         for i, label in enumerate([self.label_staterr_Teff, self.label_staterr_logg,
                                    self.label_staterr_MH, self.label_staterr_vt]):
-            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
             grid.addWidget(label, i+1, colstaterr)
         ## SysErrs
         self.edit_syserr_Teff = QtGui.QLineEdit(self)
@@ -753,7 +753,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
             edit.setMaximumSize(QtCore.QSize(50, 16777215))
             edit.setAlignment(QtCore.Qt.AlignCenter)
             edit.setValidator(QtGui.QDoubleValidator(0.01, 1000, 2, edit))
-            edit.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            edit.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
             grid.addWidget(edit, i+1, colsyserr)
         ## TotErrs
         self.label_toterr_Teff = QtGui.QLabel(self)
@@ -762,7 +762,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
         self.label_toterr_vt = QtGui.QLabel(self)
         for i, label in enumerate([self.label_toterr_Teff, self.label_toterr_logg,
                                    self.label_toterr_MH, self.label_toterr_vt]):
-            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
             grid.addWidget(label, i+1, coltoterr)
         
         self.refresh_table()
