@@ -1497,12 +1497,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.update_fitting_options()
 
     def key_press_selectcheck(self, event):
-        print("'"+event.key+"'")
         if "'"+event.key+"'" == "' '":
             model, proxy_index, index = self._get_selected_model(True)
             model.is_acceptable = np.logical_not(model.is_acceptable)
             self.measurement_view.update_row(proxy_index.row())
             self.update_spectrum_figure(redraw=True)
+            return None
+        if event.key in ["f", "F"]:
+            model, proxy_index, index = self._get_selected_model(True)
+            model.user_flag = np.logical_not(model.user_flag)
+            self.measurement_view.update_row(proxy_index.row())
             return None
         if event.key not in ["up","down","j", "J", "k", "K"]: return None
         try:
