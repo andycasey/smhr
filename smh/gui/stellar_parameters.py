@@ -346,9 +346,10 @@ class StellarParametersTab(QtGui.QWidget):
         self.update_stellar_parameter_session()
         self.parent.session.optimize_feh(self.params_to_optimize)
         ## refresh everything
-        # E. Holmbeck switched the order of these two lines.
+        # E. Holmbeck added 'new_session' again; trying to fix update problem
         self.new_session_loaded()
         self.measure_abundances()
+        self.new_session_loaded()
 
         
     def _init_rt_options(self, parent):
