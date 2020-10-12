@@ -209,7 +209,7 @@ class StellarParametersTab(QtGui.QWidget):
         ]
         for widget, fmt, key in widget_info:
             widget.setText(fmt.format(self.parent.session.metadata["stellar_parameters"][key]))
-        
+
         return None
         
     def selected_measurement_changed(self):
@@ -345,12 +345,13 @@ class StellarParametersTab(QtGui.QWidget):
         logger.info("Setting [alpha/Fe]=0.4 to solve")
         self.update_stellar_parameter_session()
         self.parent.session.optimize_feh(self.params_to_optimize)
+        self.parent.session.metadata["stellar_parameters"]
         ## refresh everything
         # E. Holmbeck added 'new_session' again; trying to fix update problem
         self.new_session_loaded()
         self.measure_abundances()
         self.new_session_loaded()
-
+        
         
     def _init_rt_options(self, parent):
         grid_layout = QtGui.QGridLayout()

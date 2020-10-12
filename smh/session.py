@@ -1458,7 +1458,7 @@ class Session(BaseSession):
         
         # interpolator, do obj. function
         out = run_optimize_feh(initial_guess, transitions, params_to_optimize, **kwargs)
-        final_parameters = out[5]
+        final_parameters = out[1]
         new_Teff, new_vt, new_logg, new_MH = final_parameters
         
         if not out[0]:

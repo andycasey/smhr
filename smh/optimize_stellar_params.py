@@ -654,7 +654,7 @@ def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None,
         dAdREW = out[26.0]['reduced_equivalent_width'][0]
         dFe = np.mean(abundances[idx_I]) - np.mean(abundances[idx_II])
         dM  = np.mean(abundances[idx_I]) - (feh + solar_composition("Fe"))
-        # Keep the total tolerances for the logger, but only pass the vt and feh ones to fsolve
+		
         results = np.array([dAdchi, dAdREW, 0.1 * dFe, 0.1 * dM])
         acquired_total_tolerance = np.sum(results**2)
 
@@ -667,7 +667,7 @@ def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None,
         return results[params_to_optimize]
 
     all_sampled_points = []
-        
+    
     start = time.time()
     for i in xrange(1, 1 + max_attempts):
         sampled_points = []
