@@ -115,13 +115,13 @@ class Session(BaseSession):
             "isotopes": {},
             "stellar_parameters": {
                 "effective_temperature":
-                    self.setting("default_Teff",5777), # K
+                    self.setting("default_Teff",4500), # K
                 "surface_gravity":
-                    self.setting("default_logg",4.4),
+                    self.setting("default_logg",1.2),
                 "metallicity":
-                    self.setting("default_MH",0.0), # Solar-scaled
+                    self.setting("default_MH",-2.0), # Solar-scaled
                 "microturbulence":
-                    self.setting("default_vt",1.06), # km/s
+                    self.setting("default_vt",1.3), # km/s
                 "alpha":
                     self.setting("default_aFe",0.4),
                 "syserr_effective_temperature":

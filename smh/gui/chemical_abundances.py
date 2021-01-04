@@ -344,7 +344,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         vbox_rhs.addLayout(hbox)
         
         hbox, label, line = _create_line_in_hbox(self.tab_profile, "Automask sigma",
-                                                 0, 100, 1)
+                                                 0, 100, 2)
         self.edit_detection_sigma = line
         vbox_rhs.addLayout(hbox)
         
