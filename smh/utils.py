@@ -699,7 +699,8 @@ def process_session_uncertainties_lines(session, rhomat, minerr=0.001):
             syserr_sq = e_all.T.dot(rhomat.dot(e_all))
             syserr = np.sqrt(syserr_sq)
             fwhm = model.fwhm
-        except:
+        except Exception as e:
+            print(e)
             logeps, staterr, e_Teff, e_logg, e_vt, e_MH, syserr = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
         if isinstance(model, ProfileFittingModel):

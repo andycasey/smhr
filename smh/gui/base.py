@@ -267,14 +267,14 @@ class SMHSpecDisplay(mpl.MPLWidget):
         self.selected_model = model
         self._set_xlimits(self._get_current_xlimits())
         self.reset_zoom_limits()
-    def _get_current_xlimits(self):
+    def _get_current_xlimits(self, scale=1.02):
         if self.session is None: return None
         if self.selected_model is None: return None
         transitions = self.selected_model.transitions
         window = self.selected_model.metadata["window"]
         limits = [
-            transitions["wavelength"][0] - window,
-            transitions["wavelength"][-1]+ window,
+            transitions["wavelength"][0] - window*scale,
+            transitions["wavelength"][-1]+ window*scale,
         ]
         return limits
     def _set_xlimits(self, limits):

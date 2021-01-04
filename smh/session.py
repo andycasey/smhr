@@ -1105,7 +1105,7 @@ class Session(BaseSession):
         sigma_s = spectral_model.propagate_stellar_parameter_error()
                   stored in spectral_model.metadata["systematic_abundance_error"]
     """
-    def compute_all_abundance_uncertainties(self):
+    def compute_all_abundance_uncertainties(self, print_memory_usage=False):
         """
         Call model.find_error() and model.propagate_stellar_parameter_error() for every
         acceptable spectral model that is not an upper limit.
@@ -1146,6 +1146,14 @@ class Session(BaseSession):
             data[i,5] = staterr
             data[i,6] = syserr
             data[i,7] = np.sqrt(staterr**2 + syserr**2)
+
+            if print_memory_usage:
+                import psutil
+                import resource
+                process = psutil.Process(os.getpid())
+                print(species, wavelength, process.memory_info().rss)  # in bytes 
+                print("    ",resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)  # in bytes 
+
         self.metadata["all_line_data"] = data
         logger.info("Finished abundance uncertainty loop in {:.1f}s".format(time.time()-start))
         return data
