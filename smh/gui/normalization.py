@@ -1015,8 +1015,8 @@ class NormalizationTab(QtGui.QWidget):
 				[[x[0], x[trim_region]]])
         
         if len(exclude) == 0:
-			self._cache["input"]["exclude"] = np.array( 
-				[[x[0], x[trim_region]]])
+            self._cache["input"]["exclude"] = np.array( 
+                [[x[0], x[trim_region]]])
             exclude = self._cache["input"]["exclude"]
         else:
             for i,e in enumerate(exclude):
@@ -1049,8 +1049,8 @@ class NormalizationTab(QtGui.QWidget):
         try:
             exclude = self._cache["input"]["exclude"]
         except:
-			self._cache["input"]["exclude"] = np.array( 
-				[[x[-trim_region], x[-1]+1e-3]])
+            self._cache["input"]["exclude"] = np.array( 
+                [[x[-trim_region], x[-1]+1e-3]])
             exclude = self._cache["input"]["exclude"]
         
         if len(exclude) == 0:
