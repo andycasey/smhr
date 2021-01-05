@@ -1003,6 +1003,9 @@ class NormalizationTab(QtGui.QWidget):
         except ValueError:
         	return None
         
+        if trim_region == 0:
+            return None
+            
         try:
             x, y = (self.current_order.dispersion, self.current_order.flux)
         except AttributeError:
@@ -1040,6 +1043,9 @@ class NormalizationTab(QtGui.QWidget):
         	trim_region = int(self.red_trim.text())
         except ValueError:
         	return None
+
+        if trim_region == 0:
+            return None
         
         try:
             x, y = (self.current_order.dispersion, self.current_order.flux)
