@@ -254,7 +254,7 @@ def celestial_velocities(dje):
 # class.
 
 
-def corrections(lon, lat, alt, ra, dec, mjd):
+def corrections(lon, lat, alt, ra, dec, mjd, bcv_shift=None):
     """
     Calculate the heliocentric radial velocity corrections for an astronomical 
     source.
@@ -373,7 +373,13 @@ def corrections(lon, lat, alt, ra, dec, mjd):
     vhel = (vh * projection).sum()
 
     # Using baricentric velocity for correction
-    vbar_correction = vdiurnal + vbar
+    # ---------------------------------------------------------------------
+    # E. Holmbeck put this if statement in
+    if bcv_shift != None:
+        vbar_correction = bcv_shift
+    else:
+        vbar_correction = vdiurnal + vbar
+    # ---------------------------------------------------------------------
     vhel_correction = vdiurnal + vhel
 
     # [TODO] it may be useful to return other components of velocity or extra
@@ -393,14 +399,14 @@ def corrections_from_headers(headers):
     :type headers:
         A dictionary-like object.
     """
-
     alt_obs = headers.get("ALT_OBS", headers.get("SITEALT", None))
     lat_obs = headers.get("LAT_OBS", headers.get("SITELAT", None))
     long_obs = headers.get("LONG_OBS", headers.get("SITELONG", None))
 
     if None in (alt_obs, lat_obs, long_obs):
         # Try and determine it from the observatory name, if it exists.
-        origin = headers.get("ORIGIN", None)
+        #origin = headers.get("OBSERVAT", "ORIGIN", None)
+        origin = headers.get("OBSERVAT", "SITENAME")
 
         if origin is None:
             raise KeyError("no observatory information available (ALT_OBS, "
@@ -436,15 +442,15 @@ def corrections_from_headers(headers):
     # Time of observation.
     # Try to get the mid-point directly.
     try:
-        mjd = Time("{0}T{1}".format(headers["DATE-MID"], headers["UT-MID"])).mjd
+        mjd = Time("{0}T{1}".format(headers["UTMID"], headers["UT-MID"])).mjd
 
     except (IndexError, KeyError):
         # Try and calculate it from UT-START/UT-DATE keys
         #raise
 
         try:
-            utdate_key = [_ for _ in ("UTDATE", "UT-DATE") if _ in headers][0]
-            utstart_key = [_ for _ in ("UTSTART", "UT-START") if _ in headers][0]
+            utdate_key = [_ for _ in ("UT-DATE", "DATE-OBS") if _ in headers][0]
+            utstart_key = [_ for _ in ("UT-START", "UT") if _ in headers][0]
             
         except IndexError:
             raise KeyError("cannot find all time keys: UTSTART/UTDATE")
@@ -476,5 +482,14 @@ def corrections_from_headers(headers):
             mjd = (ut_end - ut_start).jd/2 + ut_start.mjd
 
     # Calculate the correction.
-    return corrections(long_obs, lat_obs, alt_obs, ra, dec, mjd)
+    # ---------------------------------------------------------------------
+    # E. Holmbeck
+    try:
+        dop_cor = float(headers.get("DOPCOR", None).split()[0])
+        vhelio = float(headers.get("VHELIO", None))
+        bcv_shift = dop_cor-vhelio
+    except:
+        return corrections(long_obs, lat_obs, alt_obs, ra, dec, mjd)
+    # ---------------------------------------------------------------------
+    return vhelio, bcv_shift
 

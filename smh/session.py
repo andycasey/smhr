@@ -724,7 +724,7 @@ class Session(BaseSession):
         # TODO: Should we store these as a NamedTuple instead?
 
         try:
-            v_helio, v_bary = specutils.motions.corrections_from_headers(
+            v_helio, v_bary = specutils.motions.corrections_from_headers(\
                 overlap_order.metadata)
         except Exception as e:
             # TODO not raising an exception for testing purposes, but may want to
@@ -736,9 +736,12 @@ class Session(BaseSession):
             v_helio, v_bary = (np.nan, np.nan)
 
         else:
-            v_helio = v_helio.to("km/s").value
-            v_bary = v_bary.to("km/s").value
-
+            try:
+                v_helio = v_helio.to("km/s").value
+                v_bary = v_bary.to("km/s").value
+            except:
+                pass
+                
         self.metadata["rv"].update({
             # Measurements
             "rv_measured": rv,
@@ -775,6 +778,53 @@ class Session(BaseSession):
         """
 
         self.metadata["rv"]["rv_applied"] = -float(rv)
+        
+        # -----------------------------------------------------------------
+        # E. Holmbeck: calculate the bcv if it doesn't exist
+        if "barycentric_correction" in self.metadata["rv"]:
+            return
+        
+        names = self._input_spectra_paths
+        spectrum = names[0]
+        if len(names) > 1:
+            for s in names:
+                if 'red' in s:
+                    spectrum = s
+                    break
+
+        from astropy.io import fits
+        _, headers = fits.getdata(spectrum, header=True)
+
+        try:
+            v_helio, v_bary = specutils.motions.corrections_from_headers(\
+                headers)
+        
+        except Exception as e:
+            logger.error(
+                "Exception in calculating heliocentric and barycentric motions")
+            logger.error(e)
+            v_helio, v_bary = (np.nan, np.nan)
+
+        else:
+            try:
+                v_helio = v_helio.to("km/s").value
+                v_bary = v_bary.to("km/s").value
+            except:
+                pass
+
+        self.metadata["rv"].update({
+            # Measurements
+            "rv_measured": rv,
+            "heliocentric_correction": v_helio,
+            "barycentric_correction": v_bary,
+        })
+
+        logger.info(
+            "Heliocentric velocity correction: {0:.2f} km/s".format(v_helio))
+        logger.info(
+            "Barycentric velocity correction: {0:.2f} km/s".format(v_bary))
+        # -----------------------------------------------------------------
+
         return None
 
 

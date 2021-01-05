@@ -923,12 +923,19 @@ class NormalizationTab(QtGui.QWidget):
             rv_applied = self.parent.session.metadata["rv"]["rv_applied"]
         except (AttributeError, KeyError):
             rv_applied = 0
-
-        _ =self.parent.session.metadata["normalization"]["normalization_kwargs"]
         
+        # -----------------------------------------------------------------
+        # E. Holmbeck
+        try:
+            bcv_shift = -self.parent.session.metadata["rv"]["barycentric_correction"]
+        except (AttributeError, KeyError):
+            bcv_shift = 0.0
+        # -----------------------------------------------------------------
+        _ =self.parent.session.metadata["normalization"]["normalization_kwargs"]
         masked_regions = [
             np.array(mask.get("rest_wavelength", [])),
-            np.array(mask.get("obs_wavelength", [])) * (1 - rv_applied/c),
+            #np.array(mask.get("rest_wavelength", []) * (1.0 - bcv_shift/c)),
+            np.array(mask.get("obs_wavelength", [])) * (1.0 - rv_applied/c),
             np.array(_[self.current_order_index].get("exclude", []))
         ]
         if "pixel" in mask:
@@ -1011,6 +1018,7 @@ class NormalizationTab(QtGui.QWidget):
         except AttributeError:
             return None
         
+        # If "exclude" doesn't exist, add it.
         try:
             exclude = self._cache["input"]["exclude"]
         except:
@@ -1018,6 +1026,7 @@ class NormalizationTab(QtGui.QWidget):
                 [[x[0], x[trim_region]]])
             exclude = self._cache["input"]["exclude"]
         
+        # Replace the mask that goes to the end anyway
         if len(exclude) == 0:
             self._cache["input"]["exclude"] = np.array( 
                 [[x[0], x[trim_region]]])
@@ -1371,27 +1380,13 @@ class NormalizationTab(QtGui.QWidget):
             rv_applied = 0
         
         # -----------------------------------------------------------------
-        # TODO! 
-        # Import bcv from the start so we don't have to do this every time!
         # E. Holmbeck added read-in BCV from header
-        from astropy.io import fits
-        c = 299792458e-3 # km/s
-        spectra = self.parent.session._input_spectra_paths
-        spectrum = spectra[0]
-        if len(spectra) > 1:
-            for s in spectra:
-                if 'red' in s:
-                    spectrum = s
-                    break
-            
-        data, hdr = fits.getdata(spectrum, header=True)
         try:
-            dopcor = float(hdr['DOPCOR'].split()[0])
-            vhelio = float(hdr['VHELIO'])
-            bcv_shift = dopcor-vhelio
-        except:
+            bcv_shift = -self.parent.session.metadata["rv"]["barycentric_correction"]
+        except (AttributeError, KeyError):
             bcv_shift = 0.0
         # -----------------------------------------------------------------
+        
         mask_kinds = [
             (bcv_shift,  global_mask.get("rest_wavelength", [])),
             (rv_applied, global_mask.get("obs_wavelength", []))
