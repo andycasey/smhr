@@ -925,16 +925,18 @@ class NormalizationTab(QtGui.QWidget):
             rv_applied = 0
         
         # -----------------------------------------------------------------
-        # E. Holmbeck
+        # E. Holmbeck added read-in BCV from header
         try:
-            bcv_shift = -self.parent.session.metadata["rv"]["barycentric_correction"]
+            vhelio = self.parent.session.metadata["rv"]["heliocentric_correction"]
+            bcv_shift = self.parent.session.metadata["rv"]["barycentric_correction"]
+            dop_shift = vhelio + bcv_shift
         except (AttributeError, KeyError):
-            bcv_shift = 0.0
+            dop_shift = 0.0
         # -----------------------------------------------------------------
         _ =self.parent.session.metadata["normalization"]["normalization_kwargs"]
         masked_regions = [
-            np.array(mask.get("rest_wavelength", [])),
-            #np.array(mask.get("rest_wavelength", []) * (1.0 - bcv_shift/c)),
+            #np.array(mask.get("rest_wavelength", [])),
+            np.array(mask.get("rest_wavelength", [])) * (1.0 - dop_shift/c),
             np.array(mask.get("obs_wavelength", [])) * (1.0 - rv_applied/c),
             np.array(_[self.current_order_index].get("exclude", []))
         ]
@@ -1382,13 +1384,15 @@ class NormalizationTab(QtGui.QWidget):
         # -----------------------------------------------------------------
         # E. Holmbeck added read-in BCV from header
         try:
-            bcv_shift = -self.parent.session.metadata["rv"]["barycentric_correction"]
+            vhelio = self.parent.session.metadata["rv"]["heliocentric_correction"]
+            bcv_shift = self.parent.session.metadata["rv"]["barycentric_correction"]
+            dop_shift = vhelio + bcv_shift
         except (AttributeError, KeyError):
-            bcv_shift = 0.0
+            dop_shift = 0.0
         # -----------------------------------------------------------------
-        
+
         mask_kinds = [
-            (bcv_shift,  global_mask.get("rest_wavelength", [])),
+            (dop_shift,  global_mask.get("rest_wavelength", [])),
             (rv_applied, global_mask.get("obs_wavelength", []))
         ]
         regions = []

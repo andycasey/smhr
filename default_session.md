@@ -14,6 +14,8 @@ This file will be shipped with SMH, but can be edited by the user.
   - `template_path`: A SMH-relative path containing a normalized spectrum to use for comparison
   - `normalization`:
     - `knot_spacing`: 200
+    - `blue_trim`: 20
+    - `red_trim`: 20
     - `low_sigma_clip`: 1.0
     - `high_sigma_clip`: 0.2
     - `max_iterations`: 3
