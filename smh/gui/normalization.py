@@ -1035,7 +1035,10 @@ class NormalizationTab(QtGui.QWidget):
         else:
             for i,e in enumerate(exclude):
                 if e[0] == x[0] and e[1] != x[trim_region]:
-                    exclude = np.delete(exclude, i, axis=0)
+                    try:
+                    	exclude = np.delete(exclude, i, axis=0)
+                    except:
+                    	pass
             
             self._cache["input"]["exclude"] = np.append(exclude, 
                 [[x[0], x[trim_region]]], axis=0)
@@ -1076,7 +1079,10 @@ class NormalizationTab(QtGui.QWidget):
         else:
             for i,e in enumerate(exclude):
                 if e[0] != x[-trim_region] and e[1] == x[-1]+1e-3:
-                    exclude = np.delete(exclude, i, axis=0)
+                    try:
+                    	exclude = np.delete(exclude, i, axis=0)
+                    except:
+                    	pass
             
             self._cache["input"]["exclude"] = np.append(exclude, 
                 [[x[-trim_region], x[-1]+1e-3]], axis=0)
