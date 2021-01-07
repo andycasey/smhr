@@ -117,7 +117,7 @@ class Session(BaseSession):
                 "effective_temperature":
                     self.setting("default_Teff",4500), # K
                 "surface_gravity":
-                    self.setting("default_logg",1.2),
+                    self.setting("default_logg",0.85),
                 "metallicity":
                     self.setting("default_MH",-2.0), # Solar-scaled
                 "microturbulence":
