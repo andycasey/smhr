@@ -413,12 +413,6 @@ def corrections_from_headers(headers):
             raise KeyError("no observatory information available (ALT_OBS, "
                 "LAT_OBS, LONG_OBS) or ORIGIN")
 
-        # TODO: Finish this snippet of code to read site info!
-        '''
-        else:
-            from astropy.coordinates import SkyCoord, EarthLocation
-            site = EarthLocation.of_site(site_name)
-        '''
         #raise NotImplementedError("no observatory dictionary exists yet")
         #with resource_stream(__name__, "observatories.yaml") as fp:
         #    observatories_dictionary = yaml.load(fp)
@@ -432,7 +426,6 @@ def corrections_from_headers(headers):
                 .format(origin))
 
         observatory = observatories_dictionary[origin]
-        #alt_obs = observatory["altitude"]
         alt_obs = observatory["elevation"]
         lat_obs = observatory["latitude"]
 
