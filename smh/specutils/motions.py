@@ -15,7 +15,8 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 __all__ = ["celestial_velocities", "corrections", "corrections_from_headers"]
 
 import logging
-import yaml
+#import yaml
+import json
 from pkg_resources import resource_stream
 
 import numpy as np
@@ -406,16 +407,24 @@ def corrections_from_headers(headers):
     if None in (alt_obs, lat_obs, long_obs):
         # Try and determine it from the observatory name, if it exists.
         #origin = headers.get("OBSERVAT", "ORIGIN", None)
-        origin = headers.get("OBSERVAT", "SITENAME")
+        origin = headers.get("OBSERVAT", headers.get("SITENAME", None))
 
         if origin is None:
             raise KeyError("no observatory information available (ALT_OBS, "
                 "LAT_OBS, LONG_OBS) or ORIGIN")
 
-        raise NotImplementedError("no observatory dictionary exists yet")
-
-        with resource_stream(__name__, "observatories.yaml") as fp:
-            observatories_dictionary = yaml.load(fp)
+        # TODO: Finish this snippet of code to read site info!
+        '''
+        else:
+            from astropy.coordinates import SkyCoord, EarthLocation
+            site = EarthLocation.of_site(site_name)
+        '''
+        #raise NotImplementedError("no observatory dictionary exists yet")
+        #with resource_stream(__name__, "observatories.yaml") as fp:
+        #    observatories_dictionary = yaml.load(fp)
+        # E. Holmbeck changed this from yaml to json
+        with resource_stream(__name__, "sites.json") as fp:
+            observatories_dictionary = json.load(fp)
 
         origin = origin.strip().lower()
         if origin not in observatories_dictionary:
@@ -423,7 +432,8 @@ def corrections_from_headers(headers):
                 .format(origin))
 
         observatory = observatories_dictionary[origin]
-        alt_obs = observatory["altitude"]
+        #alt_obs = observatory["altitude"]
+        alt_obs = observatory["elevation"]
         lat_obs = observatory["latitude"]
 
     # Get the RA/DEC.
@@ -487,6 +497,7 @@ def corrections_from_headers(headers):
     try:
         dop_cor = float(headers.get("DOPCOR", None).split()[0])
         vhelio = float(headers.get("VHELIO", None))
+        print(vhelio)
         bcv_shift = dop_cor-vhelio
     except:
         return corrections(long_obs, lat_obs, alt_obs, ra, dec, mjd)
