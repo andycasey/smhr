@@ -453,35 +453,44 @@ def corrections_from_headers(headers):
 
         try:
             utdate_key = [_ for _ in ("UT-DATE", "DATE-OBS") if _ in headers][0]
-            utstart_key = [_ for _ in ("UT-START", "UT") if _ in headers][0]
+            if 'T' in headers[utdate_key]:
+                ut_start = Time(headers[utdate_key], format="isot", scale="utc")
+            else:
+                utstart_key = [_ for _ in ("UT-START", "UT") if _ in headers][0]
+                try:
+                    ut_start = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
+                        headers[utstart_key]), format="isot", scale="utc")
+                except:
+                    ut_start = Time("{0}T{1}".format(headers[utdate_key].replace("/", "-"),
+                        headers[utstart_key]), format="isot", scale="utc")
             
         except IndexError:
-            raise KeyError("cannot find all time keys: UTSTART/UTDATE")
-
-        try:
-            ut_start = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
-                headers[utstart_key]), format="isot", scale="utc")
-        except:
-            ut_start = Time("{0}T{1}".format(headers[utdate_key].replace("/", "-"),
-                headers[utstart_key]), format="isot", scale="utc")
-            
+            raise KeyError("cannot find all time keys: UTSTART/UTDATE")          
 
         try:
             utend_key = [_ for _ in ("UTEND", "UT-END") if _ in headers][0]
         except IndexError:
-            mjd = ut_start.mjd
-            logging.warn(
-                "Calculating celestial corrections based on the UT-START only")
-
-        else:        
             try:
-                ut_end = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
-                    headers[utend_key]), format="isot", scale="utc")
+                exp_time = headers['EXPTIME']
             except:
+                mjd = ut_start.mjd
+                logging.warn(
+                    "Calculating celestial corrections based on the UT-START only")
+
+        try:
+            ut_end = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
+                headers[utend_key]), format="isot", scale="utc")
+        except:
+            try:
                 ut_end = Time("{0}T{1}".format(headers[utdate_key].replace("/", "-"),
                     headers[utend_key]), format="isot", scale="utc")
+            except:
+                ut_end = ut_start + (exp_time)*u.s
 
-            # Get the MJD of the mid-point of the observation.
+		# Get the MJD of the mid-point of the observation.
+        try:
+            mjd
+        except:
             mjd = (ut_end - ut_start).jd/2 + ut_start.mjd
 
     # Calculate the correction.

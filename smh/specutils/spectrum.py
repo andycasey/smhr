@@ -302,8 +302,13 @@ class Spectrum1D(object):
                 "Recognized APO product. Using zero-indexed flux/noise "
                 "extensions (bands) {}/{}".format(flux_ext, noise_ext))
 
-            flux = image[0].data[flux_ext]
-            ivar = image[0].data[noise_ext]**(-2)
+            # -------------------------------------------------------------
+            # E. Holmbeck changed these two lines for APO data
+            #flux = image[0].data[flux_ext]
+            #ivar = image[0].data[noise_ext]**(-2)
+            flux = image[flux_ext].data
+            ivar = 1./np.abs(flux)
+            # -------------------------------------------------------------
 
         else:
             ivar = np.full_like(flux, np.nan)
@@ -330,8 +335,9 @@ class Spectrum1D(object):
                 ivar = ivar[::-1]
 
         # Do something sensible regarding zero or negative fluxes.
-        ivar[0 >= flux] = 0.000000000001
-        #flux[0 >= flux] = np.nan
+        #ivar[0 >= flux] = 0.000000000001
+        ivar[0 >= flux] = 999999
+        flux[0 >= flux] = np.nan
 
         # turn into list of arrays if it's ragged
         if np.any(np.isnan(dispersion)):
@@ -1188,7 +1194,7 @@ def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
         assert Pmin == int(Pmin), Pmin; Pmin = int(Pmin)
 
         if function_type == 1:
-            # Legendre polynomial.
+            # Chebyshev polynomial.
             if None in (order, Pmin, Pmax, coefficients):
                 raise TypeError("order, Pmin, Pmax and coefficients required "
                                 "for a Chebyshev or Legendre polynomial")

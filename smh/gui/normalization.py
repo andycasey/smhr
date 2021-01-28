@@ -1341,7 +1341,8 @@ class NormalizationTab(QtGui.QWidget):
         trimming = (x[-1] - x[0]) * percent/100.
         self.ax_order.set_xlim(x[0] - trimming, x[-1] + trimming)
 
-        self.ax_order.set_ylim(np.nanmin(y), np.nanmax(y))
+        trimming = (np.nanmax(y) - np.nanmin(y)) * percent/100.
+        self.ax_order.set_ylim(np.nanmin(y) - trimming, np.nanmax(y) + trimming)
 
         self.norm_plot.reset_zoom_limits()
 
@@ -1397,16 +1398,23 @@ class NormalizationTab(QtGui.QWidget):
             dop_shift = 0.0
         # -----------------------------------------------------------------
 
-        mask_kinds = [
-            (dop_shift,  global_mask.get("rest_wavelength", [])),
-            (rv_applied, global_mask.get("obs_wavelength", []))
-        ]
+        if np.isnan(dop_shift):
+            mask_kinds = [
+                (0,  global_mask.get("rest_wavelength", [])),
+                (rv_applied, global_mask.get("obs_wavelength", []))
+            ]
+        else:
+            mask_kinds = [
+                (dop_shift,  global_mask.get("rest_wavelength", [])),
+                (rv_applied, global_mask.get("obs_wavelength", []))
+            ]
+
         regions = []
         for v, masked_regions in mask_kinds:
             for region in np.array(masked_regions):
-                start, end = region * (1 - v/c)
+                start, end = np.array(region) * (1 - v/c)
 
-                if  end >= self.current_order.dispersion[0] \
+                if end >= self.current_order.dispersion[0] \
                 and self.current_order.dispersion[-1] >= start:
                     regions.append((start, end))
 
