@@ -1028,20 +1028,19 @@ class NormalizationTab(QtGui.QWidget):
                 [[x[0], x[trim_region]]])
             exclude = self._cache["input"]["exclude"]
         
-        # Replace the mask that goes to the end anyway
+        # Replace the mask that goes to the end anyway     
         if len(exclude) == 0:
             self._cache["input"]["exclude"] = np.array( 
                 [[x[0], x[trim_region]]])
         else:
+            mask_to_delete = []
             for i,e in enumerate(exclude):
                 if e[0] == x[0] and e[1] != x[trim_region]:
-                    try:
-                    	exclude = np.delete(exclude, i, axis=0)
-                    except:
-                    	pass
+                    mask_to_delete.append(i)
             
-            self._cache["input"]["exclude"] = np.append(exclude, 
-                [[x[0], x[trim_region]]], axis=0)
+            self._cache["input"]["exclude"] = np.delete(exclude, mask_to_delete, axis=0)
+            self._cache["input"]["exclude"] = np.insert(self._cache["input"]["exclude"], 
+                0, [[x[0], x[trim_region]]], axis=0)
 
         if trim_region:        
             self._cache["input"]["blue_trim"] = trim_region
@@ -1077,14 +1076,13 @@ class NormalizationTab(QtGui.QWidget):
 			self._cache["input"]["exclude"] = np.array( 
 				[[x[-trim_region], x[-1]+1e-3]])
         else:
+            mask_to_delete = []
             for i,e in enumerate(exclude):
                 if e[0] != x[-trim_region] and e[1] == x[-1]+1e-3:
-                    try:
-                    	exclude = np.delete(exclude, i, axis=0)
-                    except:
-                    	pass
+                    mask_to_delete.append(i)
             
-            self._cache["input"]["exclude"] = np.append(exclude, 
+            self._cache["input"]["exclude"] = np.delete(exclude, mask_to_delete, axis=0)
+            self._cache["input"]["exclude"] = np.append(self._cache["input"]["exclude"], 
                 [[x[-trim_region], x[-1]+1e-3]], axis=0)
 
         if trim_region:        
