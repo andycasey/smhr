@@ -335,8 +335,8 @@ class Spectrum1D(object):
                 ivar = ivar[::-1]
 
         # Do something sensible regarding zero or negative fluxes.
-        #ivar[0 >= flux] = 0.000000000001
-        ivar[0 >= flux] = 999999
+        ivar[0 >= flux] = 0.000000000001
+        #ivar[0 >= flux] = 999999
         flux[0 >= flux] = np.nan
 
         # turn into list of arrays if it's ragged
