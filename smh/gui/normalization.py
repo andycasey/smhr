@@ -28,7 +28,9 @@ c = 299792458e-3 # km/s
 
 # The minimum time (in seconds) between a mouse click/release to differentiate
 # a single click from a double click
-DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
+#DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
+# E. Holmbeck changed this since we don't have double-click anymore
+DOUBLE_CLICK_INTERVAL = 0.0 # MAGIC HACK
 
 # The pixel tolerance to select and remove an additional point.
 PIXEL_PICKER_TOLERANCE = 30 # MAGIC HACK
