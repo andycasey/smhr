@@ -1259,7 +1259,11 @@ class NormalizationTab(QtGui.QWidget):
             elif key in self._cache["input"]:
                 del self._cache["input"][key]
 
-        if continuum is None: return
+        if continuum is None:
+            # Holmbeck: a little hacky, but it works?
+            self.update_blue_trim()
+            self.update_red_trim()
+            return
 
         # If so, are the current normalization keywords different to the ones
         # used for this one?
