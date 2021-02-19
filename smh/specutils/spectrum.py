@@ -774,6 +774,8 @@ class Spectrum1D(object):
 
         exclusions = []
         continuum_indices = range(len(self.flux))
+        #import pdb
+        #pdb.set_trace()
 
         # Snip left and right
         finite_positive_flux = np.isfinite(self.flux) * self.flux > 0
@@ -833,7 +835,9 @@ class Spectrum1D(object):
         continuum_indices = np.sort(list(set(continuum_indices).difference(
             zero_flux_indices)))
 
-        if 1 > continuum_indices.size:
+        # Holmbeck chanaged 1 -> order
+        #if 1 > continuum_indices.size:
+        if order > continuum_indices.size:
             no_continuum = np.nan * np.ones_like(dispersion)
             failed_spectrum = self.__class__(dispersion=dispersion,
                 flux=no_continuum, ivar=no_continuum, metadata=self.metadata)
@@ -867,7 +871,9 @@ class Spectrum1D(object):
         # TODO: Use inverse variance array when fitting polynomial/spline.
         for iteration in range(max_iterations):
             
-            if 1 > continuum_indices.size:
+            # Holmbeck chanaged 1 -> order
+            #if 1 > continuum_indices.size:
+            if order > continuum_indices.size:
 
                 no_continuum = np.nan * np.ones_like(dispersion)
                 failed_spectrum = self.__class__(dispersion=dispersion,
@@ -921,7 +927,8 @@ class Spectrum1D(object):
 
                 popt, pcov = op.curve_fit(lambda x, *c: np.polyval(c, x), 
                     splrep_disp, splrep_flux, coeffs, 
-                    sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                    #sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                    sigma=splrep_weights, absolute_sigma=False)
                 continuum = np.polyval(popt, dispersion)
 
             elif function in ("leg", "legendre"):
@@ -931,7 +938,8 @@ class Spectrum1D(object):
                 
                 popt, pcov = op.curve_fit(lambda x, *c: np.polynomial.legendre.legval(x, c), 
                     splrep_disp, splrep_flux, coeffs, 
-                    sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                    #sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                    sigma=splrep_weights, absolute_sigma=False)
                 continuum = np.polynomial.legendre.legval(dispersion, popt)
 
 
@@ -942,7 +950,8 @@ class Spectrum1D(object):
                 
                 popt, pcov = op.curve_fit(lambda x, *c: np.polynomial.chebyshev.chebval(x, c), 
                     splrep_disp, splrep_flux, coeffs, 
-                    sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                    #sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                    sigma=splrep_weights, absolute_sigma=False)
                 continuum = np.polynomial.chebyshev.chebval(dispersion, popt)
 
 
@@ -1077,7 +1086,6 @@ class Spectrum1D(object):
                 dispersion[-1] - end_spacing + knot_spacing, 
                 knot_spacing)
 
-            #print(continuum_indices)
             try:
                 if len(knots) > 0 and knots[-1] > dispersion[continuum_indices][-1]:
                     knots = knots[:knots.searchsorted(dispersion[continuum_indices][-1])]
