@@ -1200,13 +1200,6 @@ class NormalizationTab(QtGui.QWidget):
         # to normalize the current order.
         self.check_for_different_input_settings()
         
-        # -----------------------------------------------------------------
-        # E. Holmbeck: auto-add red and blue masks
-        self.update_blue_trim()
-        self.update_red_trim()
-        # -----------------------------------------------------------------
-        
-
         return None
 
 
