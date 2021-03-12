@@ -279,6 +279,7 @@ class Spectrum1D(object):
         is_carpy_mike_product = (md5_hash == "0da149208a3c8ba608226544605ed600")
         is_carpy_mike_product_old = (md5_hash == "e802331006006930ee0e60c7fbc66cec")
         is_carpy_mage_product = (md5_hash == "6b2c2ec1c4e1b122ccab15eb9bd305bc")
+        is_iraf_3band_product = (md5_hash == "a4d8f6f51a7260fce1642f7b42012969")
         is_apo_product = (image[0].header.get("OBSERVAT", None) == "APO")
 
         if is_carpy_mike_product or is_carpy_mage_product or is_carpy_mike_product_old:
@@ -294,21 +295,50 @@ class Spectrum1D(object):
             flux = image[0].data[flux_ext]
             ivar = image[0].data[noise_ext]**(-2)
 
+        elif is_iraf_3band_product:
+            flux_ext = flux_ext or 0
+            noise_ext = ivar_ext or 2
+            
+            logger.info(
+                "Recognized IRAF 3band product. Using zero-indexed flux/noise "
+                "extensions (bands) {}/{}".format(flux_ext, noise_ext))
+            logger.info(
+                image[0].header["BANDID{}".format(flux_ext+1)]
+            )
+            logger.info(
+                image[0].header["BANDID{}".format(noise_ext+1)]
+            )
+            
+            flux = image[0].data[flux_ext]
+            ivar = image[0].data[noise_ext]**(-2)
+
         elif is_apo_product:
             flux_ext = flux_ext or 0
-            noise_ext = ivar_ext or -1
-
-            logger.info(
-                "Recognized APO product. Using zero-indexed flux/noise "
-                "extensions (bands) {}/{}".format(flux_ext, noise_ext))
-
-            # -------------------------------------------------------------
-            # E. Holmbeck changed these two lines for APO data
-            #flux = image[0].data[flux_ext]
-            #ivar = image[0].data[noise_ext]**(-2)
-            flux = image[flux_ext].data
-            ivar = 1./np.abs(flux)
-            # -------------------------------------------------------------
+            if md5_hash == "9d008ba2c3dc15549fd8ffe8a605ec15":
+                noise_ext = ivar_ext or 3
+                logger.info(
+                    "Recognized APO product with noise. Using zero-indexed flux/noise "
+                    "extensions (bands) {}/{}".format(flux_ext, noise_ext))
+                logger.info(
+                    image[0].header["BANDID{}".format(flux_ext+1)]
+                )
+                logger.info(
+                    image[0].header["BANDID{}".format(noise_ext+1)]
+                )
+                flux = image[0].data[flux_ext]
+                ivar = image[0].data[noise_ext]**(-2)
+                
+            else:
+                logger.info(
+                    "Recognized APO product, no noise. Using zero-indexed flux "
+                    "extension (bands) {}, Poisson noise".format(flux_ext))
+                # -------------------------------------------------------------
+                # E. Holmbeck changed these two lines for APO data
+                #flux = image[0].data[flux_ext]
+                #ivar = image[0].data[noise_ext]**(-2)
+                flux = image[flux_ext].data
+                ivar = 1./np.abs(flux)
+                # -------------------------------------------------------------
 
         else:
             ivar = np.full_like(flux, np.nan)
