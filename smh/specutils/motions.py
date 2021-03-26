@@ -501,6 +501,7 @@ def corrections_from_headers(headers):
         vhelio = float(headers.get("VHELIO", None))
         bcv_shift = dop_cor-vhelio
     except:
+        # TODO: Make sure it can read "DOPCORXX"
         try:
             dop_cor = float(headers.get("DOPCOR01", None).split()[0])
             vhelio = 0.0

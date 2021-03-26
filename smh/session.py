@@ -819,9 +819,9 @@ class Session(BaseSession):
             "barycentric_correction": v_bary,
         })
 
-        logger.info(
+        logging.info(
             "Heliocentric velocity correction: {0:.2f} km/s".format(v_helio))
-        logger.info(
+        logging.info(
             "Barycentric velocity correction: {0:.2f} km/s".format(v_bary))
         # -----------------------------------------------------------------
 
