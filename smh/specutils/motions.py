@@ -499,10 +499,14 @@ def corrections_from_headers(headers):
     try:
         dop_cor = float(headers.get("DOPCOR", None).split()[0])
         vhelio = float(headers.get("VHELIO", None))
-        print(vhelio)
         bcv_shift = dop_cor-vhelio
     except:
-        return corrections(long_obs, lat_obs, alt_obs, ra, dec, mjd)
+        try:
+            dop_cor = float(headers.get("DOPCOR01", None).split()[0])
+            vhelio = 0.0
+            bcv_shift = dop_cor-vhelio
+            logging.warn("Couldn't find VHELIO but found DOPCOR.")
+        except: return corrections(long_obs, lat_obs, alt_obs, ra, dec, mjd)
     # ---------------------------------------------------------------------
     return vhelio, bcv_shift
 
