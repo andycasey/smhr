@@ -1788,7 +1788,8 @@ class Session(BaseSession):
         ## Make sure to include synthesis measurements.
         ## We'll eventually put in upper limits too.
         spectral_models = self.metadata.get("spectral_models", [])
-        linedata = np.zeros((len(spectral_models), 7)) + np.nan
+        # Erika added EW sigma to output
+        linedata = np.zeros((len(spectral_models), 8)) + np.nan
         for i,spectral_model in enumerate(spectral_models):
             # TODO include upper limits
             if not spectral_model.is_acceptable or spectral_model.is_upper_limit: continue
@@ -1799,6 +1800,7 @@ class Session(BaseSession):
                 expot = spectral_model.expot
                 loggf = spectral_model.loggf
                 EW = np.nan
+                e_EW = np.nan
                 logeps = spectral_model.abundances[0]
                 try:
                     logeps_err = spectral_model.metadata["2_sigma_abundance_error"]/2.0
@@ -1813,18 +1815,22 @@ class Session(BaseSession):
 
                 try:
                     EW = 1000.*spectral_model.metadata["fitted_result"][2]["equivalent_width"][0]
+                    # Erika added EW sigma to output
+                    e_EW = max(1000.*np.abs(spectral_model.metadata["fitted_result"][2]["equivalent_width"][1:]))
                     logeps = spectral_model.abundances[0]
                     logeps_err = spectral_model.abundance_uncertainties or np.nan
                 except Exception as e:
                     print(e)
                     EW = np.nan
+                    e_EW = np.nan
                     logeps = np.nan
                     logeps_err = np.nan
                 if EW is None: EW = np.nan
                 if logeps is None: logeps = np.nan
             else:
                 raise NotImplementedError
-            linedata[i,:] = [species, wavelength, expot, loggf, EW, logeps, logeps_err]
+            # Erika added EW sigma to output
+            linedata[i,:] = [species, wavelength, expot, loggf, EW, e_EW, logeps, logeps_err]
         #ii_bad = np.logical_or(np.isnan(linedata[:,5]), np.isnan(linedata[:,4]))
         ii_bad = np.isnan(linedata[:,5])
         linedata = linedata[~ii_bad,:]
@@ -1840,13 +1846,15 @@ class Session(BaseSession):
     def _export_latex_measurement_table(self, filepath, linedata):
         raise NotImplementedError
     def _export_ascii_measurement_table(self, filepath, linedata):
-        names = ["species", "wavelength", "expot", "loggf", "EW", "logeps", "e_logeps"]
+        # Erika added EW sigma to output
+        names = ["species", "wavelength", "expot", "loggf", "EW", "e_EW", "logeps", "e_logeps"]
         tab = astropy.table.Table(linedata, names=names)
         tab.sort(["species","wavelength","expot"])
         tab["wavelength"].format = ".3f"
         tab["expot"].format = "5.3f"
         tab["loggf"].format = "6.3f"
         tab["EW"].format = "6.2f"
+        tab["e_EW"].format = "6.2f"
         tab["logeps"].format = "6.3f"
         tab["e_logeps"].format = "6.3f"
         tab.write(filepath, format="ascii.fixed_width_two_line")
