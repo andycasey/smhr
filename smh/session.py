@@ -346,8 +346,8 @@ class Session(BaseSession):
     def export_spectral_model_states(self, path):
         # TODO implement mask saving etc.
         states = [_.__getstate__() for _ in self.spectral_models]
-        with open(path, 'w') as fp:
-            pickle.dump(states)
+        with open(path, 'wb') as fp:
+            pickle.dump(states, fp)
         return True
 
     def reconstruct_spectral_models(self, spectral_model_states):

@@ -669,7 +669,9 @@ def process_session_uncertainties_lines(session, rhomat, minerr=0.001):
             syserr = np.sqrt(syserr_sq)
             fwhm = model.fwhm
         except Exception as e:
-            print(e)
+            print("ERROR!!!")
+            print(i, species, model.wavelength)
+            print("Exception:",e)
             logeps, staterr, e_Teff, e_logg, e_vt, e_MH, syserr = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
         if isinstance(model, ProfileFittingModel):
@@ -725,7 +727,7 @@ def process_session_uncertainties_lines(session, rhomat, minerr=0.001):
         sigma_tilde_inv = np.linalg.inv(sigma_tilde)
         w = np.sum(sigma_tilde_inv, axis=1)
         wb = np.sum(sigma_tilde_inv, axis=0)
-        assert np.allclose(w,wb,rtol=1e-6)
+        assert np.allclose(w,wb,rtol=1e-6), "Problem in species {:.1f}, Nline={}, e_sys={:.2f}".format(species, len(t), s)
         tab["weight"][ix] = w
         
     for col in tab.colnames:

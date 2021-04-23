@@ -1209,6 +1209,7 @@ class NormalizationTab(QtGui.QWidget):
         if continuum is not None and not clobber:
             # Nothing to do.
             return
+        print("gui.normalization.fit_continuum: fitting {}".format(index))
 
         kwds = self._cache["input"].copy()
         kwds["full_output"] = True
