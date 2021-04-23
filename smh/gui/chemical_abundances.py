@@ -71,6 +71,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.parent_layout.addWidget(self.figure)
         self.figure.add_callback_after_fit(self.refresh_current_model)
         self.figure.add_callback_after_fit(self.summarize_current_table)
+        self.figure.mpl_connect("key_press_event", self.key_press_selectcheck)
         ## Stuff for extra synthesis
         self.extra_spec_1 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#cea2fd', lw=1.5, zorder=9999)[0]
         self.extra_spec_2 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#ffb07c', lw=1.5, zorder=9999)[0]
@@ -1500,6 +1501,28 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         if spectral_model is None: return None
         self.measurement_view.update_row(proxy_index.row())
         self.update_fitting_options()
+
+    def key_press_selectcheck(self, event):
+        if "'"+event.key+"'" == "' '":
+            model, proxy_index, index = self._get_selected_model(True)
+            model.is_acceptable = np.logical_not(model.is_acceptable)
+            self.measurement_view.update_row(proxy_index.row())
+            self.update_spectrum_figure(redraw=True)
+            return None
+        if event.key in ["f", "F"]:
+            model, proxy_index, index = self._get_selected_model(True)
+            model.user_flag = np.logical_not(model.user_flag)
+            self.measurement_view.update_row(proxy_index.row())
+            return None
+        if event.key not in ["up","down","j", "J", "k", "K"]: return None
+        try:
+            proxy_index_row = self.measurement_view.selectionModel().selectedRows()[-1].row()
+        except IndexError:
+            return None
+        if event.key in ["up", "j", "J"]: proxy_index_row -= 1
+        if event.key in ["down", "k", "K"]: proxy_index_row += 1
+        self.measurement_view.selectRow(proxy_index_row)
+        return None
 
 class SynthesisAbundanceTableView(QtGui.QTableView):
     """

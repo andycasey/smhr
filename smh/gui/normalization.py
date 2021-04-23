@@ -416,10 +416,21 @@ class NormalizationTab(QtGui.QWidget):
 
         # Scale the continuum up/down.
         if event.key in ("up", "down"):
+            clip = self._cache["input"]["high_sigma_clip"]
+            if event.key == "up":
+                clip = max(clip-0.01, 0)
+            if event.key == "down":
+                clip += 0.01
+            self._cache["input"]["high_sigma_clip"] = clip
+            self.high_sigma_clip.setText(
+                str(self._cache["input"]["high_sigma_clip"]))
+            
+            """
             scale = self._cache["input"].get("scale", 1.0)
             sign = +1 if event.key == "up" else -1
 
             self._cache["input"]["scale"] = scale + sign * 0.01
+            """
 
             self.fit_continuum(True)
             self.draw_continuum(True)
@@ -458,6 +469,18 @@ class NormalizationTab(QtGui.QWidget):
             return True
 
 
+        # undo/remove the last mask
+        if event.key in ("u", "U"):
+            if "exclude" in self._cache["input"]:
+                exclude_regions = self._cache["input"]["exclude"]
+                if len(exclude_regions) > 0:
+                    exclude_regions = exclude_regions[1:]
+                    self._cache["input"]["exclude"] = exclude_regions
+                    
+                    self.fit_continuum(clobber=True)
+                    self.draw_continuum(refresh=False)
+                    self.update_continuum_mask(refresh=True)
+        
         # 'r': Reset the zoom limits without refitting/clearing masks
         if event.key in "rR":
             self.norm_plot.reset_zoom_limits()
@@ -467,7 +490,8 @@ class NormalizationTab(QtGui.QWidget):
             return True
 
 
-        # 'f': Refit without resetting the zoom limits
+        # 'f': Refit without resetting the zoom limits.
+        # Also can be used to recenter the bottom plot
         if event.key in "fF":
             # Force refit.
             self.fit_continuum(clobber=True)
@@ -475,8 +499,38 @@ class NormalizationTab(QtGui.QWidget):
             self.update_continuum_mask(refresh=True)
 
             return True
+        
+        # 'a': add point
+        if event.key in "aA":
+            points = np.vstack([
+                self.ax_order.collections[0].get_offsets(),
+                [event.xdata, event.ydata]
+            ])
+            # TODO: set size by their weight?
+            self.ax_order.collections[0].set_offsets(points)
+            
+            idx = self.current_order_index
+            N = points.shape[0]
+            # TODO: adhere to the knot weights
+            self._cache["input"]["additional_points"] \
+                = np.hstack((points, 100 * np.ones(N).reshape((N, 1))))
 
-
+            self.fit_continuum(clobber=True)
+            self.draw_continuum(refresh=False)
+            self.update_continuum_mask(refresh=True)
+            return True
+            
+        # 'x': clear all added points
+        if event.key in "xX":
+            for key in ["additional_points"]:
+                if key in self._cache["input"]:
+                    del self._cache["input"][key]
+            
+            self.fit_continuum(clobber=True)
+            self.draw_continuum(refresh=False)
+            self.update_continuum_mask(refresh=True)
+            return True
+            
     def figure_mouse_press(self, event):
         """
         Function to handle event left clicks (single or double click).
@@ -488,15 +542,20 @@ class NormalizationTab(QtGui.QWidget):
         # Add/remove an additional point?
         if event.dblclick:
 
+            logger.info("Removed double-click to add point. Use 'a' key instead")
             if event.button == 1:
                 # Add a point.
+                # Removed adding points because APJ strongly recommends not using this
+                """
                 points = np.vstack([
                     self.ax_order.collections[0].get_offsets(),
                     [event.xdata, event.ydata]
                 ])
                 # TODO: set size by their weight?
                 self.ax_order.collections[0].set_offsets(points)
-
+                """
+                pass
+            
             else:
                 # Are we within <tolerance of a point?
                 points = self.ax_order.collections[0].get_offsets()
@@ -532,11 +591,14 @@ class NormalizationTab(QtGui.QWidget):
                         print("Closest point {} px away".format(distance[index]))
 
             # Update the cache.
+            """
+            # Removed here because don't want to add points this way
             idx = self.current_order_index
             N = points.shape[0]
             # TODO: adhere to the knot weights
             self._cache["input"]["additional_points"] \
                 = np.hstack((points, 100 * np.ones(N).reshape((N, 1))))
+            """
             self.fit_continuum(clobber=True)
             self.draw_continuum(refresh=True)
 
@@ -1147,6 +1209,7 @@ class NormalizationTab(QtGui.QWidget):
         if continuum is not None and not clobber:
             # Nothing to do.
             return
+        print("gui.normalization.fit_continuum: fitting {}".format(index))
 
         kwds = self._cache["input"].copy()
         kwds["full_output"] = True

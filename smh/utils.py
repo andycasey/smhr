@@ -669,7 +669,10 @@ def process_session_uncertainties_lines(session, rhomat, minerr=0.001):
             syserr_sq = e_all.T.dot(rhomat.dot(e_all))
             syserr = np.sqrt(syserr_sq)
             fwhm = model.fwhm
-        except:
+        except Exception as e:
+            print("ERROR!!!")
+            print(i, species, model.wavelength)
+            print("Exception:",e)
             logeps, staterr, e_Teff, e_logg, e_vt, e_MH, syserr = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
         if isinstance(model, ProfileFittingModel):
@@ -725,7 +728,7 @@ def process_session_uncertainties_lines(session, rhomat, minerr=0.001):
         sigma_tilde_inv = np.linalg.inv(sigma_tilde)
         w = np.sum(sigma_tilde_inv, axis=1)
         wb = np.sum(sigma_tilde_inv, axis=0)
-        assert np.allclose(w,wb,rtol=1e-6)
+        assert np.allclose(w,wb,rtol=1e-6), "Problem in species {:.1f}, Nline={}, e_sys={:.2f}".format(species, len(t), s)
         tab["weight"][ix] = w
         
     for col in tab.colnames:
@@ -768,7 +771,10 @@ def process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY):
     except IndexError:
         print("No feh2: setting to feh1")
         feh2 = feh1
-        exfe2 = efe1
+        try:
+            exfe2 = np.sqrt(var_X[ix1])
+        except UnboundLocalError: # no ix1 either
+            exfe2 = np.nan
     else:
         feh2 = summary_tab["[X/H]"][ix2]
         var_fe2 = var_X[ix2]
