@@ -380,12 +380,24 @@ def approximate_sun_hermes_jacobian_2(stellar_parameters, *args):
     return full_jacobian.T
 
 
+def _debytify(x):
+    if isinstance(x, bytes):
+        return x.decode("utf-8")
+    return x
+def _fix_bytes_dict(d):
+    new_dict = {}
+    for k,v in d.items():
+        sk = _debytify(k)
+        new_dict[sk] = v
+    return new_dict
+
 def element_to_species(element_repr):
     """ Converts a string representation of an element and its ionization state
     to a floating point """
     
+    element_repr = _debytify(element_repr)
     if not isinstance(element_repr, string_types):
-        raise TypeError("element must be represented by a string-type")
+        raise TypeError("element must be represented by a string-type {} {}".format(element_repr, type(element_repr)))
         
     if element_repr.count(" ") > 0:
         element, ionization = element_repr.split()[:2]
@@ -414,8 +426,9 @@ def element_to_atomic_number(element_repr):
         'Ti I', 'si'.
     """
     
+    element_repr = _debytify(element_repr)
     if not isinstance(element_repr,  string_types):
-        raise TypeError("element must be represented by a string-type")
+        raise TypeError("element must be represented by a string-type {} {}".format(element_repr, type(element_repr)))
     
     element = element_repr.title().strip().split()[0]
     try:
@@ -442,7 +455,7 @@ def species_to_element(species):
     representation of the element and its ionization state """
     
     if not isinstance(species, (float, int)):
-        raise TypeError("species must be represented by a floating point-type")
+        raise TypeError("species must be represented by a floating point-type {} {}".format(species, type(species)))
     
     if round(species,1) != species:
         # Then you have isotopes, but we will ignore that

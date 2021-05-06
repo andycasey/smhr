@@ -375,6 +375,9 @@ class Session(BaseSession):
                 raise ValueError("unrecognized spectral model class '{}'"\
                                      .format(state["type"]))
             model = klass(*args)
+            ## python 2/3 issue
+            if "rt_abundances" in state["metadata"].keys():
+                state["metadata"]["rt_abundances"] = utils._fix_bytes_dict(state["metadata"]["rt_abundances"])
             model.metadata.update(state["metadata"])
             reconstructed_spectral_models.append(model)
             t2 = time.time()-start
@@ -443,6 +446,10 @@ class Session(BaseSession):
         # Remove any reconstruction paths.
         metadata.pop("reconstruct_paths")
 
+        # Python 2/3
+        if "isotopes" in metadata:
+            metadata["isotopes"] = utils._fix_bytes_dict(metadata["isotopes"])
+        
         # Update the new session with the metadata.
         session.metadata = metadata
         # A hack to maintain backwards compatibility
