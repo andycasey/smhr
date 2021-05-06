@@ -346,8 +346,8 @@ class Session(BaseSession):
     def export_spectral_model_states(self, path):
         # TODO implement mask saving etc.
         states = [_.__getstate__() for _ in self.spectral_models]
-        with open(path, 'w') as fp:
-            pickle.dump(states)
+        with open(path, 'wb') as fp:
+            pickle.dump(states, fp)
         return True
 
     def reconstruct_spectral_models(self, spectral_model_states):
@@ -375,6 +375,9 @@ class Session(BaseSession):
                 raise ValueError("unrecognized spectral model class '{}'"\
                                      .format(state["type"]))
             model = klass(*args)
+            ## python 2/3 issue
+            if "rt_abundances" in state["metadata"].keys():
+                state["metadata"]["rt_abundances"] = utils._fix_bytes_dict(state["metadata"]["rt_abundances"])
             model.metadata.update(state["metadata"])
             reconstructed_spectral_models.append(model)
             t2 = time.time()-start
@@ -443,6 +446,10 @@ class Session(BaseSession):
         # Remove any reconstruction paths.
         metadata.pop("reconstruct_paths")
 
+        # Python 2/3
+        if "isotopes" in metadata:
+            metadata["isotopes"] = utils._fix_bytes_dict(metadata["isotopes"])
+        
         # Update the new session with the metadata.
         session.metadata = metadata
         # A hack to maintain backwards compatibility
@@ -1102,7 +1109,7 @@ class Session(BaseSession):
         sigma_s = spectral_model.propagate_stellar_parameter_error()
                   stored in spectral_model.metadata["systematic_abundance_error"]
     """
-    def compute_all_abundance_uncertainties(self):
+    def compute_all_abundance_uncertainties(self, print_memory_usage=False):
         """
         Call model.find_error() and model.propagate_stellar_parameter_error() for every
         acceptable spectral model that is not an upper limit.
@@ -1143,6 +1150,14 @@ class Session(BaseSession):
             data[i,5] = staterr
             data[i,6] = syserr
             data[i,7] = np.sqrt(staterr**2 + syserr**2)
+
+            if print_memory_usage:
+                import psutil
+                import resource
+                process = psutil.Process(os.getpid())
+                print(species, wavelength, process.memory_info().rss)  # in bytes 
+                print("    ",resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)  # in bytes 
+                
         self.metadata["all_line_data"] = data
         logger.info("Finished abundance uncertainty loop in {:.1f}s".format(time.time()-start))
         return data
@@ -1393,6 +1408,7 @@ class Session(BaseSession):
         """
         
         Teff, logg, vt, MH = self.stellar_parameters
+        alpha = self.metadata["stellar_parameters"]["alpha"]
         initial_guess = [Teff, vt, logg, MH] # stupid me did not change the ordering to match
         logger.info("Initializing optimization at Teff={:.0f} logg={:.2f} vt={:.2f} MH={:.2f}".format(
             Teff, logg, vt, MH))
@@ -1413,7 +1429,7 @@ class Session(BaseSession):
         logger.info("Optimizing with {} transitions".format(len(transitions)))
         
         # interpolator, do obj. function
-        out = run_optimize_stellar_parameters(initial_guess, transitions, **kwargs)
+        out = run_optimize_stellar_parameters(initial_guess, transitions, alpha=alpha, **kwargs)
         final_parameters = out[5]
         new_Teff, new_vt, new_logg, new_MH = final_parameters
         
@@ -1948,6 +1964,9 @@ class Session(BaseSession):
                 if elem1 == "C" and elem2 == "N":
                     element = ["N"]
                     logger.debug("Hardcoded element: CN->N")
+                if elem1 == "H" and elem2 == "N":
+                    element = ["N"]
+                    logger.debug("Hardcoded element: NH->N")
             _filename = row["filename"]
             what_wavelength = row['wavelength']
             what_species = [row['species']]

@@ -380,12 +380,24 @@ def approximate_sun_hermes_jacobian_2(stellar_parameters, *args):
     return full_jacobian.T
 
 
+def _debytify(x):
+    if isinstance(x, bytes):
+        return x.decode("utf-8")
+    return x
+def _fix_bytes_dict(d):
+    new_dict = {}
+    for k,v in d.items():
+        sk = _debytify(k)
+        new_dict[sk] = v
+    return new_dict
+
 def element_to_species(element_repr):
     """ Converts a string representation of an element and its ionization state
     to a floating point """
     
+    element_repr = _debytify(element_repr)
     if not isinstance(element_repr, string_types):
-        raise TypeError("element must be represented by a string-type")
+        raise TypeError("element must be represented by a string-type {} {}".format(element_repr, type(element_repr)))
         
     if element_repr.count(" ") > 0:
         element, ionization = element_repr.split()[:2]
@@ -414,8 +426,9 @@ def element_to_atomic_number(element_repr):
         'Ti I', 'si'.
     """
     
+    element_repr = _debytify(element_repr)
     if not isinstance(element_repr,  string_types):
-        raise TypeError("element must be represented by a string-type")
+        raise TypeError("element must be represented by a string-type {} {}".format(element_repr, type(element_repr)))
     
     element = element_repr.title().strip().split()[0]
     try:
@@ -442,7 +455,7 @@ def species_to_element(species):
     representation of the element and its ionization state """
     
     if not isinstance(species, (float, int)):
-        raise TypeError("species must be represented by a floating point-type")
+        raise TypeError("species must be represented by a floating point-type {} {}".format(species, type(species)))
     
     if round(species,1) != species:
         # Then you have isotopes, but we will ignore that
@@ -669,7 +682,10 @@ def process_session_uncertainties_lines(session, rhomat, minerr=0.001):
             syserr_sq = e_all.T.dot(rhomat.dot(e_all))
             syserr = np.sqrt(syserr_sq)
             fwhm = model.fwhm
-        except:
+        except Exception as e:
+            print("ERROR!!!")
+            print(i, species, model.wavelength)
+            print("Exception:",e)
             logeps, staterr, e_Teff, e_logg, e_vt, e_MH, syserr = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
         if isinstance(model, ProfileFittingModel):
@@ -725,7 +741,7 @@ def process_session_uncertainties_lines(session, rhomat, minerr=0.001):
         sigma_tilde_inv = np.linalg.inv(sigma_tilde)
         w = np.sum(sigma_tilde_inv, axis=1)
         wb = np.sum(sigma_tilde_inv, axis=0)
-        assert np.allclose(w,wb,rtol=1e-6)
+        assert np.allclose(w,wb,rtol=1e-6), "Problem in species {:.1f}, Nline={}, e_sys={:.2f}".format(species, len(t), s)
         tab["weight"][ix] = w
         
     for col in tab.colnames:
@@ -768,7 +784,10 @@ def process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY):
     except IndexError:
         print("No feh2: setting to feh1")
         feh2 = feh1
-        exfe2 = efe1
+        try:
+            exfe2 = np.sqrt(var_X[ix1])
+        except UnboundLocalError: # no ix1 either
+            exfe2 = np.nan
     else:
         feh2 = summary_tab["[X/H]"][ix2]
         var_fe2 = var_X[ix2]

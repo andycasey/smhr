@@ -152,7 +152,7 @@ def _format_abundances(elemental_abundances=None, subtract_solar=False,
     elemental_abundances = elemental_abundances.copy()
     
     # Make sure that the abundances are specified as (atomic_number: abundance)
-    for key in elemental_abundances.keys():
+    for key in list(elemental_abundances.keys()):
         if isinstance(key, string_types):
             # It's an element. Convert to atomic number.
             atomic_number = element_to_atomic_number(key)
