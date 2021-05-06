@@ -16,6 +16,7 @@ import mpl
 from matplotlib import (gridspec, pyplot as plt)
 
 from smh import (Session, specutils)
+import smh
 from smh.linelists import LineList
 
 import logging
@@ -541,7 +542,7 @@ class RVTab(QtGui.QWidget):
 
         # RV
         self.rv_applied.setText("{0:+.1f}".format(\
-                rv_dict.get("rv_measured",np.nan)))
+                float(rv_dict.get("rv_measured",np.nan))))
 
         return None
 

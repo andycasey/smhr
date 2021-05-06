@@ -6,10 +6,17 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+import sys
+
 import logging
 from PySide2 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 import yaml
 import os
+
+# Hacky path solution to override the original path to smhr
+here = os.path.abspath(os.path.dirname(__file__))
+smhr_rpa_path = '/'.join(here.split('/')[:-2])
+sys.path.insert(0,smhr_rpa_path)
 
 # Functions related to warnings and exceptions.
 import exception

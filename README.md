@@ -21,6 +21,13 @@ If you are new to SMHR, you should use the branch `refactor-scatterplot`.
 Note v0.1 and v0.2 files are not compatible, but there is a script to convert old save files into new save files.
 There is not a way to convert files from the old SMH to new SMHR.
 
+
+Note about this version
+------------------------
+ - This is a fork of the original SMHr code that has updates and additions for use by the *R*-Process Alliance.
+ - Direct questions to Erika Holmbeck (RIT/Notre Dame) or Alex Ji (Carnegie Observatories).
+
+
 Installation
 ------------
 This is one way that I (Alex) got things running from a fresh mac install and I'm putting it here as a record of some things I had to do.
@@ -37,7 +44,7 @@ brew install qt@4
 - `conda install matplotlib=1.5.1` (fixing this is very painful because I need to update to qt5; I have started doing this but it will take a long time)
 - `conda install numpy=1.11.3` (this is an issue with pyside)
 - `conda install scipy=0.19.0` (this is an issue with newer versions of scipy, not sure yet why but it segfaults in `interpolate.griddata`)
-- `conda install qt=4.8.7` (you may have to uninstall and downgrade some things for this to work; it should be safe to upgrade those later)
+- `conda install qt=4.8.7` (you may have to uninstall and downgrade some things for this to work; it should be safe to upgrade those later) (Recent versions of anaconda have removed this version of QT. We have not yet found a solution but are working on it...it appears to mess up the Open File Dialogs, and we will try to come up with a workaround.)
 - Clone smhr
 - Go into the smhr directory and `python setup.py develop`
 - Go to `smhr/smh/gui` and open with `ipython __main__.py`. It should crash with a message about `libpyside`, saying something is not found. This is because a file is named wrong within anaconda.

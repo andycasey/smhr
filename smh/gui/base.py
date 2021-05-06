@@ -222,7 +222,6 @@ class SMHSpecDisplay(mpl.MPLWidget):
         
         if self.session is not None:
             drawstyle = self.session.setting(["plot_styles","spectrum_drawstyle"],"steps-mid")
-            #logger.debug("drawstyle: {}".format(drawstyle))
             self._lines["spectrum"].set_drawstyle(drawstyle)
             self._lines["comparison_spectrum"].set_drawstyle(drawstyle)
         for key in ["spectrum", "transitions_center_main", "transitions_center_residual",
@@ -368,7 +367,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
         self.ax_spectrum.set_ylim(ylim)
         self.draw()
         return None
-
+	    
     def spectrum_left_mouse_press(self, event):
         """
         Listener for if mouse button pressed in spectrum or residual axis
@@ -1034,6 +1033,7 @@ class BaseTableView(QtGui.QTableView):
         self.horizontalHeader().setStretchLastSection(True)
         self.horizontalHeader().setSectionResizeMode(QtGui.QHeaderView.Stretch)
         self.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
+        
     def sizeHint(self):
         return QtCore.QSize(125,100)
     def minimumSizeHint(self):
@@ -1192,7 +1192,19 @@ class MeasurementTableView(BaseTableView):
             index = data_model.createIndex(row, col)
             data_model.setData(index, value)
         return None
-        
+    
+    # E. Holmbeck added extra keypress for convenience.
+    # Press the leftarrow to deselect and right arrow to select a line
+    def keyPressEvent (self, eventQKeyEvent):
+        key = eventQKeyEvent.key()
+        if key == QtCore.Qt.Key_Left:
+            self.set_flag("is_acceptable", False)
+        elif key == QtCore.Qt.Key_Right:
+            self.set_flag("is_acceptable", True)
+        else:
+            super(MeasurementTableView, self).keyPressEvent(eventQKeyEvent)
+    
+      
     def set_fitting_option_value(self, key, value,
                                  valid_for_profile=False,
                                  valid_for_synth=False):
@@ -1310,6 +1322,7 @@ def create_measurement_table_with_buttons(parent, filtermodel, session, **kwargs
     
     vbox.addLayout(hbox)
     return vbox, tableview, btn_filter, btn_refresh
+    
 class MeasurementTableDelegate(QtGui.QItemDelegate):
     ## TODO this doesn't work
     ## It doesn't paint checkboxes or get the font right anymore

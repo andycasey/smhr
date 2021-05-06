@@ -17,7 +17,8 @@ import numpy as np
 import rv, normalization, summary, stellar_parameters, chemical_abundances, review
 
 import smh
-from balmer import BalmerLineFittingDialog
+#from balmer import BalmerLineFittingDialog
+from balmer import *
 from linelist_manager import TransitionsDialog
 from isotope_manager import IsotopeDialog
 from plotting import SummaryPlotDialog, SNRPlotDialog

@@ -32,6 +32,7 @@ from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 from . import (smh_plotting, __version__)
 from .optimize_stellar_params import optimize_stellar_parameters as run_optimize_stellar_parameters
+from .optimize_stellar_params import optimize_feh as run_optimize_feh
 
 logger = logging.getLogger(__name__)
 
@@ -114,13 +115,13 @@ class Session(BaseSession):
             "isotopes": {},
             "stellar_parameters": {
                 "effective_temperature":
-                    self.setting("default_Teff",5777), # K
+                    self.setting("default_Teff",4500), # K
                 "surface_gravity":
-                    self.setting("default_logg",4.4),
+                    self.setting("default_logg",0.85),
                 "metallicity":
-                    self.setting("default_MH",0.0), # Solar-scaled
+                    self.setting("default_MH",-2.0), # Solar-scaled
                 "microturbulence":
-                    self.setting("default_vt",1.06), # km/s
+                    self.setting("default_vt",1.3), # km/s
                 "alpha":
                     self.setting("default_aFe",0.4),
                 "syserr_effective_temperature":
@@ -730,7 +731,7 @@ class Session(BaseSession):
         # TODO: Should we store these as a NamedTuple instead?
 
         try:
-            v_helio, v_bary = specutils.motions.corrections_from_headers(
+            v_helio, v_bary = specutils.motions.corrections_from_headers(\
                 overlap_order.metadata)
         except Exception as e:
             # TODO not raising an exception for testing purposes, but may want to
@@ -742,9 +743,12 @@ class Session(BaseSession):
             v_helio, v_bary = (np.nan, np.nan)
 
         else:
-            v_helio = v_helio.to("km/s").value
-            v_bary = v_bary.to("km/s").value
-
+            try:
+                v_helio = v_helio.to("km/s").value
+                v_bary = v_bary.to("km/s").value
+            except:
+                pass
+                
         self.metadata["rv"].update({
             # Measurements
             "rv_measured": rv,
@@ -781,6 +785,53 @@ class Session(BaseSession):
         """
 
         self.metadata["rv"]["rv_applied"] = -float(rv)
+        
+        # -----------------------------------------------------------------
+        # E. Holmbeck: calculate the bcv if it doesn't exist
+        if "barycentric_correction" in self.metadata["rv"]:
+            return
+        
+        names = self._input_spectra_paths
+        spectrum = names[0]
+        if len(names) > 1:
+            for s in names:
+                if 'red' in s:
+                    spectrum = s
+                    break
+
+        from astropy.io import fits
+        _, headers = fits.getdata(spectrum, header=True)
+
+        try:
+            v_helio, v_bary = specutils.motions.corrections_from_headers(\
+                headers)
+        
+        except Exception as e:
+            logger.error(
+                "Exception in calculating heliocentric and barycentric motions")
+            logger.error(e)
+            v_helio, v_bary = (np.nan, np.nan)
+
+        else:
+            try:
+                v_helio = v_helio.to("km/s").value
+                v_bary = v_bary.to("km/s").value
+            except:
+                pass
+
+        self.metadata["rv"].update({
+            # Measurements
+            "rv_measured": rv,
+            "heliocentric_correction": v_helio,
+            "barycentric_correction": v_bary,
+        })
+
+        logging.info(
+            "Heliocentric velocity correction: {0:.2f} km/s".format(v_helio))
+        logging.info(
+            "Barycentric velocity correction: {0:.2f} km/s".format(v_bary))
+        # -----------------------------------------------------------------
+
         return None
 
 
@@ -893,7 +944,9 @@ class Session(BaseSession):
         self.metadata["stellar_parameters"]["microturbulence"] = vt
         if alpha is not None:
             self.metadata["stellar_parameters"]["alpha"] = alpha
+        
         return None
+        
     def set_stellar_parameters_errors(self, sysstat, dTeff, dlogg, dvt, dMH):
         """ 
         Set stellar parameter errors (sys/stat, Teff, logg, MH, vt)
@@ -1157,7 +1210,7 @@ class Session(BaseSession):
                 process = psutil.Process(os.getpid())
                 print(species, wavelength, process.memory_info().rss)  # in bytes 
                 print("    ",resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)  # in bytes 
-                
+
         self.metadata["all_line_data"] = data
         logger.info("Finished abundance uncertainty loop in {:.1f}s".format(time.time()-start))
         return data
@@ -1429,8 +1482,49 @@ class Session(BaseSession):
         logger.info("Optimizing with {} transitions".format(len(transitions)))
         
         # interpolator, do obj. function
-        out = run_optimize_stellar_parameters(initial_guess, transitions, alpha=alpha, **kwargs)
-        final_parameters = out[5]
+        out = run_optimize_stellar_parameters(initial_guess, transitions, **kwargs)
+        final_parameters = out[1]
+        new_Teff, new_vt, new_logg, new_MH = final_parameters
+        
+        if not out[0]:
+            logger.warn("Optimization did not converge, stopped at Teff={:.0f} logg={:.2f} vt={:.2f} MH={:.2f}".format(
+                new_Teff, new_logg, new_vt, new_MH))
+            
+        
+        self.set_stellar_parameters(new_Teff, new_logg, new_vt, new_MH)
+        return None
+
+    
+    # E. Holmbeck added this function to call the other "Solve" function
+    def optimize_feh(self, params_to_optimize, **kwargs):
+        """
+        Optimize the stellar parameters for this star using the spectral models
+        associated with stellar parameter inference.
+        """
+        
+        Teff, logg, vt, MH = self.stellar_parameters
+        initial_guess = np.array([Teff, vt, logg, MH]) # stupid me did not change the ordering to match
+        logger.info("Initializing optimization at Teff={:.0f} logg={:.2f} vt={:.2f} MH={:.2f}".format(
+            Teff, logg, vt, MH))
+        
+        # get the list of relevant spectral models.
+        stellar_parameter_spectral_models = []
+        for spectral_model in self.spectral_models:
+            if spectral_model.use_for_stellar_parameter_inference and spectral_model.is_acceptable:
+                if isinstance(spectral_model, SpectralSynthesisModel):
+                    raise NotImplementedError("Syntheses cannot be used for stellar parameter state (check the Transitions manager)")
+                stellar_parameter_spectral_models.append(spectral_model)
+        transitions = self._spectral_models_to_transitions(stellar_parameter_spectral_models)
+        finite = np.logical_and(np.isfinite(transitions["equivalent_width"]), transitions["equivalent_width"] > 0.01)
+        if finite.sum() != len(finite):
+            logger.warn("Number of finite transitions ({}) != number of transitions ({})".format(
+                finite.sum(), len(finite)))
+        transitions = transitions[finite]
+        logger.info("Optimizing with {} transitions".format(len(transitions)))
+        
+        # interpolator, do obj. function
+        out = run_optimize_feh(initial_guess, transitions, params_to_optimize, **kwargs)
+        final_parameters = out[1]
         new_Teff, new_vt, new_logg, new_MH = final_parameters
         
         if not out[0]:
@@ -1702,7 +1796,8 @@ class Session(BaseSession):
         ## Make sure to include synthesis measurements.
         ## We'll eventually put in upper limits too.
         spectral_models = self.metadata.get("spectral_models", [])
-        linedata = np.zeros((len(spectral_models), 7)) + np.nan
+        # Erika added EW sigma to output
+        linedata = np.zeros((len(spectral_models), 8)) + np.nan
         for i,spectral_model in enumerate(spectral_models):
             # TODO include upper limits
             if not spectral_model.is_acceptable or spectral_model.is_upper_limit: continue
@@ -1713,6 +1808,7 @@ class Session(BaseSession):
                 expot = spectral_model.expot
                 loggf = spectral_model.loggf
                 EW = np.nan
+                e_EW = np.nan
                 logeps = spectral_model.abundances[0]
                 try:
                     logeps_err = spectral_model.metadata["2_sigma_abundance_error"]/2.0
@@ -1727,18 +1823,22 @@ class Session(BaseSession):
 
                 try:
                     EW = 1000.*spectral_model.metadata["fitted_result"][2]["equivalent_width"][0]
+                    # Erika added EW sigma to output
+                    e_EW = max(1000.*np.abs(spectral_model.metadata["fitted_result"][2]["equivalent_width"][1:]))
                     logeps = spectral_model.abundances[0]
                     logeps_err = spectral_model.abundance_uncertainties or np.nan
                 except Exception as e:
                     print(e)
                     EW = np.nan
+                    e_EW = np.nan
                     logeps = np.nan
                     logeps_err = np.nan
                 if EW is None: EW = np.nan
                 if logeps is None: logeps = np.nan
             else:
                 raise NotImplementedError
-            linedata[i,:] = [species, wavelength, expot, loggf, EW, logeps, logeps_err]
+            # Erika added EW sigma to output
+            linedata[i,:] = [species, wavelength, expot, loggf, EW, e_EW, logeps, logeps_err]
         #ii_bad = np.logical_or(np.isnan(linedata[:,5]), np.isnan(linedata[:,4]))
         ii_bad = np.isnan(linedata[:,5])
         linedata = linedata[~ii_bad,:]
@@ -1754,13 +1854,15 @@ class Session(BaseSession):
     def _export_latex_measurement_table(self, filepath, linedata):
         raise NotImplementedError
     def _export_ascii_measurement_table(self, filepath, linedata):
-        names = ["species", "wavelength", "expot", "loggf", "EW", "logeps", "e_logeps"]
+        # Erika added EW sigma to output
+        names = ["species", "wavelength", "expot", "loggf", "EW", "e_EW", "logeps", "e_logeps"]
         tab = astropy.table.Table(linedata, names=names)
         tab.sort(["species","wavelength","expot"])
         tab["wavelength"].format = ".3f"
         tab["expot"].format = "5.3f"
         tab["loggf"].format = "6.3f"
         tab["EW"].format = "6.2f"
+        tab["e_EW"].format = "6.2f"
         tab["logeps"].format = "6.3f"
         tab["e_logeps"].format = "6.3f"
         tab.write(filepath, format="ascii.fixed_width_two_line")
