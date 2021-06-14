@@ -25,6 +25,11 @@ Installation
 ------------
 
 * Get anaconda
+* Add conda-forge
+```
+conda config --add channels conda-forge
+conda config --set channel_priority strict
+```
 * Install required libraries:
 ```
 conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython
