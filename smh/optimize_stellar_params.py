@@ -580,28 +580,29 @@ def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None,
 
     plist = ['Teff','vt','logg','[Fe/H]']
     nconst = int(4-sum(params_to_optimize))
+	
     if nconst == 1:
         logger.info('Holding 1 parameter constant: '+', '.join([plist[p]+'='+str(initial_guess[p]) for p in range(len(plist)) if not params_to_optimize[p]]))
     elif nconst > 1:
         logger.info('Holding %s parameters constant: '%nconst +', '.join([plist[p]+'='+str(initial_guess[p]) for p in range(len(plist)) if not params_to_optimize[p]]))
 
     parameter_ranges = {}
-    if params_to_optimize[0] == True:
+    if params_to_optimize[0]:
         parameter_ranges["teff"] = (3500, 7000)
     else:
         parameter_ranges["teff"] = (initial_guess[0], initial_guess[0])
 	
-    if params_to_optimize[1] == True:
+    if params_to_optimize[1]:
         parameter_ranges["vt"] = (0.0, 4.0)
     else:
         parameter_ranges["vt"] = (initial_guess[1], initial_guess[1])
 
-    if params_to_optimize[1] == True:
+    if params_to_optimize[2]:
         parameter_ranges["logg"] = (0, 5),
     else:
         parameter_ranges["logg"] = (initial_guess[2], initial_guess[2])
 
-    if params_to_optimize[1] == True:
+    if params_to_optimize[3]:
         parameter_ranges["[Fe/H]"] = (-5, 0.5)
     else:
         parameter_ranges["[Fe/H]"] = (initial_guess[3], initial_guess[3])
@@ -651,7 +652,8 @@ def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None,
         dAdchi = out[26.0]['expot'][0]
         dAdREW = out[26.0]['reduced_equivalent_width'][0]
         dFe = np.mean(abundances[idx_I]) - np.mean(abundances[idx_II])
-        dM  = np.mean(abundances[idx_I]) - (feh + solar_composition("Fe"))
+        # E. Holmbeck changed dM to be w.r.t. FeII abundances.
+        dM  = np.mean(abundances[idx_II]) - (feh + solar_composition("Fe"))
 		
         results = np.array([dAdchi, dAdREW, 0.1 * dFe, 0.1 * dM])
         acquired_total_tolerance = np.sum(results**2)
