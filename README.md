@@ -21,6 +21,13 @@ If you are new to SMHR, you should use the branch `refactor-scatterplot`.
 Note v0.1 and v0.2 files are not compatible, but there is a script to convert old save files into new save files.
 There is not a way to convert files from the old SMH to new SMHR.
 
+
+Note about this version
+------------------------
+ - This is a fork of the original SMHr code that has updates and additions for use by the *R*-Process Alliance.
+ - Direct questions to Erika Holmbeck (RIT/Notre Dame) or Alex Ji (Carnegie Observatories).
+
+
 Installation
 ------------
 
@@ -52,17 +59,6 @@ ipython __main__.py #ipython is often needed for the menu bar it seems
 ```
 * Install moog17scat (see below) and add it to your path.
 
-Some notes from Henrique Reggiani that may be helpful to some:
-```
-I am running everything under MAC OS X 10.14.6
-My Python 2.7 install is the system install (I do not use anaconda and I only have one python install per version, so I manage packages as needed).
-
-I install qt4 from macports (system install). I already have qt5 but it did not create any problems.
-I had to export in my .profile/.bash_rc the path to the qmake executable:
-(export PATH="$PATH:/opt/local/libexec/qt4/bin") – this is the system path
-
-Then PySide was not finding the libpyside-python2.7.1.2.dylib. The libraries were all correctly placed and named. To solve the problem you go into $PYTHONPATH/site-packages/PySide and run this script:
-```
 
 
 MOOG

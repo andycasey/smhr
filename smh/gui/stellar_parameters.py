@@ -30,7 +30,7 @@ from smh.photospheres.abundances import asplund_2009 as solar_composition
 from smh.spectral_models import (ProfileFittingModel, SpectralSynthesisModel)
 from smh import utils
 from linelist_manager import TransitionsDialog
-from smh.optimize_stellar_params import optimize_stellar_parameters
+from smh.optimize_stellar_params import optimize_stellar_parameters,optimize_feh
 
 from spectral_models_table import SpectralModelsTableViewBase, SpectralModelsFilterProxyModel, SpectralModelsTableModelBase
 from quality_control import QualityControlDialog
@@ -122,6 +122,9 @@ class StellarParametersTab(QtGui.QWidget):
         ###########################################
         ############ Finish RHS Layout ############
         ###########################################
+        
+        # E. Holmbeck added this
+        self.params_to_optimize = np.array([True]*4)
 
     def measure_abundances(self):
         """ 
@@ -132,13 +135,11 @@ class StellarParametersTab(QtGui.QWidget):
         - update table and plots
         - update plots
         """
-        print("Pushed measure abundances")
         if self.parent.session is None or not self._check_for_spectral_models():
             return None
         # If no acceptable measurements, fit all
         for model in self.parent.session.spectral_models:
-             if model.use_for_stellar_parameter_inference \
-            and "fitted_result" in model.metadata:
+            if model.use_for_stellar_parameter_inference and "fitted_result" in model.metadata:
                 break # do not fit if any stellar parameter lines are already fit
         else:
             for model in self.parent.session.spectral_models:
@@ -150,7 +151,7 @@ class StellarParametersTab(QtGui.QWidget):
                         "Exception in fitting spectral model {}".format(model))
                     continue
         self.update_stellar_parameter_session()
-        
+
         ## Loop through the spectral models and measure relevant abundances
         ## Note, have to do ALL the spectral models because might have added new measurements
         spectral_models = []
@@ -165,7 +166,9 @@ class StellarParametersTab(QtGui.QWidget):
         
         self.measurement_model.reset()
         self.update_stellar_parameter_state_table()
+        self.update_stellar_parameter_labels()
         self.refresh_plots()
+                
         return None
     
     def new_session_loaded(self):
@@ -189,8 +192,10 @@ class StellarParametersTab(QtGui.QWidget):
             "alpha": float(self.edit_alpha.text())
         })
         return True
+        
     def update_stellar_parameter_labels(self):
         if not hasattr(self.parent, "session") or self.parent.session is None:
+            print("Labels not updated")
             return None
         widget_info = [
             (self.edit_teff, "{0:.0f}", "effective_temperature"),
@@ -201,6 +206,7 @@ class StellarParametersTab(QtGui.QWidget):
         ]
         for widget, fmt, key in widget_info:
             widget.setText(fmt.format(self.parent.session.metadata["stellar_parameters"][key]))
+
         return None
         
     def selected_measurement_changed(self):
@@ -323,33 +329,55 @@ class StellarParametersTab(QtGui.QWidget):
         logger.info("Setting [alpha/Fe]=0.4 to solve")
         self.update_stellar_parameter_session()
         self.parent.session.optimize_stellar_parameters()
-        ## Overwrite the GUI labels with the new results
-        self.update_stellar_parameter_labels()
         ## refresh everything
         self.measure_abundances()
         self.new_session_loaded()
-
+	
+	# E. Holmbeck added this function
+    def solve_feh(self):
+        """ Solve the stellar parameters. """
+        if self.parent.session is None or not self._check_for_spectral_models():
+            return None
+        ## use current state as initial guess
+        logger.info("Setting [alpha/Fe]=0.4 to solve")
+        self.update_stellar_parameter_session()
+        self.parent.session.optimize_feh(self.params_to_optimize)
+        self.parent.session.metadata["stellar_parameters"]
+        ## refresh everything
+        # E. Holmbeck added 'new_session' again; trying to fix update problem
+        self.new_session_loaded()
+        self.measure_abundances()
+        self.new_session_loaded()
+        
+        
     def _init_rt_options(self, parent):
         grid_layout = QtGui.QGridLayout()
         # Effective temperature.
         label = QtGui.QLabel(self)
         label.setText("Teff")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         grid_layout.addWidget(label, 0, 0, 1, 1)
         self.edit_teff = QtGui.QLineEdit(self)
         self.edit_teff.setMinimumSize(QtCore.QSize(40, 0))
         self.edit_teff.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_teff.setAlignment(QtCore.Qt.AlignCenter)
-        self.edit_teff.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        self.edit_teff.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_teff.setValidator(
             QtGui2.QDoubleValidator(3000, 8000, 0, self.edit_teff))
         self.edit_teff.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_teff, 0, 1)
+        # E. Holmbeck added checkbox
+        self.teff_const = QtGui.QCheckBox("Hold constant")
+        self.teff_const.setChecked(False)
+        self.teff_const.stateChanged.connect(lambda:self.const_param(self.teff_const,0))
+        #grid_layout.addWidget(self.teff_const, 0, 2, -1)
+        grid_layout.addWidget(self.teff_const, 0, 2)
+        
         
         # Surface gravity.
         label = QtGui.QLabel(self)
         label.setText("logg")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
 
         grid_layout.addWidget(label, 1, 0, 1, 1)
         self.edit_logg = QtGui.QLineEdit(self)
@@ -358,14 +386,20 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_logg.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_logg.setValidator(
             QtGui2.QDoubleValidator(-1, 6, 3, self.edit_logg))
-        self.edit_logg.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        self.edit_logg.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_logg.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_logg, 1, 1)
+        # E. Holmbeck added checkbox
+        self.logg_const = QtGui.QCheckBox("Hold constant")
+        self.logg_const.setChecked(False)
+        self.logg_const.stateChanged.connect(lambda:self.const_param(self.logg_const,2))
+        #grid_layout.addWidget(self.logg_const, 1, 2, -1)
+        grid_layout.addWidget(self.logg_const, 1, 2)
 
         # Metallicity.
         label = QtGui.QLabel(self)
         label.setText("[M/H]")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
 
         grid_layout.addWidget(label, 2, 0, 1, 1)
         self.edit_metallicity = QtGui.QLineEdit(self)
@@ -374,15 +408,21 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_metallicity.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_metallicity.setValidator(
             QtGui2.QDoubleValidator(-5, 1, 3, self.edit_metallicity))
-        self.edit_metallicity.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        self.edit_metallicity.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_metallicity.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_metallicity, 2, 1)
+        # E. Holmbeck added checkbox
+        self.feh_const = QtGui.QCheckBox("Hold constant")
+        self.feh_const.setChecked(False)
+        self.feh_const.stateChanged.connect(lambda:self.const_param(self.feh_const,3))
+        #grid_layout.addWidget(self.feh_const, 2, 2, -1)
+        grid_layout.addWidget(self.feh_const, 2, 2)
 
 
         # Microturbulence.
         label = QtGui.QLabel(self)
         label.setText("vt")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
 
         grid_layout.addWidget(label, 3, 0, 1, 1)
         self.edit_xi = QtGui.QLineEdit(self)
@@ -390,14 +430,20 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_xi.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_xi.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_xi.setValidator(QtGui2.QDoubleValidator(0, 5, 3, self.edit_xi))
-        self.edit_xi.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        self.edit_xi.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_xi.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_xi, 3, 1)
+        # E. Holmbeck added checkbox
+        self.vt_const = QtGui.QCheckBox("Hold constant")
+        self.vt_const.setChecked(False)
+        self.vt_const.stateChanged.connect(lambda:self.const_param(self.vt_const,1))
+        #grid_layout.addWidget(self.vt_const, 3, 2, -1)
+        grid_layout.addWidget(self.vt_const, 3, 2)
 
         # Alpha-enhancement.
         label = QtGui.QLabel(self)
         label.setText("alpha")
-        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         
         grid_layout.addWidget(label, 4, 0, 1, 1)
         self.edit_alpha = QtGui.QLineEdit(self)
@@ -406,7 +452,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_alpha.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_alpha.setValidator(QtGui2.QDoubleValidator(-1, 1, 3, self.edit_alpha))
         #self.edit_alpha.setValidator(QtGui.QDoubleValidator(0, 0.4, 3, self.edit_alpha))
-        self.edit_alpha.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+        self.edit_alpha.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_alpha.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_alpha, 4, 1)
 
@@ -418,24 +464,37 @@ class StellarParametersTab(QtGui.QWidget):
 
         return grid_layout
     def _init_rt_buttons(self, parent):
-        # Buttons for solving/measuring.        
+        # Buttons for solving/measuring. 
+        # E. Holmbeck changed Box to Grid and 
+        # added the positions in each "hbox.addWidget" line       
         hbox = QtGui.QHBoxLayout()
+        #hbox = QtGui.QGridLayout()
         self.btn_measure = QtGui.QPushButton(self)
         self.btn_measure.setAutoDefault(True)
         self.btn_measure.setDefault(True)
-        self.btn_measure.setText("Measure abundances")
+        
+        self.btn_measure.setText("Derive abundances")
         self.btn_measure.clicked.connect(self.measure_abundances)
         hbox.addWidget(self.btn_measure)
-
+        
         self.btn_options = QtGui.QPushButton(self)
-        self.btn_options.setText("Options..")
+        self.btn_options.setText("Options...")
         self.btn_options.clicked.connect(self.options)
         hbox.addWidget(self.btn_options)
-
+        
         self.btn_solve = QtGui.QPushButton(self)
         self.btn_solve.setText("Solve")
-        self.btn_solve.clicked.connect(self.solve_parameters)
+        #self.btn_solve.clicked.connect(self.solve_parameters)
+        # E. Holmbeck edited this button.
+        # TODO: just overwrite/rename the function
+        self.btn_solve.clicked.connect(self.solve_feh)
         hbox.addWidget(self.btn_solve)
+        
+        # E. Holmbeck added these three lines.
+        #self.btn_solve_feh = QtGui.QPushButton(self)
+        #self.btn_solve_feh.setText("Solve [M/H] and vt")
+        #self.btn_solve_feh.clicked.connect(self.solve_feh)
+        #hbox.addWidget(self.btn_solve_feh, 1,1)
 
         return hbox
     def _init_state_table(self, parent):
@@ -443,7 +502,7 @@ class StellarParametersTab(QtGui.QWidget):
         def create_label(text, row, col, rowspan=1, colspan=1, align=QtCore.Qt.AlignCenter):
             label = QtGui.QLabel(self)
             label.setText(text)
-            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
             grid_layout.addWidget(label, row, col, rowspan, colspan, align)
             return label
         # Create Header
@@ -483,7 +542,7 @@ class StellarParametersTab(QtGui.QWidget):
         _ = self.measurement_view.selectionModel()
         _.selectionChanged.connect(self.selected_measurement_changed)
         self.measurement_view.setSizePolicy(QtGui.QSizePolicy(
-            QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.MinimumExpanding))
+            QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.MinimumExpanding))
         self.measurement_model.add_filter_function(
             "use_for_stellar_parameter_inference",
             lambda model: model.use_for_stellar_parameter_inference)
@@ -504,7 +563,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.btn_sperrors.setText("Stellar Parameter Uncertainties..")
         self.btn_sperrors.clicked.connect(self.sperrors_dialog)
         
-        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Preferred,
+        hbox.addItem(QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.MinimumExpanding,
             QtGui.QSizePolicy.Minimum))
         hbox.addWidget(self.btn_quality_control)
         hbox.addWidget(self.btn_sperrors)
@@ -608,6 +667,14 @@ class StellarParametersTab(QtGui.QWidget):
         return True
 
 
+    # E. Holmbeck added this function
+    def const_param(self,param_selected,param_index):
+    # Param_index: 0 = teff, 1 = vt, 2 = logg, 3 = feh
+        if param_selected.isChecked() == True:
+            self.params_to_optimize[param_index] = False
+        else:
+            self.params_to_optimize[param_index] = True
+
 
 class StellarParameterUncertaintiesDialog(QtGui.QDialog):
     def __init__(self, session,
@@ -654,7 +721,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
         self.label_MH = QtGui.QLabel(self)
         self.label_vt = QtGui.QLabel(self)
         for i, label in enumerate([self.label_Teff, self.label_logg, self.label_MH, self.label_vt]):
-            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
             grid.addWidget(label, i+1, collabel)
         ## Tolerances
         self.edit_tol_Teff = QtGui.QLineEdit(self)
@@ -668,7 +735,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
             edit.setMaximumSize(QtCore.QSize(50, 16777215))
             edit.setAlignment(QtCore.Qt.AlignCenter)
             edit.setValidator(QtGui2.QDoubleValidator(0.001, 50, 3, edit))
-            edit.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            edit.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
             grid.addWidget(edit, i+1, coltol)
         ## StatErrs
         self.label_staterr_Teff = QtGui.QLabel(self)
@@ -677,7 +744,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
         self.label_staterr_vt = QtGui.QLabel(self)
         for i, label in enumerate([self.label_staterr_Teff, self.label_staterr_logg,
                                    self.label_staterr_MH, self.label_staterr_vt]):
-            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
             grid.addWidget(label, i+1, colstaterr)
         ## SysErrs
         self.edit_syserr_Teff = QtGui.QLineEdit(self)
@@ -690,7 +757,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
             edit.setMaximumSize(QtCore.QSize(50, 16777215))
             edit.setAlignment(QtCore.Qt.AlignCenter)
             edit.setValidator(QtGui2.QDoubleValidator(0.01, 1000, 2, edit))
-            edit.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            edit.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
             grid.addWidget(edit, i+1, colsyserr)
         ## TotErrs
         self.label_toterr_Teff = QtGui.QLabel(self)
@@ -699,7 +766,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
         self.label_toterr_vt = QtGui.QLabel(self)
         for i, label in enumerate([self.label_toterr_Teff, self.label_toterr_logg,
                                    self.label_toterr_MH, self.label_toterr_vt]):
-            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum))
+            label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
             grid.addWidget(label, i+1, coltoterr)
         
         self.refresh_table()
@@ -717,7 +784,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
         self.btn_exit.clicked.connect(self.save_and_exit)
         hbox.addWidget(self.btn_exit)
         vbox.addLayout(hbox)
-
+        
     def refresh_table(self):
         Teff, logg, vt, MH = self.session.stellar_parameters
         stat_Teff, stat_logg, stat_vt, stat_MH = self.session.stellar_parameters_staterr

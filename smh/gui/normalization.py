@@ -28,7 +28,9 @@ c = 299792458e-3 # km/s
 
 # The minimum time (in seconds) between a mouse click/release to differentiate
 # a single click from a double click
-DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
+#DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
+# E. Holmbeck changed this since we don't have double-click anymore
+DOUBLE_CLICK_INTERVAL = 0.0 # MAGIC HACK
 
 # The pixel tolerance to select and remove an additional point.
 PIXEL_PICKER_TOLERANCE = 30 # MAGIC HACK
@@ -193,6 +195,45 @@ class NormalizationTab(QtGui.QWidget):
         hbox.addWidget(self.knot_spacing)
         settings_grid_layout.addLayout(hbox, 5, 1, 1, 1)
 
+        # -----------------------------------------------------------------
+        # E. Holmbeck added these lines
+        # Blue trimming.
+        self.blue_trim_label = QtGui.QLabel(self)
+        settings_grid_layout.addWidget(self.blue_trim_label, 6, 0, 1, 1)
+        self.blue_trim_label.setText(u"Blue trim (pixels)")
+
+        hbox = QtGui.QHBoxLayout()
+        hbox.setContentsMargins(-1, -1, 5, -1)
+        hbox.addItem(QtGui.QSpacerItem(
+            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+        self.blue_trim = QtGui.QLineEdit(self)
+        self.blue_trim.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.blue_trim.setAlignment(QtCore.Qt.AlignCenter)
+        self.blue_trim.setValidator(
+            QtGui2.QDoubleValidator(0, 10000, 0, self.blue_trim))
+        self.blue_trim.setObjectName("blue_trim")
+        hbox.addWidget(self.blue_trim)
+        settings_grid_layout.addLayout(hbox, 6, 1, 1, 1)
+
+        # Red trimming.
+        self.red_trim_label = QtGui.QLabel(self)
+        settings_grid_layout.addWidget(self.red_trim_label, 7, 0, 1, 1)
+        self.red_trim_label.setText(u"Red trim (pixels)")
+
+        hbox = QtGui.QHBoxLayout()
+        hbox.setContentsMargins(-1, -1, 5, -1)
+        hbox.addItem(QtGui.QSpacerItem(
+            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+        self.red_trim = QtGui.QLineEdit(self)
+        self.red_trim.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.red_trim.setAlignment(QtCore.Qt.AlignCenter)
+        self.red_trim.setValidator(
+            QtGui2.QDoubleValidator(0, 10000, 0, self.red_trim))
+        self.red_trim.setObjectName("red_trim")
+        hbox.addWidget(self.red_trim)
+        settings_grid_layout.addLayout(hbox, 7, 1, 1, 1)
+        # -----------------------------------------------------------------
+        
         # End of the grid in the normalization tab.
         settings_layout.addLayout(settings_grid_layout)
 
@@ -334,10 +375,20 @@ class NormalizationTab(QtGui.QWidget):
         self.high_sigma_clip.textChanged.connect(
             self.update_high_sigma_clip)
         self.knot_spacing.textChanged.connect(self.update_knot_spacing)
+        # -----------------------------------------------------------------
+        # E. Holmbeck added connect to trim
+        self.blue_trim.textChanged.connect(self.update_blue_trim)
+        self.red_trim.textChanged.connect(self.update_red_trim)
+        # -----------------------------------------------------------------
 
         self.low_sigma_clip.textChanged.connect(self.check_state)
         self.high_sigma_clip.textChanged.connect(self.check_state)
         self.knot_spacing.textChanged.connect(self.check_state)
+        # -----------------------------------------------------------------
+        # E. Holmbeck added connect to trim
+        self.blue_trim.textChanged.connect(self.check_state)
+        self.red_trim.textChanged.connect(self.check_state)
+        # -----------------------------------------------------------------
 
         return None
 
@@ -416,6 +467,7 @@ class NormalizationTab(QtGui.QWidget):
 
         # Scale the continuum up/down.
         if event.key in ("up", "down"):
+            """
             clip = self._cache["input"]["high_sigma_clip"]
             if event.key == "up":
                 clip = max(clip-0.01, 0)
@@ -430,7 +482,6 @@ class NormalizationTab(QtGui.QWidget):
             sign = +1 if event.key == "up" else -1
 
             self._cache["input"]["scale"] = scale + sign * 0.01
-            """
 
             self.fit_continuum(True)
             self.draw_continuum(True)
@@ -727,7 +778,7 @@ class NormalizationTab(QtGui.QWidget):
             return
 
         keys = ("function", "order", "low_sigma_clip", "high_sigma_clip",
-            "knot_spacing", "max_iterations")
+            "knot_spacing", "blue_trim", "red_trim", "max_iterations")
         self._cache = {
             "input": {}
         }
@@ -750,6 +801,13 @@ class NormalizationTab(QtGui.QWidget):
             str(self._cache["input"]["high_sigma_clip"]))
         self.knot_spacing.setText(str(
             self._cache["input"]["knot_spacing"]))
+        # ----------------------------------------------------------------
+        # E. Holmbeck added these
+        self.blue_trim.setText(str(
+            self._cache["input"]["blue_trim"]))
+        self.red_trim.setText(str(
+            self._cache["input"]["red_trim"]))
+        # ----------------------------------------------------------------
 
         functions = [self.function.itemText(i).lower() \
             for i in range(self.function.count())]
@@ -867,12 +925,21 @@ class NormalizationTab(QtGui.QWidget):
             rv_applied = self.parent.session.metadata["rv"]["rv_applied"]
         except (AttributeError, KeyError):
             rv_applied = 0
-
-        _ =self.parent.session.metadata["normalization"]["normalization_kwargs"]
         
+        # -----------------------------------------------------------------
+        # E. Holmbeck added read-in BCV from header
+        try:
+            vhelio = self.parent.session.metadata["rv"]["heliocentric_correction"]
+            bcv_shift = self.parent.session.metadata["rv"]["barycentric_correction"]
+            dop_shift = vhelio + bcv_shift
+        except (AttributeError, KeyError):
+            dop_shift = 0.0
+        # -----------------------------------------------------------------
+        _ =self.parent.session.metadata["normalization"]["normalization_kwargs"]
         masked_regions = [
-            np.array(mask.get("rest_wavelength", [])),
-            np.array(mask.get("obs_wavelength", [])) * (1 - rv_applied/c),
+            #np.array(mask.get("rest_wavelength", [])),
+            np.array(mask.get("rest_wavelength", [])) * (1.0 - dop_shift/c),
+            np.array(mask.get("obs_wavelength", [])) * (1.0 - rv_applied/c),
             np.array(_[self.current_order_index].get("exclude", []))
         ]
         if "pixel" in mask:
@@ -938,7 +1005,97 @@ class NormalizationTab(QtGui.QWidget):
             self.draw_continuum(True)
             
         return None
+
+	# -----------------------------------------------------------------
+	# E. Holmbeck added these update functions
+    def update_blue_trim(self):
+        try:
+        	trim_region = int(self.blue_trim.text())
+        except ValueError:
+        	return None
         
+        if trim_region == 0:
+            return None
+            
+        try:
+            x, y = (self.current_order.dispersion, self.current_order.flux)
+        except AttributeError:
+            return None
+        
+        # If "exclude" doesn't exist, add it.
+        try:
+            exclude = self._cache["input"]["exclude"]
+        except:
+            self._cache["input"]["exclude"] = np.array( 
+                [[x[0], x[trim_region]]])
+            exclude = self._cache["input"]["exclude"]
+        
+        # Replace the mask that goes to the end anyway     
+        if len(exclude) == 0:
+            self._cache["input"]["exclude"] = np.array( 
+                [[x[0], x[trim_region]]])
+        else:
+            mask_to_delete = []
+            for i,e in enumerate(exclude):
+                if e[0] == x[0] and e[1] != x[trim_region]:
+                    mask_to_delete.append(i)
+            
+            self._cache["input"]["exclude"] = np.delete(exclude, mask_to_delete, axis=0)
+            self._cache["input"]["exclude"] = np.insert(self._cache["input"]["exclude"], 
+                0, [[x[0], x[trim_region]]], axis=0)
+
+        if trim_region:        
+            self._cache["input"]["blue_trim"] = trim_region
+            self.reset_input_style_defaults()
+            self.fit_continuum(True)
+            self.draw_continuum(True)
+            self.update_continuum_mask(refresh=True)
+
+        return None
+
+    def update_red_trim(self):
+        try:
+        	trim_region = int(self.red_trim.text())
+        except ValueError:
+        	return None
+
+        if trim_region == 0:
+            return None
+        
+        try:
+            x, y = (self.current_order.dispersion, self.current_order.flux)
+        except AttributeError:
+            return None
+        
+        try:
+            exclude = self._cache["input"]["exclude"]
+        except:
+            self._cache["input"]["exclude"] = np.array( 
+                [[x[-trim_region], x[-1]+1e-3]])
+            exclude = self._cache["input"]["exclude"]
+        
+        if len(exclude) == 0:
+            self._cache["input"]["exclude"] = np.array( 
+                [[x[-trim_region], x[-1]+1e-3]])
+        else:
+            mask_to_delete = []
+            for i,e in enumerate(exclude):
+                if e[0] != x[-trim_region] and e[1] == x[-1]+1e-3:
+                    mask_to_delete.append(i)
+            
+            self._cache["input"]["exclude"] = np.delete(exclude, mask_to_delete, axis=0)
+            self._cache["input"]["exclude"] = np.append(self._cache["input"]["exclude"], 
+                [[x[-trim_region], x[-1]+1e-3]], axis=0)
+
+        if trim_region:        
+            self._cache["input"]["red_trim"] = trim_region
+            self.reset_input_style_defaults()
+            self.fit_continuum(True)
+            self.draw_continuum(True)
+            self.update_continuum_mask(refresh=True)
+
+        return None
+	# -----------------------------------------------------------------
 
     def update_high_sigma_clip(self):
         """ Update the high sigma clip value. """
@@ -1042,7 +1199,7 @@ class NormalizationTab(QtGui.QWidget):
         # Update the view if the input settings don't match the settings used
         # to normalize the current order.
         self.check_for_different_input_settings()
-
+        
         return None
 
 
@@ -1102,7 +1259,11 @@ class NormalizationTab(QtGui.QWidget):
             elif key in self._cache["input"]:
                 del self._cache["input"][key]
 
-        if continuum is None: return
+        if continuum is None:
+            # Holmbeck: a little hacky, but it works?
+            self.update_blue_trim()
+            self.update_red_trim()
+            return
 
         # If so, are the current normalization keywords different to the ones
         # used for this one?
@@ -1114,6 +1275,8 @@ class NormalizationTab(QtGui.QWidget):
             "high_sigma_clip": \
                 [self.high_sigma_clip_label, self.high_sigma_clip],
             "knot_spacing": [self.knot_spacing, self.knot_spacing_label],
+            "blue_trim": [self.blue_trim, self.blue_trim_label],
+            "red_trim": [self.red_trim, self.red_trim_label],
         }
 
         diff = dict_updated(self._cache["input"], normalization_kwargs,
@@ -1140,7 +1303,6 @@ class NormalizationTab(QtGui.QWidget):
         """
         Reset the styling inputs.
         """
-
         items = items or (
             self.function_label, self.function,
             self.order_label, self.order,
@@ -1148,6 +1310,8 @@ class NormalizationTab(QtGui.QWidget):
             self.low_sigma_clip_label, self.low_sigma_clip,
             self.high_sigma_clip_label, self.high_sigma_clip,
             self.knot_spacing_label, self.knot_spacing,
+            self.blue_trim_label, self.blue_trim,
+            self.red_trim_label, self.red_trim,
         )
         # Ensure all the things are styled normally.
         for item in items:
@@ -1174,7 +1338,8 @@ class NormalizationTab(QtGui.QWidget):
         trimming = (x[-1] - x[0]) * percent/100.
         self.ax_order.set_xlim(x[0] - trimming, x[-1] + trimming)
 
-        self.ax_order.set_ylim(np.nanmin(y), np.nanmax(y))
+        trimming = (np.nanmax(y) - np.nanmin(y)) * percent/100.
+        self.ax_order.set_ylim(np.nanmin(y) - trimming, np.nanmax(y) + trimming)
 
         self.norm_plot.reset_zoom_limits()
 
@@ -1220,17 +1385,34 @@ class NormalizationTab(QtGui.QWidget):
             rv_applied = self.parent.session.metadata["rv"]["rv_applied"]
         except (AttributeError, KeyError):
             rv_applied = 0
+        
+        # -----------------------------------------------------------------
+        # E. Holmbeck added read-in BCV from header
+        try:
+            vhelio = self.parent.session.metadata["rv"]["heliocentric_correction"]
+            bcv_shift = self.parent.session.metadata["rv"]["barycentric_correction"]
+            dop_shift = vhelio + bcv_shift
+        except (AttributeError, KeyError):
+            dop_shift = 0.0
+        # -----------------------------------------------------------------
 
-        mask_kinds = [
-            (0,          global_mask.get("rest_wavelength", [])),
-            (rv_applied, global_mask.get("obs_wavelength", []))
-        ]
+        if np.isnan(dop_shift):
+            mask_kinds = [
+                (0,  global_mask.get("rest_wavelength", [])),
+                (rv_applied, global_mask.get("obs_wavelength", []))
+            ]
+        else:
+            mask_kinds = [
+                (dop_shift,  global_mask.get("rest_wavelength", [])),
+                (rv_applied, global_mask.get("obs_wavelength", []))
+            ]
+
         regions = []
         for v, masked_regions in mask_kinds:
             for region in np.array(masked_regions):
-                start, end = region * (1 - v/c)
+                start, end = np.array(region) * (1 - v/c)
 
-                if  end >= self.current_order.dispersion[0] \
+                if end >= self.current_order.dispersion[0] \
                 and self.current_order.dispersion[-1] >= start:
                     regions.append((start, end))
 

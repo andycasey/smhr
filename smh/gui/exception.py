@@ -16,7 +16,7 @@ from smh.utils import mkstemp
 from urllib.parse import quote
 from PySide2 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 
-from smh import __git_status__
+#from smh import __git_status__
 
 logger = logging.getLogger("smh")
 

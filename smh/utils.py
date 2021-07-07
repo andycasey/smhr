@@ -300,6 +300,37 @@ def approximate_stellar_jacobian(stellar_parameters, *args):
     return full_jacobian.T
 
 
+# E. Holmbeck added this jacobian to be used for solving only vt and feh.
+# No idea if it's implemented properly...
+def approximate_feh_jacobian(stellar_parameters, *args):
+    """ Approximate the Jacobian of vt and feh and
+    minimisation parameters, based on calculations from the Sun """
+
+    logger.info("Updated approximation of the Jacobian")
+	
+    params_to_optimize = args[0]
+	
+    jacobian_params = [np.nan]*4
+    next_param = 0
+    # There must be a cleaner way to do this...
+    for pi,p in enumerate(params_to_optimize):
+        if p==True:
+            jacobian_params[pi] = stellar_parameters[next_param]
+            next_param += 1
+
+    teff, vt, logg, feh = jacobian_params
+
+    full_jacobian = np.array([
+        [ 5.4393e-08*teff - 4.8623e-04, -7.2560e-02*vt + 1.2853e-01,  1.6258e-02*logg - 8.2654e-02,  1.0897e-02*feh - 2.3837e-02],
+        [ 4.2613e-08*teff - 4.2039e-04, -4.3985e-01*vt + 8.0592e-02, -5.7948e-02*logg - 1.2402e-01, -1.1533e-01*feh - 9.2341e-02],
+        [-3.2710e-08*teff + 2.8178e-04,  3.8185e-03*vt - 1.6601e-02, -1.2006e-02*logg - 3.5816e-03, -2.8592e-05*feh + 1.4257e-03],
+        [-1.7822e-08*teff + 1.8250e-04,  3.5564e-02*vt - 1.1024e-01, -1.2114e-02*logg + 4.1779e-02, -1.8847e-02*feh - 1.0949e-01]
+    ])
+
+    full_jacobian = full_jacobian[params_to_optimize]
+    return full_jacobian.T[params_to_optimize]
+
+
 def approximate_sun_hermes_jacobian(stellar_parameters, *args):
     """
     Approximate the Jacobian of the stellar parameters and
