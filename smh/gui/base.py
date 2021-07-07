@@ -549,7 +549,8 @@ class SMHSpecDisplay(mpl.MPLWidget):
             -sigma, +sigma, facecolor="#CCCCCC", edgecolor="none", alpha=1)
 
         three_sigma = 3*np.median(sigma[np.isfinite(sigma)])
-        self.ax_residual.set_ylim(-three_sigma, three_sigma)
+        if np.isfinite(three_sigma):
+            self.ax_residual.set_ylim(-three_sigma, three_sigma)
         
         return True
     

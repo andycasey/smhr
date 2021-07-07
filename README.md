@@ -30,6 +30,41 @@ Note about this version
 
 Installation
 ------------
+
+* Get anaconda
+* Add conda-forge
+```
+conda config --add channels conda-forge
+conda config --set channel_priority strict
+```
+* Install required libraries:
+```
+conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython
+conda activate smhr-py3
+conda install pyside2
+conda install yaml
+```
+* Download and install this branch:
+```
+git clone https://github.com/andycasey/smhr.git 
+cd smhr
+git checkout -b py38-mpl313
+git pull origin py38-mpl313
+python setup.py develop
+```
+* Try running it:
+```
+cd smh/gui
+ipython __main__.py #ipython is often needed for the menu bar it seems
+```
+* Install moog17scat (see below) and add it to your path.
+
+
+
+Installation (OLD)
+------------------
+Note: this is the python 2 version installation. Kept here for posterity.
+
 This is one way that I (Alex) got things running from a fresh mac install and I'm putting it here as a record of some things I had to do.
 Default anaconda does not officially support pyside, but I think conda-forge does. We may switch to that, or a different version of PySide, in the future. For now, this works...
 
