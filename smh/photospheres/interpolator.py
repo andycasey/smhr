@@ -102,19 +102,23 @@ class BaseInterpolator(object):
         return self.interpolate(*args, **kwargs)
 
 
-    def _return_photosphere(self, stellar_parameters, quantities):
-        """ 
-        Prepare the interpolated photospheric quantities (with correct columns,
-        units, metadata, etc).
-        """
+    @property
+    def stellar_parameters_grid(self):
+        return self.stellar_parameters.view(float).reshape(
+            len(self.stellar_parameters), -1)
 
-        meta = self.meta.copy()
-        meta["common_optical_scale"] = self.opacity_scale
-        meta["stellar_parameters"] = \
+
+    def _return_photosphere(self, stellar_parameters, quantities, meta=None):
+
+        _meta = self.meta.copy()
+        _meta["common_optical_scale"] = self.opacity_scale
+        _meta["stellar_parameters"] = \
             dict(zip(self.stellar_parameters.dtype.names, stellar_parameters))
-        units = meta.pop("photospheric_units", None)
 
-        photosphere = Photosphere(data=quantities, meta=meta,
+        _meta.update(meta or {})
+        units = _meta.pop("photospheric_units", None)
+
+        photosphere = Photosphere(data=quantities, meta=_meta,
             names=self.photospheric_quantities)
         if units is not None:
             for name, unit in zip(self.photospheric_quantities, units):
@@ -122,21 +126,32 @@ class BaseInterpolator(object):
         return photosphere
 
 
+    def _prepare_photosphere(self, stellar_parameters, quantities, 
+        neighbour_indices):
+        """ 
+        Prepare the interpolated photospheric quantities (with correct columns,
+        units, metadata, etc).
+        """
+
+        return self._return_photosphere(stellar_parameters, quantities)
+
+
+
     def nearest_neighbours(self, point, n):
         """
         Return the indices of the n nearest neighbours to the point.
         """
 
-        stellar_parameters = _recarray_to_array(self.stellar_parameters)
-        distances = np.sum(((point - stellar_parameters) \
-            / np.ptp(stellar_parameters, axis=0))**2, axis=1)
+        spg = self.stellar_parameters_grid
+        distances = np.nansum(((point - spg) / np.ptp(spg, axis=0))**2, axis=1)
         return distances.argsort()[:n]
 
 
     def nearest(self, *point):
         logger.warn("Living dangerously!")
-        return self._return_photosphere(point, 
-            self.photospheres[self.nearest_neighbours(point, 1)[0]])
+        neighbour = self.nearest_neighbours(point, 1)[0]
+        return self._prepare_photosphere(point, self.photospheres[neighbour], 
+            neighbour)
 
 
     def _test_interpolator(self, *point):
@@ -161,12 +176,12 @@ class BaseInterpolator(object):
 
         __ignore_nearest = kwargs.pop("__ignore_nearest", False)
 
-        grid = self.stellar_parameters.view(float).reshape(
-            len(self.stellar_parameters), -1)
-        grid_index = np.all(grid == point, axis=1)
+        stellar_parameters_grid = self.stellar_parameters_grid   
+        grid_index = np.all(stellar_parameters_grid == point, axis=1)
         if np.any(grid_index) and not __ignore_nearest:
             grid_index = np.where(grid_index)[0][0]
-            return self._return_photosphere(point, self.photospheres[grid_index])
+            return self._prepare_photosphere(point, self.photospheres[grid_index],
+                grid_index)
 
         # Work out what the optical depth points will be in our (to-be)-
         # interpolated photosphere.
@@ -174,7 +189,6 @@ class BaseInterpolator(object):
             neighbours = self.nearest_neighbours(point, self.neighbours + 1)[1:]
         else:
             neighbours = self.nearest_neighbours(point, self.neighbours)
-        stellar_parameters = _recarray_to_array(self.stellar_parameters)
 
         # Shapes required for griddata:
         # points: (N, ndim)
@@ -182,13 +196,13 @@ class BaseInterpolator(object):
         # xi: shape (M, ndim)
 
         # Protect Qhull from columns with a single value.
-        cols = _protect_qhull(stellar_parameters[neighbours])
+        cols = _protect_qhull(stellar_parameters_grid[neighbours])
         shape = [self.neighbours] + list(self.photospheres.shape[1:])
         if self.opacity_scale is not None:
             opacity_index = self.photospheric_quantities.index(self.opacity_scale)
             kwds = {
                 "xi": point[cols].reshape(1, len(cols)),
-                "points": stellar_parameters[neighbours][:, cols],
+                "points": stellar_parameters_grid[neighbours][:, cols],
                 "values": self.photospheres[neighbours, :, opacity_index],
                 "method": self.method,
                 "rescale": self.rescale
@@ -233,7 +247,7 @@ class BaseInterpolator(object):
         # Now interpolate the photospheric quantities.
         kwds = {
             "xi": point[cols].reshape(1, len(cols)),
-            "points": stellar_parameters[neighbours][:, cols],
+            "points": stellar_parameters_grid[neighbours][:, cols],
             "values": neighbour_quantities,
             "method": self.method,
             "rescale": self.rescale
@@ -257,7 +271,8 @@ class BaseInterpolator(object):
                 interpolated_quantities[:, index] = \
                     10**interpolated_quantities[:, index]
 
-        return self._return_photosphere(point, interpolated_quantities)
+        return self._prepare_photosphere(point, interpolated_quantities,
+            neighbours)
 
 
 def resample_photosphere(opacities, photosphere, opacity_index):
@@ -281,9 +296,6 @@ def resample_photosphere(opacities, photosphere, opacity_index):
     resampled_photosphere[:, opacity_index] = opacities
     return resampled_photosphere
 
-
-def _recarray_to_array(a, dtype=float):
-    return a.view(dtype).reshape(len(a), -1)
 
 def _protect_qhull(a):
     return np.where([np.unique(a[:, i]).size > 1 for i in range(a.shape[1])])[0]

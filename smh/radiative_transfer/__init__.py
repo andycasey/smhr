@@ -21,3 +21,4 @@ with smh.rt.instance() as rt:
 
 
 from .moog import *
+from .turbospectrum import *

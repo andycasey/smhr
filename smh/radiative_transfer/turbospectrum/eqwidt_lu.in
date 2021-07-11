@@ -1,0 +1,24 @@
+'LAMBDA_MIN:'  '{dispersion_min:.2f}'
+'LAMBDA_MAX:'  '{dispersion_max:.2f}'
+'LAMBDA_STEP:' '{dispersion_delta:.2f}'
+'INTENSITY/FLUX:' 'Flux'
+'COS(THETA):' '1.00'
+'ABFIND :' '.{abfind}.'
+'MODELOPAC:' '{opacities_path}'
+'RESULTFILE:' '{result_path}'
+'METALLICITY:'    '0.00'
+'ALPHA/Fe   :'    '0.00'
+'HELIUM     :'    '0.00'
+'R-PROCESS  :'    '0.00'
+'S-PROCESS  :'    '0.00'
+'INDIVIDUAL ABUNDANCES:'   '{num_abundances}'
+{formatted_abundances}
+'ISOTOPES:' '{num_isotopes}'
+{formatted_isotopes}
+'NFILES:' '{n_files}'
+{formatted_n_files}
+'SPHERICAL:' '{is_spherical}'
+  30
+  300.00
+  15
+  1.30

@@ -1,0 +1,15 @@
+'LAMBDA_MIN:'  '{dispersion_min:.2f}'
+'LAMBDA_MAX:'  '{dispersion_max:.2f}'
+'LAMBDA_STEP:' '{dispersion_delta:.2f}'
+'MODELINPUT:' '{photosphere_path}'
+'MARCS-FILE:' '.true.'
+'MODELOPAC:' '{opacities_path}'
+'METALLICITY:'    '0.00'
+'ALPHA/Fe   :'    '0.00'
+'HELIUM     :'    '0.00'
+'R-PROCESS  :'    '0.00'
+'S-PROCESS  :'    '0.00'
+'INDIVIDUAL ABUNDANCES:'   '{num_abundances}'
+{formatted_abundances}
+'XIFIX:' 'T'
+{microturbulence:.2f}
