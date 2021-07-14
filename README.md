@@ -35,11 +35,13 @@ Installation
 * Add conda-forge
 ```
 conda config --add channels conda-forge
-conda config --set channel_priority strict
 ```
+Note: if you previously used instructions where it said `conda config --set channel_priority strict` this makes installing on anaconda super slow; I would change this back to
+`conda config --set channel_priority flexible`
+
 * Install required libraries:
 ```
-conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython
+conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app
 conda activate smhr-py3
 conda install pyside2
 conda install yaml
@@ -55,8 +57,11 @@ python setup.py develop
 * Try running it:
 ```
 cd smh/gui
-ipython __main__.py #ipython is often needed for the menu bar it seems
+pythonw __main__.py #pythonw is installed with python.app and fixes menubar issues
 ```
+Note: if you use python or ipython on Big Sur, the menu bar may not work.
+It appears you can fix this by clicking outside SMHR then clicking back in. But using pythonw is better.
+Details: https://stackoverflow.com/questions/48738805/mac-pyqt5-menubar-not-active-until-unfocusing-refocusing-the-app
 * Install moog17scat (see below) and add it to your path.
 
 
