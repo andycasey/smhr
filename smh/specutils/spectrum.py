@@ -192,7 +192,7 @@ class Spectrum1D(object):
             
             ## Compute flux
             flux = data
-            flux[0 > flux] = np.nan
+            #flux[0 > flux] = np.nan
             
             ## Compute ivar assuming Poisson noise
             ivar = 1./flux
@@ -367,7 +367,7 @@ class Spectrum1D(object):
         # Do something sensible regarding zero or negative fluxes.
         ivar[0 >= flux] = 0.000000000001
         #ivar[0 >= flux] = 999999
-        flux[0 >= flux] = np.nan
+        #flux[0 >= flux] = np.nan
 
         # turn into list of arrays if it's ragged
         if np.any(np.isnan(dispersion)):
