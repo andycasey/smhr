@@ -83,8 +83,8 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
 
     # Parse I/O files:
     kwds.update({
-        "standard_out": path("abfind.std.out"),
-        "summary_out": path("abfind.sum.out"),
+        "standard_out": path("abfind.std.out").encode('ascii'),
+        "summary_out": path("abfind.sum.out").encode('ascii'),
         "model_in": model_in,
         "lines_in": lines_in,
     })
