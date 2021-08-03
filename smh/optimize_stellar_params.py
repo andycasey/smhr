@@ -29,6 +29,8 @@ def check_satisfies_tolerance(final_parameters_result, total_tolerance, individu
     
 class OptimizationSuccess(BaseException):
     pass
+
+
 def stellar_optimization(func):
     """ A decorator to wrap the stellar optimization function such
     that it finishes with the parameter tolerance we require and
@@ -83,6 +85,66 @@ def stellar_optimization(func):
 
         return response
     return wraps(func)(_decorator)
+
+
+# E. Holmbeck just copied the above decorator, but changed 4-->2.
+# It might be wrong...
+def feh_optimization(func):
+    """ A decorator to wrap the stellar optimization function such
+    that it finishes with the parameter tolerance we require and
+    doesn't make unncessary (i.e., repeated) calls to MOOG """
+
+    def _decorator(request, *args, **kwargs):
+
+        params_to_optimize, previously_sampled_points, total_tolerance, individual_tolerances, use_nlte_grid = args
+
+        previously_sampled_points = np.array(previously_sampled_points)
+        
+        # Checking if this point is sampled already
+        if len(previously_sampled_points) > 0:
+
+            this_point = np.array(request)
+            #import pdb; pdb.set_trace()
+
+            try:
+                sampled_before = (previously_sampled_points[:, :4] == this_point).all(axis=1)
+            except:
+                sampled_before = (previously_sampled_points[:, :4] == this_point)
+                #np.arange(previously_sampled_points[:, :4].ndim - this_point.ndim, previously_sampled_points[:, :4].ndim))
+            #print sampled_before
+
+            if np.any(sampled_before):
+                index = np.where(sampled_before)[0][0]
+                logger.debug("Sampled these stellar parameters already, so we're just returning those values.")
+                logger.debug(previously_sampled_points[index])
+
+                return previously_sampled_points[index, 4:]
+
+        # Perform the optimization
+        response = func(request, *args, **kwargs)
+
+        # Check for accepted tolerances, both total tolerance and individual tolerances if they are specified
+        acquired_total_tolerance = np.sum(pow(response, 2))
+        if total_tolerance >= acquired_total_tolerance and \
+            (individual_tolerances is None or np.all(np.less_equal(np.abs(response), individual_tolerances))):
+
+            message = "Optimization complete. Total tolerance of <{0:.1e} met: {1:.1e}".format(
+                total_tolerance, acquired_total_tolerance)
+
+            if individual_tolerances is not None:
+                message += ", and individual tolerances of <[{0:.1e}, {1:.1e}, {2:.1e}, {3:.1e}] met: [{4:.1e}, {5:.1e}, {6:.1e}, {7:.1e}]".format(
+                    *tuple(list(response) + list(individual_tolerances)))
+
+            else:
+                message += ", and no individual tolerances specified."
+
+            raise OptimizationSuccess(message)
+
+
+        return response
+    return wraps(func)(_decorator)
+    
+
 
 def optimize_stellar_parameters(initial_guess, transitions, EWs=None, 
                                 jacobian=utils.approximate_sun_hermes_jacobian,
@@ -478,3 +540,195 @@ def optimize_stellar_parameters_2(initial_guess, transitions, EWs=None,
     return (tolerance_achieved, initial_guess, num_moog_iterations, i, t_elapsed,
             final_parameters, final_parameters_result, np.array(all_sampled_points), valid)
 
+# E. Holmbeck copied the above function and basically changed teff and logg to constant.
+def optimize_feh(initial_guess, transitions, params_to_optimize, EWs=None, 
+                                jacobian=utils.approximate_feh_jacobian,
+                                rt=radiative_transfer.moog,
+                                max_attempts=5, total_tolerance=1e-4, 
+                                individual_tolerances=None, 
+                                maxfev=30, use_nlte_grid=None,
+                                ):
+    """
+    Assumes these are all transitions you want to use for stellar parameters
+    Assumes you only want to balance neutral ions against Expot and REW
+    
+    If specify EWs, all EWs are in same order as transitions
+
+    initial_guess order : [teff, vt, logg, feh]
+    """
+    
+    if EWs is None:
+        EWs = transitions["equivalent_width"]
+        REWs = np.log10(1e-3 * EWs / transitions['wavelength'])
+    else:    
+        REWs = np.log10(1e-3 * EWs / transitions['wavelength'])
+        transitions["equivalent_width"] = EWs
+    transitions["reduced_equivalent_width"] = REWs
+    idx_I  = transitions["ion"] == 1
+    idx_II = transitions["ion"] == 2
+
+    photosphere_interpolator = photospheres.interpolator()
+    
+    '''
+    parameter_ranges = {
+        "teff": (3500, 7000),
+        "vt": (0.0, 4.0),
+        "logg": (0, 5),
+        "[Fe/H]": (-5, 0.5)
+        }
+	'''
+
+    plist = ['Teff','vt','logg','[Fe/H]']
+    nconst = int(4-sum(params_to_optimize))
+	
+    if nconst == 1:
+        logger.info('Holding 1 parameter constant: '+', '.join([plist[p]+'='+str(initial_guess[p]) for p in range(len(plist)) if not params_to_optimize[p]]))
+    elif nconst > 1:
+        logger.info('Holding %s parameters constant: '%nconst +', '.join([plist[p]+'='+str(initial_guess[p]) for p in range(len(plist)) if not params_to_optimize[p]]))
+
+    parameter_ranges = {}
+    if params_to_optimize[0]:
+        parameter_ranges["teff"] = (3500, 7000)
+    else:
+        parameter_ranges["teff"] = (initial_guess[0], initial_guess[0])
+	
+    if params_to_optimize[1]:
+        parameter_ranges["vt"] = (0.0, 4.0)
+    else:
+        parameter_ranges["vt"] = (initial_guess[1], initial_guess[1])
+
+    if params_to_optimize[2]:
+        parameter_ranges["logg"] = (0, 5),
+    else:
+        parameter_ranges["logg"] = (initial_guess[2], initial_guess[2])
+
+    if params_to_optimize[3]:
+        parameter_ranges["[Fe/H]"] = (-5, 0.5)
+    else:
+        parameter_ranges["[Fe/H]"] = (initial_guess[3], initial_guess[3])
+	
+    
+    # Create a mutable copy for the initial guess
+    #solver_guess = []
+    #solver_guess.extend(initial_guess)
+    solver_guess = initial_guess[params_to_optimize]
+
+    # Create a new temporary working directory for cog
+    twd = mkdtemp()
+    atexit.register(rmtree, twd)
+	
+    @feh_optimization
+    def minimisation_function(stellar_parameters, *args):
+        """The function we want to minimise (e.g., calculates the quadrature
+        sum of all minimizable variables.)
+        
+        stellar_parameters : [teff, vt, logg, feh]
+        """
+        
+        params_to_optimize, all_sampled_points, total_tolerance, individual_tolerances, use_nlte_grid = args
+
+        # Old way:
+        #teff, vt, logg, feh = [initial_guess[0], stellar_parameters[0], initial_guess[2], stellar_parameters[1]]
+
+        # First set all to initial_guess, then replace the ones with a "True" value	
+        params_list = initial_guess
+        next_param = 0
+        for pi,p in enumerate(params_to_optimize):
+        	if p==True:
+        		params_list[pi] = stellar_parameters[next_param]
+        		next_param += 1
+        
+        teff, vt, logg, feh = params_list
+
+        photosphere = photosphere_interpolator(teff, logg, feh)
+        photosphere.meta["stellar_parameters"]["microturbulence"] = vt
+        
+        ## TODO: ADJUST ABUNDANCES TO ASPLUND?
+        abundances = rt.abundance_cog(photosphere,transitions,twd=twd)
+        transitions["abundance"] = abundances
+        
+        out = utils.equilibrium_state(transitions[idx_I],
+                                      ("expot", "reduced_equivalent_width"))
+        dAdchi = out[26.0]['expot'][0]
+        dAdREW = out[26.0]['reduced_equivalent_width'][0]
+        dFe = np.mean(abundances[idx_I]) - np.mean(abundances[idx_II])
+        # E. Holmbeck changed dM to be w.r.t. FeII abundances.
+        dM  = np.mean(abundances[idx_II]) - (feh + solar_composition("Fe"))
+		
+        results = np.array([dAdchi, dAdREW, 0.1 * dFe, 0.1 * dM])
+        acquired_total_tolerance = np.sum(results**2)
+
+        point = list(np.array([teff, vt, logg, feh])*params_to_optimize) + list(results*params_to_optimize)
+        all_sampled_points.append(point)
+
+        logger.info("Atmosphere with Teff = {0:.0f} K, vt = {1:.2f} km/s, logg = {2:.2f}, [Fe/H] = {3:.2f}, [alpha/Fe] = {4:.2f}"
+                    " yields sum {5:.1e}:\n\t\t\t[{6:.1e}, {7:.1e}, {8:.1e}, {9:.1e}]".format(teff, vt, logg, feh, 0.4,
+                                                                                              acquired_total_tolerance, *results))
+        return results[params_to_optimize]
+
+    all_sampled_points = []
+    
+    start = time.time()
+    for i in range(1, 1 + max_attempts):
+        sampled_points = []
+        args = (params_to_optimize, sampled_points, total_tolerance, individual_tolerances, 
+                use_nlte_grid)
+	
+        try:
+            results = fsolve(minimisation_function, solver_guess, args=args, fprime=utils.approximate_feh_jacobian,
+                             col_deriv=1, epsfcn=0, xtol=1e-10, full_output=1, maxfev=maxfev)
+        except OptimizationSuccess as e:#: #Exception as e:# OptimizationSuccess as e:
+            print(e)
+            
+            t_elapsed = time.time() - start
+            
+            sampled_points_tols = np.array(sampled_points)[:,4:]*params_to_optimize
+
+            point_results = np.sum(sampled_points_tols**2, axis=1)
+            min_index = np.argmin(point_results)
+
+            final_parameters = (sampled_points[min_index][:4]*params_to_optimize) + (initial_guess*(-1*params_to_optimize + 1))
+            final_parameters_result = (sampled_points[min_index][4:]*params_to_optimize) + (initial_guess*(-1*params_to_optimize + 1))
+
+            num_moog_iterations = len(sampled_points)
+            all_sampled_points.extend(sampled_points)
+            
+            acquired_total_tolerance = sum(pow(np.array(final_parameters_result), 2))
+            return (True, initial_guess, num_moog_iterations, i, t_elapsed, 
+                    final_parameters, final_parameters_result,
+                    np.array(all_sampled_points))
+        else:
+            t_elapsed = time.time() - start
+            #ier, mesg = results[-len(sampled_points)/2:]
+            ier, mesg = results[-2:]
+            
+            final_parameters = (results[0]*params_to_optimize) + (initial_guess*(-1*params_to_optimize + 1))
+            final_parameters[0] = int(np.round(final_parameters[0])) # Effective temperature
+            final_parameters_result = results[1]["fvec"]
+            num_moog_iterations = len(sampled_points)
+            all_sampled_points.extend(sampled_points)
+            acquired_total_tolerance = sum(pow(np.array(final_parameters_result), 2))
+
+            # Have we achieved tolerance?
+            if total_tolerance >= acquired_total_tolerance and \
+                    (individual_tolerances is None or np.all(np.less_equal(np.abs(final_parameters_result), individual_tolerances))):
+                
+                return (True, initial_guess, num_moog_iterations, i, t_elapsed, final_parameters, final_parameters_result, np.array(all_sampled_points))
+            else:
+                # This solution will fail. Try a new starting point
+                # It should select a new point where teff and logg are constant though...
+                #solver_guess = [teff, np.random.uniform(*parameter_ranges["vt"]), logg, np.random.uniform(*parameter_ranges["[Fe/H]"])]
+                solver_guess = [np.random.uniform(*parameter_ranges[parameter]) for parameter in ['teff', 'vt', 'logg', '[Fe/H]']]
+                
+        t_elapsed = time.time() - start
+
+        if total_tolerance >= acquired_total_tolerance and \
+            (individual_tolerances is None or np.all(np.less_equal(np.abs(final_parameters_result), individual_tolerances))):
+            tolerance_achieved = True
+            
+        else:
+            tolerance_achieved = False
+
+        return (tolerance_achieved, initial_guess, num_moog_iterations, i, t_elapsed, final_parameters, final_parameters_result, np.array(all_sampled_points))
+
+    pass
