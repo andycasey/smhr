@@ -1477,6 +1477,9 @@ class MeasurementTableModelProxy(QtCore.QSortFilterProxyModel):
                 proxy_index.column())
         except AttributeError:
             return proxy_index
+        except IndexError as e:
+            print("INDEX ERROR IN TABLE: probably you loaded a new file while 'hide unacceptable' was activated")
+            print(e)
     def get_models_from_rows(self, rows):
         actual_rows = [self.lookup_indices[row] for row in rows]
         return self.sourceModel().get_models_from_rows(actual_rows)
