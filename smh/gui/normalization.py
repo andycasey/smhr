@@ -1391,19 +1391,22 @@ class NormalizationTab(QtGui.QWidget):
             vhelio = self.parent.session.metadata["rv"]["heliocentric_correction"]
             bcv_shift = self.parent.session.metadata["rv"]["barycentric_correction"]
             dop_shift = vhelio + bcv_shift
+            shift_tellurics = self.parent.session.metadata["rv"]["shift_tellurics"]
         except (AttributeError, KeyError):
             dop_shift = 0.0
+            shift_tellurics = True
         # -----------------------------------------------------------------
-
+        
         if np.isnan(dop_shift):
             mask_kinds = [
-                (0,  global_mask.get("rest_wavelength", [])),
+                #(0,  global_mask.get("rest_wavelength", [])),
+                (rv_applied*shift_tellurics,  global_mask.get("rest_wavelength", [])),
                 (rv_applied, global_mask.get("obs_wavelength", []))
             ]
         else:
             mask_kinds = [
                 (dop_shift,  global_mask.get("rest_wavelength", [])),
-                (rv_applied, global_mask.get("obs_wavelength", []))
+                (rv_applied*shift_tellurics, global_mask.get("obs_wavelength", []))
             ]
 
         regions = []

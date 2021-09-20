@@ -456,12 +456,12 @@ def corrections_from_headers(headers):
             if 'T' in headers[utdate_key]:
                 ut_start = Time(headers[utdate_key], format="isot", scale="utc")
             else:
-                utstart_key = [_ for _ in ("UT-START", "UT") if _ in headers][0]
+                utstart_key = [_ for _ in ("UT-START", "UT-TIME", "UT") if _ in headers][0]
                 try:
-                    ut_start = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
+                    ut_start = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),\
                         headers[utstart_key]), format="isot", scale="utc")
                 except:
-                    ut_start = Time("{0}T{1}".format(headers[utdate_key].replace("/", "-"),
+                    ut_start = Time("{0}T{1}".format(headers[utdate_key].replace("/", "-"),\
                         headers[utstart_key]), format="isot", scale="utc")
             
         except IndexError:
@@ -478,11 +478,11 @@ def corrections_from_headers(headers):
                     "Calculating celestial corrections based on the UT-START only")
 
         try:
-            ut_end = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
+            ut_end = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),\
                 headers[utend_key]), format="isot", scale="utc")
         except:
             try:
-                ut_end = Time("{0}T{1}".format(headers[utdate_key].replace("/", "-"),
+                ut_end = Time("{0}T{1}".format(headers[utdate_key].replace("/", "-"),\
                     headers[utend_key]), format="isot", scale="utc")
             except:
                 ut_end = ut_start + (exp_time)*u.s
@@ -500,6 +500,7 @@ def corrections_from_headers(headers):
         dop_cor = float(headers.get("DOPCOR", None).split()[0])
         vhelio = float(headers.get("VHELIO", None))
         bcv_shift = dop_cor-vhelio
+        shift_tellurics = False
     except:
         # TODO: Make sure it can read "DOPCORXX"
         try:
@@ -507,7 +508,8 @@ def corrections_from_headers(headers):
             vhelio = 0.0
             bcv_shift = dop_cor-vhelio
             logging.warn("Couldn't find VHELIO but found DOPCOR.")
-        except: return corrections(long_obs, lat_obs, alt_obs, ra, dec, mjd)
+            shift_tellurics = False
+        except: return corrections(long_obs, lat_obs, alt_obs, ra, dec, mjd), True
     # ---------------------------------------------------------------------
-    return vhelio, bcv_shift
+    return vhelio, bcv_shift, True
 

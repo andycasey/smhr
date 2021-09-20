@@ -723,8 +723,9 @@ class Session(BaseSession):
         # Store the measured information as part of the session.
         # TODO: Should we store these as a NamedTuple instead?
 
+        # E. Holmbeck added "shift_tellurics"
         try:
-            v_helio, v_bary = specutils.motions.corrections_from_headers(\
+            v_helio, v_bary, shift_tellurics = specutils.motions.corrections_from_headers(\
                 overlap_order.metadata)
         except Exception as e:
             # TODO not raising an exception for testing purposes, but may want to
@@ -733,7 +734,7 @@ class Session(BaseSession):
             logger.error(
                 "Exception in calculating heliocentric and barycentric motions")
             logger.error(e)
-            v_helio, v_bary = (np.nan, np.nan)
+            v_helio, v_bary, shift_tellurics = (np.nan, np.nan, True)
 
         else:
             try:
@@ -752,6 +753,8 @@ class Session(BaseSession):
             "ccf": ccf,
             "heliocentric_correction": v_helio,
             "barycentric_correction": v_bary,
+            # E. Holmbeck added this
+            "shift_tellurics": shift_tellurics,
 
             # Input settings
             "template_spectrum": template_spectrum,
@@ -795,8 +798,9 @@ class Session(BaseSession):
         from astropy.io import fits
         _, headers = fits.getdata(spectrum, header=True)
 
+        # E. Holmbeck added "shift_tellurics"
         try:
-            v_helio, v_bary = specutils.motions.corrections_from_headers(\
+            v_helio, v_bary, shift_tellurics = specutils.motions.corrections_from_headers(\
                 headers)
         
         except Exception as e:
