@@ -30,50 +30,40 @@ Note about this version
 
 Installation
 ------------
-This is one way that I (Alex) got things running from a fresh mac install and I'm putting it here as a record of some things I had to do.
-Default anaconda does not officially support pyside, but I think conda-forge does. We may switch to that, or a different version of PySide, in the future. For now, this works...
 
-- Download full anaconda with python 2.7. If you run into trouble later, specifically install an old anaconda version from [the anaconda archive](https://repo.continuum.io/archive/) around October 2016.
-- `conda install pyside`: this will install pyside v1.1.1
-- install qt4:
+* Get anaconda
+* Add conda-forge
 ```
-brew tap cartr/qt4
-brew tap-pin cartr/qt4
-brew install qt@4
+conda config --add channels conda-forge
 ```
-- `conda install matplotlib=1.5.1` (fixing this is very painful because I need to update to qt5; I have started doing this but it will take a long time)
-- `conda install numpy=1.11.3` (this is an issue with pyside)
-- `conda install scipy=0.19.0` (this is an issue with newer versions of scipy, not sure yet why but it segfaults in `interpolate.griddata`)
-- `conda install qt=4.8.7` (you may have to uninstall and downgrade some things for this to work; it should be safe to upgrade those later) (Recent versions of anaconda have removed this version of QT. We have not yet found a solution but are working on it...it appears to mess up the Open File Dialogs, and we will try to come up with a workaround.)
-- Clone smhr
-- Go into the smhr directory and `python setup.py develop`
-- Go to `smhr/smh/gui` and open with `ipython __main__.py`. It should crash with a message about `libpyside`, saying something is not found. This is because a file is named wrong within anaconda.
-  - Go to `~/anaconda/lib` (or the equivalent if you made a separate environment), and make a symlink or file copy for `libpyside-python2.7.1.1.dylib` from one that looks almost the same (e.g. `libpyside-python2.7.1.1.1.dylib`)
-  - Try to open SMHR again, and it will crash. Do the same thing for `libshiboken` when you see this error message.
-  - If you have multiple anaconda installations: make sure that you are doing all of this with the correct anaconda (e.g. anaconda2)
-- If you have problems with `qt_menu.nib`, use `~/anaconda/bin/python.app __main__.py` instead of `ipython`. If you have multiple anaconda installations, make sure you change `anaconda` to `anaconda2` or whatever you installed it to. (I have fixed this on my laptop by copying it somewhere but I cannot find where. Some possible places that could help):
-```
-~/anaconda/python.app/Contents/Resources/qt_menu.nib
-~/anaconda/pkgs/launcher-1.0.0-1/launcherapp/Contents/Resources/qt_menu.nib
-~/anaconda/pkgs/launcher-1.0.0-2/launcherapp/Contents/Resources/qt_menu.nib
-~/anaconda/pkgs/python.app-1.2-py27_3/pythonapp/Contents/Resources/qt_menu.nib
-~/anaconda/pkgs/python.app-1.2-py27_4/pythonapp/Contents/Resources/qt_menu.nib
-~/anaconda/Launcher.app/Contents/Resources/qt_menu.nib
-/usr/local/Cellar/qt/4.8.7_1/lib/QtGui.framework/Versions/4/Resources/qt_menu.nib
-```
-- There are sometimes some problems with segfaults due to the GUI library. We hope this will go away when we move away from pyside. Sorry.
+Note: if you previously used instructions where it said `conda config --set channel_priority strict` this makes installing on anaconda super slow; I would change this back to
+`conda config --set channel_priority flexible`
 
-Some notes from Henrique Reggiani that may be helpful to some:
+* Install required libraries:
 ```
-I am running everything under MAC OS X 10.14.6
-My Python 2.7 install is the system install (I do not use anaconda and I only have one python install per version, so I manage packages as needed).
-
-I install qt4 from macports (system install). I already have qt5 but it did not create any problems.
-I had to export in my .profile/.bash_rc the path to the qmake executable:
-(export PATH="$PATH:/opt/local/libexec/qt4/bin") – this is the system path
-
-Then PySide was not finding the libpyside-python2.7.1.2.dylib. The libraries were all correctly placed and named. To solve the problem you go into $PYTHONPATH/site-packages/PySide and run this script:
+conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app
+conda activate smhr-py3
+conda install pyside2
+conda install yaml
 ```
+* Download and install this branch:
+```
+git clone https://github.com/andycasey/smhr.git 
+cd smhr
+git checkout -b py38-mpl313
+git pull origin py38-mpl313
+python setup.py develop
+```
+* Try running it:
+```
+cd smh/gui
+pythonw __main__.py #pythonw is installed with python.app and fixes menubar issues
+```
+Note: if you use python or ipython on Big Sur, the menu bar may not work.
+It appears you can fix this by clicking outside SMHR then clicking back in. But using pythonw is better.
+Details: https://stackoverflow.com/questions/48738805/mac-pyqt5-menubar-not-active-until-unfocusing-refocusing-the-app
+* Install moog17scat (see below) and add it to your path.
+
 
 
 MOOG

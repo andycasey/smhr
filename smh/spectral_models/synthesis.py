@@ -154,6 +154,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
         unique_elements = np.unique(unique_elements)
         
         rt_abundances = {}
+        try:
+            unique_elements = [x.decode() for x in unique_elements]
+        except:
+            pass
         for elem in unique_elements:
             if elem in ["","H"]: continue
             if elem in self.elements: continue

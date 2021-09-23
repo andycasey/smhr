@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" Functionality to use matplotlib figures in PySide GUIs. """
+""" Functionality to use matplotlib figures in PySide2 GUIs. """
 
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
@@ -24,7 +24,7 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 
 from matplotlib.figure import Figure
 
-from PySide import QtCore, QtGui
+from PySide2 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 
@@ -78,7 +78,7 @@ class MPLWidget(FigureCanvas):
 
         if background_hack:
             self.figure.patch.set_facecolor([(_ - 10)/255. for _ in \
-                self.palette().color(QtGui.QPalette.Window).getRgb()[:3]])
+                self.palette().color(QtGui2.QPalette.Window).getRgb()[:3]])
 
 
         if autofocus:

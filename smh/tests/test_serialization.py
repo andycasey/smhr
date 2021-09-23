@@ -6,7 +6,7 @@ from nose.tools import assert_equals, assert_almost_equals, ok_
 
 from smh import Session, LineList
 import smh.spectral_models as sm
-import cPickle as pickle
+from six.moves import cPickle as pickle
 
 datadir = os.path.dirname(os.path.abspath(__file__))+'/test_data'
 

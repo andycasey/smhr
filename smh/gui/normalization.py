@@ -11,7 +11,7 @@ __all__ = ["NormalizationTab"]
 import logging
 import numpy as np
 import sys
-from PySide import QtCore, QtGui
+from PySide2 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 from time import time
 
 from matplotlib import gridspec
@@ -150,7 +150,7 @@ class NormalizationTab(QtGui.QWidget):
         self.low_sigma_clip.setAlignment(QtCore.Qt.AlignCenter)
         self.low_sigma_clip.setObjectName("norm_low_sigma_clip")
         self.low_sigma_clip.setValidator(
-            QtGui.QDoubleValidator(0, 1000, 2, self.low_sigma_clip))
+            QtGui2.QDoubleValidator(0, 1000, 2, self.low_sigma_clip))
 
         hbox.addWidget(self.low_sigma_clip)
         settings_grid_layout.addLayout(hbox, 3, 1, 1, 1)
@@ -171,7 +171,7 @@ class NormalizationTab(QtGui.QWidget):
         self.high_sigma_clip.setAlignment(QtCore.Qt.AlignCenter)
         self.high_sigma_clip.setObjectName("norm_high_sigma_clip")
         self.high_sigma_clip.setValidator(
-            QtGui.QDoubleValidator(0, 1000, 2, self.high_sigma_clip))
+            QtGui2.QDoubleValidator(0, 1000, 2, self.high_sigma_clip))
         hbox.addWidget(self.high_sigma_clip)
         settings_grid_layout.addLayout(hbox, 4, 1, 1, 1)
         
@@ -190,7 +190,7 @@ class NormalizationTab(QtGui.QWidget):
         self.knot_spacing.setMaximumSize(QtCore.QSize(40, 16777215))
         self.knot_spacing.setAlignment(QtCore.Qt.AlignCenter)
         self.knot_spacing.setValidator(
-            QtGui.QDoubleValidator(0, 10000, 0, self.knot_spacing))
+            QtGui2.QDoubleValidator(0, 10000, 0, self.knot_spacing))
         self.knot_spacing.setObjectName("norm_knot_spacing")
         hbox.addWidget(self.knot_spacing)
         settings_grid_layout.addLayout(hbox, 5, 1, 1, 1)
@@ -210,7 +210,7 @@ class NormalizationTab(QtGui.QWidget):
         self.blue_trim.setMaximumSize(QtCore.QSize(40, 16777215))
         self.blue_trim.setAlignment(QtCore.Qt.AlignCenter)
         self.blue_trim.setValidator(
-            QtGui.QDoubleValidator(0, 10000, 0, self.blue_trim))
+            QtGui2.QDoubleValidator(0, 10000, 0, self.blue_trim))
         self.blue_trim.setObjectName("blue_trim")
         hbox.addWidget(self.blue_trim)
         settings_grid_layout.addLayout(hbox, 6, 1, 1, 1)
@@ -228,7 +228,7 @@ class NormalizationTab(QtGui.QWidget):
         self.red_trim.setMaximumSize(QtCore.QSize(40, 16777215))
         self.red_trim.setAlignment(QtCore.Qt.AlignCenter)
         self.red_trim.setValidator(
-            QtGui.QDoubleValidator(0, 10000, 0, self.red_trim))
+            QtGui2.QDoubleValidator(0, 10000, 0, self.red_trim))
         self.red_trim.setObjectName("red_trim")
         hbox.addWidget(self.red_trim)
         settings_grid_layout.addLayout(hbox, 7, 1, 1, 1)
@@ -266,11 +266,11 @@ class NormalizationTab(QtGui.QWidget):
         sp.setHeightForWidth(self.stitch_btn.sizePolicy().hasHeightForWidth())
         self.stitch_btn.setSizePolicy(sp)
         self.stitch_btn.setMinimumSize(QtCore.QSize(250, 0))
-        font = QtGui.QFont()
+        font = QtGui2.QFont()
         font.setBold(True)
         font.setWeight(75)
         self.stitch_btn.setFont(font)
-        self.stitch_btn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        self.stitch_btn.setCursor(QtGui2.QCursor(QtCore.Qt.PointingHandCursor))
         self.stitch_btn.setDefault(True)
         self.stitch_btn.setObjectName("stitch_btn")
         self.stitch_btn.setText("Normalize and stitch orders")
@@ -317,16 +317,16 @@ class NormalizationTab(QtGui.QWidget):
         gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
         self.ax_order = self.norm_plot.figure.add_subplot(gs[0])
         # Line for the data.
-        self.ax_order.plot([], [], c='k', zorder=3)#, drawstyle='steps-mid')
+        self.ax_order.plot([np.nan], [np.nan], c='k', zorder=3)#, drawstyle='steps-mid')
         # Line for the continuum.
         self.ax_order.plot([], [], linestyle="--", linewidth=2, c='r', zorder=4)
         # Points for the continuum knots.
         self.ax_order.plot([], [], 'o', mfc='none', mec='r', zorder=5, mew=1, ms=10)
 
         # Line for the neighbouring order(s) (joined by a NaN).
-        self.ax_order.plot([], [], c='#666666', zorder=1, drawstyle='steps-mid')
+        self.ax_order.plot([np.nan], [np.nan], c='#666666', zorder=1, drawstyle='steps-mid')
         # Line for the neighbouring order(s) continuum (joined by a NaN)
-        self.ax_order.plot([], [], c='b', zorder=2)
+        self.ax_order.plot([np.nan], [np.nan], c='b', zorder=2)
 
         # Additional point markers.
         self.ax_order.scatter([], [], facecolor="k", zorder=5, picker=5)
@@ -336,7 +336,7 @@ class NormalizationTab(QtGui.QWidget):
 
         self.ax_order_norm = self.norm_plot.figure.add_subplot(gs[1])
         self.ax_order_norm.axhline(1, linestyle=":", c="#666666", zorder=1)
-        self.ax_order_norm.plot([], [], c='k', zorder=2)
+        self.ax_order_norm.plot([np.nan], [np.nan], c='k', zorder=2)
 
         # TODO: Make (0, 1.2) a default view setting.
         self.ax_order_norm.set_ylim(0, 1.2)
@@ -434,9 +434,9 @@ class NormalizationTab(QtGui.QWidget):
         sender = self.sender()
         validator = sender.validator()
         state = validator.validate(sender.text(), 0)[0]
-        if state == QtGui.QValidator.Acceptable:
+        if state == QtGui2.QValidator.Acceptable:
             color = 'none' # normal background color
-        elif state == QtGui.QValidator.Intermediate:
+        elif state == QtGui2.QValidator.Intermediate:
             color = '#fff79a' # yellow
         else:
             color = '#f6989d' # red
@@ -831,7 +831,7 @@ class NormalizationTab(QtGui.QWidget):
             self.continuum_mask.addItem(name)
 
         self.continuum_mask.setCurrentIndex(
-            self._cache["masks"].keys().index(
+            list(self._cache["masks"].keys()).index(
                 self._cache["default_mask"]))
 
         self.order_slide.setMaximum(len(self.parent.session.input_spectra) - 1)
@@ -1075,8 +1075,8 @@ class NormalizationTab(QtGui.QWidget):
             exclude = self._cache["input"]["exclude"]
         
         if len(exclude) == 0:
-			self._cache["input"]["exclude"] = np.array( 
-				[[x[-trim_region], x[-1]+1e-3]])
+            self._cache["input"]["exclude"] = np.array( 
+                [[x[-trim_region], x[-1]+1e-3]])
         else:
             mask_to_delete = []
             for i,e in enumerate(exclude):
@@ -1374,6 +1374,7 @@ class NormalizationTab(QtGui.QWidget):
         if continuum is not None and not clobber:
             # Nothing to do.
             return
+        print("gui.normalization.fit_continuum: fitting {}".format(index))
 
         kwds = self._cache["input"].copy()
         kwds["full_output"] = True

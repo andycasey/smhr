@@ -119,7 +119,7 @@ def moogsilent(input_filename, cwd=None, timeout=30, shell=False, env=None,
         pipe_input = "\n" if -6 in acceptable_moog_return_codes else ""
         pipe_input += os.path.basename(input_filename) + "\n"*100
 
-        stdout, stderr = p.communicate(input=pipe_input)
+        stdout, stderr = p.communicate(input=pipe_input.encode())
 
         # Parse the version of MOOG.
         #index = stdout.find("VERSION")
@@ -152,7 +152,7 @@ def _format_abundances(elemental_abundances=None, subtract_solar=False,
     elemental_abundances = elemental_abundances.copy()
     
     # Make sure that the abundances are specified as (atomic_number: abundance)
-    for key in elemental_abundances.keys():
+    for key in list(elemental_abundances.keys()):
         if isinstance(key, string_types):
             # It's an element. Convert to atomic number.
             atomic_number = element_to_atomic_number(key)

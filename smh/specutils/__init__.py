@@ -14,7 +14,7 @@ handler.setFormatter(logging.Formatter(
     "%(asctime)s [%(levelname)-8s] %(message)s"))
 logger.addHandler(handler)
 
-import motions
-from spectrum import Spectrum1D
-from rv import *
-from utils import *
+from . import motions
+from .spectrum import Spectrum1D
+from .rv import *
+from .utils import *

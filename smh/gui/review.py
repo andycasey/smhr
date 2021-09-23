@@ -11,7 +11,7 @@ from __future__ import (division, print_function, absolute_import,
 import logging
 import numpy as np
 import sys
-from PySide import QtCore, QtGui
+from PySide2 import (QtCore, QtWidgets as QtGui)
 import time
 
 import smh
@@ -60,9 +60,11 @@ class ReviewTab(QtGui.QWidget):
     def new_session_loaded(self):
         session = self.parent.session
         if session is None: return None
+        self.measurement_model.beginResetModel()
         self.summary_model.new_session(session)
         self.full_measurement_model.new_session(session)
-        self.measurement_model.reset()
+        self.measurement_model.reindex()
+        self.measurement_model.endResetModel()
         self.measurement_view.update_session(session)
         self.refresh_plots()
         return None
@@ -88,6 +90,7 @@ class ReviewTab(QtGui.QWidget):
         return None
     def change_measurement_table_species(self, species):
         # Update the filter
+        self.measurement_model.beginResetModel()
         if self._current_species is not None:
             _current_species_str = "{:.1f}".format(self._current_species)
             try:
@@ -102,7 +105,7 @@ class ReviewTab(QtGui.QWidget):
             self.measurement_model.add_filter_function(speciesstr, filterfn)
         self._current_species = species
         # Reset the model (and its views)
-        self.measurement_model.reset()
+        self.measurement_model.endResetModel()
     def refresh_plots(self):
         self.plot1.update_scatterplot(False)
         self.plot2.update_scatterplot(False)

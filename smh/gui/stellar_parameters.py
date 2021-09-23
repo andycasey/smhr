@@ -12,7 +12,7 @@ import logging
 import matplotlib.gridspec
 import numpy as np
 import sys
-from PySide import QtCore, QtGui
+from PySide2 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 from matplotlib.colors import ColorConverter
 from matplotlib.ticker import MaxNLocator
 from time import time
@@ -47,10 +47,10 @@ if sys.platform == "darwin":
         (".Helvetica Neue DeskInterface", "Helvetica Neue")
     ]
     for substitute in substitutes:
-        QtGui.QFont.insertSubstitution(*substitute)
+        QtGui2.QFont.insertSubstitution(*substitute)
 
 
-_QFONT = QtGui.QFont("Helvetica Neue", 10)
+_QFONT = QtGui2.QFont("Helvetica Neue", 10)
 _ROWHEIGHT = 20
 
 class StellarParametersTab(QtGui.QWidget):
@@ -126,7 +126,6 @@ class StellarParametersTab(QtGui.QWidget):
         # E. Holmbeck added this
         self.params_to_optimize = np.array([True]*4)
 
-
     def measure_abundances(self):
         """ 
         The measure abundances button has been clicked.
@@ -136,7 +135,6 @@ class StellarParametersTab(QtGui.QWidget):
         - update table and plots
         - update plots
         """
-
         if self.parent.session is None or not self._check_for_spectral_models():
             return None
         # If no acceptable measurements, fit all
@@ -152,9 +150,8 @@ class StellarParametersTab(QtGui.QWidget):
                     logger.exception(
                         "Exception in fitting spectral model {}".format(model))
                     continue
-        
         self.update_stellar_parameter_session()
-        		        
+
         ## Loop through the spectral models and measure relevant abundances
         ## Note, have to do ALL the spectral models because might have added new measurements
         spectral_models = []
@@ -338,7 +335,7 @@ class StellarParametersTab(QtGui.QWidget):
 	
 	# E. Holmbeck added this function
     def solve_feh(self):
-    	""" Solve the stellar parameters. """
+        """ Solve the stellar parameters. """
         if self.parent.session is None or not self._check_for_spectral_models():
             return None
         ## use current state as initial guess
@@ -366,14 +363,15 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_teff.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_teff.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_teff.setValidator(
-            QtGui.QDoubleValidator(3000, 8000, 0, self.edit_teff))
+            QtGui2.QDoubleValidator(3000, 8000, 0, self.edit_teff))
         self.edit_teff.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_teff, 0, 1)
         # E. Holmbeck added checkbox
         self.teff_const = QtGui.QCheckBox("Hold constant")
         self.teff_const.setChecked(False)
         self.teff_const.stateChanged.connect(lambda:self.const_param(self.teff_const,0))
-        grid_layout.addWidget(self.teff_const, 0, 2, -1)
+        #grid_layout.addWidget(self.teff_const, 0, 2, -1)
+        grid_layout.addWidget(self.teff_const, 0, 2)
         
         
         # Surface gravity.
@@ -387,7 +385,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_logg.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_logg.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_logg.setValidator(
-            QtGui.QDoubleValidator(-1, 6, 3, self.edit_logg))
+            QtGui2.QDoubleValidator(-1, 6, 3, self.edit_logg))
         self.edit_logg.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_logg.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_logg, 1, 1)
@@ -395,7 +393,8 @@ class StellarParametersTab(QtGui.QWidget):
         self.logg_const = QtGui.QCheckBox("Hold constant")
         self.logg_const.setChecked(False)
         self.logg_const.stateChanged.connect(lambda:self.const_param(self.logg_const,2))
-        grid_layout.addWidget(self.logg_const, 1, 2, -1)
+        #grid_layout.addWidget(self.logg_const, 1, 2, -1)
+        grid_layout.addWidget(self.logg_const, 1, 2)
 
         # Metallicity.
         label = QtGui.QLabel(self)
@@ -408,7 +407,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_metallicity.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_metallicity.setAlignment(QtCore.Qt.AlignCenter)
         self.edit_metallicity.setValidator(
-            QtGui.QDoubleValidator(-5, 1, 3, self.edit_metallicity))
+            QtGui2.QDoubleValidator(-5, 1, 3, self.edit_metallicity))
         self.edit_metallicity.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_metallicity.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_metallicity, 2, 1)
@@ -416,7 +415,8 @@ class StellarParametersTab(QtGui.QWidget):
         self.feh_const = QtGui.QCheckBox("Hold constant")
         self.feh_const.setChecked(False)
         self.feh_const.stateChanged.connect(lambda:self.const_param(self.feh_const,3))
-        grid_layout.addWidget(self.feh_const, 2, 2, -1)
+        #grid_layout.addWidget(self.feh_const, 2, 2, -1)
+        grid_layout.addWidget(self.feh_const, 2, 2)
 
 
         # Microturbulence.
@@ -429,7 +429,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_xi.setMinimumSize(QtCore.QSize(40, 0))
         self.edit_xi.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_xi.setAlignment(QtCore.Qt.AlignCenter)
-        self.edit_xi.setValidator(QtGui.QDoubleValidator(0, 5, 3, self.edit_xi))
+        self.edit_xi.setValidator(QtGui2.QDoubleValidator(0, 5, 3, self.edit_xi))
         self.edit_xi.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_xi.textChanged.connect(self._check_lineedit_state)
         grid_layout.addWidget(self.edit_xi, 3, 1)
@@ -437,7 +437,8 @@ class StellarParametersTab(QtGui.QWidget):
         self.vt_const = QtGui.QCheckBox("Hold constant")
         self.vt_const.setChecked(False)
         self.vt_const.stateChanged.connect(lambda:self.const_param(self.vt_const,1))
-        grid_layout.addWidget(self.vt_const, 3, 2, -1)
+        #grid_layout.addWidget(self.vt_const, 3, 2, -1)
+        grid_layout.addWidget(self.vt_const, 3, 2)
 
         # Alpha-enhancement.
         label = QtGui.QLabel(self)
@@ -449,7 +450,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_alpha.setMinimumSize(QtCore.QSize(40, 0))
         self.edit_alpha.setMaximumSize(QtCore.QSize(50, 16777215))
         self.edit_alpha.setAlignment(QtCore.Qt.AlignCenter)
-        self.edit_alpha.setValidator(QtGui.QDoubleValidator(-1, 1, 3, self.edit_alpha))
+        self.edit_alpha.setValidator(QtGui2.QDoubleValidator(-1, 1, 3, self.edit_alpha))
         #self.edit_alpha.setValidator(QtGui.QDoubleValidator(0, 0.4, 3, self.edit_alpha))
         self.edit_alpha.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_alpha.textChanged.connect(self._check_lineedit_state)
@@ -625,9 +626,9 @@ class StellarParametersTab(QtGui.QWidget):
         sender = self.sender()
         validator = sender.validator()
         state = validator.validate(sender.text(), 0)[0]
-        if state == QtGui.QValidator.Acceptable:
+        if state == QtGui2.QValidator.Acceptable:
             color = 'none' # normal background color
-        elif state == QtGui.QValidator.Intermediate:
+        elif state == QtGui2.QValidator.Intermediate:
             color = '#fff79a' # yellow
         else:
             color = '#f6989d' # red
@@ -694,7 +695,8 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
         
         # Display dialog in center and set size policy.
         self.setGeometry(320, 160, 320, 160)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+        desktop = QtGui.QApplication.desktop()
+        self.move(desktop.screen().rect().center() \
             - self.rect().center())
         self.setWindowTitle("Stellar parameter uncertainty analysis")
         
@@ -732,7 +734,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
             edit.setMinimumSize(QtCore.QSize(40, 0))
             edit.setMaximumSize(QtCore.QSize(50, 16777215))
             edit.setAlignment(QtCore.Qt.AlignCenter)
-            edit.setValidator(QtGui.QDoubleValidator(0.001, 50, 3, edit))
+            edit.setValidator(QtGui2.QDoubleValidator(0.001, 50, 3, edit))
             edit.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
             grid.addWidget(edit, i+1, coltol)
         ## StatErrs
@@ -754,7 +756,7 @@ class StellarParameterUncertaintiesDialog(QtGui.QDialog):
             edit.setMinimumSize(QtCore.QSize(40, 0))
             edit.setMaximumSize(QtCore.QSize(50, 16777215))
             edit.setAlignment(QtCore.Qt.AlignCenter)
-            edit.setValidator(QtGui.QDoubleValidator(0.01, 1000, 2, edit))
+            edit.setValidator(QtGui2.QDoubleValidator(0.01, 1000, 2, edit))
             edit.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
             grid.addWidget(edit, i+1, colsyserr)
         ## TotErrs

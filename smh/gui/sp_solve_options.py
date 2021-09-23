@@ -11,7 +11,7 @@ __all__ = ["SolveOptionsDialog"]
 
 import logging
 
-from PySide import QtCore, QtGui
+from PySide2 import (QtCore, QtWidgets as QtGui)
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,8 @@ class SolveOptionsDialog(QtGui.QDialog):
 
         # Display dialog in center and set size policy.
         self.setGeometry(640, 480, 640, 480)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+        desktop = QtGui.QApplication.desktop()
+        self.move(desktop.screen().rect().center() \
             - self.rect().center())
         self.setWindowTitle("Solve options for stellar parameter determination")
 

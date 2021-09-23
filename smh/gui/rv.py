@@ -9,7 +9,7 @@ from __future__ import (division, print_function, absolute_import,
 import numpy as np
 import os
 import sys
-from PySide import QtCore, QtGui
+from PySide2 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 from six import string_types
 
 import mpl
@@ -238,7 +238,7 @@ class RVTab(QtGui.QWidget):
         self.norm_low_sigma.setAlignment(QtCore.Qt.AlignCenter)
         self.norm_low_sigma.setObjectName("rv_norm_low_sigma")
         self.norm_low_sigma.setValidator(
-            QtGui.QDoubleValidator(0, 1000, 2, self.norm_low_sigma))
+            QtGui2.QDoubleValidator(0, 1000, 2, self.norm_low_sigma))
         hbox.addWidget(self.norm_low_sigma)
         norm_tab_grid_layout.addLayout(hbox, 3, 1, 1, 1)
 
@@ -258,7 +258,7 @@ class RVTab(QtGui.QWidget):
         self.norm_high_sigma.setAlignment(QtCore.Qt.AlignCenter)
         self.norm_high_sigma.setObjectName("rv_norm_high_sigma")
         self.norm_high_sigma.setValidator(
-            QtGui.QDoubleValidator(0, 1000, 2, self.norm_high_sigma))
+            QtGui2.QDoubleValidator(0, 1000, 2, self.norm_high_sigma))
         hbox.addWidget(self.norm_high_sigma)
         norm_tab_grid_layout.addLayout(hbox, 4, 1, 1, 1)
         
@@ -278,7 +278,7 @@ class RVTab(QtGui.QWidget):
         self.norm_knot_spacing.setAlignment(QtCore.Qt.AlignCenter)
         self.norm_knot_spacing.setObjectName("rv_norm_knot_spacing")
         self.norm_knot_spacing.setValidator(
-            QtGui.QIntValidator(0, 10000, self.norm_knot_spacing))
+            QtGui2.QIntValidator(0, 10000, self.norm_knot_spacing))
         hbox.addWidget(self.norm_knot_spacing)
         norm_tab_grid_layout.addLayout(hbox, 5, 1, 1, 1)
 
@@ -310,7 +310,7 @@ class RVTab(QtGui.QWidget):
         self.rv_applied.setMinimumSize(QtCore.QSize(50, 16777215))
         self.rv_applied.setAlignment(QtCore.Qt.AlignCenter)
         self.rv_applied.setValidator(
-            QtGui.QDoubleValidator(-1e6, 1e6, 2, self.rv_applied))
+            QtGui2.QDoubleValidator(-1e6, 1e6, 2, self.rv_applied))
         self.rv_applied.textChanged.connect(self.check_state)
         self.rv_applied.returnPressed.connect(self.correct_radial_velocity)
 
@@ -339,11 +339,11 @@ class RVTab(QtGui.QWidget):
         rv_ccc_btn.setSizePolicy(sp)
         rv_ccc_btn.setMinimumSize(QtCore.QSize(300, 0))
         rv_ccc_btn.setMaximumSize(QtCore.QSize(300, 16777215))
-        font = QtGui.QFont()
+        font = QtGui2.QFont()
         font.setBold(True)
         font.setWeight(75)
         rv_ccc_btn.setFont(font)
-        rv_ccc_btn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        rv_ccc_btn.setCursor(QtGui2.QCursor(QtCore.Qt.PointingHandCursor))
         rv_ccc_btn.setDefault(True)
         rv_ccc_btn.setObjectName("rv_ccc_btn")
         rv_ccc_btn.setText("Cross-correlate and correct")
@@ -390,17 +390,17 @@ class RVTab(QtGui.QWidget):
         self.ax_order.set_ylabel("Flux")
 
         # Draw an initial line for data and continuum.
-        self.ax_order.plot([], [], c='k', drawstyle='steps-mid')
-        self.ax_order.plot([], [], c='r', zorder=2)
+        self.ax_order.plot([np.nan], [np.nan], c='k', drawstyle='steps-mid')
+        self.ax_order.plot([np.nan], [np.nan], c='r', zorder=2)
         self.ax_order.set_ylim([0, 1])
 
         self.ax_order_norm.axhline(1, linestyle=":", c="#666666", zorder=-1)
-        self.ax_order_norm.plot([], [], c='k', drawstyle='steps-mid')
-        self.ax_order_norm.plot([], [], c='b') # Template.
+        self.ax_order_norm.plot([np.nan], [np.nan], c='k', drawstyle='steps-mid')
+        self.ax_order_norm.plot([np.nan], [np.nan], c='b') # Template.
         self.ax_order_norm.set_ylabel("Normalized flux")
 
 
-        self.ax_ccf.plot([], [], c='k')
+        self.ax_ccf.plot([np.nan], [np.nan], c='k')
         self.ax_ccf.set_xlabel("Velocity (km/s)")
         self.ax_ccf.set_ylabel("CCF")
         self.ax_ccf.set_yticks([0, 0.5, 1.0])
@@ -451,9 +451,9 @@ class RVTab(QtGui.QWidget):
         sender = self.sender()
         validator = sender.validator()
         state = validator.validate(sender.text(), 0)[0]
-        if state == QtGui.QValidator.Acceptable:
+        if state == QtGui2.QValidator.Acceptable:
             color = 'none' # normal background color
-        elif state == QtGui.QValidator.Intermediate:
+        elif state == QtGui2.QValidator.Intermediate:
             color = '#fff79a' # yellow
         else:
             color = '#f6989d' # red
@@ -918,7 +918,8 @@ class RVRegionDialog(QtGui.QDialog):
         self.rv_tab = rv_tab
 
         self.setGeometry(900, 900, 900, 600)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+        desktop = QtGui.QApplication.desktop()
+        self.move(desktop.screen().rect().center() \
             - self.rect().center())
 
         sp = QtGui.QSizePolicy(
@@ -992,12 +993,12 @@ class RVRegionDialog(QtGui.QDialog):
         self.ax_order_norm.set_ylim(0, 1.2)
         self.ax_order_norm.set_xlabel(u"Wavelength (Å)")
         self.ax_order.set_ylabel("Flux")
-        self.ax_order.plot([], [], c='k', drawstyle='steps-mid')
-        self.ax_order.plot([], [], c='r', zorder=2)
+        self.ax_order.plot([np.nan], [np.nan], c='k', drawstyle='steps-mid')
+        self.ax_order.plot([np.nan], [np.nan], c='r', zorder=2)
         self.ax_order.set_ylim([0, 1])
         self.ax_order_norm.axhline(1, linestyle=":", c="#666666", zorder=-1)
-        self.ax_order_norm.plot([], [], c='k', drawstyle='steps-mid')
-        self.ax_order_norm.plot([], [], c='b') # Template.
+        self.ax_order_norm.plot([np.nan], [np.nan], c='k', drawstyle='steps-mid')
+        self.ax_order_norm.plot([np.nan], [np.nan], c='b') # Template.
         self.ax_order_norm.set_ylabel("Normalized flux")
 
         # Right column wavelength regions
@@ -1241,7 +1242,7 @@ class RVRegionDialog(QtGui.QDialog):
         if not isinstance(template, specutils.Spectrum1D):
             try:
                 path = self.rv_tab._cache["input"]["template_spectrum_path"]
-            except AttributeError, KeyError:
+            except (AttributeError, KeyError):
                 return
             if not os.path.exists(path): return
             template = specutils.Spectrum1D.read(path)
