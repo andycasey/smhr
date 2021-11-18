@@ -743,7 +743,8 @@ def process_session_uncertainties_lines(session, rhomat, minerr=0.001):
         
         # Estimate systematic error s
         s = s_old = 0.
-        s_max = 2.
+        #s_max = 2.
+        s_max = 3. # Updated to a larger value because it was not always converging.
         delta = struct2array(t["e_Teff","e_logg","e_vt","e_MH"].as_array())
         ex = t["e_stat"]
         for i in range(35):
@@ -758,7 +759,17 @@ def process_session_uncertainties_lines(session, rhomat, minerr=0.001):
             if func(0) < func(s_max):
                 s = 0
                 break
-            s = optimize.brentq(func, 0, s_max, xtol=.001)
+            try:
+                s = optimize.brentq(func, 0, s_max, xtol=.001)
+            except ValueError as e:
+                print("ERROR FOR SPECIES",species)
+                print(e)
+                print("s_max:",s_max)
+                print("func(0)",func(0))
+                print("func(s_max)",func(s_max))
+                print("Figure out what you should do to s_max here:")
+                import pdb; pdb.set_trace()
+                raise
             
             if np.abs(s_old - s) < 0.01:
                 break
