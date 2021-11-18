@@ -1048,6 +1048,7 @@ class MeasurementTableView(BaseTableView):
         self.display_fitting_options = display_fitting_options
     def update_session(self, session):
         self.session = session
+        self.model().reindex()
     def update_row(self,row):
         """ Used for proxy models to efficiently update data"""
         self.rowMoved(row, row, row)

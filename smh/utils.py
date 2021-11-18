@@ -479,13 +479,13 @@ def species_to_element(species):
     return "%s %s" % (element, "I" * ionization)
 
 
-def elems_isotopes_ion_to_species(elem1,elem2,isotope1,isotope2,ion):
+def elems_isotopes_ion_to_species(elem1,elem2,isotope1,isotope2,ion,as_str=False):
     Z1 = int(element_to_species(elem1.strip()))
     if isotope1==0: isotope1=''
     else: isotope1 = str(isotope1).zfill(2)
 
     if elem2.strip()=='': # Atom
-        mystr = "{}.{}{}".format(Z1,int(ion-1),isotope1)
+        mystr = "{}.{}{:03}".format(Z1,int(ion-1),int(isotope1))
     else: # Molecule
         #assert ion==1,ion
         Z2 = int(element_to_species(elem2.strip()))
@@ -519,6 +519,7 @@ def elems_isotopes_ion_to_species(elem1,elem2,isotope1,isotope2,ion):
         else:
             mystr = "{}{:02}.{}{}{}".format(Z2,Z1,int(ion-1),isotope2,isotope1)
 
+    if as_str: return mystr
     return float(mystr)
 
 def species_to_elems_isotopes_ion(species):
