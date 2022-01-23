@@ -1267,7 +1267,10 @@ if __name__ == "__main__":
     widget = QtGui.QWidget(None)
 
     with open(Session._default_settings_path, "rb") as fp:
-        defaults = yaml.load(fp)
+        try:
+            defaults = yaml.load(fp,yaml.FullLoader)
+        except AttributeError:
+            defaults = yaml.load(fp)
     datadir = os.path.dirname(os.path.abspath(__file__))+'/../tests/test_data'
     session = Session([datadir+"/spectra/hd122563.fits"])
     widget.session = session
