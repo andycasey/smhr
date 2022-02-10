@@ -115,15 +115,17 @@ class Spectrum1D(object):
             cls.read_fits_multispec,
             cls.read_fits_spectrum1d,
             cls.read_ascii_spectrum1d,
+            cls.read_ascii_spectrum1d_noivar,
             cls.read_multispec,
-            cls.read_ascii_spectrum1d_noivar
         )
 
+        failure_exceptions = []
         for method in methods:
             try:
                 dispersion, flux, ivar, metadata = method(path, **kwargs)
 
-            except:
+            except Exception as e:
+                failure_exceptions.append(e)
                 continue
 
             else:
@@ -131,6 +133,10 @@ class Spectrum1D(object):
                     for d, f, i in zip(dispersion, flux, ivar)]
                 break
         else:
+            print(f"Exceptions:")
+            for method, e in zip(methods, failure_exceptions):
+                print(method)
+                print(e)
             raise ValueError("cannot read spectrum from path {}".format(path))
 
         # If it's a single order, just return that instead of a 1-length list.
@@ -281,6 +287,7 @@ class Spectrum1D(object):
         is_carpy_mage_product = (md5_hash == "6b2c2ec1c4e1b122ccab15eb9bd305bc")
         is_iraf_3band_product = (md5_hash == "a4d8f6f51a7260fce1642f7b42012969")
         is_apo_product = (image[0].header.get("OBSERVAT", None) == "APO")
+        is_iraf_1band_product = (md5_hash == "148aa0c459c8085f7461a519b1a060e5") # McD old reductions
 
         if is_carpy_mike_product or is_carpy_mage_product or is_carpy_mike_product_old:
             # CarPy gives a 'noise' spectrum, which we must convert to an
@@ -312,6 +319,14 @@ class Spectrum1D(object):
             flux = image[0].data[flux_ext]
             ivar = image[0].data[noise_ext]**(-2)
 
+        elif is_iraf_1band_product:
+            ## This happens for some McDonald Data
+            logger.info(
+                "Recognized IRAF single band product, no noise."
+                "extension (bands) {}, Poisson noise".format(flux_ext))
+            flux = image[0].data
+            ivar = 1./np.abs(flux)
+            
         elif is_apo_product:
             flux_ext = flux_ext or 0
             if md5_hash == "9d008ba2c3dc15549fd8ffe8a605ec15":
@@ -340,6 +355,19 @@ class Spectrum1D(object):
                 ivar = 1./np.abs(flux)
                 # -------------------------------------------------------------
 
+        elif is_carpy_mike_product_old:
+            ## Adapted from Erika
+            # inverse variance array
+            flux_ext = flux_ext or 1
+            noise_ext = ivar_ext or 2
+            
+            logger.info(
+                "Trying for CarPy product. Using zero-indexed flux/noise "
+                "extensions (bands) {}/{}".format(flux_ext, noise_ext))
+            
+            flux = image[0].data[flux_ext]
+            ivar = image[0].data[noise_ext]**(-2)
+            
         else:
             ivar = np.full_like(flux, np.nan)
             logger.info("could not identify flux and ivar extensions "
@@ -367,7 +395,7 @@ class Spectrum1D(object):
         # Do something sensible regarding zero or negative fluxes.
         ivar[0 >= flux] = 0.000000000001
         #ivar[0 >= flux] = 999999
-        flux[0 >= flux] = np.nan
+        #flux[0 >= flux] = np.nan
 
         # turn into list of arrays if it's ragged
         if np.any(np.isnan(dispersion)):
@@ -1028,7 +1056,7 @@ class Spectrum1D(object):
             exclude_indices.extend(lower_exclude)
             exclude_indices = np.array(exclude_indices)
             
-            if len(exclude_indices) is 0: break
+            if len(exclude_indices) == 0: break
             
             exclusions.extend(exclude_indices)
             

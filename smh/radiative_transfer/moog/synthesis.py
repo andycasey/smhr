@@ -18,7 +18,10 @@ logger = logging.getLogger(__name__)
 
 # Load the MOOG defaults.
 with resource_stream(__name__, "defaults.yaml") as fp:
-    _moog_defaults = yaml.load(fp)
+    try:
+        _moog_defaults = yaml.load(fp, yaml.FullLoader)
+    except AttributeError:
+        _moog_defaults = yaml.load(fp)
 
 
 def synthesize(photosphere, transitions, abundances=None, isotopes=None,
