@@ -31,7 +31,7 @@ Note: if you previously used instructions where it said `conda config --set chan
 
 * Install required libraries into the `smhr-py3` environment:
 ```
-conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app
+conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app requests
 conda activate smhr-py3
 conda install pyside2
 conda install yaml
