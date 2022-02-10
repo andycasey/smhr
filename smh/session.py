@@ -799,8 +799,11 @@ class Session(BaseSession):
                     spectrum = s
                     break
 
-        from astropy.io import fits
-        _, headers = fits.getdata(spectrum, header=True)
+        try:
+            from astropy.io import fits
+            _, headers = fits.getdata(spectrum, header=True)
+        except OSError as e:
+            print("Failure to read FITS headers, will not have heliocentric/barycentric corrections")
 
         try:
             v_helio, v_bary = specutils.motions.corrections_from_headers(\
