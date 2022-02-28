@@ -253,7 +253,10 @@ class Ui_MainWindow(QtGui.QMainWindow):
 
         # Import default session settings
         with open(smh.Session._default_settings_path, "rb") as fp:
-            defaults = yaml.load(fp)
+            try:
+                defaults = yaml.load(fp, yaml.FullLoader)
+            except AttributeError:
+                defaults = yaml.load(fp)
         self.session.metadata.update(defaults)
 
         # TODO: WE SHOULD REMOVE THIS: THE GUI SHOULD READ FROM .SETTINGS()
