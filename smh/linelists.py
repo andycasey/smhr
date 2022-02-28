@@ -18,7 +18,7 @@ logger.addHandler(handler)
 
 import os
 
-import md5
+import hashlib
 
 class LineListConflict(Exception):
     """Exception raised for merging conflicts"""
@@ -442,7 +442,8 @@ class LineList(Table):
     def hash(line):
         s = "{:.3f}_{:.3f}_{:.3f}_{}_{}_{}_{}_{}".format(line['wavelength'],line['expot'],line['loggf'],
                                                          line['elem1'],line['elem2'],line['ion'],line['isotope1'],line['isotope2'])
-        return md5.new(s).hexdigest()
+        #return md5.new(s).hexdigest()
+        return hashlib.md5(s.encode("utf-8")).hexdigest()
 
     @staticmethod
     def lines_equal(l1,l2,dwl_thresh=.001,dEP_thresh=.01,dgf_thresh=.001):
@@ -549,7 +550,7 @@ class LineList(Table):
         for i,line in enumerate(lines):
             s = line.split()
             try:
-                _wl,_species,_EP,_loggf = map(float,s[:4])
+                _wl,_species,_EP,_loggf = list(map(float,s[:4]))
             except:
                 if i==0:
                     has_header_line = True
@@ -663,7 +664,7 @@ class LineList(Table):
             return species
         import time
         start = time.time()
-        species = map(_get_species, tab)
+        species = list(map(_get_species, tab))
         print('{:.1f}s to compute species'.format(time.time()-start))
 
         memo = {}
@@ -672,7 +673,7 @@ class LineList(Table):
             element = species_to_element(species)
             memo[species] = element
             return element
-        elements = map(_get_element, species)
+        elements = list(map(_get_element, species))
 
         expot = tab['E_LOW']
         loggf = tab['LOG_GF']
@@ -711,7 +712,7 @@ class LineList(Table):
             f.write("\n")
             for line in self:
                 C6 = space if np.ma.is_masked(line['damp_vdw']) or np.isnan(line['damp_vdw']) else "{:10.3f}".format(line['damp_vdw'])
-                D0 = space if np.ma.is_masked(line['dissoc_E']) or np.isnan(line['dissoc_E']) else "{:10.3}".format(line['dissoc_E'])
+                D0 = space if np.ma.is_masked(line['dissoc_E']) or np.isnan(line['dissoc_E']) else "{:10.3f}".format(line['dissoc_E'])
                 comments = '' if np.ma.is_masked(line['comments']) else line['comments']
                 if 'equivalent_width' in line.colnames:
                     EW = space if np.ma.is_masked(line['equivalent_width']) or np.isnan(line['equivalent_width']) else "{:10.3f}".format(line['equivalent_width'])

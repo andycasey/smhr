@@ -115,15 +115,17 @@ class Spectrum1D(object):
             cls.read_fits_multispec,
             cls.read_fits_spectrum1d,
             cls.read_ascii_spectrum1d,
+            cls.read_ascii_spectrum1d_noivar,
             cls.read_multispec,
-            cls.read_ascii_spectrum1d_noivar
         )
 
+        failure_exceptions = []
         for method in methods:
             try:
                 dispersion, flux, ivar, metadata = method(path, **kwargs)
 
-            except:
+            except Exception as e:
+                failure_exceptions.append(e)
                 continue
 
             else:
@@ -131,6 +133,10 @@ class Spectrum1D(object):
                     for d, f, i in zip(dispersion, flux, ivar)]
                 break
         else:
+            print(f"Exceptions:")
+            for method, e in zip(methods, failure_exceptions):
+                print(method)
+                print(e)
             raise ValueError("cannot read spectrum from path {}".format(path))
 
         # If it's a single order, just return that instead of a 1-length list.
@@ -196,8 +202,9 @@ class Spectrum1D(object):
             
             ## Compute ivar assuming Poisson noise
             ivar = 1./flux
-            
-        return (dispersion, flux, ivar, metadata)
+        
+        # E. Holmbeck changed from tuple to list
+        return [dispersion, flux, ivar, metadata]
 
     @classmethod
     def read_fits_multispec(cls, path, flux_ext=None, ivar_ext=None,
@@ -274,11 +281,13 @@ class Spectrum1D(object):
         # NOTE: Most multi-spec data previously used with SMH have been from
         #       Magellan/MIKE, and reduced with CarPy.
         md5_hash = md5(";".join([v for k, v in metadata.items() \
-            if k.startswith("BANDID")])).hexdigest()
+                                 if k.startswith("BANDID")]).encode("utf-8")).hexdigest()
         is_carpy_mike_product = (md5_hash == "0da149208a3c8ba608226544605ed600")
         is_carpy_mike_product_old = (md5_hash == "e802331006006930ee0e60c7fbc66cec")
         is_carpy_mage_product = (md5_hash == "6b2c2ec1c4e1b122ccab15eb9bd305bc")
+        is_iraf_3band_product = (md5_hash == "a4d8f6f51a7260fce1642f7b42012969")
         is_apo_product = (image[0].header.get("OBSERVAT", None) == "APO")
+        is_iraf_1band_product = (md5_hash == "148aa0c459c8085f7461a519b1a060e5") # McD old reductions
 
         if is_carpy_mike_product or is_carpy_mage_product or is_carpy_mike_product_old:
             # CarPy gives a 'noise' spectrum, which we must convert to an
@@ -293,17 +302,72 @@ class Spectrum1D(object):
             flux = image[0].data[flux_ext]
             ivar = image[0].data[noise_ext]**(-2)
 
-        elif is_apo_product:
+        elif is_iraf_3band_product:
             flux_ext = flux_ext or 0
-            noise_ext = ivar_ext or -1
-
+            noise_ext = ivar_ext or 2
+            
             logger.info(
-                "Recognized APO product. Using zero-indexed flux/noise "
+                "Recognized IRAF 3band product. Using zero-indexed flux/noise "
                 "extensions (bands) {}/{}".format(flux_ext, noise_ext))
-
+            logger.info(
+                image[0].header["BANDID{}".format(flux_ext+1)]
+            )
+            logger.info(
+                image[0].header["BANDID{}".format(noise_ext+1)]
+            )
+            
             flux = image[0].data[flux_ext]
             ivar = image[0].data[noise_ext]**(-2)
 
+        elif is_iraf_1band_product:
+            ## This happens for some McDonald Data
+            logger.info(
+                "Recognized IRAF single band product, no noise."
+                "extension (bands) {}, Poisson noise".format(flux_ext))
+            flux = image[0].data
+            ivar = 1./np.abs(flux)
+            
+        elif is_apo_product:
+            flux_ext = flux_ext or 0
+            if md5_hash == "9d008ba2c3dc15549fd8ffe8a605ec15":
+                noise_ext = ivar_ext or 3
+                logger.info(
+                    "Recognized APO product with noise. Using zero-indexed flux/noise "
+                    "extensions (bands) {}/{}".format(flux_ext, noise_ext))
+                logger.info(
+                    image[0].header["BANDID{}".format(flux_ext+1)]
+                )
+                logger.info(
+                    image[0].header["BANDID{}".format(noise_ext+1)]
+                )
+                flux = image[0].data[flux_ext]
+                ivar = image[0].data[noise_ext]**(-2)
+                
+            else:
+                logger.info(
+                    "Recognized APO product, no noise. Using zero-indexed flux "
+                    "extension (bands) {}, Poisson noise".format(flux_ext))
+                # -------------------------------------------------------------
+                # E. Holmbeck changed these two lines for APO data
+                #flux = image[0].data[flux_ext]
+                #ivar = image[0].data[noise_ext]**(-2)
+                flux = image[flux_ext].data
+                ivar = 1./np.abs(flux)
+                # -------------------------------------------------------------
+
+        elif is_carpy_mike_product_old:
+            ## Adapted from Erika
+            # inverse variance array
+            flux_ext = flux_ext or 1
+            noise_ext = ivar_ext or 2
+            
+            logger.info(
+                "Trying for CarPy product. Using zero-indexed flux/noise "
+                "extensions (bands) {}/{}".format(flux_ext, noise_ext))
+            
+            flux = image[0].data[flux_ext]
+            ivar = image[0].data[noise_ext]**(-2)
+            
         else:
             ivar = np.full_like(flux, np.nan)
             logger.info("could not identify flux and ivar extensions "
@@ -330,6 +394,7 @@ class Spectrum1D(object):
 
         # Do something sensible regarding zero or negative fluxes.
         ivar[0 >= flux] = 0.000000000001
+        #ivar[0 >= flux] = 999999
         #flux[0 >= flux] = np.nan
 
         # turn into list of arrays if it's ragged
@@ -767,6 +832,8 @@ class Spectrum1D(object):
 
         exclusions = []
         continuum_indices = range(len(self.flux))
+        #import pdb
+        #pdb.set_trace()
 
         # Snip left and right
         finite_positive_flux = np.isfinite(self.flux) * self.flux > 0
@@ -826,7 +893,9 @@ class Spectrum1D(object):
         continuum_indices = np.sort(list(set(continuum_indices).difference(
             zero_flux_indices)))
 
-        if 1 > continuum_indices.size:
+        # Holmbeck chanaged 1 -> order
+        #if 1 > continuum_indices.size:
+        if order > continuum_indices.size:
             no_continuum = np.nan * np.ones_like(dispersion)
             failed_spectrum = self.__class__(dispersion=dispersion,
                 flux=no_continuum, ivar=no_continuum, metadata=self.metadata)
@@ -860,7 +929,9 @@ class Spectrum1D(object):
         # TODO: Use inverse variance array when fitting polynomial/spline.
         for iteration in range(max_iterations):
             
-            if 1 > continuum_indices.size:
+            # Holmbeck chanaged 1 -> order
+            #if 1 > continuum_indices.size:
+            if order > continuum_indices.size:
 
                 no_continuum = np.nan * np.ones_like(dispersion)
                 failed_spectrum = self.__class__(dispersion=dispersion,
@@ -914,7 +985,8 @@ class Spectrum1D(object):
 
                 popt, pcov = op.curve_fit(lambda x, *c: np.polyval(c, x), 
                     splrep_disp, splrep_flux, coeffs, 
-                    sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                    #sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                    sigma=splrep_weights, absolute_sigma=False)
                 continuum = np.polyval(popt, dispersion)
 
             elif function in ("leg", "legendre"):
@@ -924,7 +996,8 @@ class Spectrum1D(object):
                 
                 popt, pcov = op.curve_fit(lambda x, *c: np.polynomial.legendre.legval(x, c), 
                     splrep_disp, splrep_flux, coeffs, 
-                    sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                    #sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                    sigma=splrep_weights, absolute_sigma=False)
                 continuum = np.polynomial.legendre.legval(dispersion, popt)
 
 
@@ -935,7 +1008,8 @@ class Spectrum1D(object):
                 
                 popt, pcov = op.curve_fit(lambda x, *c: np.polynomial.chebyshev.chebval(x, c), 
                     splrep_disp, splrep_flux, coeffs, 
-                    sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                    #sigma=self.ivar[continuum_indices], absolute_sigma=False)
+                    sigma=splrep_weights, absolute_sigma=False)
                 continuum = np.polynomial.chebyshev.chebval(dispersion, popt)
 
 
@@ -982,7 +1056,7 @@ class Spectrum1D(object):
             exclude_indices.extend(lower_exclude)
             exclude_indices = np.array(exclude_indices)
             
-            if len(exclude_indices) is 0: break
+            if len(exclude_indices) == 0: break
             
             exclusions.extend(exclude_indices)
             
@@ -1058,7 +1132,7 @@ class Spectrum1D(object):
             zero_flux_indices)))
 
 
-        if knot_spacing is None or knot_spacing == 0:
+        if knot_spacing is None or knot_spacing == 0 or continuum_indices == []:
             knots = []
         else:
             knot_spacing = abs(knot_spacing)
@@ -1070,11 +1144,15 @@ class Spectrum1D(object):
                 dispersion[-1] - end_spacing + knot_spacing, 
                 knot_spacing)
 
-            if len(knots) > 0 and knots[-1] > dispersion[continuum_indices][-1]:
-                knots = knots[:knots.searchsorted(dispersion[continuum_indices][-1])]
+            try:
+                if len(knots) > 0 and knots[-1] > dispersion[continuum_indices][-1]:
+                    knots = knots[:knots.searchsorted(dispersion[continuum_indices][-1])]
                 
-            if len(knots) > 0 and knots[0] < dispersion[continuum_indices][0]:
-                knots = knots[knots.searchsorted(dispersion[continuum_indices][0]):]
+                if len(knots) > 0 and knots[0] < dispersion[continuum_indices][0]:
+                    knots = knots[knots.searchsorted(dispersion[continuum_indices][0]):]
+            except IndexError:
+                print("Spectrum error: continuum indices:",continuum_indices)
+                knots = []
         return knots
         
 
@@ -1182,7 +1260,7 @@ def compute_dispersion(aperture, beam, dispersion_type, dispersion_start,
         assert Pmin == int(Pmin), Pmin; Pmin = int(Pmin)
 
         if function_type == 1:
-            # Legendre polynomial.
+            # Chebyshev polynomial.
             if None in (order, Pmin, Pmax, coefficients):
                 raise TypeError("order, Pmin, Pmax and coefficients required "
                                 "for a Chebyshev or Legendre polynomial")

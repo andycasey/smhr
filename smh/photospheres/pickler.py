@@ -7,7 +7,7 @@ from __future__ import division, absolute_import, print_function
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
-import cPickle as pickle
+from six.moves import cPickle as pickle
 import gzip
 import os
 import sys

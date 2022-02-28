@@ -119,7 +119,7 @@ def moogsilent(input_filename, cwd=None, timeout=30, shell=False, env=None,
         pipe_input = "\n" if -6 in acceptable_moog_return_codes else ""
         pipe_input += os.path.basename(input_filename) + "\n"*100
 
-        stdout, stderr = p.communicate(input=pipe_input)
+        stdout, stderr = p.communicate(input=pipe_input.encode())
 
         # Parse the version of MOOG.
         #index = stdout.find("VERSION")
@@ -152,7 +152,7 @@ def _format_abundances(elemental_abundances=None, subtract_solar=False,
     elemental_abundances = elemental_abundances.copy()
     
     # Make sure that the abundances are specified as (atomic_number: abundance)
-    for key in elemental_abundances.keys():
+    for key in list(elemental_abundances.keys()):
         if isinstance(key, string_types):
             # It's an element. Convert to atomic number.
             atomic_number = element_to_atomic_number(key)
@@ -227,7 +227,7 @@ def _format_isotopes(isotopes=None, ionisation_states=(0, 1), num_synth=1):
     N = 0
     outstr = []
 
-    fmt = "  {0:} {1:.3f} {1:.3f} {1:.3f}"
+    #fmt = "  {0:} {1:.3f} {1:.3f} {1:.3f}"
     fmt = "  "+" ".join(["{0:}"]+["{1:.3f}" for x in range(num_synth)])
     for elem in isotopes:
         for A,frac in iteritems(isotopes[elem]):
@@ -248,7 +248,7 @@ def _format_isotopes(isotopes=None, ionisation_states=(0, 1), num_synth=1):
                 A2 = A-A1*100
             ## TODO temporary kludge is to just put both ionization states in for every isotope
             for ion in ionisation_states:
-                species = elems_isotopes_ion_to_species(e1,e2,A1,A2,ion+1)
+                species = elems_isotopes_ion_to_species(e1,e2,A1,A2,ion+1,as_str=True)
                 outstr.append(fmt.format(species,invfrac))
                 N += 1
     outstr.insert(0,"{} {:.0f}".format(N,num_synth))

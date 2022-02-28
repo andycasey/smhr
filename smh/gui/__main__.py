@@ -6,10 +6,20 @@
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 
+import sys
+
 import logging
-from PySide import QtCore, QtGui
+from PySide2 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 import yaml
 import os
+
+# Fixing pyside2 bug: https://www.loekvandenouweland.com/content/pyside2-big-sur-does-not-show-window.html
+os.environ['QT_MAC_WANTS_LAYER'] = '1'
+
+# Hacky path solution to override the original path to smhr
+here = os.path.abspath(os.path.dirname(__file__))
+smhr_rpa_path = '/'.join(here.split('/')[:-2])
+sys.path.insert(0,smhr_rpa_path)
 
 # Functions related to warnings and exceptions.
 import exception
@@ -41,7 +51,7 @@ if __name__ == '__main__':
             (".Helvetica Neue DeskInterface", "Helvetica Neue")
         ]
         for substitute in substitutes:
-            QtGui.QFont.insertSubstitution(*substitute)
+            QtGui2.QFont.insertSubstitution(*substitute)
 
     # Create a global exception hook.
     sys._excepthook = sys.excepthook
@@ -89,7 +99,7 @@ if __name__ == '__main__':
     #    "/Users/arc/Downloads/hd122563_1blue_multi_090205_oldbutgood.fits",
     #    "/Users/arc/Downloads/hd122563_1red_multi_090205_oldbutgood.fits"
     #])
-    app.window = Ui_MainWindow()
+    app.window = Ui_MainWindow(app)
     app.window.show()
     app.window.raise_()
 

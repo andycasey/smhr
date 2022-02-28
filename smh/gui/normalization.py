@@ -11,7 +11,7 @@ __all__ = ["NormalizationTab"]
 import logging
 import numpy as np
 import sys
-from PySide import QtCore, QtGui
+from PySide2 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 from time import time
 
 from matplotlib import gridspec
@@ -28,7 +28,9 @@ c = 299792458e-3 # km/s
 
 # The minimum time (in seconds) between a mouse click/release to differentiate
 # a single click from a double click
-DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
+#DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
+# E. Holmbeck changed this since we don't have double-click anymore
+DOUBLE_CLICK_INTERVAL = 0.0 # MAGIC HACK
 
 # The pixel tolerance to select and remove an additional point.
 PIXEL_PICKER_TOLERANCE = 30 # MAGIC HACK
@@ -148,7 +150,7 @@ class NormalizationTab(QtGui.QWidget):
         self.low_sigma_clip.setAlignment(QtCore.Qt.AlignCenter)
         self.low_sigma_clip.setObjectName("norm_low_sigma_clip")
         self.low_sigma_clip.setValidator(
-            QtGui.QDoubleValidator(0, 1000, 2, self.low_sigma_clip))
+            QtGui2.QDoubleValidator(0, 1000, 2, self.low_sigma_clip))
 
         hbox.addWidget(self.low_sigma_clip)
         settings_grid_layout.addLayout(hbox, 3, 1, 1, 1)
@@ -169,7 +171,7 @@ class NormalizationTab(QtGui.QWidget):
         self.high_sigma_clip.setAlignment(QtCore.Qt.AlignCenter)
         self.high_sigma_clip.setObjectName("norm_high_sigma_clip")
         self.high_sigma_clip.setValidator(
-            QtGui.QDoubleValidator(0, 1000, 2, self.high_sigma_clip))
+            QtGui2.QDoubleValidator(0, 1000, 2, self.high_sigma_clip))
         hbox.addWidget(self.high_sigma_clip)
         settings_grid_layout.addLayout(hbox, 4, 1, 1, 1)
         
@@ -188,11 +190,50 @@ class NormalizationTab(QtGui.QWidget):
         self.knot_spacing.setMaximumSize(QtCore.QSize(40, 16777215))
         self.knot_spacing.setAlignment(QtCore.Qt.AlignCenter)
         self.knot_spacing.setValidator(
-            QtGui.QDoubleValidator(0, 10000, 0, self.knot_spacing))
+            QtGui2.QDoubleValidator(0, 10000, 0, self.knot_spacing))
         self.knot_spacing.setObjectName("norm_knot_spacing")
         hbox.addWidget(self.knot_spacing)
         settings_grid_layout.addLayout(hbox, 5, 1, 1, 1)
 
+        # -----------------------------------------------------------------
+        # E. Holmbeck added these lines
+        # Blue trimming.
+        self.blue_trim_label = QtGui.QLabel(self)
+        settings_grid_layout.addWidget(self.blue_trim_label, 6, 0, 1, 1)
+        self.blue_trim_label.setText(u"Blue trim (pixels)")
+
+        hbox = QtGui.QHBoxLayout()
+        hbox.setContentsMargins(-1, -1, 5, -1)
+        hbox.addItem(QtGui.QSpacerItem(
+            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+        self.blue_trim = QtGui.QLineEdit(self)
+        self.blue_trim.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.blue_trim.setAlignment(QtCore.Qt.AlignCenter)
+        self.blue_trim.setValidator(
+            QtGui2.QDoubleValidator(0, 10000, 0, self.blue_trim))
+        self.blue_trim.setObjectName("blue_trim")
+        hbox.addWidget(self.blue_trim)
+        settings_grid_layout.addLayout(hbox, 6, 1, 1, 1)
+
+        # Red trimming.
+        self.red_trim_label = QtGui.QLabel(self)
+        settings_grid_layout.addWidget(self.red_trim_label, 7, 0, 1, 1)
+        self.red_trim_label.setText(u"Red trim (pixels)")
+
+        hbox = QtGui.QHBoxLayout()
+        hbox.setContentsMargins(-1, -1, 5, -1)
+        hbox.addItem(QtGui.QSpacerItem(
+            40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
+        self.red_trim = QtGui.QLineEdit(self)
+        self.red_trim.setMaximumSize(QtCore.QSize(40, 16777215))
+        self.red_trim.setAlignment(QtCore.Qt.AlignCenter)
+        self.red_trim.setValidator(
+            QtGui2.QDoubleValidator(0, 10000, 0, self.red_trim))
+        self.red_trim.setObjectName("red_trim")
+        hbox.addWidget(self.red_trim)
+        settings_grid_layout.addLayout(hbox, 7, 1, 1, 1)
+        # -----------------------------------------------------------------
+        
         # End of the grid in the normalization tab.
         settings_layout.addLayout(settings_grid_layout)
 
@@ -225,11 +266,11 @@ class NormalizationTab(QtGui.QWidget):
         sp.setHeightForWidth(self.stitch_btn.sizePolicy().hasHeightForWidth())
         self.stitch_btn.setSizePolicy(sp)
         self.stitch_btn.setMinimumSize(QtCore.QSize(250, 0))
-        font = QtGui.QFont()
+        font = QtGui2.QFont()
         font.setBold(True)
         font.setWeight(75)
         self.stitch_btn.setFont(font)
-        self.stitch_btn.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        self.stitch_btn.setCursor(QtGui2.QCursor(QtCore.Qt.PointingHandCursor))
         self.stitch_btn.setDefault(True)
         self.stitch_btn.setObjectName("stitch_btn")
         self.stitch_btn.setText("Normalize and stitch orders")
@@ -276,16 +317,16 @@ class NormalizationTab(QtGui.QWidget):
         gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
         self.ax_order = self.norm_plot.figure.add_subplot(gs[0])
         # Line for the data.
-        self.ax_order.plot([], [], c='k', zorder=3)#, drawstyle='steps-mid')
+        self.ax_order.plot([np.nan], [np.nan], c='k', zorder=3)#, drawstyle='steps-mid')
         # Line for the continuum.
         self.ax_order.plot([], [], linestyle="--", linewidth=2, c='r', zorder=4)
         # Points for the continuum knots.
         self.ax_order.plot([], [], 'o', mfc='none', mec='r', zorder=5, mew=1, ms=10)
 
         # Line for the neighbouring order(s) (joined by a NaN).
-        self.ax_order.plot([], [], c='#666666', zorder=1, drawstyle='steps-mid')
+        self.ax_order.plot([np.nan], [np.nan], c='#666666', zorder=1, drawstyle='steps-mid')
         # Line for the neighbouring order(s) continuum (joined by a NaN)
-        self.ax_order.plot([], [], c='b', zorder=2)
+        self.ax_order.plot([np.nan], [np.nan], c='b', zorder=2)
 
         # Additional point markers.
         self.ax_order.scatter([], [], facecolor="k", zorder=5, picker=5)
@@ -295,7 +336,7 @@ class NormalizationTab(QtGui.QWidget):
 
         self.ax_order_norm = self.norm_plot.figure.add_subplot(gs[1])
         self.ax_order_norm.axhline(1, linestyle=":", c="#666666", zorder=1)
-        self.ax_order_norm.plot([], [], c='k', zorder=2)
+        self.ax_order_norm.plot([np.nan], [np.nan], c='k', zorder=2)
 
         # TODO: Make (0, 1.2) a default view setting.
         self.ax_order_norm.set_ylim(0, 1.2)
@@ -334,10 +375,20 @@ class NormalizationTab(QtGui.QWidget):
         self.high_sigma_clip.textChanged.connect(
             self.update_high_sigma_clip)
         self.knot_spacing.textChanged.connect(self.update_knot_spacing)
+        # -----------------------------------------------------------------
+        # E. Holmbeck added connect to trim
+        self.blue_trim.textChanged.connect(self.update_blue_trim)
+        self.red_trim.textChanged.connect(self.update_red_trim)
+        # -----------------------------------------------------------------
 
         self.low_sigma_clip.textChanged.connect(self.check_state)
         self.high_sigma_clip.textChanged.connect(self.check_state)
         self.knot_spacing.textChanged.connect(self.check_state)
+        # -----------------------------------------------------------------
+        # E. Holmbeck added connect to trim
+        self.blue_trim.textChanged.connect(self.check_state)
+        self.red_trim.textChanged.connect(self.check_state)
+        # -----------------------------------------------------------------
 
         return None
 
@@ -365,7 +416,7 @@ class NormalizationTab(QtGui.QWidget):
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 2, True)
         self.parent.tabs.setTabEnabled(self.parent.tabs.indexOf(self) + 3, True)
 
-        self.parent.stellar_parameters_tab.populate_widgets()
+        self.parent.stellar_parameters_tab.new_session_loaded()
         self.parent.chemical_abundances_tab.new_session_loaded()
 
         return None
@@ -383,9 +434,9 @@ class NormalizationTab(QtGui.QWidget):
         sender = self.sender()
         validator = sender.validator()
         state = validator.validate(sender.text(), 0)[0]
-        if state == QtGui.QValidator.Acceptable:
+        if state == QtGui2.QValidator.Acceptable:
             color = 'none' # normal background color
-        elif state == QtGui.QValidator.Intermediate:
+        elif state == QtGui2.QValidator.Intermediate:
             color = '#fff79a' # yellow
         else:
             color = '#f6989d' # red
@@ -416,6 +467,17 @@ class NormalizationTab(QtGui.QWidget):
 
         # Scale the continuum up/down.
         if event.key in ("up", "down"):
+            """
+            clip = self._cache["input"]["high_sigma_clip"]
+            if event.key == "up":
+                clip = max(clip-0.01, 0)
+            if event.key == "down":
+                clip += 0.01
+            self._cache["input"]["high_sigma_clip"] = clip
+            self.high_sigma_clip.setText(
+                str(self._cache["input"]["high_sigma_clip"]))
+            
+            """
             scale = self._cache["input"].get("scale", 1.0)
             sign = +1 if event.key == "up" else -1
 
@@ -458,6 +520,18 @@ class NormalizationTab(QtGui.QWidget):
             return True
 
 
+        # undo/remove the last mask
+        if event.key in ("u", "U"):
+            if "exclude" in self._cache["input"]:
+                exclude_regions = self._cache["input"]["exclude"]
+                if len(exclude_regions) > 0:
+                    exclude_regions = exclude_regions[1:]
+                    self._cache["input"]["exclude"] = exclude_regions
+                    
+                    self.fit_continuum(clobber=True)
+                    self.draw_continuum(refresh=False)
+                    self.update_continuum_mask(refresh=True)
+        
         # 'r': Reset the zoom limits without refitting/clearing masks
         if event.key in "rR":
             self.norm_plot.reset_zoom_limits()
@@ -467,7 +541,8 @@ class NormalizationTab(QtGui.QWidget):
             return True
 
 
-        # 'f': Refit without resetting the zoom limits
+        # 'f': Refit without resetting the zoom limits.
+        # Also can be used to recenter the bottom plot
         if event.key in "fF":
             # Force refit.
             self.fit_continuum(clobber=True)
@@ -475,8 +550,38 @@ class NormalizationTab(QtGui.QWidget):
             self.update_continuum_mask(refresh=True)
 
             return True
+        
+        # 'a': add point
+        if event.key in "aA":
+            points = np.vstack([
+                self.ax_order.collections[0].get_offsets(),
+                [event.xdata, event.ydata]
+            ])
+            # TODO: set size by their weight?
+            self.ax_order.collections[0].set_offsets(points)
+            
+            idx = self.current_order_index
+            N = points.shape[0]
+            # TODO: adhere to the knot weights
+            self._cache["input"]["additional_points"] \
+                = np.hstack((points, 100 * np.ones(N).reshape((N, 1))))
 
-
+            self.fit_continuum(clobber=True)
+            self.draw_continuum(refresh=False)
+            self.update_continuum_mask(refresh=True)
+            return True
+            
+        # 'x': clear all added points
+        if event.key in "xX":
+            for key in ["additional_points"]:
+                if key in self._cache["input"]:
+                    del self._cache["input"][key]
+            
+            self.fit_continuum(clobber=True)
+            self.draw_continuum(refresh=False)
+            self.update_continuum_mask(refresh=True)
+            return True
+            
     def figure_mouse_press(self, event):
         """
         Function to handle event left clicks (single or double click).
@@ -488,15 +593,20 @@ class NormalizationTab(QtGui.QWidget):
         # Add/remove an additional point?
         if event.dblclick:
 
+            logger.info("Removed double-click to add point. Use 'a' key instead")
             if event.button == 1:
                 # Add a point.
+                # Removed adding points because APJ strongly recommends not using this
+                """
                 points = np.vstack([
                     self.ax_order.collections[0].get_offsets(),
                     [event.xdata, event.ydata]
                 ])
                 # TODO: set size by their weight?
                 self.ax_order.collections[0].set_offsets(points)
-
+                """
+                pass
+            
             else:
                 # Are we within <tolerance of a point?
                 points = self.ax_order.collections[0].get_offsets()
@@ -532,11 +642,14 @@ class NormalizationTab(QtGui.QWidget):
                         print("Closest point {} px away".format(distance[index]))
 
             # Update the cache.
+            """
+            # Removed here because don't want to add points this way
             idx = self.current_order_index
             N = points.shape[0]
             # TODO: adhere to the knot weights
             self._cache["input"]["additional_points"] \
                 = np.hstack((points, 100 * np.ones(N).reshape((N, 1))))
+            """
             self.fit_continuum(clobber=True)
             self.draw_continuum(refresh=True)
 
@@ -665,7 +778,7 @@ class NormalizationTab(QtGui.QWidget):
             return
 
         keys = ("function", "order", "low_sigma_clip", "high_sigma_clip",
-            "knot_spacing", "max_iterations")
+            "knot_spacing", "blue_trim", "red_trim", "max_iterations")
         self._cache = {
             "input": {}
         }
@@ -688,6 +801,13 @@ class NormalizationTab(QtGui.QWidget):
             str(self._cache["input"]["high_sigma_clip"]))
         self.knot_spacing.setText(str(
             self._cache["input"]["knot_spacing"]))
+        # ----------------------------------------------------------------
+        # E. Holmbeck added these
+        self.blue_trim.setText(str(
+            self._cache["input"]["blue_trim"]))
+        self.red_trim.setText(str(
+            self._cache["input"]["red_trim"]))
+        # ----------------------------------------------------------------
 
         functions = [self.function.itemText(i).lower() \
             for i in range(self.function.count())]
@@ -711,7 +831,7 @@ class NormalizationTab(QtGui.QWidget):
             self.continuum_mask.addItem(name)
 
         self.continuum_mask.setCurrentIndex(
-            self._cache["masks"].keys().index(
+            list(self._cache["masks"].keys()).index(
                 self._cache["default_mask"]))
 
         self.order_slide.setMaximum(len(self.parent.session.input_spectra) - 1)
@@ -805,12 +925,21 @@ class NormalizationTab(QtGui.QWidget):
             rv_applied = self.parent.session.metadata["rv"]["rv_applied"]
         except (AttributeError, KeyError):
             rv_applied = 0
-
-        _ =self.parent.session.metadata["normalization"]["normalization_kwargs"]
         
+        # -----------------------------------------------------------------
+        # E. Holmbeck added read-in BCV from header
+        try:
+            vhelio = self.parent.session.metadata["rv"]["heliocentric_correction"]
+            bcv_shift = self.parent.session.metadata["rv"]["barycentric_correction"]
+            dop_shift = vhelio + bcv_shift
+        except (AttributeError, KeyError):
+            dop_shift = 0.0
+        # -----------------------------------------------------------------
+        _ =self.parent.session.metadata["normalization"]["normalization_kwargs"]
         masked_regions = [
-            np.array(mask.get("rest_wavelength", [])),
-            np.array(mask.get("obs_wavelength", [])) * (1 - rv_applied/c),
+            #np.array(mask.get("rest_wavelength", [])),
+            np.array(mask.get("rest_wavelength", [])) * (1.0 - dop_shift/c),
+            np.array(mask.get("obs_wavelength", [])) * (1.0 - rv_applied/c),
             np.array(_[self.current_order_index].get("exclude", []))
         ]
         if "pixel" in mask:
@@ -876,7 +1005,97 @@ class NormalizationTab(QtGui.QWidget):
             self.draw_continuum(True)
             
         return None
+
+	# -----------------------------------------------------------------
+	# E. Holmbeck added these update functions
+    def update_blue_trim(self):
+        try:
+        	trim_region = int(self.blue_trim.text())
+        except ValueError:
+        	return None
         
+        if trim_region == 0:
+            return None
+            
+        try:
+            x, y = (self.current_order.dispersion, self.current_order.flux)
+        except AttributeError:
+            return None
+        
+        # If "exclude" doesn't exist, add it.
+        try:
+            exclude = self._cache["input"]["exclude"]
+        except:
+            self._cache["input"]["exclude"] = np.array( 
+                [[x[0], x[trim_region]]])
+            exclude = self._cache["input"]["exclude"]
+        
+        # Replace the mask that goes to the end anyway     
+        if len(exclude) == 0:
+            self._cache["input"]["exclude"] = np.array( 
+                [[x[0], x[trim_region]]])
+        else:
+            mask_to_delete = []
+            for i,e in enumerate(exclude):
+                if e[0] == x[0] and e[1] != x[trim_region]:
+                    mask_to_delete.append(i)
+            
+            self._cache["input"]["exclude"] = np.delete(exclude, mask_to_delete, axis=0)
+            self._cache["input"]["exclude"] = np.insert(self._cache["input"]["exclude"], 
+                0, [[x[0], x[trim_region]]], axis=0)
+
+        if trim_region:        
+            self._cache["input"]["blue_trim"] = trim_region
+            self.reset_input_style_defaults()
+            self.fit_continuum(True)
+            self.draw_continuum(True)
+            self.update_continuum_mask(refresh=True)
+
+        return None
+
+    def update_red_trim(self):
+        try:
+        	trim_region = int(self.red_trim.text())
+        except ValueError:
+        	return None
+
+        if trim_region == 0:
+            return None
+        
+        try:
+            x, y = (self.current_order.dispersion, self.current_order.flux)
+        except AttributeError:
+            return None
+        
+        try:
+            exclude = self._cache["input"]["exclude"]
+        except:
+            self._cache["input"]["exclude"] = np.array( 
+                [[x[-trim_region], x[-1]+1e-3]])
+            exclude = self._cache["input"]["exclude"]
+        
+        if len(exclude) == 0:
+            self._cache["input"]["exclude"] = np.array( 
+                [[x[-trim_region], x[-1]+1e-3]])
+        else:
+            mask_to_delete = []
+            for i,e in enumerate(exclude):
+                if e[0] != x[-trim_region] and e[1] == x[-1]+1e-3:
+                    mask_to_delete.append(i)
+            
+            self._cache["input"]["exclude"] = np.delete(exclude, mask_to_delete, axis=0)
+            self._cache["input"]["exclude"] = np.append(self._cache["input"]["exclude"], 
+                [[x[-trim_region], x[-1]+1e-3]], axis=0)
+
+        if trim_region:        
+            self._cache["input"]["red_trim"] = trim_region
+            self.reset_input_style_defaults()
+            self.fit_continuum(True)
+            self.draw_continuum(True)
+            self.update_continuum_mask(refresh=True)
+
+        return None
+	# -----------------------------------------------------------------
 
     def update_high_sigma_clip(self):
         """ Update the high sigma clip value. """
@@ -980,7 +1199,7 @@ class NormalizationTab(QtGui.QWidget):
         # Update the view if the input settings don't match the settings used
         # to normalize the current order.
         self.check_for_different_input_settings()
-
+        
         return None
 
 
@@ -1025,7 +1244,10 @@ class NormalizationTab(QtGui.QWidget):
         session, index = self.parent.session, self.current_order_index
 
         # Is there continuum already for this new order?
-        continuum = session.metadata["normalization"]["continuum"][index]
+        try:
+            continuum = session.metadata["normalization"]["continuum"][index]
+        except:
+            logger.debug("check_for_different_input_settings: no continuum kwd")
         normalization_kwargs \
             = session.metadata["normalization"]["normalization_kwargs"][index]
 
@@ -1037,7 +1259,11 @@ class NormalizationTab(QtGui.QWidget):
             elif key in self._cache["input"]:
                 del self._cache["input"][key]
 
-        if continuum is None: return
+        if continuum is None:
+            # Holmbeck: a little hacky, but it works?
+            self.update_blue_trim()
+            self.update_red_trim()
+            return
 
         # If so, are the current normalization keywords different to the ones
         # used for this one?
@@ -1049,6 +1275,8 @@ class NormalizationTab(QtGui.QWidget):
             "high_sigma_clip": \
                 [self.high_sigma_clip_label, self.high_sigma_clip],
             "knot_spacing": [self.knot_spacing, self.knot_spacing_label],
+            "blue_trim": [self.blue_trim, self.blue_trim_label],
+            "red_trim": [self.red_trim, self.red_trim_label],
         }
 
         diff = dict_updated(self._cache["input"], normalization_kwargs,
@@ -1075,7 +1303,6 @@ class NormalizationTab(QtGui.QWidget):
         """
         Reset the styling inputs.
         """
-
         items = items or (
             self.function_label, self.function,
             self.order_label, self.order,
@@ -1083,6 +1310,8 @@ class NormalizationTab(QtGui.QWidget):
             self.low_sigma_clip_label, self.low_sigma_clip,
             self.high_sigma_clip_label, self.high_sigma_clip,
             self.knot_spacing_label, self.knot_spacing,
+            self.blue_trim_label, self.blue_trim,
+            self.red_trim_label, self.red_trim,
         )
         # Ensure all the things are styled normally.
         for item in items:
@@ -1109,7 +1338,8 @@ class NormalizationTab(QtGui.QWidget):
         trimming = (x[-1] - x[0]) * percent/100.
         self.ax_order.set_xlim(x[0] - trimming, x[-1] + trimming)
 
-        self.ax_order.set_ylim(np.nanmin(y), np.nanmax(y))
+        trimming = (np.nanmax(y) - np.nanmin(y)) * percent/100.
+        self.ax_order.set_ylim(np.nanmin(y) - trimming, np.nanmax(y) + trimming)
 
         self.norm_plot.reset_zoom_limits()
 
@@ -1136,10 +1366,15 @@ class NormalizationTab(QtGui.QWidget):
         except AttributeError:
             return None
 
-        continuum = session.metadata["normalization"]["continuum"][index]
+        try:
+            continuum = session.metadata["normalization"]["continuum"][index]
+        except KeyError:
+            # Nothing to do
+            return
         if continuum is not None and not clobber:
             # Nothing to do.
             return
+        print("gui.normalization.fit_continuum: fitting {}".format(index))
 
         kwds = self._cache["input"].copy()
         kwds["full_output"] = True
@@ -1150,17 +1385,34 @@ class NormalizationTab(QtGui.QWidget):
             rv_applied = self.parent.session.metadata["rv"]["rv_applied"]
         except (AttributeError, KeyError):
             rv_applied = 0
+        
+        # -----------------------------------------------------------------
+        # E. Holmbeck added read-in BCV from header
+        try:
+            vhelio = self.parent.session.metadata["rv"]["heliocentric_correction"]
+            bcv_shift = self.parent.session.metadata["rv"]["barycentric_correction"]
+            dop_shift = vhelio + bcv_shift
+        except (AttributeError, KeyError):
+            dop_shift = 0.0
+        # -----------------------------------------------------------------
 
-        mask_kinds = [
-            (0,          global_mask.get("rest_wavelength", [])),
-            (rv_applied, global_mask.get("obs_wavelength", []))
-        ]
+        if np.isnan(dop_shift):
+            mask_kinds = [
+                (0,  global_mask.get("rest_wavelength", [])),
+                (rv_applied, global_mask.get("obs_wavelength", []))
+            ]
+        else:
+            mask_kinds = [
+                (dop_shift,  global_mask.get("rest_wavelength", [])),
+                (rv_applied, global_mask.get("obs_wavelength", []))
+            ]
+
         regions = []
         for v, masked_regions in mask_kinds:
             for region in np.array(masked_regions):
-                start, end = region * (1 - v/c)
+                start, end = np.array(region) * (1 - v/c)
 
-                if  end >= self.current_order.dispersion[0] \
+                if end >= self.current_order.dispersion[0] \
                 and self.current_order.dispersion[-1] >= start:
                     regions.append((start, end))
 
@@ -1214,7 +1466,11 @@ class NormalizationTab(QtGui.QWidget):
             return None
 
         meta = self.parent.session.metadata["normalization"]
-        continuum = meta["continuum"][index]
+        try:
+            continuum = meta["continuum"][index]
+        except:
+            logger.debug("draw_continuum: no continuum kw")
+            return None
         kwds = meta["normalization_kwargs"][index]
 
         self.ax_order.lines[1].set_data([

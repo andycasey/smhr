@@ -10,7 +10,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 # Standard library.
 import os
 import logging
-import cPickle as pickle
+from six.moves import cPickle as pickle
 from pkg_resources import resource_stream
 
 # Third-party.
@@ -49,12 +49,12 @@ class BaseInterpolator(object):
 
         if os.path.exists(pickled_photospheres):
             with open(pickled_photospheres, "rb") as fp:
-                _ = pickle.load(fp)
+                _ = pickle.load(fp, encoding="latin1")
 
         else:
             try:
                 with resource_stream(__name__, pickled_photospheres) as fp:
-                    _ = pickle.load(fp)
+                    _ = pickle.load(fp, encoding="latin1")
             except:
                 raise ValueError("photosphere filename '{}' does not exist"\
                     .format(pickled_photospheres))

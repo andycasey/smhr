@@ -12,8 +12,9 @@ import logging
 import matplotlib.gridspec
 import numpy as np
 import sys
-from PySide import QtCore, QtGui
+from PySide2 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 import time
+from copy import deepcopy
 
 import smh
 from smh.gui.base import SMHSpecDisplay
@@ -39,16 +40,15 @@ if sys.platform == "darwin":
         (".Helvetica Neue DeskInterface", "Helvetica Neue")
     ]
     for substitute in substitutes:
-        QtGui.QFont.insertSubstitution(*substitute)
+        QtGui2.QFont.insertSubstitution(*substitute)
 
-_QFONT = QtGui.QFont("Helvetica Neue", 10)
+_QFONT = QtGui2.QFont("Helvetica Neue", 10)
 _ROWHEIGHT = 20
 DOUBLE_CLICK_INTERVAL = 0.1 # MAGIC HACK
 PICKER_TOLERANCE = 10 # MAGIC HACK
 
 
 class ChemicalAbundancesTab(QtGui.QWidget):
-    
     def __init__(self, parent):
         super(ChemicalAbundancesTab, self).__init__(parent)
 
@@ -70,6 +70,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.parent_layout.addWidget(self.figure)
         self.figure.add_callback_after_fit(self.refresh_current_model)
         self.figure.add_callback_after_fit(self.summarize_current_table)
+        self.figure.mpl_connect("key_press_event", self.key_press_selectcheck)
+        ## Stuff for extra synthesis
+        self.extra_spec_1 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#cea2fd', lw=1.5, zorder=9999)[0]
+        self.extra_spec_2 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#ffb07c', lw=1.5, zorder=9999)[0]
         
         ################
         # BOTTOM
@@ -105,6 +109,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # Set up things as if a fresh session
         self._currently_plotted_element = "All"
         self.new_session_loaded()
+        
 
     def init_tab(self):
         """
@@ -206,9 +211,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             line.setMaximumSize(QtCore.QSize(60, _ROWHEIGHT))
             line.setFont(_QFONT)
             if validate_int:
-                line.setValidator(QtGui.QIntValidator(bot, top, line))
+                line.setValidator(QtGui2.QIntValidator(bot, top, line))
             else:
-                line.setValidator(QtGui.QDoubleValidator(bot, top, dec, line))
+                line.setValidator(QtGui2.QDoubleValidator(bot, top, dec, line))
             hbox.addWidget(label)
             hbox.addItem(QtGui.QSpacerItem(40, _ROWHEIGHT, QtGui.QSizePolicy.Expanding,
                                            QtGui.QSizePolicy.Minimum))
@@ -227,7 +232,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             line.setMinimumSize(QtCore.QSize(60, 0))
             line.setMaximumSize(QtCore.QSize(60, _ROWHEIGHT))
             line.setFont(_QFONT)
-            line.setValidator(QtGui.QDoubleValidator(bot, top, dec, line))
+            line.setValidator(QtGui2.QDoubleValidator(bot, top, dec, line))
             hbox.addWidget(checkbox)
             hbox.addItem(QtGui.QSpacerItem(10, 10, QtGui.QSizePolicy.Fixed,
                                            QtGui.QSizePolicy.Minimum))
@@ -339,7 +344,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         vbox_rhs.addLayout(hbox)
         
         hbox, label, line = _create_line_in_hbox(self.tab_profile, "Automask sigma",
-                                                 0, 100, 1)
+                                                 0, 100, 2)
         self.edit_detection_sigma = line
         vbox_rhs.addLayout(hbox)
         
@@ -437,7 +442,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.synth_abund_table_model = SynthesisAbundanceTableModel(self)
         self.synth_abund_table.setModel(self.synth_abund_table_model)
         self.synth_abund_table.resizeColumnsToContents()
-        self.synth_abund_table.verticalHeader().setResizeMode(QtGui.QHeaderView.Fixed)
+        self.synth_abund_table.verticalHeader().setSectionResizeMode(QtGui.QHeaderView.Fixed)
         self.synth_abund_table.verticalHeader().setDefaultSectionSize(_ROWHEIGHT)
         self.synth_abund_table.setColumnWidth(0, 40) # MAGIC
         self.synth_abund_table.setColumnWidth(1, 55) # MAGIC
@@ -469,7 +474,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         line.setMinimumSize(QtCore.QSize(20, 0))
         line.setMaximumSize(QtCore.QSize(25, _ROWHEIGHT))
         line.setFont(_QFONT)
-        line.setValidator(QtGui.QDoubleValidator(0, 10, 1, line))
+        line.setValidator(QtGui2.QDoubleValidator(0, 10, 1, line))
         line.setText("3.0")
         self.edit_ul_sigma = line
         hbox2.addWidget(self.edit_ul_sigma)
@@ -521,6 +526,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._connect_profile_signals()
 
     def _disconnect_profile_signals(self):
+        ## TODO NEXT: in PySide2, there is a bug with disconnecting signals.
+        ## Recommended to switch to PyQt5 for this, which introduces other issues...
         for signal_obj, method in self._profile_signals:
             signal_obj.disconnect(method)
         for signal_obj, method in self._synth_signals:
@@ -720,6 +727,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
     def filter_combo_box_changed(self):
         elem = self.filter_combo_box.currentText()
         # Update the filter
+        self.measurement_model.beginResetModel()
         if self._currently_plotted_element not in ["All", "", "None"]:
             try:
                 self.measurement_model.delete_filter_function(self._currently_plotted_element)
@@ -739,7 +747,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     return np.any([species in specie for specie in model.species])
             self.measurement_model.add_filter_function(elem, filter_function)
         self._currently_plotted_element = elem
-        self.measurement_model.reset()
+        self.measurement_model.endResetModel()
         self.summarize_current_table()
         self.refresh_plots()
         self.measurement_view.selectRow(0)
@@ -778,8 +786,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         session = self.parent.session
         if session is None: return None
         #self._check_for_spectral_models()
+        self.measurement_model.beginResetModel()
         self.full_measurement_model.new_session(session)
-        self.measurement_model.reset()
+        self.measurement_model.endResetModel()
         self.measurement_view.update_session(session)
         self.populate_filter_combo_box()
         self.calculate_FeH()
@@ -794,6 +803,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         current_element_index = self.filter_combo_box.currentIndex()
 
         # Fit all acceptable
+        self.measurement_model.beginResetModel()
         num_unacceptable = 0
         for i,spectral_model in enumerate(self.full_measurement_model.spectral_models):
             if not spectral_model.is_acceptable:
@@ -831,7 +841,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                         logger.debug("Fitting error",spectral_model)
                         logger.debug(e)
 
-        self.measurement_model.reset()
+        self.measurement_model.endResetModel()
         self.populate_filter_combo_box()
         self.summarize_current_table()
         self.refresh_plots()
@@ -848,9 +858,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             current_table_index = None
 
         # Gets abundances and uncertainties into session
+        self.measurement_model.beginResetModel()
         self.parent.session.measure_abundances()
 
-        self.measurement_model.reset()
+        self.measurement_model.endResetModel()
         self.populate_filter_combo_box()
         self.summarize_current_table()
         self.refresh_plots()
@@ -896,6 +907,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def synthesize_current_model(self):
+        # When we get selected model, it erases the extra_abundances.
+        # So let's cache it then put it back in...
+        extra_abundances = self.synth_abund_table_model.get_extra_abundances()
+        
         spectral_model, proxy_index, index = self._get_selected_model(True)
         if spectral_model is None: return None
         spectral_model.update_fit_after_parameter_change()
@@ -904,6 +919,29 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.update_fitting_options()
         #self.refresh_plots()
         self.update_spectrum_figure(redraw=True,reset_limits=False)
+        ### TODO
+        try:
+            fitted_result = spectral_model.metadata["fitted_result"]
+        except:
+            pass
+        else:
+            if extra_abundances is not None:
+                logger.debug(extra_abundances)
+                abundances1 = deepcopy(spectral_model.metadata["rt_abundances"])
+                for i, elem in enumerate(spectral_model.elements):
+                    abundances1[elem] = fitted_result[-1]["abundances"][i]
+                abundances2 = deepcopy(abundances1)
+                for elem, abunddiff in extra_abundances[0].items():
+                    abundances1[elem] += abunddiff
+                    self.synth_abund_table_model.extra_abundances[elem][0] = abunddiff
+                for elem, abunddiff in extra_abundances[1].items():
+                    abundances2[elem] += abunddiff
+                    self.synth_abund_table_model.extra_abundances[elem][1] = abunddiff
+                x, y = spectral_model.get_synth(abundances1)
+                self.extra_spec_1.set_data([x,y])
+                x, y = spectral_model.get_synth(abundances2)
+                self.extra_spec_2.set_data([x,y])
+            self.figure.draw()
         return None
         
     def _check_for_spectral_models(self):
@@ -948,6 +986,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def update_spectrum_figure(self, redraw=False, reset_limits=True):
         ## If synthesis, label selected lines
+        self.extra_spec_1.set_data([[np.nan], [np.nan]])
+        self.extra_spec_2.set_data([[np.nan], [np.nan]])
         try:
             selected_model = self._get_selected_model()
         except IndexError:
@@ -1458,8 +1498,31 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def refresh_current_model(self):
         spectral_model, proxy_index, index = self._get_selected_model(True)
+        if spectral_model is None: return None
         self.measurement_view.update_row(proxy_index.row())
         self.update_fitting_options()
+
+    def key_press_selectcheck(self, event):
+        if "'"+event.key+"'" == "' '":
+            model, proxy_index, index = self._get_selected_model(True)
+            model.is_acceptable = np.logical_not(model.is_acceptable)
+            self.measurement_view.update_row(proxy_index.row())
+            self.update_spectrum_figure(redraw=True)
+            return None
+        if event.key in ["f", "F"]:
+            model, proxy_index, index = self._get_selected_model(True)
+            model.user_flag = np.logical_not(model.user_flag)
+            self.measurement_view.update_row(proxy_index.row())
+            return None
+        if event.key not in ["up","down","j", "J", "k", "K"]: return None
+        try:
+            proxy_index_row = self.measurement_view.selectionModel().selectedRows()[-1].row()
+        except IndexError:
+            return None
+        if event.key in ["up", "j", "J"]: proxy_index_row -= 1
+        if event.key in ["down", "k", "K"]: proxy_index_row += 1
+        self.measurement_view.selectRow(proxy_index_row)
+        return None
 
 class SynthesisAbundanceTableView(QtGui.QTableView):
     """
@@ -1489,6 +1552,8 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
         self.spectral_model = None
         self.elem_order = None
         self.num_fit_elems = 0
+        # Extra synthesis table info
+        self.extra_abundances = {}
 
     def load_new_model(self, spectral_model):
         """
@@ -1503,19 +1568,24 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
             # Other rows are rt_abundances
             self.num_fit_elems = len(spectral_model.elements)
 
-            elems = spectral_model.metadata["rt_abundances"].keys()
+            #elems = [k.decode() for k in spectral_model.metadata["rt_abundances"].keys()]
+            elems = list(spectral_model.metadata["rt_abundances"].keys())
             Zs = [utils.element_to_atomic_number(elem) for elem in elems]
             sorted_indices = np.argsort(Zs)
             # Put in rt_abundances indices
             self.elem_order = dict(zip(self.num_fit_elems + np.arange(len(elems)), \
                                        np.array(elems)[sorted_indices]))
-            # Put in parameters indices
+            # Put in parameters indices and extra_abundances
+            for elem in self.extra_abundances:
+                self.extra_abundances[elem] = [None, None]
             for i,elem in enumerate(spectral_model.elements):
                 self.elem_order[i] = elem
+                self.extra_abundances[elem] = [None, None]
         else:
             self.num_fit_elems = 0
             self.elem_order = None
         self.endResetModel()
+        
         return None
     def rowCount(self, parent):
         try:
@@ -1525,7 +1595,7 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
             logger.info(e)
             return 0
     def columnCount(self, parent):
-        return 3
+        return 5
     def data(self, index, role):
         if role==QtCore.Qt.FontRole:
             return _QFONT
@@ -1550,6 +1620,9 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
             return "{:.3f}".format(logeps)
         elif index.column()==2:
             return "{:.3f}".format(logeps-solar_composition(elem)-self.parent.FeH)
+        elif (index.column()==3) or (index.column()==4):
+            if (elem not in self.extra_abundances) or (self.extra_abundances[elem][index.column()-3] is None): return ""
+            return "{:.3f}".format(self.extra_abundances[elem][index.column()-3])
         return None
     def headerData(self, col, orientation, role):
         if orientation == QtCore.Qt.Horizontal \
@@ -1566,6 +1639,19 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
         if self.spectral_model is None: return False
         # Modify the spectral model abundance
         elem = self.elem_order[index.row()]
+        if (index.column() == 3) or (index.column() == 4):
+            if elem not in self.extra_abundances:
+                self.extra_abundances[elem] = [None, None]
+            if value == "":
+                self.extra_abundances[elem][index.column()-3] = None
+                return True
+            try:
+                value = float(value)
+            except:
+                return False
+            else:
+                self.extra_abundances[elem][index.column()-3] = value
+                return True
         if elem in self.spectral_model.metadata["rt_abundances"]:
             try:
                 value = float(value)
@@ -1616,3 +1702,22 @@ class SynthesisAbundanceTableModel(QtCore.QAbstractTableModel):
         if index.column()==1 or index.column(): #abundance
             flags |= QtCore.Qt.ItemIsEditable
         return flags
+
+    def get_extra_abundances(self):
+        """
+        Returns None if no extra abundances, otherwise two dictionaries of the extra abundances
+        """
+        if self.elem_order is None: return None
+        extra_abundances_1 = {}
+        extra_abundances_2 = {}
+        for elem in self.elem_order.values():
+            if elem not in self.extra_abundances:
+                self.extra_abundances[elem] = [None, None]
+                continue
+            if self.extra_abundances[elem][0] is not None:
+                extra_abundances_1[elem] = self.extra_abundances[elem][0]
+            if self.extra_abundances[elem][1] is not None:
+                extra_abundances_2[elem] = self.extra_abundances[elem][1]
+        if (extra_abundances_1 == {}) and (extra_abundances_2 == {}):
+            return None
+        return extra_abundances_1, extra_abundances_2

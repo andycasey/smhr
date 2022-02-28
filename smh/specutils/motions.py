@@ -15,7 +15,8 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 __all__ = ["celestial_velocities", "corrections", "corrections_from_headers"]
 
 import logging
-import yaml
+#import yaml
+import json
 from pkg_resources import resource_stream
 
 import numpy as np
@@ -23,6 +24,8 @@ import astropy.constants as constants
 import astropy.coordinates as coord
 import astropy.units as u
 from astropy.time import Time
+from astropy.utils import iers
+iers.Conf.iers_auto_url.set('ftp://cddis.gsfc.nasa.gov/pub/products/iers/finals2000A.all')
 
 def celestial_velocities(dje):
     """
@@ -252,7 +255,7 @@ def celestial_velocities(dje):
 # class.
 
 
-def corrections(lon, lat, alt, ra, dec, mjd):
+def corrections(lon, lat, alt, ra, dec, mjd, bcv_shift=None):
     """
     Calculate the heliocentric radial velocity corrections for an astronomical 
     source.
@@ -371,7 +374,13 @@ def corrections(lon, lat, alt, ra, dec, mjd):
     vhel = (vh * projection).sum()
 
     # Using baricentric velocity for correction
-    vbar_correction = vdiurnal + vbar
+    # ---------------------------------------------------------------------
+    # E. Holmbeck put this if statement in
+    if bcv_shift != None:
+        vbar_correction = bcv_shift
+    else:
+        vbar_correction = vdiurnal + vbar
+    # ---------------------------------------------------------------------
     vhel_correction = vdiurnal + vhel
 
     # [TODO] it may be useful to return other components of velocity or extra
@@ -391,23 +400,25 @@ def corrections_from_headers(headers):
     :type headers:
         A dictionary-like object.
     """
-
     alt_obs = headers.get("ALT_OBS", headers.get("SITEALT", None))
     lat_obs = headers.get("LAT_OBS", headers.get("SITELAT", None))
     long_obs = headers.get("LONG_OBS", headers.get("SITELONG", None))
 
     if None in (alt_obs, lat_obs, long_obs):
         # Try and determine it from the observatory name, if it exists.
-        origin = headers.get("ORIGIN", None)
+        #origin = headers.get("OBSERVAT", "ORIGIN", None)
+        origin = headers.get("OBSERVAT", headers.get("SITENAME", None))
 
         if origin is None:
             raise KeyError("no observatory information available (ALT_OBS, "
                 "LAT_OBS, LONG_OBS) or ORIGIN")
 
-        raise NotImplementedError("no observatory dictionary exists yet")
-
-        with resource_stream(__name__, "observatories.yaml") as fp:
-            observatories_dictionary = yaml.load(fp)
+        #raise NotImplementedError("no observatory dictionary exists yet")
+        #with resource_stream(__name__, "observatories.yaml") as fp:
+        #    observatories_dictionary = yaml.load(fp)
+        # E. Holmbeck changed this from yaml to json
+        with resource_stream(__name__, "sites.json") as fp:
+            observatories_dictionary = json.load(fp)
 
         origin = origin.strip().lower()
         if origin not in observatories_dictionary:
@@ -415,7 +426,7 @@ def corrections_from_headers(headers):
                 .format(origin))
 
         observatory = observatories_dictionary[origin]
-        alt_obs = observatory["altitude"]
+        alt_obs = observatory["elevation"]
         lat_obs = observatory["latitude"]
 
     # Get the RA/DEC.
@@ -434,45 +445,69 @@ def corrections_from_headers(headers):
     # Time of observation.
     # Try to get the mid-point directly.
     try:
-        mjd = Time("{0}T{1}".format(headers["DATE-MID"], headers["UT-MID"])).mjd
+        mjd = Time("{0}T{1}".format(headers["UTMID"], headers["UT-MID"])).mjd
 
     except (IndexError, KeyError):
         # Try and calculate it from UT-START/UT-DATE keys
         #raise
 
         try:
-            utdate_key = [_ for _ in ("UTDATE", "UT-DATE") if _ in headers][0]
-            utstart_key = [_ for _ in ("UTSTART", "UT-START") if _ in headers][0]
+            utdate_key = [_ for _ in ("UT-DATE", "DATE-OBS") if _ in headers][0]
+            if 'T' in headers[utdate_key]:
+                ut_start = Time(headers[utdate_key], format="isot", scale="utc")
+            else:
+                utstart_key = [_ for _ in ("UT-START", "UT") if _ in headers][0]
+                try:
+                    ut_start = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
+                        headers[utstart_key]), format="isot", scale="utc")
+                except:
+                    ut_start = Time("{0}T{1}".format(headers[utdate_key].replace("/", "-"),
+                        headers[utstart_key]), format="isot", scale="utc")
             
         except IndexError:
-            raise KeyError("cannot find all time keys: UTSTART/UTDATE")
-
-        try:
-            ut_start = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
-                headers[utstart_key]), format="isot", scale="utc")
-        except:
-            ut_start = Time("{0}T{1}".format(headers[utdate_key].replace("/", "-"),
-                headers[utstart_key]), format="isot", scale="utc")
-            
+            raise KeyError("cannot find all time keys: UTSTART/UTDATE")          
 
         try:
             utend_key = [_ for _ in ("UTEND", "UT-END") if _ in headers][0]
         except IndexError:
-            mjd = ut_start.mjd
-            logging.warn(
-                "Calculating celestial corrections based on the UT-START only")
-
-        else:        
             try:
-                ut_end = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
-                    headers[utend_key]), format="isot", scale="utc")
+                exp_time = headers['EXPTIME']
             except:
+                mjd = ut_start.mjd
+                logging.warn(
+                    "Calculating celestial corrections based on the UT-START only")
+
+        try:
+            ut_end = Time("{0}T{1}".format(headers[utdate_key].replace(":", "-"),
+                headers[utend_key]), format="isot", scale="utc")
+        except:
+            try:
                 ut_end = Time("{0}T{1}".format(headers[utdate_key].replace("/", "-"),
                     headers[utend_key]), format="isot", scale="utc")
+            except:
+                ut_end = ut_start + (exp_time)*u.s
 
-            # Get the MJD of the mid-point of the observation.
+		# Get the MJD of the mid-point of the observation.
+        try:
+            mjd
+        except:
             mjd = (ut_end - ut_start).jd/2 + ut_start.mjd
 
     # Calculate the correction.
-    return corrections(long_obs, lat_obs, alt_obs, ra, dec, mjd)
+    # ---------------------------------------------------------------------
+    # E. Holmbeck
+    try:
+        dop_cor = float(headers.get("DOPCOR", None).split()[0])
+        vhelio = float(headers.get("VHELIO", None))
+        bcv_shift = dop_cor-vhelio
+    except:
+        # TODO: Make sure it can read "DOPCORXX"
+        try:
+            dop_cor = float(headers.get("DOPCOR01", None).split()[0])
+            vhelio = 0.0
+            bcv_shift = dop_cor-vhelio
+            logging.warn("Couldn't find VHELIO but found DOPCOR.")
+        except: return corrections(long_obs, lat_obs, alt_obs, ra, dec, mjd)
+    # ---------------------------------------------------------------------
+    return vhelio, bcv_shift
 

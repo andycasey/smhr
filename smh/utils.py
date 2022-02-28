@@ -12,10 +12,11 @@ import string
 import sys
 import traceback
 import tempfile
+from six import string_types
 
 from collections import Counter, OrderedDict
 
-from commands import getstatusoutput
+from subprocess import getstatusoutput
 from hashlib import sha1 as sha
 from random import choice
 from socket import gethostname, gethostbyname
@@ -23,7 +24,7 @@ from socket import gethostname, gethostbyname
 # Third party imports
 import numpy as np
 import astropy.table
-from scipy import stats
+from scipy import stats, integrate, optimize
 
 common_molecule_name2Z = {
     'Mg-H': 12,'H-Mg': 12,
@@ -144,29 +145,32 @@ def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species",
                 #group_lines[x_column] = (np.nan, np.nan, np.nan, np.nan, 0)
                 continue
 
-            x, y, yerr = np.array(x[finite]), np.array(y[finite]), np.array(yerr[finite])
-
-            # Let's remove the covariance between m and b by making the mean of x = 0
-            xbar = np.mean(x)
-            x = x - xbar
-            # y = mx+b = m(x-xbar) + (b+m*xbar), so m is unchanged but b is shifted.
-
-#            A = np.vstack((np.ones_like(x), x)).T
-#            C = np.diag(yerr**2)
-#            try:
-#                cov = np.linalg.inv(np.dot(A.T, np.linalg.solve(C, A)))
-#                b, m = np.dot(cov, np.dot(A.T, np.linalg.solve(C, y)))
+            m, b, medy, stdy, stdm, N = fit_line(x, y, None)
+            group_lines[x_column] = (m, b, medy, (stdy, stdm), N)
+#            x, y, yerr = np.array(x[finite]), np.array(y[finite]), np.array(yerr[finite])
 #
-#            except np.linalg.LinAlgError:
-#                #group_lines[x_column] \
-#                #    = (np.nan, np.nan, np.median(y), np.std(y), len(x))
-#                None
+#            # Let's remove the covariance between m and b by making the mean of x = 0
+#            xbar = np.mean(x)
+#            x = x - xbar
+#            # y = mx+b = m(x-xbar) + (b+m*xbar), so m is unchanged but b is shifted.
 #
-#            else:
-#                #group_lines[x_column] = (m, b, np.median(y), (np.std(y), np.sqrt(cov[1,1])), len(x))
-#                group_lines[x_column] = (m, b+m*xbar, np.median(y), (np.std(y), np.sqrt(cov[1,1])), len(x))
-            m, b, r, p, m_stderr = stats.linregress(x, y)
-            group_lines[x_column] = (m, b-m*xbar, np.median(y), (np.std(y), m_stderr), len(x))
+##            A = np.vstack((np.ones_like(x), x)).T
+##            C = np.diag(yerr**2)
+##            try:
+##                cov = np.linalg.inv(np.dot(A.T, np.linalg.solve(C, A)))
+##                b, m = np.dot(cov, np.dot(A.T, np.linalg.solve(C, y)))
+##
+##            except np.linalg.LinAlgError:
+##                #group_lines[x_column] \
+##                #    = (np.nan, np.nan, np.median(y), np.std(y), len(x))
+##                None
+##
+##            else:
+##                #group_lines[x_column] = (m, b, np.median(y), (np.std(y), np.sqrt(cov[1,1])), len(x))
+##                group_lines[x_column] = (m, b+m*xbar, np.median(y), (np.std(y), np.sqrt(cov[1,1])), len(x))
+#            m, b, r, p, m_stderr = stats.linregress(x, y)
+#            group_lines[x_column] = (m, b-m*xbar, np.median(y), (np.std(y), m_stderr), len(x))
+
 
         identifier = transitions[group_by][start_index]
         if group_lines:
@@ -174,6 +178,18 @@ def equilibrium_state(transitions, columns=("expot", "rew"), group_by="species",
 
     return lines
 
+
+def fit_line(x, y, yerr=None):
+    if yerr is not None: raise NotImplementedError("Does not fit with error bars yet")
+    finite = np.isfinite(x) & np.isfinite(y)
+    if finite.sum()==0:
+        return np.nan, np.nan, np.nan, np.nan, np.nan, 0
+    x, y = x[finite], y[finite]
+    xbar = np.mean(x)
+    x = x - xbar
+    m, b_bar, r, p, m_stderr = stats.linregress(x, y)
+    b = b_bar - m*xbar
+    return m, b, np.median(y), np.std(y), m_stderr, len(x)
 
 def spectral_model_conflicts(spectral_models, line_list):
     """
@@ -262,7 +278,7 @@ def hashed_id():
     except:
         import uuid
         salt = uuid.uuid3(uuid.NAMESPACE_DNS, "")
-    return sha(salt).hexdigest()
+    return sha(salt.encode("utf-8")).hexdigest()
 hashed_id = hashed_id()
 
 
@@ -282,6 +298,37 @@ def approximate_stellar_jacobian(stellar_parameters, *args):
         [-1.7822e-08*teff + 1.8250e-04,  3.5564e-02*vt - 1.1024e-01, -1.2114e-02*logg + 4.1779e-02, -1.8847e-02*feh - 1.0949e-01]
     ])
     return full_jacobian.T
+
+
+# E. Holmbeck added this jacobian to be used for solving only vt and feh.
+# No idea if it's implemented properly...
+def approximate_feh_jacobian(stellar_parameters, *args):
+    """ Approximate the Jacobian of vt and feh and
+    minimisation parameters, based on calculations from the Sun """
+
+    logger.info("Updated approximation of the Jacobian")
+	
+    params_to_optimize = args[0]
+	
+    jacobian_params = [np.nan]*4
+    next_param = 0
+    # There must be a cleaner way to do this...
+    for pi,p in enumerate(params_to_optimize):
+        if p==True:
+            jacobian_params[pi] = stellar_parameters[next_param]
+            next_param += 1
+
+    teff, vt, logg, feh = jacobian_params
+
+    full_jacobian = np.array([
+        [ 5.4393e-08*teff - 4.8623e-04, -7.2560e-02*vt + 1.2853e-01,  1.6258e-02*logg - 8.2654e-02,  1.0897e-02*feh - 2.3837e-02],
+        [ 4.2613e-08*teff - 4.2039e-04, -4.3985e-01*vt + 8.0592e-02, -5.7948e-02*logg - 1.2402e-01, -1.1533e-01*feh - 9.2341e-02],
+        [-3.2710e-08*teff + 2.8178e-04,  3.8185e-03*vt - 1.6601e-02, -1.2006e-02*logg - 3.5816e-03, -2.8592e-05*feh + 1.4257e-03],
+        [-1.7822e-08*teff + 1.8250e-04,  3.5564e-02*vt - 1.1024e-01, -1.2114e-02*logg + 4.1779e-02, -1.8847e-02*feh - 1.0949e-01]
+    ])
+
+    full_jacobian = full_jacobian[params_to_optimize]
+    return full_jacobian.T[params_to_optimize]
 
 
 def approximate_sun_hermes_jacobian(stellar_parameters, *args):
@@ -313,12 +360,75 @@ def approximate_sun_hermes_jacobian(stellar_parameters, *args):
     return full_jacobian.T
 
 
+def approximate_stellar_jacobian_2(stellar_parameters, *args):
+    """ Approximate the Jacobian of the stellar parameters and
+    minimisation parameters, based on calculations from the Sun """
+
+    logger.info("Updated approximation of the Jacobian {}".format(stellar_parameters))
+
+    teff, logg, vt, feh = stellar_parameters[:4]
+    #if np.isnan(teff): teff = 5000.; logger.info("jacobian: teff=nan->5000")
+    #if np.isnan(logg): logg = 2.0; logger.info("jacobian: logg=nan->2.0")
+    #if np.isnan(vt): vt = 1.75; logger.info("jacobian: vt=nan->1.75")
+    #if np.isnan(feh): feh = -2.0; logger.info("jacobian: feh=nan->-2.0")
+
+    # This is the black magic.
+    full_jacobian = np.array([
+        [ 5.4393e-08*teff - 4.8623e-04,  1.6258e-02*logg - 8.2654e-02, -7.2560e-02*vt + 1.2853e-01,  1.0897e-02*feh - 2.3837e-02],
+        [ 4.2613e-08*teff - 4.2039e-04, -5.7948e-02*logg - 1.2402e-01, -4.3985e-01*vt + 8.0592e-02, -1.1533e-01*feh - 9.2341e-02],
+        [-3.2710e-08*teff + 2.8178e-04, -1.2006e-02*logg - 3.5816e-03,  3.8185e-03*vt - 1.6601e-02, -2.8592e-05*feh + 1.4257e-03],
+        [-1.7822e-08*teff + 1.8250e-04, -1.2114e-02*logg + 4.1779e-02,  3.5564e-02*vt - 1.1024e-01, -1.8847e-02*feh - 1.0949e-01]
+    ])
+    return full_jacobian.T
+
+
+def approximate_sun_hermes_jacobian_2(stellar_parameters, *args):
+    """
+    Approximate the Jacobian of the stellar parameters and
+    minimisation parameters, based on calculations using the Sun
+    and the HERMES atomic line list, after equivalent widths
+    were carefully inspected.
+    """
+
+#    logger.info("Updated approximation of the Jacobian")
+
+    teff, logg, vt, feh = stellar_parameters[:4]
+
+#    full_jacobian = np.array([
+#        [ 4.4973e-08*teff - 4.2747e-04, -1.2404e-03*vt + 2.4748e-02,  1.6481e-02*logg - 5.1979e-02,  1.0470e-02*feh - 8.5645e-03],
+#        [-9.3371e-08*teff + 6.9953e-04,  5.0115e-02*vt - 3.0106e-01, -6.0800e-02*logg + 6.7056e-02, -4.1281e-02*feh - 6.2085e-02],
+#        [-2.1326e-08*teff + 1.9121e-04,  1.0508e-03*vt + 1.1099e-03, -6.1479e-03*logg - 1.7401e-02,  3.4172e-03*feh + 3.7851e-03],
+#        [-9.4547e-09*teff + 1.1280e-04,  1.0033e-02*vt - 3.6439e-02, -9.5015e-03*logg + 3.2700e-02, -1.7947e-02*feh - 1.0383e-01]
+#    ])
+
+    # After culling abundance outliers,..
+    full_jacobian = np.array([
+        [ 4.5143e-08*teff - 4.3018e-04,  1.7168e-02*logg - 5.3255e-02, -6.4264e-04*vt + 2.4581e-02,  1.1205e-02*feh - 7.3342e-03],
+        [-1.0055e-07*teff + 7.5583e-04, -6.7963e-02*logg + 7.3189e-02,  5.0811e-02*vt - 3.1919e-01, -4.1335e-02*feh - 6.0225e-02],
+        [-1.9097e-08*teff + 1.8040e-04, -6.4754e-03*logg - 2.0095e-02, -3.8736e-03*vt + 7.6987e-03, -4.1837e-03*feh - 4.1084e-03],
+        [-7.3958e-09*teff + 1.0175e-04, -9.7692e-03*logg + 3.2322e-02,  6.5783e-03*vt - 3.6509e-02, -1.7391e-02*feh - 1.0502e-01]
+    ])
+    return full_jacobian.T
+
+
+def _debytify(x):
+    if isinstance(x, bytes):
+        return x.decode("utf-8")
+    return x
+def _fix_bytes_dict(d):
+    new_dict = {}
+    for k,v in d.items():
+        sk = _debytify(k)
+        new_dict[sk] = v
+    return new_dict
+
 def element_to_species(element_repr):
     """ Converts a string representation of an element and its ionization state
     to a floating point """
     
-    if not isinstance(element_repr, (unicode, str)):
-        raise TypeError("element must be represented by a string-type")
+    element_repr = _debytify(element_repr)
+    if not isinstance(element_repr, string_types):
+        raise TypeError("element must be represented by a string-type {} {}".format(element_repr, type(element_repr)))
         
     if element_repr.count(" ") > 0:
         element, ionization = element_repr.split()[:2]
@@ -347,8 +457,9 @@ def element_to_atomic_number(element_repr):
         'Ti I', 'si'.
     """
     
-    if not isinstance(element_repr, (unicode, str)):
-        raise TypeError("element must be represented by a string-type")
+    element_repr = _debytify(element_repr)
+    if not isinstance(element_repr,  string_types):
+        raise TypeError("element must be represented by a string-type {} {}".format(element_repr, type(element_repr)))
     
     element = element_repr.title().strip().split()[0]
     try:
@@ -375,7 +486,7 @@ def species_to_element(species):
     representation of the element and its ionization state """
     
     if not isinstance(species, (float, int)):
-        raise TypeError("species must be represented by a floating point-type")
+        raise TypeError("species must be represented by a floating point-type {} {}".format(species, type(species)))
     
     if round(species,1) != species:
         # Then you have isotopes, but we will ignore that
@@ -399,13 +510,13 @@ def species_to_element(species):
     return "%s %s" % (element, "I" * ionization)
 
 
-def elems_isotopes_ion_to_species(elem1,elem2,isotope1,isotope2,ion):
+def elems_isotopes_ion_to_species(elem1,elem2,isotope1,isotope2,ion,as_str=False):
     Z1 = int(element_to_species(elem1.strip()))
     if isotope1==0: isotope1=''
     else: isotope1 = str(isotope1).zfill(2)
 
     if elem2.strip()=='': # Atom
-        mystr = "{}.{}{}".format(Z1,int(ion-1),isotope1)
+        mystr = "{}.{}{:03}".format(Z1,int(ion-1),int(isotope1))
     else: # Molecule
         #assert ion==1,ion
         Z2 = int(element_to_species(elem2.strip()))
@@ -439,6 +550,7 @@ def elems_isotopes_ion_to_species(elem1,elem2,isotope1,isotope2,ion):
         else:
             mystr = "{}{:02}.{}{}{}".format(Z2,Z1,int(ion-1),isotope2,isotope1)
 
+    if as_str: return mystr
     return float(mystr)
 
 def species_to_elems_isotopes_ion(species):
@@ -547,18 +659,30 @@ def get_version():
 
 
 
+def struct2array(x):
+    """ Convert numpy structured array of simple type to normal numpy array """
+    Ncol = len(x.dtype)
+    type = x.dtype[0].type
+    assert np.all([x.dtype[i].type == type for i in range(Ncol)])
+    return x.view(type).reshape((-1,Ncol))
+
     
-def process_session_uncertainties(session):
+
+def _make_rhomat(rho_Tg=0.0, rho_Tv=0.0, rho_TM=0.0, rho_gv=0.0, rho_gM=0.0, rho_vM=0.0):
+    rhomat = np.array([[1.0, rho_Tg, rho_Tv, rho_TM],
+                       [rho_Tg, 1.0, rho_gv, rho_gM],
+                       [rho_Tv, rho_gv, 1.0, rho_vM],
+                       [rho_TM, rho_gM, rho_vM, 1.0]])
+    return rhomat
+def process_session_uncertainties_lines(session, rhomat, minerr=0.001):
     """
-    After you have run session.compute_all_abundance_uncertainties(),
-    this pulls out a big array of line data
-    and computes the final abundance table and errors
+    Using Sergey's estimator
     """
     from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
     from .photospheres.abundances import asplund_2009 as solar_composition
     cols = ["index","wavelength","species","expot","loggf",
-            "logeps","e_stat","eqw","e_eqw",
-            "e_Teff","e_logg","e_MH","e_vt","e_sys",
+            "logeps","e_stat","eqw","e_eqw","fwhm",
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
             "e_tot","weight"]
     data = OrderedDict(zip(cols, [[] for col in cols]))
     for i, model in enumerate(session.spectral_models):
@@ -567,19 +691,34 @@ def process_session_uncertainties(session):
         
         wavelength = model.wavelength
         species = np.ravel(model.species)[0]
-        expot = model.expot or np.nan
-        loggf = model.loggf or np.nan
+        expot = model.expot
+        loggf = model.loggf
+        if np.isnan(expot) or np.isnan(loggf):
+            print(i, species, model.expot, model.loggf)
         try:
             logeps = model.abundances[0]
             staterr = model.metadata["1_sigma_abundance_error"]
+            if isinstance(model, SpectralSynthesisModel):
+                (named_p_opt, cov, meta) = model.metadata["fitted_result"]
+                if np.isfinite(cov[0,0]**0.5):
+                    staterr = max(staterr, cov[0,0]**0.5)
+                assert ~np.isnan(staterr)
+            # apply minimum
+            staterr = np.sqrt(staterr**2 + minerr**2)
             sperrdict = model.metadata["systematic_stellar_parameter_abundance_error"]
             e_Teff = sperrdict["effective_temperature"]
             e_logg = sperrdict["surface_gravity"]
-            e_MH = sperrdict["metallicity"]
             e_vt = sperrdict["microturbulence"]
-            syserr = model.metadata["systematic_abundance_error"]
-        except:
-            logeps, staterr, e_Teff, e_logg, e_MH, e_vt, syserr = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
+            e_MH = sperrdict["metallicity"]
+            e_all = np.array([e_Teff, e_logg, e_vt, e_MH])
+            syserr_sq = e_all.T.dot(rhomat.dot(e_all))
+            syserr = np.sqrt(syserr_sq)
+            fwhm = model.fwhm
+        except Exception as e:
+            print("ERROR!!!")
+            print(i, species, model.wavelength)
+            print("Exception:",e)
+            logeps, staterr, e_Teff, e_logg, e_vt, e_MH, syserr = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
         if isinstance(model, ProfileFittingModel):
             eqw = model.equivalent_width or np.nan
@@ -587,25 +726,131 @@ def process_session_uncertainties(session):
         else:
             eqw = -999
             e_eqw = -999
-        toterr = np.sqrt(staterr**2 + syserr**2)
-        
+        #toterr = np.sqrt(staterr**2 + syserr**2)
         input_data = [i, wavelength, species, expot, loggf,
-                      logeps, staterr, eqw, e_eqw,
-                      e_Teff, e_logg, e_MH, e_vt, syserr, toterr, toterr**-2]
+                      logeps, staterr, eqw, e_eqw, fwhm,
+                      e_Teff, e_logg, e_vt, e_MH, syserr,
+                      np.nan, np.nan]
         for col, x in zip(cols, input_data):
             data[col].append(x)
     tab = astropy.table.Table(data)
+
+    # Calculate systematic error and effective weights for each species
+    tab["e_sys"] = np.nan
+    for species in np.unique(tab["species"]):
+        ix = np.where(tab["species"]==species)[0]
+        t = tab[ix]
+        
+        # Estimate systematic error s
+        s = s_old = 0.
+        #s_max = 2.
+        s_max = 3. # Updated to a larger value because it was not always converging.
+        delta = struct2array(t["e_Teff","e_logg","e_vt","e_MH"].as_array())
+        ex = t["e_stat"]
+        for i in range(35):
+            sigma_tilde = np.diag(s**2 + ex**2) + (delta.dot(rhomat.dot(delta.T)))
+            sigma_tilde_inv = np.linalg.inv(sigma_tilde)
+            w = np.sum(sigma_tilde_inv, axis=1)
+            
+            xhat = np.sum(w*t["logeps"])/np.sum(w)
+            dx = t["logeps"] - xhat
+            def func(s):
+                return np.sum(dx**2 / (ex**2 + s**2)**2) - np.sum(1/(ex**2 + s**2))
+            if func(0) < func(s_max):
+                s = 0
+                break
+            try:
+                s = optimize.brentq(func, 0, s_max, xtol=.001)
+            except ValueError as e:
+                print("ERROR FOR SPECIES",species)
+                print(e)
+                print("s_max:",s_max)
+                print("func(0)",func(0))
+                print("func(s_max)",func(s_max))
+                print("Figure out what you should do to s_max here:")
+                import pdb; pdb.set_trace()
+                raise
+            
+            if np.abs(s_old - s) < 0.01:
+                break
+            s_old = s
+        else:
+            print(species,"s did not converge!")
+        print("Final in {} iter: {:.1f} {:.3f}".format(i+1, species, s))
+        tab["e_sys"][ix] = s
+        tab["e_tot"][ix] = np.sqrt(s**2 + ex**2)
+        
+        sigma_tilde = np.diag(tab["e_tot"][ix]**2) + (delta.dot(rhomat.dot(delta.T)))
+        sigma_tilde_inv = np.linalg.inv(sigma_tilde)
+        w = np.sum(sigma_tilde_inv, axis=1)
+        wb = np.sum(sigma_tilde_inv, axis=0)
+        assert np.allclose(w,wb,rtol=1e-6), "Problem in species {:.1f}, Nline={}, e_sys={:.2f}".format(species, len(t), s)
+        tab["weight"][ix] = w
+        
     for col in tab.colnames:
         if col in ["index", "wavelength", "species", "loggf", "star"]: continue
         tab[col].format = ".3f"
     
+    return tab
+def process_session_uncertainties_covariance(summary_tab, rhomat):
+    ## Add in [X/Fe]
+    # cov_XY = Cov(X,Y). Diagonal entries are Var(X). The matrix is symmetric.
+    delta_XY = struct2array(np.array(summary_tab["e_Teff_w","e_logg_w","e_vt_w","e_MH_w"]))
+    cov_XY = delta_XY.dot(rhomat.dot(delta_XY.T))
+    assert np.all(np.abs(cov_XY - cov_XY.T) < 0.01**2), np.max(np.abs(np.abs(cov_XY - cov_XY.T)))
+    # Add statistical errors to the diagonal
+    #var_X = cov_XY[np.diag_indices_from(cov_XY)] + summary_tab["stderr_w"]**2
+    var_X = summary_tab["e_XH"]**2 #cov_XY[np.diag_indices_from(cov_XY)] + 
+    return var_X, cov_XY
+def process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY):
+    """
+    Computes the following
+    Var([X/Fe]) = Var(X) + Var(Fe) - 2 Cov(X, Fe)
+    
+    Does *not* compute covariances, but you can do that this way:
+    Cov([X/Fe], [Fe/H]) = Cov(X,Fe) - Cov(Fe, Fe)
+    """
+    # [X/Fe] errors are the Fe1 and Fe2 parts of the covariance matrix
+    try:
+        ix1 = np.where(summary_tab["species"]==26.0)[0][0]
+    except IndexError:
+        print("No feh1: setting to nan")
+        feh1 = np.nan
+        exfe1 = np.nan
+    else:
+        feh1 = summary_tab["[X/H]"][ix1]
+        var_fe1 = var_X[ix1]
+        # Var(X/Fe1) = Var(X) + Var(Fe1) - 2*Cov(X,Fe1)
+        exfe1 = np.sqrt(var_X + var_fe1 - 2*cov_XY[ix1,:])
+    try:
+        ix2 = np.where(summary_tab["species"]==26.1)[0][0]
+    except IndexError:
+        print("No feh2: setting to feh1")
+        feh2 = feh1
+        try:
+            exfe2 = np.sqrt(var_X[ix1])
+        except UnboundLocalError: # no ix1 either
+            exfe2 = np.nan
+    else:
+        feh2 = summary_tab["[X/H]"][ix2]
+        var_fe2 = var_X[ix2]
+        # Var(X/Fe2) = Var(X) + Var(Fe2) - 2*Cov(X,Fe2)
+        exfe2 = np.sqrt(var_X + var_fe2 - 2*cov_XY[ix2,:])
+    
+    return feh1, exfe1, feh2, exfe2
+def process_session_uncertainties_abundancesummary(tab, rhomat):
+    """
+    Take a table of lines and turn them into standard abundance table
+    """
+    from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
+    from .photospheres.abundances import asplund_2009 as solar_composition
     unique_species = np.unique(tab["species"])
     cols = ["species","elem","N",
             "logeps","sigma","stderr",
             "logeps_w","sigma_w","stderr_w",
-            "e_Teff","e_logg","e_MH","e_vt","e_sys",
-            "e_Teff_w","e_logg_w","e_MH_w","e_vt_w","e_sys_w",
-            "[X/H]","e_XH"]
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
+            "e_Teff_w","e_logg_w","e_vt_w","e_MH_w","e_sys_w",
+            "[X/H]","e_XH","s_X"]
     data = OrderedDict(zip(cols, [[] for col in cols]))
     for species in unique_species:
         ttab = tab[tab["species"]==species]
@@ -616,78 +861,85 @@ def process_session_uncertainties(session):
         stderr = stdev/np.sqrt(N)
         
         w = ttab["weight"]
-        finite = w > 0
+        finite = np.isfinite(w)
         if finite.sum() != N:
             print("WARNING: species {:.1f} N={} != finite weights {}".format(species, N, finite.sum()))
         x = ttab["logeps"]
         logeps_w = np.sum(w*x)/np.sum(w)
-        stdev_w = np.sqrt(np.sum(w*(x-logeps_w)**2)/np.sum(w) + 1/np.sum(w))
-        stderr_w = stdev_w/np.sqrt(N)
+        stdev_w = np.sqrt(np.sum(w*(x-logeps_w)**2)/np.sum(w))
+        stderr_w = np.sqrt(1/np.sum(w))
         
         sperrs = []
         sperrs_w = []
-        for spcol in ["Teff","logg","MH","vt"]:
+        for spcol in ["Teff","logg","vt","MH"]:
             x_new = x + ttab["e_"+spcol]
             e_sp = np.mean(x_new) - logeps
             sperrs.append(e_sp)
-            e_sp_w = np.sum(w*x_new)/np.sum(w) - logeps_w
+            #e_sp_w = np.sum(w*x_new)/np.sum(w) - logeps_w
+            e_sp_w = np.sum(w*ttab["e_"+spcol])/np.sum(w)
             sperrs_w.append(e_sp_w)
         sperrs = np.array(sperrs)
         sperrs_w = np.array(sperrs_w)
-        sperrtot = np.sqrt(np.sum(sperrs**2))
-        sperrtot_w = np.sqrt(np.sum(sperrs_w**2))
+        sperrtot = np.sqrt(sperrs.T.dot(rhomat.dot(sperrs)))
+        sperrtot_w = np.sqrt(sperrs_w.T.dot(rhomat.dot(sperrs_w)))
         
         XH = logeps_w - solar_composition(species)
-        e_XH = np.sqrt(stderr_w**2 + sperrtot_w**2)
+        #e_XH = np.sqrt(stderr_w**2 + sperrtot_w**2)
+        e_XH = stderr_w
+        s_X = ttab["e_sys"][0]
+        assert np.allclose(ttab["e_sys"], s_X), s_X
         input_data = [species, elem, N,
                       logeps, stdev, stderr,
                       logeps_w, stdev_w, stderr_w,
                       sperrs[0], sperrs[1], sperrs[2], sperrs[3], sperrtot,
                       sperrs_w[0], sperrs_w[1], sperrs_w[2], sperrs_w[3], sperrtot_w,
-                      XH, e_XH
+                      XH, e_XH, s_X
         ]
         assert len(cols) == len(input_data)
         for col, x in zip(cols, input_data):
             data[col].append(x)
     summary_tab = astropy.table.Table(data)
-    # Add in [X/Fe]
-    feh1 = summary_tab[summary_tab["species"]==26.0]["[X/H]"][0]
-    feh2 = summary_tab[summary_tab["species"]==26.1]["[X/H]"][0]
-    e1_stat, e1_Teff, e1_logg, e1_MH, e1_vt = [summary_tab[summary_tab["species"]==26.0][col][0] for
-                                               col in ["stderr_w","e_Teff_w","e_logg_w","e_MH_w","e_vt_w"]]
-    e2_stat, e2_Teff, e2_logg, e2_MH, e2_vt = [summary_tab[summary_tab["species"]==26.1][col][0] for
-                                               col in ["stderr_w","e_Teff_w","e_logg_w","e_MH_w","e_vt_w"]]
-    efe1 = np.sqrt(summary_tab["stderr_w"]**2 + e1_stat**2 + (summary_tab["e_Teff_w"]-e1_Teff)**2
-                   + (summary_tab["e_logg_w"]-e1_logg)**2 + (summary_tab["e_MH_w"]-e1_MH)**2
-                   + (summary_tab["e_vt_w"]-e1_vt)**2)
-    efe2 = np.sqrt(summary_tab["stderr_w"]**2 + e2_stat**2 + (summary_tab["e_Teff_w"]-e2_Teff)**2
-                   + (summary_tab["e_logg_w"]-e2_logg)**2 + (summary_tab["e_MH_w"]-e2_MH)**2
-                   + (summary_tab["e_vt_w"]-e2_vt)**2)
-
-    summary_tab["[X/Fe1]"] = summary_tab["[X/H]"] - feh1
-    summary_tab["e_XFe1"] = efe1
-    summary_tab["[X/Fe2]"] = summary_tab["[X/H]"] - feh2
-    summary_tab["e_XFe2"] = efe2
     
-    ixion = np.array([x - int(x) > .01 for x in summary_tab["species"]])
-    summary_tab["[X/Fe]"] = summary_tab["[X/Fe1]"]
-    summary_tab["e_XFe"] = summary_tab["e_XFe1"]
-    summary_tab["[X/Fe]"][ixion] = summary_tab["[X/Fe2]"][ixion]
-    summary_tab["e_XFe"][ixion] = summary_tab["e_XFe2"][ixion]
-    for col in summary_tab.colnames:
-        if col=="N" or col=="species" or col=="elem": continue
-        summary_tab[col].format = ".3f"
+    ## Add in [X/Fe]
+    var_X, cov_XY = process_session_uncertainties_covariance(summary_tab, rhomat)
+    feh1, efe1, feh2, efe2 = process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY)
     
+    if len(summary_tab["[X/H]"]) > 0:
+        summary_tab["[X/Fe1]"] = summary_tab["[X/H]"] - feh1
+        summary_tab["e_XFe1"] = efe1
+        summary_tab["[X/Fe2]"] = summary_tab["[X/H]"] - feh2
+        summary_tab["e_XFe2"] = efe2
     
+        ixion = np.array([x - int(x) > .01 for x in summary_tab["species"]])
+        summary_tab["[X/Fe]"] = summary_tab["[X/Fe1]"]
+        summary_tab["e_XFe"] = summary_tab["e_XFe1"]
+        summary_tab["[X/Fe]"][ixion] = summary_tab["[X/Fe2]"][ixion]
+        summary_tab["e_XFe"][ixion] = summary_tab["e_XFe2"][ixion]
+        for col in summary_tab.colnames:
+            if col=="N" or col=="species" or col=="elem": continue
+            summary_tab[col].format = ".3f"
+    else:
+        for col in ["[X/Fe]","[X/Fe1]","[X/Fe2]",
+                    "e_XFe","e_XFe1","e_XFe2"]:
+            summary_tab.add_column(astropy.table.Column(np.zeros(0),col))
+            #summary_tab[col] = np.nan #.add_column(col)
+    return summary_tab
+def process_session_uncertainties_limits(session, tab, summary_tab, rhomat):
+    from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
+    from .photospheres.abundances import asplund_2009 as solar_composition
     ## Add in upper limits to line data
     cols = ["index","wavelength","species","expot","loggf",
-            "logeps","e_stat","eqw","e_eqw",
-            "e_Teff","e_logg","e_MH","e_vt","e_sys",
+            "logeps","e_stat","eqw","e_eqw","fwhm",
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
             "e_tot","weight"]
+    var_X, cov_XY = process_session_uncertainties_covariance(summary_tab, rhomat)
+    feh1, efe1, feh2, efe2 = process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY)
+
     assert len(cols)==len(tab.colnames)
     data = OrderedDict(zip(cols, [[] for col in cols]))
     for i, model in enumerate(session.spectral_models):
         if not model.is_upper_limit: continue
+        if not model.is_acceptable: continue
         
         wavelength = model.wavelength
         species = np.ravel(model.species)[0]
@@ -699,7 +951,7 @@ def process_session_uncertainties(session):
             logeps = np.nan
 
         input_data = [i, wavelength, species, expot, loggf,
-                      logeps, np.nan, np.nan, np.nan,
+                      logeps, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan,
                       np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]
         for col, x in zip(cols, input_data):
             data[col].append(x)
@@ -712,16 +964,16 @@ def process_session_uncertainties(session):
     cols = ["species","elem","N",
             "logeps","sigma","stderr",
             "logeps_w","sigma_w","stderr_w",
-            "e_Teff","e_logg","e_MH","e_vt","e_sys",
-            "e_Teff_w","e_logg_w","e_MH_w","e_vt_w","e_sys_w",
-            "[X/H]","e_XH"] + ["[X/Fe1]","e_XFe1","[X/Fe2]","e_XFe2","[X/Fe]","e_XFe"]
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
+            "e_Teff_w","e_logg_w","e_vt_w","e_MH_w","e_sys_w",
+            "[X/H]","e_XH","s_X"] + ["[X/Fe1]","e_XFe1","[X/Fe2]","e_XFe2","[X/Fe]","e_XFe"]
     assert len(cols)==len(summary_tab.colnames)
     data = OrderedDict(zip(cols, [[] for col in cols]))
     for species in ul_species:
         if species in summary_tab["species"]: continue
         ttab_ul = tab_ul[tab_ul["species"]==species]
         elem = species_to_element(species)
-        print
+        N = len(ttab_ul)
         limit_logeps = np.min(ttab_ul["logeps"])
         limit_XH = limit_logeps - solar_composition(species)
         limit_XFe1 = limit_XH - feh1
@@ -732,13 +984,82 @@ def process_session_uncertainties(session):
                       limit_logeps, np.nan, np.nan,
                       np.nan, np.nan, np.nan, np.nan, np.nan,
                       np.nan, np.nan, np.nan, np.nan, np.nan,
-                      limit_XH, np.nan, limit_XFe1, np.nan, limit_XFe2, np.nan,
+                      limit_XH, np.nan, np.nan, limit_XFe1, np.nan, limit_XFe2, np.nan,
                       limit_XFe, np.nan
         ]
         for col, x in zip(cols, input_data):
             data[col].append(x)
     summary_tab_ul = astropy.table.Table(data)
     if len(summary_tab_ul) > 0:
-        summary_tab = astropy.table.vstack([summary_tab, summary_tab_ul])
+        if len(summary_tab) > 0:
+            summary_tab = astropy.table.vstack([summary_tab, summary_tab_ul])
+        else:
+            summary_tab = summary_tab_ul
     
     return tab, summary_tab
+def process_session_uncertainties(session,
+                                  rho_Tg=0.0, rho_Tv=0.0, rho_TM=0.0, rho_gv=0.0, rho_gM=0.0, rho_vM=0.0):
+    """
+    After you have run session.compute_all_abundance_uncertainties(),
+    this pulls out a big array of line data
+    and computes the final abundance table and errors
+    
+    By default assumes no correlations in stellar parameters. If you specify rho_XY
+    it will include that correlated error.
+    (X,Y) in [T, g, v, M]
+    """
+    ## Correlation matrix. This is multiplied by the errors to get the covariance matrix.
+    # rho order = [T, g, v, M]
+    rhomat = _make_rhomat(rho_Tg, rho_Tv, rho_TM, rho_gv, rho_gM, rho_vM)
+    ## Make line measurement table (no upper limits yet)
+    tab = process_session_uncertainties_lines(session, rhomat)
+    ## Summarize measurements
+    summary_tab = process_session_uncertainties_abundancesummary(tab, rhomat)
+    ## Add upper limits
+    tab, summary_tab = process_session_uncertainties_limits(session, tab, summary_tab, rhomat)
+    return tab, summary_tab
+
+def get_synth_eqw(model, window=1.0, wavelength=None,
+                  get_spec=False):
+    """
+    Calculate the equivalent width associated with the synthetic line.
+    This is done by synthesizing the line in absence of any other elements,
+    then integrating the synthetic spectrum in a window around the central wavelength.
+    
+    The user can specify the size of the window (default +/-1A) 
+    and the central wavelength (default None -> model.wavelength)
+    """
+    from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
+    assert isinstance(model, SpectralSynthesisModel)
+    assert len(model.elements)==1, model.elements
+    
+    abundances = model.metadata["rt_abundances"].copy()
+    for key in abundances:
+        if key != model.elements[0]: abundances[key] = -9.0
+    abundances[model.elements[0]] = model.metadata["fitted_result"][0].values()[0]
+    print(abundances)
+    
+    synth_dispersion, intensities, meta = model.session.rt.synthesize(
+        model.session.stellar_photosphere, model.transitions,
+        abundances,
+        isotopes=model.session.metadata["isotopes"], twd=model.session.twd)[0]
+    if wavelength is None: wavelength = model.wavelength
+    ii = (synth_dispersion > wavelength - window) & (synth_dispersion < wavelength + window)
+    # integrate with the trapezoid rule, get milliangstroms
+    eqw = 1000.*integrate.trapz(1.0-intensities[ii], synth_dispersion[ii])
+    # integrate everything with the trapezoid rule, get milliangstroms
+    eqw_all = 1000.*integrate.trapz(1.0-intensities, synth_dispersion)
+    
+    for key in abundances:
+        abundances[key] = -9.0
+    blank_dispersion, blank_flux, blank_meta = model.session.rt.synthesize(
+        model.session.stellar_photosphere, model.transitions,
+        abundances,
+        isotopes=model.session.metadata["isotopes"], twd=model.session.twd)[0]
+    blank_eqw = 1000.*integrate.trapz(1.0-blank_flux[ii], blank_dispersion[ii])
+    # integrate everything with the trapezoid rule, get milliangstroms
+    blank_eqw_all = 1000.*integrate.trapz(1.0-blank_flux, blank_dispersion)
+    
+    if get_spec:
+        return eqw, eqw_all, blank_eqw, blank_eqw_all, synth_dispersion, intensities
+    return eqw, eqw_all, blank_eqw, blank_eqw_all

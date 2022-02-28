@@ -18,7 +18,10 @@ logger = logging.getLogger(__name__)
 
 # Load the MOOG defaults.
 with resource_stream(__name__, "defaults.yaml") as fp:
-    _moog_defaults = yaml.load(fp)
+    try:
+        _moog_defaults = yaml.load(fp, yaml.FullLoader)
+    except AttributeError:
+        _moog_defaults = yaml.load(fp)
 
 
 def synthesize(photosphere, transitions, abundances=None, isotopes=None,
@@ -51,7 +54,7 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
     
     # Load the synth driver template.
     with resource_stream(__name__, "synth.in") as fp:
-        template = fp.read()
+        template = fp.read().decode("utf-8")
 
     # Not these are SMH defaults, not MOOG defaults.
     kwds = _moog_defaults.copy()

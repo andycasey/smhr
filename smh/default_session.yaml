@@ -71,6 +71,8 @@ normalization:
   low_sigma_clip: 1.0
   high_sigma_clip: 0.2
   knot_spacing: 100
+  blue_trim: 20
+  red_trim: 20
   default_mask: default 
   masks:
     default:

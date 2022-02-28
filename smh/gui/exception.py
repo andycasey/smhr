@@ -13,10 +13,10 @@ import sys
 import traceback as tb
 #from tempfile import mkstemp
 from smh.utils import mkstemp
-from urllib import quote
-from PySide import QtCore, QtGui
+from urllib.parse import quote
+from PySide2 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 
-from smh import __git_status__
+#from smh import __git_status__
 
 logger = logging.getLogger("smh")
 
@@ -31,13 +31,13 @@ def format(color, style=None):
         The styling for the text.
 
     """
-    _color = QtGui.QColor()
+    _color = QtGui2.QColor()
     _color.setNamedColor(color)
 
-    _format = QtGui.QTextCharFormat()
+    _format = QtGui2.QTextCharFormat()
     _format.setForeground(_color)
     if style is not None and 'bold' in style:
-        _format.setFontWeight(QtGui.QFont.Bold)
+        _format.setFontWeight(QtGui2.QFont.Bold)
     if style is not None and 'italic' in style:
         _format.setFontItalic(True)
 
@@ -57,7 +57,7 @@ STYLES = {
     'numbers': format('brown'),
 }
 
-class PythonHighlighter(QtGui.QSyntaxHighlighter):
+class PythonHighlighter(QtGui2.QSyntaxHighlighter):
     """
     Syntax highlighter for the Python language.
     """
@@ -89,7 +89,7 @@ class PythonHighlighter(QtGui.QSyntaxHighlighter):
         '\{', '\}', '\(', '\)', '\[', '\]',
     ]
     def __init__(self, document):
-        QtGui.QSyntaxHighlighter.__init__(self, document)
+        QtGui2.QSyntaxHighlighter.__init__(self, document)
 
         # Multi-line strings (expression, flag, style)
         # FIXME: The triple-quotes in these two lines will mess up the
@@ -224,7 +224,8 @@ class ExceptionWidget(QtGui.QDialog):
         self.traceback = traceback
 
         self.setGeometry(600, 400, 600, 400)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+        desktop = QtGui.QApplication.desktop()
+        self.move(desktop.screen().rect().center() \
             - self.rect().center())
         self.setWindowTitle("Exception")
 
@@ -246,7 +247,7 @@ class ExceptionWidget(QtGui.QDialog):
 
         # Text browser to display the exception details.
         self.show_traceback = QtGui.QPlainTextEdit(self)
-        self.show_traceback.setFont(QtGui.QFont("Courier", 12))
+        self.show_traceback.setFont(QtGui2.QFont("Courier", 12))
         self.show_traceback.setReadOnly(True)
         self.show_traceback.setPlainText("\n" + \
             "\n".join(tb.format_exception(exception_type, message, traceback)))
@@ -398,7 +399,7 @@ if sys.platform == "darwin":
         (".Helvetica Neue DeskInterface", "Helvetica Neue")
     ]
     for substitute in substitutes:
-        QtGui.QFont.insertSubstitution(*substitute)
+        QtGui2.QFont.insertSubstitution(*substitute)
 
 
 if __name__ == "__main__":

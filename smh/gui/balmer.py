@@ -13,7 +13,7 @@ import sys
 import time
 from glob import glob
 from matplotlib.ticker import MaxNLocator
-from PySide import QtCore, QtGui
+from PySide2 import (QtCore, QtGui as QtGui2, QtWidgets as QtGui)
 from scipy import interpolate
 
 from smh.balmer import BalmerLineModel
@@ -31,7 +31,7 @@ if sys.platform == "darwin":
         (".Helvetica Neue DeskInterface", "Helvetica Neue")
     ]
     for substitute in substitutes:
-        QtGui.QFont.insertSubstitution(*substitute)
+        QtGui2.QFont.insertSubstitution(*substitute)
 
 
 def unique_indices(a):
@@ -181,7 +181,8 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
         # Start creating GUI.
         self.setGeometry(800, 600, 800, 600)
-        self.move(QtGui.QApplication.desktop().screen().rect().center() \
+        desktop = QtGui.QApplication.desktop()
+        self.move(desktop.screen().rect().center() \
             - self.rect().center())
         self.setWindowTitle("Balmer-line fitting")
 
@@ -222,9 +223,10 @@ class BalmerLineFittingDialog(QtGui.QDialog):
 
                 # Update the table options.
                 N = self.metadata["continuum_order"]
+                self.p1_model_options.beginResetModel()
                 self.p1_model_options.model()._parameters \
                     += ["c{}".format(i) for i in range(1 + int(N))]
-                self.p1_model_options.model().reset()
+                self.p1_model_options.model().endResetModel()
 
                 # Update the masks.
                 self.p1_figure.dragged_masks \
@@ -284,11 +286,11 @@ class BalmerLineFittingDialog(QtGui.QDialog):
         self.p1_model_options.setEditTriggers(
             QtGui.QAbstractItemView.CurrentChanged)
         self.p1_model_options.setModel(BalmerLineOptionsTableModel(self))
-        self.p1_model_options.horizontalHeader().setResizeMode(
+        self.p1_model_options.horizontalHeader().setSectionResizeMode(
             QtGui.QHeaderView.Stretch)
 
         # First column should be fixed for the checkbox.
-        self.p1_model_options.horizontalHeader().setResizeMode(
+        self.p1_model_options.horizontalHeader().setSectionResizeMode(
             0, QtGui.QHeaderView.Fixed)
         self.p1_model_options.horizontalHeader().resizeSection(0, 30) # MAGIC
 
@@ -953,6 +955,7 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
 
             # Continuum is a special case.
             if index.row() == 2:
+                self.beginResetModel()
                 if value:
 
                     N, is_ok = QtGui.QInputDialog.getItem(None, 
@@ -970,14 +973,15 @@ class BalmerLineOptionsTableModel(QtCore.QAbstractTableModel):
                 else:
                     self._parameters = self._parameters[:3]
 
-                self.reset()
+                self.endResetModel()
 
             elif not value and parameter in self.parent.metadata["bounds"]:
 
+                self.beginResetModel()
                 del self.parent.metadata["bounds"][parameter]
                 self.parent.metadata[parameter] = bool(value)
 
-                self.reset()
+                self.endResetModel()
                 return True
 
             self.parent.metadata[parameter] = bool(value)

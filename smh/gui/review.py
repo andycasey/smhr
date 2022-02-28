@@ -11,7 +11,7 @@ from __future__ import (division, print_function, absolute_import,
 import logging
 import numpy as np
 import sys
-from PySide import QtCore, QtGui
+from PySide2 import (QtCore, QtWidgets as QtGui)
 import time
 
 import smh
@@ -60,9 +60,11 @@ class ReviewTab(QtGui.QWidget):
     def new_session_loaded(self):
         session = self.parent.session
         if session is None: return None
+        self.measurement_model.beginResetModel()
         self.summary_model.new_session(session)
         self.full_measurement_model.new_session(session)
-        self.measurement_model.reset()
+        self.measurement_model.reindex()
+        self.measurement_model.endResetModel()
         self.measurement_view.update_session(session)
         self.refresh_plots()
         return None
@@ -88,6 +90,7 @@ class ReviewTab(QtGui.QWidget):
         return None
     def change_measurement_table_species(self, species):
         # Update the filter
+        self.measurement_model.beginResetModel()
         if self._current_species is not None:
             _current_species_str = "{:.1f}".format(self._current_species)
             try:
@@ -102,7 +105,7 @@ class ReviewTab(QtGui.QWidget):
             self.measurement_model.add_filter_function(speciesstr, filterfn)
         self._current_species = species
         # Reset the model (and its views)
-        self.measurement_model.reset()
+        self.measurement_model.endResetModel()
     def refresh_plots(self):
         self.plot1.update_scatterplot(False)
         self.plot2.update_scatterplot(False)
@@ -161,12 +164,29 @@ class ReviewTab(QtGui.QWidget):
         return vbox
 
     def _init_scatterplots(self):
+        filters = [lambda x: (x.is_acceptable) and (not x.user_flag) and (not x.is_upper_limit),
+                   lambda x: not x.is_acceptable,
+                   lambda x: x.user_flag,
+                   lambda x: x.is_upper_limit]
+        point_styles = [{"s":30,"facecolor":"k","edgecolor":"k","alpha":0.5},
+                        {"s":30,"c":"c","marker":"x","linewidths":3},
+                        {"s":30,"edgecolor":"r","facecolor":"k","alpha":0.5,"linewidths":3},
+                        {"s":30,"edgecolor":"r","facecolor":"none","marker":"v"}
+        ]
+        linefit_styles = [{"color":"k","linestyle":"--","zorder":-99},None,None,None]
+        linemean_styles = [{"color":"k","linestyle":":","zorder":-999},None,None,None]
         self.plot1 = SMHScatterplot(None, "expot", "abundances",
-                                    tableview=self.measurement_view)
+                                    tableview=self.measurement_view,
+                                    filters=filters, point_styles=point_styles,
+                                    linefit_styles=linefit_styles,linemean_styles=linemean_styles)
         self.plot2 = SMHScatterplot(None, "reduced_equivalent_width", "abundances",
-                                    tableview=self.measurement_view)
+                                    tableview=self.measurement_view,
+                                    filters=filters, point_styles=point_styles,
+                                    linefit_styles=linefit_styles,linemean_styles=linemean_styles)
         self.plot3 = SMHScatterplot(None, "wavelength", "abundances",
-                                    tableview=self.measurement_view)
+                                    tableview=self.measurement_view,
+                                    filters=filters, point_styles=point_styles,
+                                    linefit_styles=linefit_styles,linemean_styles=linemean_styles)
         
         sp = QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, 
                                QtGui.QSizePolicy.MinimumExpanding)

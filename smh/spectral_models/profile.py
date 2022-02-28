@@ -104,6 +104,9 @@ class ProfileFittingModel(BaseSpectralModel):
             **kwargs)
 
         # Initialize metadata with default fitting values.
+		# E. Holmbeck changed two lines. sigma from 0.5 to 0.3, 
+		# and pixels from 3 to 5
+                # APJ reverted, 0.3 is bad for MIKE
         self.metadata.update({
             "profile": "gaussian",
             "central_weighting": True,
@@ -124,7 +127,7 @@ class ProfileFittingModel(BaseSpectralModel):
         self._update_parameter_names()
         self._verify_transitions()
         self._verify_metadata()
-
+                
         # Create a _repr_element for this.
         self._repr_element = self.transitions["element"][0]
 

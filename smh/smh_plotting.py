@@ -162,7 +162,8 @@ def make_synthesis_plot(plotdata, default_err=0.1,
             ax = fig.add_subplot(gs[0])
             ax_residual = fig.add_subplot(gs[1])
         else:
-            fig, ax = plt.figure(figsize=figsize)
+            fig = plt.figure(figsize=figsize)
+            ax = fig.add_subplot(111)
     else:
         fig = ax.get_figure()
         if plot_resid:

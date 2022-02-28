@@ -8,11 +8,73 @@ Gotta pay back that tech debt.
 Authors
 -------
  - Andrew R. Casey (Monash)
- - Alex Ji (Carnegie Observatories)
+ - Alex Ji (University of Chicago)
 
-VERSION NOTE:
+
+Note about this version
+------------------------
+ - This is a fork of the original SMHr code that has updates and additions for use by the *R*-Process Alliance.
+ - Direct questions to Erika Holmbeck (RIT/Notre Dame) or Alex Ji (Carnegie Observatories).
+
+
+Installation
+------------
+
+* Get anaconda
+
+* Add conda-forge
+```
+conda config --add channels conda-forge
+```
+Note: if you previously used instructions where it said `conda config --set channel_priority strict` this makes installing on anaconda super slow; I would change this back to
+`conda config --set channel_priority flexible`
+
+* Install required libraries into the `smhr-py3` environment:
+```
+conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app requests
+conda activate smhr-py3
+conda install pyside2
+conda install yaml
+```
+
+* Download and install this branch:
+```
+git clone https://github.com/andycasey/smhr.git 
+cd smhr
+git checkout -b py38-mpl313
+git pull origin py38-mpl313
+python setup.py develop
+```
+
+* Try running it:
+```
+cd smh/gui
+pythonw __main__.py #pythonw is installed with python.app and fixes menubar issues
+```
+Note: if you use python or ipython on Big Sur, the menu bar may not work.
+It appears you can fix this by clicking outside SMHR then clicking back in. But using pythonw is better.
+Details: https://stackoverflow.com/questions/48738805/mac-pyqt5-menubar-not-active-until-unfocusing-refocusing-the-app
+* Install moog17scat (see below) and add it to your path.
+
+MOOG
+----
+It is currently recommended that you use this version of MOOG: https://github.com/alexji/moog17scat
+
+This version is not the most efficient, and it computes synthetic spectra only to about 0.003 accuracy. It is modified from the 2017 February version of MOOG from Chris Sneden's website. It includes Jennifer Sobeck's scattering routines (turned on and off with the flag `scat`, which is not true in the default MOOG 2017) and the fixes to the Barklem damping that were implemented in the 2014 MOOG refactoring.
+
+There is now a 2019 November version of MOOG, but it did not add anything different unless you use the HF molecule or work on combined spectra of globular clusters. It did also start forcing MOOG to read everything as loggf from linelists, rather than logging things if all the loggfs were positive. But in SMHR we add a fake line whenever this is detected, so it does impact anything here.
+
+The 0.003 accuracy comes because this version of MOOG by default has a looser criterion for recomputing continuum opacity (compared to Jen's widely distributed version with scattering in 2011).
+See the README for `moog17scat` if you have concerns.
+
+Note that by default right now, we require you to have an executable called `MOOGSILENT` callable from your `$PATH` environment variable. Specifically, we use the version of MOOG that you get from `which MOOGSILENT`.
+
+VERSION HISTORY:
+----------------
+- The current master branch is python 3.
+- Alex has ported SMHR to python 3 in branch `py38-mpl313`. It now uses pyside2 and updated libraries for matplotlib. It is also way easier to install, not relying on some obscure libraries that were no longer maintained.
 - The branch `refactor-scatterplot` has an updated and improved GUI (as of Jan 2020). These have not been merged into master yet but should be soon.
-- The `master` branch is currently frozen to a version from about July 2019.
+- Until Aug 2021, the `master` branch was frozen to a version from about July 2019.
 - v0.22 (formerly branch `better-errors`) is a frozen version that is the result of a big update on May 30, 2019. It is considered a stable version.
 - v0.2 is a frozen development version, v0.21 is a slightly more recently frozen version. 
 - v0.1 is the current stable version. Things are working and it is being used for papers.
@@ -21,58 +83,6 @@ If you are new to SMHR, you should use the branch `refactor-scatterplot`.
 Note v0.1 and v0.2 files are not compatible, but there is a script to convert old save files into new save files.
 There is not a way to convert files from the old SMH to new SMHR.
 
-Installation
-------------
-This is one way that I (Alex) got things running from a fresh mac install and I'm putting it here as a record of some things I had to do.
-Default anaconda does not officially support pyside, but I think conda-forge does. We may switch to that, or a different version of PySide, in the future. For now, this works...
-
-- Download full anaconda with python 2.7. If you run into trouble later, specifically install an old anaconda version from [the anaconda archive](https://repo.continuum.io/archive/) around October 2016.
-- `conda install pyside`: this will install pyside v1.1.1
-- install qt4:
-```
-brew tap cartr/qt4
-brew tap-pin cartr/qt4
-brew install qt@4
-```
-- `conda install matplotlib=1.5.1` (fixing this is very painful because I need to update to qt5; I have started doing this but it will take a long time)
-- `conda install numpy=1.11.3` (this is an issue with pyside)
-- `conda install scipy=0.19.0` (this is an issue with newer versions of scipy, not sure yet why but it segfaults in `interpolate.griddata`)
-- `conda install qt=4.8.7` (you may have to uninstall and downgrade some things for this to work; it should be safe to upgrade those later) (Recent versions of anaconda have removed this version of QT. We have not yet found a solution but are working on it...it appears to mess up the Open File Dialogs, and we will try to come up with a workaround.)
-- Clone smhr
-- Go into the smhr directory and `python setup.py develop`
-- Go to `smhr/smh/gui` and open with `ipython __main__.py`. It should crash with a message about `libpyside`, saying something is not found. This is because a file is named wrong within anaconda.
-  - Go to `~/anaconda/lib` (or the equivalent if you made a separate environment), and make a symlink or file copy for `libpyside-python2.7.1.1.dylib` from one that looks almost the same (e.g. `libpyside-python2.7.1.1.1.dylib`)
-  - Try to open SMHR again, and it will crash. Do the same thing for `libshiboken` when you see this error message.
-  - If you have multiple anaconda installations: make sure that you are doing all of this with the correct anaconda (e.g. anaconda2)
-- If you have problems with `qt_menu.nib`, use `~/anaconda/bin/python.app __main__.py` instead of `ipython`. If you have multiple anaconda installations, make sure you change `anaconda` to `anaconda2` or whatever you installed it to. (I have fixed this on my laptop by copying it somewhere but I cannot find where. Some possible places that could help):
-```
-~/anaconda/python.app/Contents/Resources/qt_menu.nib
-~/anaconda/pkgs/launcher-1.0.0-1/launcherapp/Contents/Resources/qt_menu.nib
-~/anaconda/pkgs/launcher-1.0.0-2/launcherapp/Contents/Resources/qt_menu.nib
-~/anaconda/pkgs/python.app-1.2-py27_3/pythonapp/Contents/Resources/qt_menu.nib
-~/anaconda/pkgs/python.app-1.2-py27_4/pythonapp/Contents/Resources/qt_menu.nib
-~/anaconda/Launcher.app/Contents/Resources/qt_menu.nib
-/usr/local/Cellar/qt/4.8.7_1/lib/QtGui.framework/Versions/4/Resources/qt_menu.nib
-```
-- There are sometimes some problems with segfaults due to the GUI library. We hope this will go away when we move away from pyside. Sorry.
-
-Some notes from Henrique Reggiani that may be helpful to some:
-```
-I am running everything under MAC OS X 10.14.6
-My Python 2.7 install is the system install (I do not use anaconda and I only have one python install per version, so I manage packages as needed).
-
-I install qt4 from macports (system install). I already have qt5 but it did not create any problems.
-I had to export in my .profile/.bash_rc the path to the qmake executable:
-(export PATH="$PATH:/opt/local/libexec/qt4/bin") – this is the system path
-
-Then PySide was not finding the libpyside-python2.7.1.2.dylib. The libraries were all correctly placed and named. To solve the problem you go into $PYTHONPATH/site-packages/PySide and run this script:
-```
-
-
-MOOG
-----
-It is currently recommended that you use this version of MOOG: https://github.com/alexji/moog17scat
-
-This version is not the most efficient, and it computes synthetic spectra only to about 0.003 accuracy. It is modified from the 2017 February version of MOOG from Chris Sneden's website (there has been an update made in Nov 2019 that Alex has not investigated yet). It includes Jennifer Sobeck's scattering routines (turned on and off with the flag `scat`, which is not true in the default MOOG 2017) and the fixes to the Barklem damping that were implemented in the 2014 MOOG refactoring.
-
-Note that by default right now, we require you to have an executable called `MOOGSILENT` callable from your `$PATH` environment variable. Specifically, we use the version of MOOG that you get from `which MOOGSILENT`. We may change this in the future.
+TO DOs
+------
+-[ ] Fix GUI layout in Linux
