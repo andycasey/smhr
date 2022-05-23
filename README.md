@@ -30,6 +30,14 @@ Note: if you previously used instructions where it said `conda config --set chan
 `conda config --set channel_priority flexible`
 
 * Install required libraries into the `smhr-py3` environment:
+For M1 macs, note that pyside2 has to be run in Rosetta. Thus, you can install it in this way:
+```
+conda create -c conda-forge/osx-64 --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app requests pyside2=5.13.2 yaml
+```
+Currently (as of May 2022) anaconda on M1/ARM chips by default includes channels that search through `osx-arm64` and `noarch` but not `osx-64`.
+Also, newer versions of pyside2 appear to have changed some syntax on dialog boxes. We will update this eventually but for now you can install the older pyside2 version.
+
+For older Macs or other computers, this worked fine:
 ```
 conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app requests
 conda activate smhr-py3
