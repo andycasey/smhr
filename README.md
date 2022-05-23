@@ -11,23 +11,25 @@ Authors
  - Alex Ji (University of Chicago)
  - Erika Holmbeck (Carnegie Observatories)
 
-
 Installation
 ------------
 
-* Get anaconda
+* Get anaconda https://www.anaconda.com/
 
-* Add conda-forge
+* Create a new environment and install required libraries:
+For M1 macs, note that pyside2 has to be run in Rosetta. Thus, you can install it in this way:
 ```
-conda config --add channels conda-forge
+conda create -c conda-forge/osx-64 --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app requests pyside2=5.13.2 yaml
 ```
+Currently (as of May 2022) anaconda on M1/ARM chips by default includes channels that search through `osx-arm64` and `noarch` but not `osx-64`.
+Also, newer versions of pyside2 appear to have changed some syntax on dialog boxes. We will update this eventually but for now you can install the older pyside2 version.
 
-* Install required libraries into the `smhr-py3` environment:
+For older Macs or other computers, this worked fine:
 ```
-conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app requests
+conda create -c conda-forge --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app requests
 conda activate smhr-py3
-conda install pyside2
-conda install yaml
+conda install -c conda-forge pyside2=5.13.2
+conda install -c conda-forge yaml
 ```
 
 * Download and install this branch:
@@ -62,6 +64,7 @@ There is now a 2019 November version of MOOG, but it did not add anything differ
 
 Note that Alex has recently (Nov 16, 2021) fixed a bug in moog17scat that existed since the beginning and resulted in continuum accuracy only at the 0.003 when scattering is on. He also fixed a bug in isotopes.
 See the README for `moog17scat` if you have concerns.
+(Note May 2022: Alex has updated the master branch of moog17scat so this is done by default.)
 
 
 VERSION HISTORY:
@@ -73,6 +76,7 @@ VERSION HISTORY:
 - v0.22 (formerly branch `better-errors`) is a frozen version that is the result of a big update on May 30, 2019. It is considered a stable version.
 - v0.2 is a frozen development version, v0.21 is a slightly more recently frozen version. 
 - v0.1 is the current stable version. Things are working and it is being used for papers.
+
 Note v0.1 and v0.2 files are not compatible, but there is a script to convert old save files into new save files.
 There is not a way to convert files from the old SMH to new SMHR.
 
