@@ -1880,9 +1880,9 @@ class Session(BaseSession):
     def make_summary_plot(self, figure=None):
         with open(self._default_settings_path, "rb") as fp:
             try:
-                default = yaml.load(fp, yaml.FullLoader)
+                defaults = yaml.load(fp, yaml.FullLoader)
             except AttributeError:
-                default = yaml.load(fp)
+                defaults = yaml.load(fp)
         if "summary_figure" not in defaults:
             raise RuntimeError("Defaults file ({}) must have summary_figure".format(\
                     self._default_settings_path))
@@ -1894,9 +1894,9 @@ class Session(BaseSession):
     def make_ncap_summary_plot(self, figure=None):
         with open(self._default_settings_path, "rb") as fp:
             try:
-                default = yaml.load(fp, yaml.FullLoader)
+                defaults = yaml.load(fp, yaml.FullLoader)
             except AttributeError:
-                default = yaml.load(fp)
+                defaults = yaml.load(fp)
         if "summary_figure_ncap" not in defaults:
             raise RuntimeError("Defaults file ({}) must have summary_figure".format(\
                     self._default_settings_path))
@@ -2155,3 +2155,32 @@ class Session(BaseSession):
             species_models.append(model)
         return all_models
     
+    def initialize_normalization(self):
+        N = len(self.input_spectra)
+        self.metadata["normalization"] = {
+            "continuum": [None] * N,
+            "normalization_kwargs": [{}] * N
+        }
+
+    def initialize_rv(self):
+        """
+        Set things up so the RV GUI doesn't error out
+        """
+        wavelength_region = self.setting(("rv", "wavelength_regions"))
+        resample = self.setting(("rv", "resample"))
+        apodize = self.setting(("rv", "apodize"))
+        normalization_kwargs = self.setting(("rv", "normalization"))
+        
+        template_spectrum_path = self.setting(("rv", "template_spectrum"))
+        template_spectrum = specutils.Spectrum1D.read(template_spectrum_path)
+        
+        self.metadata["rv"].update({
+            # Input settings
+            "template_spectrum_path": template_spectrum_path,
+            "template_spectrum": template_spectrum,
+            "wavelength_region": wavelength_region,
+            "resample": resample,
+            "apodize": apodize,
+            "normalization": normalization_kwargs.copy()
+        })
+        
