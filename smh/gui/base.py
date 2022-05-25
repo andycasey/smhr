@@ -942,7 +942,10 @@ class SMHScatterplot(mpl.MPLWidget):
             if nonzero and ((linefit is not None) or (linemean is not None)):
                 ## TODO: Figure out how best to save and return info about the lines
                 ## For now, just refitting whenever needed
-                m, b, medy, stdy, stdm, N = utils.fit_line(x, y, None)
+                try:
+                    m, b, medy, stdy, stdm, N = utils.fit_line(x, y, None)
+                except ValueError as e:
+                    return np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
                 #xlim = np.array(self.ax.get_xlim())
                 xlim = np.array([x.min(), x.max()])
                 if (linefit is not None) and nonzero:
