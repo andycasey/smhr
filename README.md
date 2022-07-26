@@ -51,6 +51,34 @@ It appears you can fix this by clicking outside SMHR then clicking back in. But 
 Details: https://stackoverflow.com/questions/48738805/mac-pyqt5-menubar-not-active-until-unfocusing-refocusing-the-app
 * Install moog17scat (see below) and add it to your path.
 
+
+* Some installation notes for Linux/Debian. It takes a very long time to install pyside2 (hours?) so be patient. Thanks to Shivani Shah and Terese Hansen for this information.
+```
+Install Python 3.7 from anaconda
+
+create a new environment for smhr-py3:
+> conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython requests
+
+Activate environment:
+> conda activate smhr-py3
+
+Install pyside2:
+> conda install -c conda-forge pyside2=5.13.2
+
+
+Install yaml
+> conda install -c conda-forge yaml
+
+Get smhr:
+> git clone https://github.com/andycasey/smhr.git 
+> cd smhr
+> python setup.py develop
+
+Start smhr:
+> cd smh/gui
+> ipython __main__.py
+```
+
 MOOG
 ----
 It is currently recommended that you use this version of MOOG: https://github.com/alexji/moog17scat
