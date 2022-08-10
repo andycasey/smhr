@@ -287,9 +287,10 @@ class Spectrum1D(object):
         is_carpy_mage_product = (md5_hash == "6b2c2ec1c4e1b122ccab15eb9bd305bc")
         is_iraf_3band_product = (md5_hash == "a4d8f6f51a7260fce1642f7b42012969")
         is_apo_product = (image[0].header.get("OBSERVAT", None) == "APO")
+        is_dupont_product = (md5_hash == "2ab648afed96dcff5ccd10e5b45730c1")
         is_iraf_1band_product = (md5_hash == "148aa0c459c8085f7461a519b1a060e5") # McD old reductions
 
-        if is_carpy_mike_product or is_carpy_mage_product or is_carpy_mike_product_old:
+        if is_carpy_mike_product or is_carpy_mage_product or is_carpy_mike_product_old or is_dupont_product:
             # CarPy gives a 'noise' spectrum, which we must convert to an
             # inverse variance array
             flux_ext = flux_ext or 1
