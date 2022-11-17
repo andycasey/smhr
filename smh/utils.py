@@ -76,18 +76,24 @@ logger = logging.getLogger(__name__)
 
 
 def mkdtemp(**kwargs):
-    if not os.path.exists(os.environ["HOME"]+"/.smh"):
-        logger.info("Making "+os.environ["HOME"]+"/.smh")
-        os.mkdir(os.environ["HOME"]+"/.smh")
+    ## midway2: edited to use scratch
+    # default_dir = os.environ["HOME"]+"/.smh"
+    default_dir = "/scratch/midway2/alexji/.smh"
+    if not os.path.exists(default_dir):
+        logger.info("Making "+default_dir)
+        os.mkdir(default_dir)
     if 'dir' not in kwargs:
-        kwargs['dir'] = os.environ["HOME"]+"/.smh"
+        kwargs['dir'] = default_dir
     return tempfile.mkdtemp(**kwargs)
 def mkstemp(**kwargs):
-    if not os.path.exists(os.environ["HOME"]+"/.smh"):
-        logger.info("Making "+os.environ["HOME"]+"/.smh")
-        os.mkdir(os.environ["HOME"]+"/.smh")
+    ## midway2: edited to use scratch
+    # default_dir = os.environ["HOME"]+"/.smh"
+    default_dir = "/scratch/midway2/alexji/.smh"
+    if not os.path.exists():
+        logger.info("Making "+default_dir)
+        os.mkdir(default_dir)
     if 'dir' not in kwargs:
-        kwargs['dir'] = os.environ["HOME"]+"/.smh"
+        kwargs['dir'] = default_dir
     return tempfile.mkstemp(**kwargs)
 
 def random_string(N=10):

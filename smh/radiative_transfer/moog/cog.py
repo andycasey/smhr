@@ -14,6 +14,7 @@ import numpy as np
 import re
 import yaml
 from pkg_resources import resource_stream
+import os
 
 from . import utils
 from .utils import RTError
@@ -45,6 +46,10 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
     :param verbose: [optional]
         Specify verbose flags to MOOG. This is primarily used for debugging.
     """
+
+    # Midway: check for environment variables
+    if "env" not in kwargs:
+        kwargs["env"]=dict(os.environ)
 
     # Create a temporary directory.
     path = utils.twd_path(twd=twd,**kwargs)

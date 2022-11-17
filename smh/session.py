@@ -1027,7 +1027,7 @@ class Session(BaseSession):
             transitions["reduced_equivalent_width"] = rews
             assert np.all(np.isfinite(eqws)), np.sum(~np.isfinite(eqws))
             assert np.all(eqws > .01), np.sum(eqws <= .01)
-            abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
+            abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd, env=dict(os.environ))
             transitions["abundance"] = abundances
         else:
             transitions = transitions.copy()
@@ -1045,7 +1045,7 @@ class Session(BaseSession):
         try:
             # MH: stdev of all Fe lines (including Fe I and II)
             self.metadata["stellar_parameters"] = deepcopy(saved_stellar_params)
-            abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
+            abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd, env=dict(os.environ))
             mh_error = np.nanstd(abundances)
             
             # Teff
@@ -1058,7 +1058,7 @@ class Session(BaseSession):
                 m_target = m + sigma[1]
                 def _calculate_teff_slope(teff):
                     self.metadata["stellar_parameters"]["effective_temperature"] = teff
-                    abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
+                    abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd, env=dict(os.environ))
                     transitions["abundance"] = abundances
                     m, b, median, sigma, N = utils.equilibrium_state(transitions, columns=("expot",), ycolumn="abundance",
                                                                      yerr_column=yerr_column)[expot_balance_species]["expot"]
@@ -1084,7 +1084,7 @@ class Session(BaseSession):
                     std1 = np.std(abundances[ii1])/np.sqrt(N1)
                     std2 = np.std(abundances[ii2])/np.sqrt(N2)
                     return ab1, ab2, std1, std2
-                abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
+                abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd, env=dict(os.environ))
                 abFe1, abFe2, semFe1, semFe2 = _get_fe_values(abundances, transitions)
                 dFe0 = abFe1 - abFe2
                 logger.debug("Finding error in logg: Fe1={:.2f}+/-{:.2f}, Fe2={:.2f}+/-{:.2f}".format(
@@ -1096,7 +1096,7 @@ class Session(BaseSession):
                 
                 def _calculate_logg_dFe(logg):
                     self.metadata["stellar_parameters"]["surface_gravity"] = logg
-                    abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
+                    abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd, env=dict(os.environ))
                     ab1,ab2,sem1,sem2 = _get_fe_values(abundances, transitions)
                     logger.debug("logg={:.2f} dFe={:.3f} dFe_target={:.3f}".format(logg,ab1-ab2,dFe_target))
                     return ab1 - ab2
@@ -1119,7 +1119,7 @@ class Session(BaseSession):
                 m_target = m + sigma[1]
                 def _calculate_vt_slope(vt):
                     self.metadata["stellar_parameters"]["microturbulence"] = vt
-                    abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd)
+                    abundances = self.rt.abundance_cog(self.stellar_photosphere, transitions, twd=self.twd, env=dict(os.environ))
                     transitions["abundance"] = abundances
                     m, b, median, sigma, N = utils.equilibrium_state(transitions, columns=("reduced_equivalent_width",),ycolumn="abundance",
                                                                      yerr_column=yerr_column)[rew_balance_species]["reduced_equivalent_width"]
@@ -1370,7 +1370,7 @@ class Session(BaseSession):
         # Calculate abundances and put them back into the spectral models stored
         # in the session metadata.
         abundances = self.rt.abundance_cog(
-            self.stellar_photosphere, transitions[finite], twd=self.twd)
+            self.stellar_photosphere, transitions[finite], twd=self.twd, env=dict(os.environ))
 
         for index, abundance in zip(spectral_model_indices[finite], abundances):
             self.metadata["spectral_models"][int(index)]\
@@ -1387,7 +1387,7 @@ class Session(BaseSession):
         finite = np.isfinite(_transitions["equivalent_width"])
 
         propagated_abundances = self.rt.abundance_cog(
-            self.stellar_photosphere, _transitions[finite], twd=self.twd)
+            self.stellar_photosphere, _transitions[finite], twd=self.twd, env=dict(os.environ))
 
         for index, abundance, propagated_abundance \
         in zip(spectral_model_indices[finite], transitions["abundance"][finite],
@@ -1601,7 +1601,9 @@ class Session(BaseSession):
                                 transitions["equivalent_width"] > min_eqw)
         
         abundances = self.rt.abundance_cog(
-            self.stellar_photosphere, transitions[finite], twd=self.twd)
+            self.stellar_photosphere, transitions[finite], twd=self.twd,
+            env=dict(os.environ)
+        )
 
         if calculate_uncertainties:
             # Increase EW by uncertainty and measure again
@@ -1614,7 +1616,7 @@ class Session(BaseSession):
             transitions["equivalent_width"][transitions["equivalent_width"] > 9999] = 9999.
 
             uncertainties = self.rt.abundance_cog(
-                self.stellar_photosphere, transitions[finite_uncertainty], twd=self.twd)
+                self.stellar_photosphere, transitions[finite_uncertainty], twd=self.twd, env=dict(os.environ))
             
             # These are not the same size. Make them the same size by filling with nan
             # Inelegant but works...

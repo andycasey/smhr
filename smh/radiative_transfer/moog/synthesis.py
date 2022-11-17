@@ -11,6 +11,7 @@ import logging
 import numpy as np
 import yaml
 from pkg_resources import resource_stream
+import os
 
 from . import utils
 
@@ -45,6 +46,10 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
     :param verbose: [optional]
         Specify verbose flags to MOOG. This is primarily used for debugging.
     """
+
+    # Midway: check for environment variables
+    if "env" not in kwargs:
+        kwargs["env"]=dict(os.environ)
 
     # Create a temporary directory and write out the photoshere and transitions.
     path = utils.twd_path(twd=twd,**kwargs)
