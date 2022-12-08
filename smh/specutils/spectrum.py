@@ -116,6 +116,7 @@ class Spectrum1D(object):
             cls.read_fits_spectrum1d,
             cls.read_ascii_spectrum1d,
             cls.read_ascii_spectrum1d_noivar,
+            cls.read_alex_spectrum,
             cls.read_multispec,
         )
 
@@ -143,6 +144,28 @@ class Spectrum1D(object):
         orders = orders if len(orders) > 1 else orders[0]
         return orders
 
+
+    @classmethod
+    def read_alex_spectrum(cls, path):
+        image = fits.open(path)
+
+        # Merge headers into a metadata dictionary.
+        metadata = OrderedDict()
+        for key, value in image[0].header.items():
+            if key in metadata:
+                metadata[key] += value
+            else:
+                metadata[key] = value
+        metadata["smh_read_path"] = path
+        
+        md5_hash = md5(";".join([v for k, v in metadata.items() \
+                                 if k.startswith("BANDID")]).encode("utf-8")).hexdigest()
+        assert md5_hash == "8538046d98bf8a760b04690e53e394a1"
+
+        data = image[0].data
+        waves, fluxs, ivars = data[0], data[1], data[2]
+
+        return (waves, fluxs, ivars, metadata)
 
     @classmethod
     def read_multispec(cls, fname, full_output=False):
