@@ -12,6 +12,7 @@ import numpy as np
 
 from .quality_constraints import constraints
 from ..linelists import LineList
+from ..robust_polyfit import polyfit as rpolyfit
 from astropy.table import Row
 from smh.photospheres.abundances import asplund_2009 as solar_composition
 
@@ -446,4 +447,54 @@ class BaseSpectralModel(object):
             filled_arrays.append(yi_actual)
 
         return tuple(filled_arrays)
+
+    @property
+    def reduced_chi2(self):
+        try:
+            (named_p_opt, cov, meta) = self.metadata["fitted_result"]
+            return meta["chi_sq"] / meta["dof"]
+        except:
+            return np.nan
+            
+    @property
+    def chi2(self):
+        try:
+            (named_p_opt, cov, meta) = self.metadata["fitted_result"]
+            return meta["chi_sq"]
+        except:
+            return np.nan
+            
+    @property
+    def dof(self):
+        try:
+            (named_p_opt, cov, meta) = self.metadata["fitted_result"]
+            return meta["dof"]
+        except:
+            return np.nan
+            
+    @property
+    def residual_slope(self):
+        try:
+            (named_p_opt, cov, meta) = self.metadata["fitted_result"]
+            x = meta["model_x"]
+            y = meta["residual"]
+            coeff, scat = rpolyfit(x, y, 1)
+            return coeff[0]
+        except:
+            return np.nan
+    
+    @property
+    def residual_slope_and_err(self):
+        try:
+            (named_p_opt, cov, meta) = self.metadata["fitted_result"]
+            x = meta["model_x"]
+            y = meta["residual"]
+            coeff, scat = rpolyfit(x, y, 1)
+            yfit = np.polyval(coeff, x)
+            xmean = np.mean(x)
+            N = len(x)
+            merr = np.sqrt(np.sum((y-yfit)**2)/((N-2)*np.sum((x-xmean)**2)))
+            return coeff[0], merr
+        except:
+            return np.nan
 
