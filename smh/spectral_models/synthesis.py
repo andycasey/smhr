@@ -19,7 +19,7 @@ from six import string_types, iteritems
 from scipy.ndimage import gaussian_filter
 from scipy import stats
 
-from .base import BaseSpectralModel
+from .base import BaseSpectralModel, penalized_curve_fit_lm
 from smh import utils
 from smh.specutils import Spectrum1D
 from smh.photospheres.abundances import asplund_2009 as solar_composition
@@ -362,7 +362,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         return True
 
 
-    def fit(self, spectrum=None, **kwargs):
+    def fit(self, spectrum=None, penalty_function=None, **kwargs):
         """
         Fit a synthesised model spectrum to the observed spectrum.
 
@@ -370,6 +370,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
             The observed spectrum to fit the synthesis spectral model. If None
             is given, this will default to the normalized rest-frame spectrum in
             the parent session.
+
+        :param penalty_function: [optional]
+            A function of the form penalty_function(params) [not *params]
+            to penalize the parameters. Can be used to make a prior on some parameter.
         """
 
         # Check the observed spectrum for validity.
@@ -415,7 +419,12 @@ class SpectralSynthesisModel(BaseSpectralModel):
                 return self._nuisance_methods(
                     x, synth_dispersion, intensities, *parameters)
                 
-            p_opt, p_cov = op.curve_fit(objective_function, xdata=x, ydata=y,
+            if penalty_function is None:
+                p_opt, p_cov = op.curve_fit(objective_function, xdata=x, ydata=y,
+                        sigma=yerr, p0=p0, absolute_sigma=absolute_sigma)
+            else:
+                p_opt, p_cov = penalized_curve_fit_lm(
+                    objective_function, xdata=x, ydata=y, penalty_function=penalty_function,
                     sigma=yerr, p0=p0, absolute_sigma=absolute_sigma)
 
             # At small bounds it can be difficult to estimate the Jacobian.

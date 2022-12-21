@@ -15,6 +15,8 @@ from ..linelists import LineList
 from ..robust_polyfit import polyfit as rpolyfit
 from astropy.table import Row
 from smh.photospheres.abundances import asplund_2009 as solar_composition
+from scipy import optimize as op
+from scipy.linalg import svd, cholesky, solve_triangular, LinAlgError, inv
 
 class BaseSpectralModel(object):
 
@@ -496,5 +498,170 @@ class BaseSpectralModel(object):
             merr = np.sqrt(np.sum((y-yfit)**2)/((N-2)*np.sum((x-xmean)**2)))
             return coeff[0], merr
         except:
-            return np.nan
+            return np.nan, np.nan
 
+def penalized_curve_fit_lm(f, xdata, ydata,
+                           penalty_function=None,
+                           p0=None, sigma=None, absolute_sigma=False,
+                           check_finite=True,
+                           *, full_output=False, **kwargs):
+    """
+    Wrap scipy.optimize.curve_fit using lm method, but add penalty function on the parameters p0
+    Enables adding regularization/prior to parameters p0
+    This means we cannot specify bounds, as we use lm, but they can be updated with the penalty function
+    lm also numerically determines the derivative itself
+    Uses scipy.optimize.least_squares as the underlying minimizer (instead of leastsq as in default curve_fit for lm)
+    # Uses scipy.optimize.leastsq as the underlying minimizer
+    
+    Assumes ``ydata = f(xdata, *params) + eps``.
+    
+    This means we minimize ((ydata-f(xdata, *params))/sigma)^2 + penalty_function(params)
+    i.e. penalty_function(params) = scalar
+    
+    """
+    
+    ## creating a function that returns ((y-f(x,p))/sigma)^2 + penalty_function(p)
+    def _wrap_func(func, xdata, ydata, transform, penalty_function):
+        if transform is None:
+            def func_wrapped(params):
+                return (func(xdata, *params) - ydata)**2 + penalty_function(params)
+        elif transform.ndim == 1:
+            def func_wrapped(params):
+                return (transform * (func(xdata, *params) - ydata))**2 + penalty_function(params)
+        else:
+            # Chisq = (y - yd)^T C^{-1} (y-yd)
+            # transform = L such that C = L L^T
+            # C^{-1} = L^{-T} L^{-1}
+            # Chisq = (y - yd)^T L^{-T} L^{-1} (y-yd)
+            # Define (y-yd)' = L^{-1} (y-yd)
+            # by solving
+            # L (y-yd)' = (y-yd)
+            # and minimize (y-yd)'^T (y-yd)'
+            def func_wrapped(params):
+                return (solve_triangular(transform, func(xdata, *params) - ydata, lower=True))**2 + penalty_function(params)
+        return func_wrapped
+    
+    ## This next code is taken from scipy.optimize.curve_fit v1.9.3, removing the bounds parts
+    if p0 is None:
+        from scipy._lib._util import getfullargspec_no_self as _getfullargspec
+        # determine number of parameters by inspecting the function
+        sig = _getfullargspec(f)
+        args = sig.args
+        if len(args) < 2:
+            raise ValueError("Unable to determine number of fit parameters.")
+        n = len(args) - 1
+    else:
+        p0 = np.atleast_1d(p0)
+        n = p0.size
+
+    if penalty_function is None:
+        def penalty_wrapped(params):
+            return 0.
+    else:
+        penalty_wrapped = penalty_function
+
+    # NaNs cannot be handled
+    if check_finite:
+        ydata = np.asarray_chkfinite(ydata, float)
+    else:
+        ydata = np.asarray(ydata, float)
+
+    if isinstance(xdata, (list, tuple, np.ndarray)):
+        # `xdata` is passed straight to the user-defined `f`, so allow
+        # non-array_like `xdata`.
+        if check_finite:
+            xdata = np.asarray_chkfinite(xdata, float)
+        else:
+            xdata = np.asarray(xdata, float)
+
+    if ydata.size == 0:
+        raise ValueError("`ydata` must not be empty!")
+
+    # Determine type of sigma
+    if sigma is not None:
+        sigma = np.asarray(sigma)
+
+        # if 1-D, sigma are errors, define transform = 1/sigma
+        if sigma.shape == (ydata.size, ):
+            transform = 1.0 / sigma
+        # if 2-D, sigma is the covariance matrix,
+        # define transform = L such that L L^T = C
+        elif sigma.shape == (ydata.size, ydata.size):
+            try:
+                # scipy.linalg.cholesky requires lower=True to return L L^T = A
+                transform = cholesky(sigma, lower=True)
+            except LinAlgError as e:
+                raise ValueError("`sigma` must be positive definite.") from e
+        else:
+            raise ValueError("`sigma` has incorrect shape.")
+    else:
+        transform = None
+
+
+    ## This is where the difference comes in!
+    func = _wrap_func(f, xdata, ydata, transform, penalty_wrapped)
+    
+    # if ydata.size == 1, this might be used for broadcast.
+    if ydata.size != 1 and n > ydata.size:
+        raise TypeError(f"The number of func parameters={n} must not"
+                        f" exceed the number of data points={ydata.size}")
+    
+    ## This is the original curve_fit code
+    #res = op.leastsq(func, p0, Dfun=None, full_output=1, **kwargs)
+    #popt, pcov, infodict, errmsg, ier = res
+    #if ier not in [1, 2, 3, 4]:
+    #    raise RuntimeError("Optimal parameters not found: " + errmsg)
+    
+    ## This is adapting the curve_fit code to try and reproduce optimize.leastsq
+    if "ftol" in kwargs: ftol = kwargs.pop("ftol")
+    else: ftol = 1.49012e-8
+    if "xtol" in kwargs: xtol = kwargs.pop("xtol")
+    else: xtol = 1.49012e-8
+    if "gtol" in kwargs: gtol = kwargs.pop("gtol")
+    else: gtol = 1.0e-8
+    res = op.least_squares(func, p0, method='lm',
+                           ftol=ftol, xtol=xtol, gtol=gtol,
+                           **kwargs)
+    if not res.success:
+        raise RuntimeError("Optimal parameters not found: " + res.message)
+
+    infodict = dict(nfev=res.nfev, fvec=res.fun)
+    ier = res.status
+    errmsg = res.message
+
+    ysize = len(res.fun)
+    cost = 2 * res.cost  # res.cost is half sum of squares!
+    popt = res.x
+
+    # Do Moore-Penrose inverse discarding zero singular values.
+    _, s, VT = svd(res.jac, full_matrices=False)
+    threshold = np.finfo(float).eps * max(res.jac.shape) * s[0]
+    s = s[s > threshold]
+    VT = VT[:s.size]
+    pcov = np.dot(VT.T / s**2, VT)
+
+    ysize = len(infodict['fvec'])
+    cost = np.sum(infodict['fvec'] ** 2)
+
+    warn_cov = False
+    if pcov is None:
+        # indeterminate covariance
+        pcov = zeros((len(popt), len(popt)), dtype=float)
+        pcov.fill(inf)
+        warn_cov = True
+    elif not absolute_sigma:
+        if ysize > p0.size:
+            s_sq = cost / (ysize - p0.size)
+            pcov = pcov * s_sq
+        else:
+            pcov.fill(inf)
+            warn_cov = True
+
+    if warn_cov:
+        warnings.warn('Covariance of the parameters could not be estimated',
+                      category=OptimizeWarning)
+
+    if full_output:
+        return popt, pcov, infodict, errmsg, ier
+    else:
+        return popt, pcov

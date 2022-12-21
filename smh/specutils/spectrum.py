@@ -117,6 +117,7 @@ class Spectrum1D(object):
             cls.read_ascii_spectrum1d,
             cls.read_ascii_spectrum1d_noivar,
             cls.read_alex_spectrum,
+            cls.read_ceres,
             cls.read_multispec,
         )
 
@@ -164,7 +165,38 @@ class Spectrum1D(object):
 
         data = image[0].data
         waves, fluxs, ivars = data[0], data[1], data[2]
+        
+        image.close()
 
+        return (waves, fluxs, ivars, metadata)
+
+    @classmethod
+    def read_ceres(cls, fname):
+        with fits.open(fname) as hdul:
+            assert len(hdul)==1, len(hdul)
+            header = hdul[0].header
+            assert header["PIPELINE"] == "CERES", header["PIPELINE"]
+            data = hdul[0].data
+            Nband, Norder, Npix = data.shape
+            # https://github.com/rabrahm/ceres
+            # by default it looks sorted from red to blue orders, so we'll flip it in the output
+            waves = data[0,::-1,:]
+            fluxs = data[1,::-1,:]
+            ivars = data[2,::-1,:]
+            # 3, 4 = blaze corrected flux and error
+            # 5, 6 = continuum normalized flux and error
+            # 7 = continuum
+            # 8 = s/n
+            # 9, 10 = Continumm normalized flux multiplied by the derivative of the wavelength with respect to the pixels + err
+
+            # Merge headers into a metadata dictionary.
+            metadata = OrderedDict()
+            for key, value in header.items():
+                if key in metadata:
+                    metadata[key] += value
+                else:
+                    metadata[key] = value
+            metadata["smh_read_path"] = fname
         return (waves, fluxs, ivars, metadata)
 
     @classmethod
