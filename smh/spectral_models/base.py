@@ -498,7 +498,7 @@ class BaseSpectralModel(object):
             merr = np.sqrt(np.sum((y-yfit)**2)/((N-2)*np.sum((x-xmean)**2)))
             return coeff[0], merr
         except:
-            return np.nan
+            return np.nan, np.nan
 
 def penalized_curve_fit_lm(f, xdata, ydata,
                            penalty_function=None,
