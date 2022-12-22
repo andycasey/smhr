@@ -19,7 +19,7 @@ from six import string_types, iteritems
 from scipy.ndimage import gaussian_filter
 from scipy import stats
 
-from .base import BaseSpectralModel
+from .base import BaseSpectralModel, penalized_curve_fit_lm
 from smh import utils
 from smh.specutils import Spectrum1D
 from smh.photospheres.abundances import asplund_2009 as solar_composition
@@ -362,7 +362,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         return True
 
 
-    def fit(self, spectrum=None, **kwargs):
+    def fit(self, spectrum=None, penalty_function=None, **kwargs):
         """
         Fit a synthesised model spectrum to the observed spectrum.
 
@@ -370,6 +370,10 @@ class SpectralSynthesisModel(BaseSpectralModel):
             The observed spectrum to fit the synthesis spectral model. If None
             is given, this will default to the normalized rest-frame spectrum in
             the parent session.
+
+        :param penalty_function: [optional]
+            A function of the form penalty_function(params) [not *params]
+            to penalize the parameters. Can be used to make a prior on some parameter.
         """
 
         # Check the observed spectrum for validity.
@@ -415,7 +419,12 @@ class SpectralSynthesisModel(BaseSpectralModel):
                 return self._nuisance_methods(
                     x, synth_dispersion, intensities, *parameters)
                 
-            p_opt, p_cov = op.curve_fit(objective_function, xdata=x, ydata=y,
+            if penalty_function is None:
+                p_opt, p_cov = op.curve_fit(objective_function, xdata=x, ydata=y,
+                        sigma=yerr, p0=p0, absolute_sigma=absolute_sigma)
+            else:
+                p_opt, p_cov = penalized_curve_fit_lm(
+                    objective_function, xdata=x, ydata=y, penalty_function=penalty_function,
                     sigma=yerr, p0=p0, absolute_sigma=absolute_sigma)
 
             # At small bounds it can be difficult to estimate the Jacobian.
@@ -911,6 +920,44 @@ class SpectralSynthesisModel(BaseSpectralModel):
         self.metadata["{}_sigma_abundance_error".format(sigma)] = np.abs(abund1 - abund0)
         return np.abs(abund1 - abund0)
         
+
+    def check_line_detection(self, sigma=3):
+        """
+        Compare the current fit to a synthetic fit with 10^-9 of the current abundance.
+        Returns (is_detection, delta_chi2).
+        Detection assumes a gaussian sigma of 3 (by default), or tail probability of 100-99.7%,
+          assuming 1 degree of freedom
+        """
+        # Load current fit
+        try:
+            (orig_p_opt, cov, meta) = self.metadata["fitted_result"]
+        except KeyError:
+            logger.info("Please run a fit first!")
+            return None, np.nan
+        elem = self.metadata["elements"][0]
+        elem_p_opt_name = "log_eps({})".format(elem)
+        assert elem_p_opt_name in orig_p_opt, (elem, orig_p_opt)
+        abund0 = orig_p_opt[elem_p_opt_name]
+
+        # Set up data again from scratch
+        spectrum = self._verify_spectrum(None)
+        mask = self.mask(spectrum)
+        x = spectrum.dispersion[mask]
+        data_y = spectrum.flux[mask]
+        data_ivar = spectrum.ivar[mask]
+        
+        # recompute chi2 for this and for -9
+        model_y = self(x, *orig_p_opt.values())
+        chi2_current = np.nansum((data_y - model_y)**2 * data_ivar)
+        p_opt = orig_p_opt.copy()
+        p_opt[elem_p_opt_name] = abund0 - 9
+        model_y2 = self(x, *p_opt.values())
+        chi2_none = np.nansum((data_y - model_y2)**2 * data_ivar)
+        
+        delta_chi2 = chi2_none - chi2_current # should be > 0, since chi2_none is worse than the fit
+        frac = stats.norm.cdf(sigma) - stats.norm.cdf(-sigma)
+        threshold = stats.chi2.ppf(frac, 1) # 1 df for one abundance
+        return delta_chi2 > threshold, delta_chi2
 
     def find_upper_limit(self, sigma=3, start_at_current=True, max_elem_diff=12.0, tol=.01, pix_per_element=1.0):
         """

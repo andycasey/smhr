@@ -747,7 +747,7 @@ def process_session_uncertainties_lines(session, rhomat, minerr=0.001):
         s_max = 3. # Updated to a larger value because it was not always converging.
         delta = struct2array(t["e_Teff","e_logg","e_vt","e_MH"].as_array())
         ex = t["e_stat"]
-        for i in range(35):
+        for i in range(100):
             sigma_tilde = np.diag(s**2 + ex**2) + (delta.dot(rhomat.dot(delta.T)))
             sigma_tilde_inv = np.linalg.inv(sigma_tilde)
             w = np.sum(sigma_tilde_inv, axis=1)
@@ -903,6 +903,123 @@ def process_session_uncertainties_abundancesummary(tab, rhomat):
     ## Add in [X/Fe]
     var_X, cov_XY = process_session_uncertainties_covariance(summary_tab, rhomat)
     feh1, efe1, feh2, efe2 = process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY)
+    
+    if len(summary_tab["[X/H]"]) > 0:
+        summary_tab["[X/Fe1]"] = summary_tab["[X/H]"] - feh1
+        summary_tab["e_XFe1"] = efe1
+        summary_tab["[X/Fe2]"] = summary_tab["[X/H]"] - feh2
+        summary_tab["e_XFe2"] = efe2
+    
+        ixion = np.array([x - int(x) > .01 for x in summary_tab["species"]])
+        summary_tab["[X/Fe]"] = summary_tab["[X/Fe1]"]
+        summary_tab["e_XFe"] = summary_tab["e_XFe1"]
+        summary_tab["[X/Fe]"][ixion] = summary_tab["[X/Fe2]"][ixion]
+        summary_tab["e_XFe"][ixion] = summary_tab["e_XFe2"][ixion]
+        for col in summary_tab.colnames:
+            if col=="N" or col=="species" or col=="elem": continue
+            summary_tab[col].format = ".3f"
+    else:
+        for col in ["[X/Fe]","[X/Fe1]","[X/Fe2]",
+                    "e_XFe","e_XFe1","e_XFe2"]:
+            summary_tab.add_column(astropy.table.Column(np.zeros(0),col))
+            #summary_tab[col] = np.nan #.add_column(col)
+    return summary_tab
+def process_session_uncertainties_abundancesummary_totweight(tab, rhomat):
+    """
+    Take a table of lines and turn them into standard abundance table
+    """
+    from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
+    from .photospheres.abundances import asplund_2009 as solar_composition
+    unique_species = np.unique(tab["species"])
+    cols = ["species","elem","N",
+            "logeps","sigma","stderr",
+            "logeps_w","sigma_w","stderr_w",
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
+            "e_Teff_w","e_logg_w","e_vt_w","e_MH_w","e_sys_w",
+            "[X/H]","e_XH","s_X"]
+    data = OrderedDict(zip(cols, [[] for col in cols]))
+    for species in unique_species:
+        ttab = tab[tab["species"]==species]
+        elem = species_to_element(species)
+        N = len(ttab)
+        logeps = np.mean(ttab["logeps"])
+        stdev = np.std(ttab["logeps"])
+        stderr = stdev/np.sqrt(N)
+        
+        ## NOTE: PART 1 OF 3 THAT IS CHANGING
+        #w = ttab["weight"]
+        w = ttab["e_tot"]**-2
+
+        finite = np.isfinite(w)
+        if finite.sum() != N:
+            print("WARNING: species {:.1f} N={} != finite weights {}".format(species, N, finite.sum()))
+        x = ttab["logeps"]
+        logeps_w = np.sum(w*x)/np.sum(w)
+        stdev_w = np.sqrt(np.sum(w*(x-logeps_w)**2)/np.sum(w))
+        stderr_w = np.sqrt(1/np.sum(w))
+        
+        sperrs = []
+        sperrs_w = []
+        for spcol in ["Teff","logg","vt","MH"]:
+            x_new = x + ttab["e_"+spcol]
+            e_sp = np.mean(x_new) - logeps
+            sperrs.append(e_sp)
+            #e_sp_w = np.sum(w*x_new)/np.sum(w) - logeps_w
+            e_sp_w = np.sum(w*ttab["e_"+spcol])/np.sum(w)
+            sperrs_w.append(e_sp_w)
+        sperrs = np.array(sperrs)
+        sperrs_w = np.array(sperrs_w)
+        sperrtot = np.sqrt(sperrs.T.dot(rhomat.dot(sperrs)))
+        sperrtot_w = np.sqrt(sperrs_w.T.dot(rhomat.dot(sperrs_w)))
+        
+        XH = logeps_w - solar_composition(species)
+        ## NOTE: PART 2 OF 3 THAT CHANGED
+        e_XH = np.sqrt(stderr_w**2 + sperrtot**2)
+        #e_XH = stderr_w
+        s_X = ttab["e_sys"][0]
+        assert np.allclose(ttab["e_sys"], s_X), s_X
+        input_data = [species, elem, N,
+                      logeps, stdev, stderr,
+                      logeps_w, stdev_w, stderr_w,
+                      sperrs[0], sperrs[1], sperrs[2], sperrs[3], sperrtot,
+                      sperrs_w[0], sperrs_w[1], sperrs_w[2], sperrs_w[3], sperrtot_w,
+                      XH, e_XH, s_X
+        ]
+        assert len(cols) == len(input_data)
+        for col, x in zip(cols, input_data):
+            data[col].append(x)
+    summary_tab = astropy.table.Table(data)
+    
+    ## Add in [X/Fe]
+    var_X, cov_XY = process_session_uncertainties_covariance(summary_tab, rhomat)
+    ## NOTE: PART 3 OF 3 THAT IS ACTUALLY CHANGING
+    #feh1, efe1, feh2, efe2 = process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY)
+    ## Because we didn't do it self-consistently, these will be nan-ish.
+    ## Here let's just do it by adding uncertainties in quadrature...
+    try:
+        ix1 = np.where(summary_tab["species"]==26.0)[0][0]
+    except IndexError:
+        print("No feh1: setting to nan")
+        feh1 = np.nan
+        efe1 = var_X * np.nan
+    else:
+        feh1 = summary_tab["[X/H]"][ix1]
+        delta_XY = struct2array(np.array(summary_tab["e_Teff","e_logg","e_vt","e_MH"]))
+        delta_XY = delta_XY - delta_XY[ix1,:]
+        e2_sys = np.sqrt(np.sum(delta_XY**2, axis=1))
+        efe1 = np.sqrt(var_X + e2_sys)
+    try:
+        ix2 = np.where(summary_tab["species"]==26.1)[0][0]
+    except IndexError:
+        print("No feh2: setting to nan")
+        feh2 = np.nan
+        efe2 = var_X * np.nan
+    else:
+        feh2 = summary_tab["[X/H]"][ix2]
+        delta_XY = struct2array(np.array(summary_tab["e_Teff","e_logg","e_vt","e_MH"]))
+        delta_XY = delta_XY - delta_XY[ix2,:]
+        e2_sys = np.sum(delta_XY**2, axis=1)
+        efe2 = np.sqrt(var_X + e2_sys)
     
     if len(summary_tab["[X/H]"]) > 0:
         summary_tab["[X/Fe1]"] = summary_tab["[X/H]"] - feh1
