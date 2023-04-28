@@ -15,8 +15,8 @@ import warnings
 from copy import deepcopy
 
 #from astropy.stats.biweight import biweight_scale
-from smh.photospheres.abundances import asplund_2009 as solar_composition
-from smh.utils import mkdtemp
+from .photospheres.abundances import asplund_2009 as solar_composition
+from .utils import mkdtemp
 
 import logging
 logger = logging.getLogger(__name__)
