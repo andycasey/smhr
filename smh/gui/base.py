@@ -350,7 +350,6 @@ class SMHSpecDisplay(mpl.MPLWidget):
         if selected_model is None: return None
         logger.debug("key_press_model: {}".format(event.key))
         key = event.key.lower()
-        #if event.key not in "auf": return None
         if event.key == "a":
             selected_model.is_acceptable = True
         elif event.key == "u":
