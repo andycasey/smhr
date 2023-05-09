@@ -202,7 +202,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
     @property
     def loggf(self):
         ## TODO for most syntheses the combined loggf is well-defined
-        return self.metadat.get("loggf", np.nan)
+        return self.metadata.get("loggf", np.nan)
 
     @property
     def measurement_type(self):
