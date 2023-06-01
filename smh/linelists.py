@@ -741,9 +741,13 @@ class LineList(Table):
 
             for transition in self[match]:
 
+                ## TODO!!!! need to fix fdamp and rad!!!!!
                 row = dict(lower_orbital_type='x', upper_orbital_type='x',
-                    fdamp=-7.750, upper_g=1.0, rad=1e8, equivalent_width_err=0)
-                row.update(dict(zip(transition.dtype.names, transition.data)))
+                           fdamp=-7.750, upper_g=1.0, rad=1e8, equivalent_width_err=0,
+                           wavelength=transition["wavelength"], expot=transition["expot"],
+                           loggf=transition["loggf"], equivalent_width=transition["equivalent_width"])
+
+                #row.update(dict(zip(transition.dtype.names, transition.data)))
 
                 if not np.isfinite(row["equivalent_width"]):
                     row["equivalent_width"] = 0

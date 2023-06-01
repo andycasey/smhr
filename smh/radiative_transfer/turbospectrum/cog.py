@@ -55,9 +55,9 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
                                        + kwds["dispersion_delta"])
 
     # Update keywords.
-    xi = photosphere.meta.get("microturbulence", None) or 1.0
+    #xi = photosphere.meta.get("microturbulence", None) or 1.0
     kwds.update(
-        microturbulence=xi,
+        microturbulence=photosphere._get_xi(),
         is_spherical=["F", "T"][photosphere.meta["radius"] > 0],
         num_isotopes=0, formatted_isotopes="",
         num_abundances=0, formatted_abundances="",
@@ -70,7 +70,8 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
     photosphere.write(path(kwds["photosphere_path"]), format="turbospectrum")
 
     # Requires environment variable for the Turbospectrum data path.
-    os.symlink(os.environ.get("TURBODATA"), path("DATA"))
+    if not os.path.exists(path("DATA")):
+        os.symlink(os.environ.get("TURBODATA"), path("DATA"))
 
     # Calculate opacities.
     op_proc = subprocess.Popen(["babsma_lu"], stdin=subprocess.PIPE,
@@ -78,14 +79,15 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
         cwd=path(""))
 
     with resource_stream(__name__, "babsma_lu.in") as fp:
-        babsma_contents = fp.read()
+        babsma_contents = fp.read().decode("utf-8")
 
-    op_out, op_err = op_proc.communicate(input=babsma_contents.format(**kwds))
+    op_out, op_err = op_proc.communicate(input=babsma_contents.format(**kwds).encode())
 
     if op_proc.returncode:
         logging.exception(
             "Exception when calculating opacities in Turbospectrum: {}".format(
                 op_err))
+        print(babsma_contents.format(**kwds))
         raise ValueError("exception when calculating Turbospectrum opacities")
 
     transitions.write(path(kwds["transitions_path"]), format="turbospectrum")
@@ -99,20 +101,27 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=path(""))
 
     with resource_stream(__name__, "eqwidt_lu.in") as fp:
-        bsyn_contents = fp.read()
+        eqwidt_contents = fp.read().decode("utf-8")
 
-    out, err = proc.communicate(input=bsyn_contents.format(**kwds))
+    out, err = proc.communicate(input=eqwidt_contents.format(**kwds).encode())
     if proc.returncode:
         logging.exception("Exception when calculating spectrum in Turbospectrum:"\
             "\n{}".format(err))
+        print(eqwidt_contents.format(**kwds))
         raise ValueError("exception when calculating spectrum with Turbospectrum")
 
     # Order the transitions
     transitions = transitions.copy()
     transitions.sort(["species", "wavelength"])
 
-    wavelengths, abundances = np.loadtxt(
-        path(kwds["result_path"]), usecols=(2, 11, ), skiprows=2).T
+    try:
+        wavelengths, abundances = np.loadtxt(
+            path(kwds["result_path"]), usecols=(2, 11, ), skiprows=2).T
+    except Exception as e:
+        print(babsma_contents.format(**kwds))
+        print(eqwidt_contents.format(**kwds))
+        print(e)
+        raise
 
     indices = np.where(np.in1d(transitions["wavelength"], wavelengths))[0]
 

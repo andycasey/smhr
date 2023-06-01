@@ -89,9 +89,8 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
                                   "and chunking not implemented yet")
 
     # Update keywords.
-    xi = photosphere.meta.get("microturbulence", None) or 1.0
     kwds.update(
-        microturbulence=xi,
+        microturbulence=photosphere._get_xi(),
         is_spherical=["F", "T"][photosphere.meta["radius"] > 0],
         num_isotopes=len(isotopes),
         formatted_isotopes=formatted_isotopes,
@@ -105,7 +104,8 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
     photosphere.write(path(kwds["photosphere_path"]), format="turbospectrum")
 
     # Requires environment variable for the Turbospectrum data path.
-    os.symlink(os.environ.get("TURBODATA"), path("DATA"))
+    if not os.path.exists(path("DATA")):
+        os.symlink(os.environ.get("TURBODATA"), path("DATA"))
 
     # Calculate opacities.
     op_proc = subprocess.Popen(["babsma_lu"], stdin=subprocess.PIPE,
@@ -113,9 +113,9 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
         cwd=path(""))
 
     with resource_stream(__name__, "babsma_lu.in") as fp:
-        babsma_contents = fp.read()
+        babsma_contents = fp.read().decode("utf-8")
 
-    op_out, op_err = op_proc.communicate(input=babsma_contents.format(**kwds))
+    op_out, op_err = op_proc.communicate(input=babsma_contents.format(**kwds).encode())
 
     if op_proc.returncode:
         logging.exception(
@@ -136,9 +136,9 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=path(""))
 
     with resource_stream(__name__, "bsyn_lu.in") as fp:
-        bsyn_contents = fp.read()
+        bsyn_contents = fp.read().decode("utf-8")
 
-    synth_out, synth_err = proc_synth.communicate(input=bsyn_contents.format(**kwds))
+    synth_out, synth_err = proc_synth.communicate(input=bsyn_contents.format(**kwds).encode())
     if proc_synth.returncode:
         logging.exception("Exception when calculating spectrum in Turbospectrum:"\
             "\n{}".format(synth_err))

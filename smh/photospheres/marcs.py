@@ -80,7 +80,6 @@ class Interpolator(BaseInterpolator):
         geometry = int(self._spherical_or_plane_parallel(*point))
 
         p = list(point) + [geometry]
-        print("p",p)
         try:
             return super(self.__class__, self).interpolate(*p, **kwargs)
 

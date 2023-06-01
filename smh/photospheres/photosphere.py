@@ -19,6 +19,12 @@ logger = logging.getLogger(__name__)
 class Photosphere(astropy.table.Table):
     """ A model photosphere object. """
 
+    def _get_xi(self):
+        xi = self.meta["stellar_parameters"].get("microturbulence", 0.0)
+        if 0 >= xi:
+            logger.warn("Invalid microturbulence value: {:.3f} km/s".format(xi))
+        return xi
+    
     def make_logtauR(self):
         if self.meta["kind"] != "marcs":
             raise ValueError("only marcs photospheres supported with logtauR")
@@ -64,19 +70,24 @@ def _turbospectrum_writer(photosphere, filename, **kwargs):
     
     Teff = photosphere.meta["stellar_parameters"]["effective_temperature"]
     logg = photosphere.meta["stellar_parameters"]["surface_gravity"]
-    xi = photosphere.meta["stellar_parameters"]["microturbulence"]
+    xi = photosphere._get_xi()
     MH = photosphere.meta["stellar_parameters"]["metallicity"]
-    label = "sph" if radius > 0 else "pp"
-    output += \
-        "'{}interpolsmh' 56  {:.0f} {:.2f} {:.2f}\n".format(
-            label, Teff, logg, MH
-        )
+    if radius > 0:
+        output += \
+            "'sphINTERPOL'  56  {:.0f} {:.2f} {:.2f}\n".format(
+                Teff, logg, MH
+            )
+    else:
+        output += \
+            "'ppINTERPOL'   56  {:.0f} {:.2f} {:.2f}\n".format(
+                Teff, logg, MH
+            )
 
     logtauR = list(np.arange(-5,-3,0.2)) + \
         list(np.arange(-3,1,0.1)) + \
         list(np.arange(1,2.01,0.2))
     for i, layer in enumerate(photosphere):
-        output += "{:7.4f} {:7.2f} {:7.4f} {:7.4f} {:7.4f} {:15.6e} {:7.4f}\n".format(
+        output += "{:8.4f} {:8.2f} {:8.4f} {:8.4f} {:8.4f} {:15.6e} {:8.4f}\n".format(
             layer["lgTau5"],
             layer["T"],
             np.log10(layer["Pe"]),
