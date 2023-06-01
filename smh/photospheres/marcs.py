@@ -10,6 +10,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 # Standard library.
 import gzip
 import logging
+import warnings
 
 # Third party.
 import numpy as np
@@ -20,6 +21,10 @@ from .interpolator import BaseInterpolator
 # Create logger.
 logger = logging.getLogger(__name__)
 
+# Warn about missing variance arrays, but only once.
+class StandardCompositionAssumed(Warning):
+    pass
+warnings.simplefilter("once", StandardCompositionAssumed)
 
 class Interpolator(BaseInterpolator):
 
@@ -35,7 +40,7 @@ class Interpolator(BaseInterpolator):
         of 1 km/s in plane-parallel models and 2 km/s in spherical models.
 
         """
-        return super(self.__class__, self).__init__("marcs-2011_m1.0_t02_st.pkl",
+        return super(self.__class__, self).__init__("marcs-2011-standard.pkl",
             **kwargs)
         
 
@@ -65,10 +70,17 @@ class Interpolator(BaseInterpolator):
         scale.
         """
 
+        if len(point) > 3:
+            point = list(point)
+            warnings.warn(
+                "Dropping alpha from interpolation")
+            point = point[0:3]
+        
         # Try either spherical / plane parallel, and if that fails, switch.
         geometry = int(self._spherical_or_plane_parallel(*point))
 
         p = list(point) + [geometry]
+        print("p",p)
         try:
             return super(self.__class__, self).interpolate(*p, **kwargs)
 

@@ -75,6 +75,12 @@ class BaseInterpolator(object):
             raise ValueError("{} duplicate stellar parameters found".format(
                 stellar_parameters.size - idx.size))
 
+        # for MARCS
+        if "is_spherical?" in stellar_parameters.dtype.names:
+            names = list(stellar_parameters.dtype.names)
+            names[names.index("is_spherical?")] = "radius"
+            stellar_parameters.dtype.names = names
+
         self.live_dangerously = live_dangerously
         self.stellar_parameters = stellar_parameters
         self.photospheres = photospheres

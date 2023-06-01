@@ -9,6 +9,7 @@ from __future__ import division, absolute_import, print_function
 import logging
 from textwrap import dedent
 
+import numpy as np
 import astropy.io
 import astropy.table
 
@@ -17,6 +18,20 @@ logger = logging.getLogger(__name__)
 
 class Photosphere(astropy.table.Table):
     """ A model photosphere object. """
+
+    def make_logtauR(self):
+        if self.meta["kind"] != "marcs":
+            raise ValueError("only marcs photospheres supported with logtauR")
+        """
+        For 56 layers: -5, -4.8, ..., -3.0 (k=11), -2.9, -2.8, ..., -0.00, 0.10, ..., 1.00, 1.20, 1.40, ..., 2.00
+        """
+        if len(self) != 56:
+            raise ValueError("marcs photosphere not length 56", len(self))
+        logtauR = list(np.arange(-5,-3,0.2)) + \
+            list(np.arange(-3,1,0.1)) + \
+            list(np.arange(1,2.01,0.2))
+        self["logtauR"] = logtauR
+        
     pass
 
 
@@ -35,8 +50,43 @@ def _turbospectrum_writer(photosphere, filename, **kwargs):
     if photosphere.meta["kind"] != "marcs":
         raise ValueError("only marcs photospheres supported with turbospectrum")
 
+    """
+    TODO rewrite this into the interpolated format
+    'ppINTERPOL'  56   5000.  4.44 0 0.00
+    -4.9152  4062.21  -1.6772   2.4269   1.0000    0.758799E+08  -5.0000
+    -4.7182  4097.98  -1.5664   2.5395   1.0000    0.730421E+08  -4.8000
+    logtau5  T        logPe     logPg    ?         depth?        logtauR
+    """
+
     output = ""
     radius = photosphere.meta["radius"]
+    photosphere.make_logtauR()
+    
+    Teff = photosphere.meta["stellar_parameters"]["effective_temperature"]
+    logg = photosphere.meta["stellar_parameters"]["surface_gravity"]
+    xi = photosphere.meta["stellar_parameters"]["microturbulence"]
+    MH = photosphere.meta["stellar_parameters"]["metallicity"]
+    label = "sph" if radius > 0 else "pp"
+    output += \
+        "'{}interpolsmh' 56  {:.0f} {:.2f} {:.2f}\n".format(
+            label, Teff, logg, MH
+        )
+
+    logtauR = list(np.arange(-5,-3,0.2)) + \
+        list(np.arange(-3,1,0.1)) + \
+        list(np.arange(1,2.01,0.2))
+    for i, layer in enumerate(photosphere):
+        output += "{:7.4f} {:7.2f} {:7.4f} {:7.4f} {:7.4f} {:15.6e} {:7.4f}\n".format(
+            layer["lgTau5"],
+            layer["T"],
+            np.log10(layer["Pe"]),
+            np.log10(layer["Pg"]),
+            xi,
+            layer["Depth"],
+            logtauR[i]
+        )
+
+    """
     if radius > 0:
         output += \
             "spherical model\n"\
@@ -59,6 +109,7 @@ def _turbospectrum_writer(photosphere, filename, **kwargs):
         output += "{:3.0f} {:5.2f} {:7.4f} {:10.3e} {:7.1f} {:10.3e} {:10.3e} {:10.3e} {:10.3e}\n"\
             .format(i + 1, lgTauR, layer["lgTau5"], layer["Depth"], layer["T"],
                 layer["Pe"], layer["Pg"], layer["Prad"], 0)
+    """
 
     with open(filename, "w") as fp:
         fp.write(output)

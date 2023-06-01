@@ -16,7 +16,8 @@ from . import utils
 
 logger = logging.getLogger(__name__)
 
-def interpolator(kind="castelli/kurucz", **kwargs):
+#def interpolator(kind="castelli/kurucz", **kwargs):
+def interpolator(kind="marcs", **kwargs):
 
     logger.debug("Initialising {0} photosphere interpolator"\
         .format(kind.upper()))
