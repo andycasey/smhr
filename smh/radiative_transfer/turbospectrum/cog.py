@@ -22,8 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 with resource_stream(__name__, "defaults.yaml") as fp:
-    _turbospectrum_defaults = yaml.load(fp)
-
+    try:
+        _turbospectrum_defaults = yaml.load(fp, yaml.FullLoader)
+    except AttributeError:
+        _turbospectrum_defaults = yaml.load(fp)
 
 def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
     twd=None, **kwargs):

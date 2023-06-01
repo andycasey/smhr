@@ -540,7 +540,8 @@ class Session(BaseSession):
         
         # What RT do we prefer?
         # TODO: Respect user preferences about which rt they want.
-        return radiative_transfer.moog
+        #return radiative_transfer.moog
+        return radiative_transfer.turbospectrum
 
 
     def setting(self, key_tree, default_return_value=None):

@@ -19,7 +19,10 @@ logger = logging.getLogger(__name__)
 
 # Load defaults.
 with resource_stream(__name__, "defaults.yaml") as fp:
-    _turbospectrum_defaults = yaml.load(fp)
+    try:
+        _turbospectrum_defaults = yaml.load(fp, yaml.FullLoader)
+    except AttributeError:
+        _turbospectrum_defaults = yaml.load(fp)
 
 
 def _is_supported():
