@@ -1,0 +1,10 @@
+# The range in dispersion units (Angstroms) that each transition contributes.
+opacity_contribution: 2.0
+
+# The step size in dispersion points.
+dispersion_delta: 0.01
+
+photosphere_path: photosphere.in
+opacities_path: opacities.in
+transitions_path: transitions.in
+result_path: result.out

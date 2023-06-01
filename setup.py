@@ -31,9 +31,9 @@ if "--without-models" not in sys.argv:
         # Castelli & Kurucz (2004)
         ("https://zenodo.org/record/14964/files/castelli-kurucz-2004.pkl",
             "smh/photospheres/castelli-kurucz-2004.pkl"),
-        # MARCS (2008)
-        ("https://zenodo.org/record/14964/files/marcs-2011-standard.pkl",
-            "smh/photospheres/marcs-2011-standard.pkl"),
+        # MARCS (2011)
+        ("https://zenodo.org/record/999271/files/marcs-2011_m1.0_t02_st.pkl",
+            "smh/photospheres/marcs-2011_m1.0_t02_st.pkl"),
         # Stagger-Grid <3D> (2013)
         ("https://zenodo.org/record/15077/files/stagger-2013-optical.pkl",
             "smh/photospheres/stagger-2013-optical.pkl"),

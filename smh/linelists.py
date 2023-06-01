@@ -720,6 +720,42 @@ class LineList(Table):
                     EW = space
                 f.write(fmt.format(line['wavelength'],line['species'],line['expot'],line['loggf'],C6,D0,EW,line['comments'])+"\n")
 
+
+
+    def write_turbospectrum(self, filename):
+
+        output = ""
+
+        logger.warn("Using default (wrong) physics due to incomplete line list")
+
+        # Need to separate by species first.
+        for species in np.sort(np.unique(self["species"])):
+
+            match = self["species"] == species
+
+            ion = 1 + int(10 * (species - int(species)))
+            N = sum(match)
+
+            output += "'{0:20.6f}' {1:4.0f} {2:9.0f}\n".format(species, ion, N)
+            output += "'{0:7s}'\n".format(species_to_element(species))
+
+            for transition in self[match]:
+
+                row = dict(lower_orbital_type='x', upper_orbital_type='x',
+                    fdamp=-7.750, upper_g=1.0, rad=1e8, equivalent_width_err=0)
+                row.update(dict(zip(transition.dtype.names, transition.data)))
+
+                if not np.isfinite(row["equivalent_width"]):
+                    row["equivalent_width"] = 0
+
+                output += "{wavelength:10.3f} {expot:9.5f} {loggf:6.3f} {fdamp:8.3f} {upper_g:6.1f} {rad:9.2e} '{lower_orbital_type:s}' '{upper_orbital_type:s}' {equivalent_width:5.1f} {equivalent_width_err:6.1f} ''\n".format(**row)
+
+        with open(filename, "w") as fp:
+            fp.write(output)
+        
+        return None
+
+
     def write_latex(self,filename,sortby=['species','wavelength'],
                     write_cols = ['wavelength','element','expot','loggf']):
         new_table = self.copy()
@@ -733,4 +769,6 @@ def _moog_identifier(*args, **kwargs):
 registry.register_writer("moog", LineList, LineList.write_moog)
 registry.register_reader("moog", LineList, LineList.read_moog)
 registry.register_identifier("moog", LineList, _moog_identifier)
+
+registry.register_writer("turbospectrum", LineList, LineList.write_turbospectrum)
 

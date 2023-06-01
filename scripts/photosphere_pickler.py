@@ -10,14 +10,11 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 from six.moves import cPickle as pickle
 import gzip
 import os
-import sys
 from glob import glob
 
 import numpy as np
 
-import marcs
-import castelli_kurucz
-import stagger
+from smh.photospheres import (marcs, castelli_kurucz)
 
 
 def pickle_photospheres(photosphere_filenames, kind, meta=None):
