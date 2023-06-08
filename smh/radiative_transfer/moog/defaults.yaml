@@ -88,4 +88,6 @@ scat: 1
 # strong:
 # if 0, normal moog
 # if 1, use stronglines_in (lines computed at all wavelengths)
+#   set this manually and it will crash all syntheses, but
+#   after the tmp directory is made, manually copy in strong.in
 strong: 0
