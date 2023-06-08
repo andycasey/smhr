@@ -84,3 +84,8 @@ dispersion_delta: 0.01
 # if 1, treat scattering with Sobeck code
 # if 0, normal moog
 scat: 1
+
+# strong:
+# if 0, normal moog
+# if 1, use stronglines_in (lines computed at all wavelengths)
+strong: 0
