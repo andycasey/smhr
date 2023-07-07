@@ -900,13 +900,6 @@ def process_session_uncertainties_abundancesummary(tab, rhomat):
             data[col].append(x)
     summary_tab = astropy.table.Table(data)
     
-    ### Gui's edit ###
-    # Here we want to default to the Ji+2020 MagLiteS formalism, where sigma(X)^2 = sigma_stat^2 + Sum(delta_sp)^2  
-    # where this sigma_stat is the weighted statistical error (eq.6 in the appendix of the paper). I checked that this value is correct in the output
-    # also, Sum(delta_sp)^2 ends up being = sigma_sp^2 = delta_t^2 + delta_g^2 + delta_m^2 + delta_v^2 which is also correct in the output
-    summary_tab["e_XH"] = np.sqrt(summary_tab["e_stat_w"]**2. + summary_tab["e_sp_w"]**2.)
-    ### Gui's edit ###
-    
 
     ## Add in [X/Fe]
     var_X, cov_XY = process_session_uncertainties_covariance(summary_tab, rhomat)
@@ -931,19 +924,6 @@ def process_session_uncertainties_abundancesummary(tab, rhomat):
                     "e_XFe","e_XFe1","e_XFe2"]:
             summary_tab.add_column(astropy.table.Column(np.zeros(0),col))
             #summary_tab[col] = np.nan #.add_column(col)
-
-    ### Gui's edit ### 
-    # here are a few things that we decided we want different for the final ratios as well as things I found need fixing
-    # first, in the columns e_XFe1 and e_XFe2, the reported unc. for Fe I and Fe II, respectively, are not zero (but this is ok for the final [X/Fe])
-    summary_tab["e_XFe1"][summary_tab["species"]==26.0] = 0.0
-    summary_tab["e_XFe2"][summary_tab["species"]==26.1] = 0.0
-
-    # now, most important: we decided to keep [Fe/H] = [Fe I/H] as the default. So: 
-    summary_tab["[X/Fe]"] = summary_tab["[X/Fe1]"]
-    summary_tab["e_XFe"] = summary_tab["e_XFe1"] 
-    # note that I just didn't mess with the things above, just overwrite everything here
-    # also, I will keep all columns for the final output files just because I feel this could be useful 
-    ### Gui's edit ### 
 
     return summary_tab
 def process_session_uncertainties_abundancesummary_totweight(tab, rhomat):
@@ -1296,16 +1276,23 @@ def process_session_uncertainties_lines_oldweight(session, minerr=0.001):
         tab[col].format = ".3f"
     
     return tab
-def process_session_uncertainties_abundancesummary_oldweight(tab):
+def process_session_uncertainties_abundancesummary_oldweight(tab, rhomat=None):
     """
     Take a table of lines and turn them into standard abundance table
     
     This uses the estimator from Ji+2020a, which Alex has decided is better than Ji+2020b
     The estimator from Sergey in Ji+2020b does not work because abundances are not linear in stellar parameters
     This is adapted from code written by Guilherme Limberg
+
+    rhomat is the stellar parameter covariance matrix (T, g, v, M), set to no covariance by default.
     """
     from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
     from .photospheres.abundances import asplund_2009 as solar_composition
+    
+    if rhomat is None:
+        # use the identity matrix, i.e. no correlations between stellar parameters
+        rhomat = _make_rhomat(rho_Tg=0.0, rho_Tv=0.0, rho_TM=0.0, rho_gv=0.0, rho_gM=0.0, rho_vM=0.0)
+
     unique_species = np.unique(tab["species"])
     cols = ["species","elem","N",
             "logeps","sigma","stderr",
@@ -1363,6 +1350,14 @@ def process_session_uncertainties_abundancesummary_oldweight(tab):
             data[col].append(x)
     summary_tab = astropy.table.Table(data)
     
+    ### Gui's edit ###
+    # Here we want to default to the Ji+2020 MagLiteS formalism, where sigma(X)^2 = sigma_stat^2 + Sum(delta_sp)^2  
+    # where this sigma_stat is the weighted statistical error (eq.6 in the appendix of the paper). I checked that this value is correct in the output
+    # also, Sum(delta_sp)^2 ends up being = sigma_sp^2 = delta_t^2 + delta_g^2 + delta_m^2 + delta_v^2 which is also correct in the output
+    summary_tab["e_XH"] = np.sqrt(summary_tab["e_stat_w"]**2. + summary_tab["e_sp_w"]**2.)
+    ### Gui's edit ###
+    
+
     ## Add in [X/Fe]
     var_X, cov_XY = process_session_uncertainties_covariance(summary_tab, rhomat)
     feh1, efe1, feh2, efe2 = process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY)
@@ -1386,4 +1381,18 @@ def process_session_uncertainties_abundancesummary_oldweight(tab):
                     "e_XFe","e_XFe1","e_XFe2"]:
             summary_tab.add_column(astropy.table.Column(np.zeros(0),col))
             #summary_tab[col] = np.nan #.add_column(col)
+
+    ### Gui's edit ### 
+    # here are a few things that we decided we want different for the final ratios as well as things I found need fixing
+    # first, in the columns e_XFe1 and e_XFe2, the reported unc. for Fe I and Fe II, respectively, are not zero (but this is ok for the final [X/Fe])
+    summary_tab["e_XFe1"][summary_tab["species"]==26.0] = 0.0
+    summary_tab["e_XFe2"][summary_tab["species"]==26.1] = 0.0
+
+    # now, most important: we decided to keep [Fe/H] = [Fe I/H] as the default. So: 
+    summary_tab["[X/Fe]"] = summary_tab["[X/Fe1]"]
+    summary_tab["e_XFe"] = summary_tab["e_XFe1"] 
+    # note that I just didn't mess with the things above, just overwrite everything here
+    # also, I will keep all columns for the final output files just because I feel this could be useful 
+    ### Gui's edit ### 
+
     return summary_tab
