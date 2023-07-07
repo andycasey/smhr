@@ -1396,3 +1396,98 @@ def process_session_uncertainties_abundancesummary_oldweight(tab, rhomat=None):
     ### Gui's edit ### 
 
     return summary_tab
+def process_session_uncertainties_limits_oldweight(session, tab, summary_tab, rhomat):
+    from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
+    from .photospheres.abundances import asplund_2009 as solar_composition
+    ## Add in upper limits to line data
+    cols = ["index","wavelength","species","expot","loggf",
+            "logeps","e_stat","eqw","e_eqw","fwhm",
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
+            "e_tot","weight"]
+    var_X, cov_XY = process_session_uncertainties_covariance(summary_tab, rhomat)
+    feh1, efe1, feh2, efe2 = process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY)
+
+    assert len(cols)==len(tab.colnames)
+    data = OrderedDict(zip(cols, [[] for col in cols]))
+    for i, model in enumerate(session.spectral_models):
+        if not model.is_upper_limit: continue
+        if not model.is_acceptable: continue
+        
+        wavelength = model.wavelength
+        species = np.ravel(model.species)[0]
+        expot = model.expot or np.nan
+        loggf = model.loggf or np.nan
+        try:
+            logeps = model.abundances[0]
+        except:
+            logeps = np.nan
+
+        input_data = [i, wavelength, species, expot, loggf,
+                      logeps, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan,
+                      np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]
+        for col, x in zip(cols, input_data):
+            data[col].append(x)
+    tab_ul = astropy.table.Table(data)
+    tab_ul["logeps"].format = ".3f"
+    tab = astropy.table.vstack([tab, tab_ul])
+    
+    ## Add in upper limits to summary table
+    ul_species = np.unique(tab_ul["species"])
+    cols = ["species","elem","N",
+            "logeps","sigma","stderr",
+            "logeps_w","sigma_w","stderr_w",
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
+            "e_Teff_w","e_logg_w","e_vt_w","e_MH_w","e_sys_w",
+            "[X/H]","e_XH","s_X"] + ["[X/Fe1]","e_XFe1","[X/Fe2]","e_XFe2","[X/Fe]","e_XFe"]
+    assert len(cols)==len(summary_tab.colnames)
+    data = OrderedDict(zip(cols, [[] for col in cols]))
+    for species in ul_species:
+        if species in summary_tab["species"]: continue
+        ttab_ul = tab_ul[tab_ul["species"]==species]
+        elem = species_to_element(species)
+        N = len(ttab_ul)
+        limit_logeps = np.min(ttab_ul["logeps"])
+        limit_XH = limit_logeps - solar_composition(species)
+        limit_XFe1 = limit_XH - feh1
+        limit_XFe2 = limit_XH - feh2
+        limit_XFe = limit_XFe1
+        input_data = [species, elem, N,
+                      limit_logeps, np.nan, np.nan,
+                      limit_logeps, np.nan, np.nan,
+                      np.nan, np.nan, np.nan, np.nan, np.nan,
+                      np.nan, np.nan, np.nan, np.nan, np.nan,
+                      limit_XH, np.nan, np.nan, limit_XFe1, np.nan, limit_XFe2, np.nan,
+                      limit_XFe, np.nan
+        ]
+        for col, x in zip(cols, input_data):
+            data[col].append(x)
+    summary_tab_ul = astropy.table.Table(data)
+    if len(summary_tab_ul) > 0:
+        if len(summary_tab) > 0:
+            summary_tab = astropy.table.vstack([summary_tab, summary_tab_ul])
+        else:
+            summary_tab = summary_tab_ul
+    
+    return tab, summary_tab
+def process_session_uncertainties_oldweight(session,
+                                  rho_Tg=0.0, rho_Tv=0.0, rho_TM=0.0, rho_gv=0.0, rho_gM=0.0, rho_vM=0.0):
+    """
+    After you have run session.compute_all_abundance_uncertainties(),
+    this pulls out a big array of line data
+    and computes the final abundance table and errors
+    
+    By default assumes no correlations in stellar parameters. If you specify rho_XY
+    it will include that correlated error.
+    (X,Y) in [T, g, v, M]
+    """
+    ## Correlation matrix. This is multiplied by the errors to get the covariance matrix.
+    # rho order = [T, g, v, M]
+    rhomat = _make_rhomat(rho_Tg, rho_Tv, rho_TM, rho_gv, rho_gM, rho_vM)
+    ## Make line measurement table (no upper limits yet)
+    tab = process_session_uncertainties_lines_oldweight(session)
+    ## Summarize measurements
+    summary_tab = process_session_uncertainties_abundancesummary_oldweight(tab, rhomat)
+    ## Add upper limits
+    tab, summary_tab = process_session_uncertainties_limits_oldweight(session, tab, summary_tab, rhomat)
+    return tab, summary_tab
+
