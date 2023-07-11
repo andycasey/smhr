@@ -465,6 +465,13 @@ class NormalizationTab(QtGui.QWidget):
 
             return None
 
+        if event.key.lower() in ("j", "k"):
+            offset = 1 if event.key.lower() == "k" else -1
+            self.order_slide.setValue(self.order_slide.value() + offset)
+            self.update_order_figure()
+
+            return None
+
         # Scale the continuum up/down.
         if event.key in ("up", "down"):
             """
@@ -1293,7 +1300,7 @@ class NormalizationTab(QtGui.QWidget):
         # update the view for all textboxes
         self.low_sigma_clip.setText(str(self._cache["input"]["low_sigma_clip"]))
         self.high_sigma_clip.setText(str(self._cache["input"]["high_sigma_clip"]))
-        self.knot_spacing.setText(str(self._cache["input"]["knot_spacing"]))
+        self.knot_spacing.setText(str(int(self._cache["input"]["knot_spacing"])))
         self.blue_trim.setText(str(self._cache["input"]["blue_trim"]))
         self.red_trim.setText(str(self._cache["input"]["red_trim"]))
         # update the view for dropdown boxes
