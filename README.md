@@ -9,32 +9,27 @@ Authors
 -------
  - Andrew R. Casey (Monash)
  - Alex Ji (University of Chicago)
-
-
-Note about this version
-------------------------
- - This is a fork of the original SMHr code that has updates and additions for use by the *R*-Process Alliance.
- - Direct questions to Erika Holmbeck (RIT/Notre Dame) or Alex Ji (Carnegie Observatories).
-
+ - Erika Holmbeck (Carnegie Observatories)
 
 Installation
 ------------
 
-* Get anaconda
+* Get anaconda https://www.anaconda.com/
 
-* Add conda-forge
+* Create a new environment and install required libraries:
+For M1 macs, note that pyside2 has to be run in Rosetta. Thus, you can install it in this way:
 ```
-conda config --add channels conda-forge
+conda create -c conda-forge/osx-64 --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app requests pyside2=5.13.2 yaml
 ```
-Note: if you previously used instructions where it said `conda config --set channel_priority strict` this makes installing on anaconda super slow; I would change this back to
-`conda config --set channel_priority flexible`
+Currently (as of May 2022) anaconda on M1/ARM chips by default includes channels that search through `osx-arm64` and `noarch` but not `osx-64`.
+Also, newer versions of pyside2 appear to have changed some syntax on dialog boxes. We will update this eventually but for now you can install the older pyside2 version.
 
-* Install required libraries into the `smhr-py3` environment:
+For older Macs or other computers, this worked fine:
 ```
-conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app requests
+conda create -c conda-forge --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app requests
 conda activate smhr-py3
-conda install pyside2
-conda install yaml
+conda install -c conda-forge pyside2=5.13.2
+conda install -c conda-forge yaml
 ```
 
 * Download and install this branch:
@@ -56,6 +51,34 @@ It appears you can fix this by clicking outside SMHR then clicking back in. But 
 Details: https://stackoverflow.com/questions/48738805/mac-pyqt5-menubar-not-active-until-unfocusing-refocusing-the-app
 * Install moog17scat (see below) and add it to your path.
 
+
+* Some installation notes for Linux/Debian. It takes a very long time to install pyside2 (hours?) so be patient. Thanks to Shivani Shah and Terese Hansen for this information.
+```
+Install Python 3.7 from anaconda
+
+create a new environment for smhr-py3:
+> conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython requests
+
+Activate environment:
+> conda activate smhr-py3
+
+Install pyside2:
+> conda install -c conda-forge pyside2=5.13.2
+
+
+Install yaml
+> conda install -c conda-forge yaml
+
+Get smhr:
+> git clone https://github.com/andycasey/smhr.git 
+> cd smhr
+> python setup.py develop
+
+Start smhr:
+> cd smh/gui
+> ipython __main__.py
+```
+
 MOOG
 ----
 It is currently recommended that you use this version of MOOG: https://github.com/alexji/moog17scat
@@ -66,6 +89,7 @@ There is now a 2019 November version of MOOG, but it did not add anything differ
 
 The 0.003 accuracy comes because this version of MOOG by default has a looser criterion for recomputing continuum opacity (compared to Jen's widely distributed version with scattering in 2011).
 See the README for `moog17scat` if you have concerns.
+(Note May 2022: Alex has updated the master branch of moog17scat so this is done by default.)
 
 Note that by default right now, we require you to have an executable called `MOOGSILENT` callable from your `$PATH` environment variable. Specifically, we use the version of MOOG that you get from `which MOOGSILENT`.
 
@@ -79,7 +103,6 @@ VERSION HISTORY:
 - v0.2 is a frozen development version, v0.21 is a slightly more recently frozen version. 
 - v0.1 is the current stable version. Things are working and it is being used for papers.
 
-If you are new to SMHR, you should use the branch `refactor-scatterplot`.
 Note v0.1 and v0.2 files are not compatible, but there is a script to convert old save files into new save files.
 There is not a way to convert files from the old SMH to new SMHR.
 

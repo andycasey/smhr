@@ -949,12 +949,12 @@ class Session(BaseSession):
 
     def set_stellar_parameters(self, Teff, logg, vt, MH, alpha=None):
         """ 
-        Set stellar parameters (Teff, logg, MH, vt[, alpha])
+        Set stellar parameters (Teff, logg, vt, MH[, alpha])
         """
         self.metadata["stellar_parameters"]["effective_temperature"] = Teff
         self.metadata["stellar_parameters"]["surface_gravity"] = logg
-        self.metadata["stellar_parameters"]["metallicity"] = MH
         self.metadata["stellar_parameters"]["microturbulence"] = vt
+        self.metadata["stellar_parameters"]["metallicity"] = MH
         if alpha is not None:
             self.metadata["stellar_parameters"]["alpha"] = alpha
         
@@ -962,13 +962,13 @@ class Session(BaseSession):
         
     def set_stellar_parameters_errors(self, sysstat, dTeff, dlogg, dvt, dMH):
         """ 
-        Set stellar parameter errors (sys/stat, Teff, logg, MH, vt)
+        Set stellar parameter errors (sys/stat, Teff, logg, vt, MH)
         """
         assert sysstat in ["sys","stat"], sysstat
         self.metadata["stellar_parameters"][sysstat+"err_effective_temperature"] = dTeff
         self.metadata["stellar_parameters"][sysstat+"err_surface_gravity"] = dlogg
-        self.metadata["stellar_parameters"][sysstat+"err_metallicity"] = dMH
         self.metadata["stellar_parameters"][sysstat+"err_microturbulence"] = dvt
+        self.metadata["stellar_parameters"][sysstat+"err_metallicity"] = dMH
         return None
     
     def stellar_parameter_uncertainty_analysis(self, transitions=None,
@@ -1884,9 +1884,9 @@ class Session(BaseSession):
     def make_summary_plot(self, figure=None):
         with open(self._default_settings_path, "rb") as fp:
             try:
-                default = yaml.load(fp, yaml.FullLoader)
+                defaults = yaml.load(fp, yaml.FullLoader)
             except AttributeError:
-                default = yaml.load(fp)
+                defaults = yaml.load(fp)
         if "summary_figure" not in defaults:
             raise RuntimeError("Defaults file ({}) must have summary_figure".format(\
                     self._default_settings_path))
@@ -1898,9 +1898,9 @@ class Session(BaseSession):
     def make_ncap_summary_plot(self, figure=None):
         with open(self._default_settings_path, "rb") as fp:
             try:
-                default = yaml.load(fp, yaml.FullLoader)
+                defaults = yaml.load(fp, yaml.FullLoader)
             except AttributeError:
-                default = yaml.load(fp)
+                defaults = yaml.load(fp)
         if "summary_figure_ncap" not in defaults:
             raise RuntimeError("Defaults file ({}) must have summary_figure".format(\
                     self._default_settings_path))
@@ -2159,3 +2159,32 @@ class Session(BaseSession):
             species_models.append(model)
         return all_models
     
+    def initialize_normalization(self):
+        N = len(self.input_spectra)
+        self.metadata["normalization"] = {
+            "continuum": [None] * N,
+            "normalization_kwargs": [{}] * N
+        }
+
+    def initialize_rv(self):
+        """
+        Set things up so the RV GUI doesn't error out
+        """
+        wavelength_region = self.setting(("rv", "wavelength_regions"))
+        resample = self.setting(("rv", "resample"))
+        apodize = self.setting(("rv", "apodize"))
+        normalization_kwargs = self.setting(("rv", "normalization"))
+        
+        template_spectrum_path = self.setting(("rv", "template_spectrum"))
+        template_spectrum = specutils.Spectrum1D.read(template_spectrum_path)
+        
+        self.metadata["rv"].update({
+            # Input settings
+            "template_spectrum_path": template_spectrum_path,
+            "template_spectrum": template_spectrum,
+            "wavelength_region": wavelength_region,
+            "resample": resample,
+            "apodize": apodize,
+            "normalization": normalization_kwargs.copy()
+        })
+        

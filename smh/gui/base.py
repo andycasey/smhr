@@ -350,7 +350,6 @@ class SMHSpecDisplay(mpl.MPLWidget):
         if selected_model is None: return None
         logger.debug("key_press_model: {}".format(event.key))
         key = event.key.lower()
-        #if event.key not in "auf": return None
         if event.key == "a":
             selected_model.is_acceptable = True
         elif event.key == "u":
@@ -942,7 +941,10 @@ class SMHScatterplot(mpl.MPLWidget):
             if nonzero and ((linefit is not None) or (linemean is not None)):
                 ## TODO: Figure out how best to save and return info about the lines
                 ## For now, just refitting whenever needed
-                m, b, medy, stdy, stdm, N = utils.fit_line(x, y, None)
+                try:
+                    m, b, medy, stdy, stdm, N = utils.fit_line(x, y, None)
+                except ValueError as e:
+                    return np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
                 #xlim = np.array(self.ax.get_xlim())
                 xlim = np.array([x.min(), x.max()])
                 if (linefit is not None) and nonzero:

@@ -116,6 +116,8 @@ class Spectrum1D(object):
             cls.read_fits_spectrum1d,
             cls.read_ascii_spectrum1d,
             cls.read_ascii_spectrum1d_noivar,
+            cls.read_alex_spectrum,
+            cls.read_ceres,
             cls.read_multispec,
         )
 
@@ -143,6 +145,59 @@ class Spectrum1D(object):
         orders = orders if len(orders) > 1 else orders[0]
         return orders
 
+
+    @classmethod
+    def read_alex_spectrum(cls, path):
+        image = fits.open(path)
+
+        # Merge headers into a metadata dictionary.
+        metadata = OrderedDict()
+        for key, value in image[0].header.items():
+            if key in metadata:
+                metadata[key] += value
+            else:
+                metadata[key] = value
+        metadata["smh_read_path"] = path
+        
+        md5_hash = md5(";".join([v for k, v in metadata.items() \
+                                 if k.startswith("BANDID")]).encode("utf-8")).hexdigest()
+        assert md5_hash == "8538046d98bf8a760b04690e53e394a1"
+
+        data = image[0].data
+        waves, fluxs, ivars = data[0], data[1], data[2]
+        
+        image.close()
+
+        return (waves, fluxs, ivars, metadata)
+
+    @classmethod
+    def read_ceres(cls, fname):
+        with fits.open(fname) as hdul:
+            assert len(hdul)==1, len(hdul)
+            header = hdul[0].header
+            assert header["PIPELINE"] == "CERES", header["PIPELINE"]
+            data = hdul[0].data
+            Nband, Norder, Npix = data.shape
+            # https://github.com/rabrahm/ceres
+            # by default it looks sorted from red to blue orders, so we'll flip it in the output
+            waves = data[0,::-1,:]
+            fluxs = data[1,::-1,:]
+            ivars = data[2,::-1,:]
+            # 3, 4 = blaze corrected flux and error
+            # 5, 6 = continuum normalized flux and error
+            # 7 = continuum
+            # 8 = s/n
+            # 9, 10 = Continumm normalized flux multiplied by the derivative of the wavelength with respect to the pixels + err
+
+            # Merge headers into a metadata dictionary.
+            metadata = OrderedDict()
+            for key, value in header.items():
+                if key in metadata:
+                    metadata[key] += value
+                else:
+                    metadata[key] = value
+            metadata["smh_read_path"] = fname
+        return (waves, fluxs, ivars, metadata)
 
     @classmethod
     def read_multispec(cls, fname, full_output=False):
@@ -287,9 +342,10 @@ class Spectrum1D(object):
         is_carpy_mage_product = (md5_hash == "6b2c2ec1c4e1b122ccab15eb9bd305bc")
         is_iraf_3band_product = (md5_hash == "a4d8f6f51a7260fce1642f7b42012969")
         is_apo_product = (image[0].header.get("OBSERVAT", None) == "APO")
+        is_dupont_product = (md5_hash == "2ab648afed96dcff5ccd10e5b45730c1")
         is_iraf_1band_product = (md5_hash == "148aa0c459c8085f7461a519b1a060e5") # McD old reductions
 
-        if is_carpy_mike_product or is_carpy_mage_product or is_carpy_mike_product_old:
+        if is_carpy_mike_product or is_carpy_mage_product or is_carpy_mike_product_old or is_dupont_product:
             # CarPy gives a 'noise' spectrum, which we must convert to an
             # inverse variance array
             flux_ext = flux_ext or 1
