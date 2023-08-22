@@ -96,7 +96,7 @@ def synthesize(photosphere, transitions, abundances=None, isotopes=None,
         "model_in": model_in,
         "lines_in": lines_in,
     })
-
+    
     # Put this into a while loop only in case we have to iteratively check for
     # edge effects due to syn_contribute
     while True:
