@@ -466,7 +466,7 @@ class Ui_MainWindow(QtGui.QMainWindow):
     def print_abundance_table(self):
         """ Print abundance table to console (HACK) """
         summary_dict = self.session.summarize_spectral_models()
-        keys = summary_dict.keys()
+        keys = list(summary_dict.keys())
         keys = np.sort(keys)
         print("species   N logeps  err [X/H] [X/Fe]")
         for key in keys:

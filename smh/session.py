@@ -945,12 +945,12 @@ class Session(BaseSession):
 
     def set_stellar_parameters(self, Teff, logg, vt, MH, alpha=None):
         """ 
-        Set stellar parameters (Teff, logg, MH, vt[, alpha])
+        Set stellar parameters (Teff, logg, vt, MH[, alpha])
         """
         self.metadata["stellar_parameters"]["effective_temperature"] = Teff
         self.metadata["stellar_parameters"]["surface_gravity"] = logg
-        self.metadata["stellar_parameters"]["metallicity"] = MH
         self.metadata["stellar_parameters"]["microturbulence"] = vt
+        self.metadata["stellar_parameters"]["metallicity"] = MH
         if alpha is not None:
             self.metadata["stellar_parameters"]["alpha"] = alpha
         
@@ -958,13 +958,13 @@ class Session(BaseSession):
         
     def set_stellar_parameters_errors(self, sysstat, dTeff, dlogg, dvt, dMH):
         """ 
-        Set stellar parameter errors (sys/stat, Teff, logg, MH, vt)
+        Set stellar parameter errors (sys/stat, Teff, logg, vt, MH)
         """
         assert sysstat in ["sys","stat"], sysstat
         self.metadata["stellar_parameters"][sysstat+"err_effective_temperature"] = dTeff
         self.metadata["stellar_parameters"][sysstat+"err_surface_gravity"] = dlogg
-        self.metadata["stellar_parameters"][sysstat+"err_metallicity"] = dMH
         self.metadata["stellar_parameters"][sysstat+"err_microturbulence"] = dvt
+        self.metadata["stellar_parameters"][sysstat+"err_metallicity"] = dMH
         return None
     
     def stellar_parameter_uncertainty_analysis(self, transitions=None,
