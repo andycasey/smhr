@@ -119,6 +119,7 @@ class Spectrum1D(object):
             cls.read_alex_spectrum,
             cls.read_ceres,
             cls.read_multispec,
+            cls.read_galah,
         )
 
         failure_exceptions = []
@@ -145,6 +146,37 @@ class Spectrum1D(object):
         orders = orders if len(orders) > 1 else orders[0]
         return orders
 
+    @classmethod
+    def read_galah(cls, path):
+        with fits.open(path) as image:
+            
+            wave = image[1].data["wave"]
+            flux = image[1].data["sob"]
+            ivar = image[1].data["uob"]**-2
+            
+            bad_pixels = ~np.isfinite(flux) | ~np.isfinite(ivar) | (ivar == 0)
+            flux[bad_pixels] = np.nan
+            ivar[bad_pixels] = 0
+            
+            metadata = dict(
+                smh_read_path=path
+            )
+            # split up into ccds:
+            split_indices = np.where(np.diff(wave) > 10)[0]
+            indices = np.sort(np.hstack([
+                0, 
+                split_indices + 1,
+                split_indices + 1,
+                wave.size
+            ])).reshape((-1, 2))
+            
+            waves, fluxs, ivars = ([], [], [])
+            for si, ei in indices:
+                waves.append(wave[si:ei])
+                fluxs.append(flux[si:ei])
+                ivars.append(ivar[si:ei])
+                        
+        return (waves, fluxs, ivars, metadata)
 
     @classmethod
     def read_alex_spectrum(cls, path):
@@ -1660,3 +1692,4 @@ def coadd(spectra, new_dispersion=None, full_output=False):
     else:
         return newspec
     
+
