@@ -148,4 +148,6 @@ class HomeInterface(ScrollArea):
             
         )
         self.vBoxLayout.addWidget(RecentUpdatesView)
+        RecentUpdatesView.setCursor(Qt.PointingHandCursor)
+
         

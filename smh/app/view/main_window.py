@@ -102,7 +102,7 @@ class MainWindow(FluentWindow):
         if filenames:            
             self.stackedWidget.setCurrentWidget(self.analysisInterface, False)
             
-            # Start new analysis
+            # Start new analysis and set to that frame
         print(filenames)
 
     def onAvatarClicked(self):

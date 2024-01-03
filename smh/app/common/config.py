@@ -56,6 +56,11 @@ class Config(QConfig):
 
     userName = ConfigItem("Personalization", "User name", os.getlogin())
 
+    # Radial velocity
+    RVWavelengthRange = ConfigItem("Radial velocity", "Wavelength range", "8000 - 9000")
+    
+
+
 YEAR = 2023
 NAME = "Spectroscopy Made Harder"
 AUTHOR = "SMHR Collaboration"

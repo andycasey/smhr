@@ -14,6 +14,7 @@ class StyleSheet(StyleSheetBase, Enum):
     VIEW_INTERFACE = "view_interface"
     SETTING_INTERFACE = "setting_interface"
     GALLERY_INTERFACE = "gallery_interface"
+    ANALYSIS_INTERFACE = "analysis_interface"
     NAVIGATION_VIEW_INTERFACE = "navigation_view_interface"
 
     def path(self, theme=Theme.AUTO):
