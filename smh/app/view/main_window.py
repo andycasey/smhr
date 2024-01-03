@@ -1,6 +1,6 @@
 # coding: utf-8
-from PyQt5.QtCore import QUrl, QSize
-from PyQt5.QtGui import QIcon, QDesktopServices
+from PyQt5.QtCore import QUrl, QSize, QObject, QEvent
+from PyQt5.QtGui import QIcon, QDesktopServices, QKeyEvent
 from PyQt5.QtWidgets import QApplication, QFileDialog
 
 from qfluentwidgets import (Action, NavigationAvatarWidget, NavigationItemPosition, MessageBox, FluentWindow,
@@ -16,6 +16,24 @@ from ..common.icon import Icon
 from ..common.signal_bus import signalBus
 from ..common.translator import Translator
 from ..common import resource
+
+
+class KeyPressFilter(QObject):
+
+    def eventFilter(self, widget, event):
+        try:
+            print(f"{widget} {event.type()} {event.key()} {event.text()}")
+        except:
+            None
+        '''
+        if event.type() == QEvent.KeyPress:
+            text = event.text()
+            if event.modifiers():
+                text = event.keyCombination().key().name.decode(encoding="utf-8")
+            print(f"{event} {event.type}: {text}")
+        '''            
+        return False
+    
 
 
 
@@ -38,6 +56,9 @@ class MainWindow(FluentWindow):
         # add items to navigation interface
         self.initNavigation()
         self.splashScreen.finish()
+                
+        self.installEventFilter(KeyPressFilter(parent=self))        
+        
 
     def connectSignalToSlot(self):
         signalBus.micaEnableChanged.connect(self.setMicaEffectEnabled)
