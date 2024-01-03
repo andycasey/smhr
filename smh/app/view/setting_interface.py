@@ -1,6 +1,6 @@
 # coding:utf-8
 from qfluentwidgets import (SettingCardGroup, SwitchSettingCard, FolderListSettingCard,
-                            OptionsSettingCard, PushSettingCard,
+                            OptionsSettingCard, PushSettingCard, SettingCard,
                             HyperlinkCard, PrimaryPushSettingCard, ScrollArea,
                             ComboBoxSettingCard, ExpandLayout, Theme, CustomColorSettingCard,
                             setTheme, setThemeColor, RangeSettingCard, isDarkTheme)
@@ -47,6 +47,18 @@ class SettingInterface(ScrollArea):
         # personalization
         self.personalGroup = SettingCardGroup(
             self.tr('Personalization'), self.scrollWidget)
+        
+        '''
+        self.userName = SettingCard(
+            FIF.PEOPLE,
+            self.tr('User name'),
+            #self.tr('Display user name in the navigation bar'),
+            cfg.userName,
+            self.personalGroup
+        )
+        '''
+        
+        
         self.micaCard = SwitchSettingCard(
             FIF.TRANSPARENT,
             self.tr('Mica effect'),

@@ -1,20 +1,22 @@
 # coding: utf-8
 from PyQt5.QtCore import QUrl, QSize
 from PyQt5.QtGui import QIcon, QDesktopServices
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QFileDialog
 
-from qfluentwidgets import (NavigationAvatarWidget, NavigationItemPosition, MessageBox, FluentWindow,
-                            SplashScreen)
+from qfluentwidgets import (Action, NavigationAvatarWidget, NavigationItemPosition, MessageBox, FluentWindow,
+                            SplashScreen, FolderListDialog, NavigationWidget)
 from qfluentwidgets import FluentIcon as FIF
 
 from .home_interface import HomeInterface
 from .setting_interface import SettingInterface
+from .analysis_interface import AnalysisInterface
 
-from ..common.config import SUPPORT_URL, cfg
+from ..common.config import NAME, SUPPORT_URL, cfg
 from ..common.icon import Icon
 from ..common.signal_bus import signalBus
 from ..common.translator import Translator
 from ..common import resource
+
 
 
 class MainWindow(FluentWindow):
@@ -25,6 +27,7 @@ class MainWindow(FluentWindow):
 
         # create sub interface
         self.homeInterface = HomeInterface(self)
+        self.analysisInterface = AnalysisInterface(self)
         self.settingInterface = SettingInterface(self)
 
         # enable acrylic effect
@@ -39,21 +42,31 @@ class MainWindow(FluentWindow):
     def connectSignalToSlot(self):
         signalBus.micaEnableChanged.connect(self.setMicaEffectEnabled)
         signalBus.switchToSampleCard.connect(self.switchToSample)
-        signalBus.supportSignal.connect(self.onSupport)
+        #signalBus.supportSignal.connect(self.onSupport)
 
     def initNavigation(self):
         # add navigation items
         t = Translator()
         self.addSubInterface(self.homeInterface, FIF.HOME, self.tr('Home'))
+        self.addSubInterface(self.analysisInterface, FIF.APPLICATION, self.tr('Analysis'))
         self.navigationInterface.addSeparator()
+        
+        # add an action for new analysis
+        self.navigationInterface.addItem(
+            "newAnalysis",
+            FIF.ADD, 
+            "New analysis",
+            onClick=self.onNewAnalysis,
+            tooltip="Start new analysis",
+            selectable=False
+        )
 
-        pos = NavigationItemPosition.SCROLL
 
         # add custom widget to bottom
         self.navigationInterface.addWidget(
             routeKey='avatar',
-            widget=NavigationAvatarWidget('zhiyiYo', ':/gallery/images/shoko.png'),
-            onClick=self.onSupport,
+            widget=NavigationAvatarWidget(cfg.get(cfg.userName), ':/gallery/images/shoko.png'),
+            onClick=self.onAvatarClicked,
             position=NavigationItemPosition.BOTTOM
         )
         self.addSubInterface(
@@ -63,7 +76,7 @@ class MainWindow(FluentWindow):
         self.resize(960, 780)
         self.setMinimumWidth(760)
         self.setWindowIcon(QIcon(':/gallery/images/logo.png'))
-        self.setWindowTitle('PyQt-Fluent-Widgets')
+        self.setWindowTitle(NAME)
 
         self.setMicaEffectEnabled(cfg.get(cfg.micaEnabled))
 
@@ -78,16 +91,23 @@ class MainWindow(FluentWindow):
         self.show()
         QApplication.processEvents()
 
-    def onSupport(self):
-        w = MessageBox(
-            '支持作者🥰',
-            '个人开发不易，如果这个项目帮助到了您，可以考虑请作者喝一瓶快乐水🥤。您的支持就是作者开发和维护项目的动力🚀',
-            self
+    def onNewAnalysis(self):
+        # Switch to analysis interface
+        filenames, selected_filter = QFileDialog.getOpenFileNames(
+            self, 
+            caption="Select input spectra", 
+            directory="", 
+            filter="*"
         )
-        w.yesButton.setText('来啦老弟')
-        w.cancelButton.setText('下次一定')
-        if w.exec():
-            QDesktopServices.openUrl(QUrl(SUPPORT_URL))
+        if filenames:            
+            self.stackedWidget.setCurrentWidget(self.analysisInterface, False)
+            
+            # Start new analysis
+        print(filenames)
+
+    def onAvatarClicked(self):
+        pass
+
 
     def resizeEvent(self, e):
         super().resizeEvent(e)

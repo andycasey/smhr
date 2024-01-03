@@ -1,5 +1,6 @@
 # coding:utf-8
 import sys
+import os
 from enum import Enum
 
 from PyQt5.QtCore import QLocale
@@ -53,16 +54,18 @@ class Config(QConfig):
     # software update
     checkUpdateAtStartUp = ConfigItem("Update", "CheckUpdateAtStartUp", True, BoolValidator())
 
+    userName = ConfigItem("Personalization", "User name", os.getlogin())
 
 YEAR = 2023
-AUTHOR = "zhiyiYo"
+NAME = "Spectroscopy Made Harder"
+AUTHOR = "SMHR Collaboration"
 VERSION = __version__
-HELP_URL = "https://qfluentwidgets.com"
-REPO_URL = "https://github.com/zhiyiYo/PyQt-Fluent-Widgets"
-EXAMPLE_URL = "https://github.com/zhiyiYo/PyQt-Fluent-Widgets/tree/master/examples"
-FEEDBACK_URL = "https://github.com/zhiyiYo/PyQt-Fluent-Widgets/issues"
-RELEASE_URL = "https://github.com/zhiyiYo/PyQt-Fluent-Widgets/releases/latest"
-SUPPORT_URL = "https://afdian.net/a/zhiyiYo"
+HELP_URL = "https://github.com/andycasey/smhr"
+REPO_URL = HELP_URL
+EXAMPLE_URL = HELP_URL
+FEEDBACK_URL = "https://github.com/andycasey/smhr/issues"
+RELEASE_URL = "https://github.com/andycasey/smhr/releases/latest"
+SUPPORT_URL = FEEDBACK_URL
 
 
 cfg = Config()

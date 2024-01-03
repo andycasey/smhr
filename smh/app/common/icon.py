@@ -10,6 +10,8 @@ class Icon(FluentIconBase, Enum):
     MENU = "Menu"
     TEXT = "Text"
     EMOJI_TAB_SYMBOLS = "EmojiTabSymbols"
+    KORG = "Korg"
 
     def path(self, theme=Theme.AUTO):
         return f":/gallery/images/icons/{self.value}_{getIconColor(theme)}.svg"
+
