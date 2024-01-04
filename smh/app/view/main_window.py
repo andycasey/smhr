@@ -77,7 +77,7 @@ class MainWindow(FluentWindow):
             "newAnalysis",
             FIF.ADD, 
             "New analysis",
-            onClick=self.onNewAnalysis,
+            onClick=self.analysisInterface.view.addTab,
             tooltip="Start new analysis",
             selectable=False
         )
@@ -112,19 +112,6 @@ class MainWindow(FluentWindow):
         self.show()
         QApplication.processEvents()
 
-    def onNewAnalysis(self):
-        # Switch to analysis interface
-        filenames, selected_filter = QFileDialog.getOpenFileNames(
-            self, 
-            caption="Select input spectra", 
-            directory="", 
-            filter="*"
-        )
-        if filenames:            
-            self.stackedWidget.setCurrentWidget(self.analysisInterface, False)
-            
-            # Start new analysis and set to that frame
-        print(filenames)
 
     def onAvatarClicked(self):
         pass

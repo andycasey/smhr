@@ -977,14 +977,14 @@ class SessionInterface(ScrollArea):
         
         self.setObjectName('fooInterface')
 
-        button1 = PushButton(self.tr('Show dialog'))
-        button1.clicked.connect(self.showDialog)
-
         initial_visibility = False
 
         def continuum_callback():
             self.cog_eqw = StellarParametersWidget(session, self)
+            # The hide/show makes the widget appear less 'jumpy'
+            self.cog_eqw.setVisible(False)
             self.vBoxLayout.addWidget(self.cog_eqw, 0, Qt.AlignTop)
+            self.cog_eqw.setVisible(True)
             
 
         # Radial velocity stuff
@@ -1006,25 +1006,6 @@ class SessionInterface(ScrollArea):
         # add stellar parameter analysis? --> differential, etc.
         
         
-        
-                    
-        
-    def _update_canvas(self):
-        t = np.linspace(0, 10, 101)
-        # Shift the sinusoid as a function of time.
-        self._line.set_data(t, np.sin(t + time.time()))
-        self._line.figure.tight_layout()
-        self._line.figure.canvas.draw()
-
-                                                        
-
-    def addExampleCard2(self, title, widget, sourcePath: str, stretch=0):
-        card = ExampleCard2(title, widget, sourcePath, stretch, self.view)
-        self.vBoxLayout.addWidget(card, 0, Qt.AlignTop)
-        return card
-        
-    def showDialog(self):
-        print("NAH")
 
 
 class SessionTabsInterface(QWidget):
@@ -1032,6 +1013,7 @@ class SessionTabsInterface(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
+        self.parent = parent
         self.tabCount = 0
 
         self.tabBar = TabBar(self)
@@ -1127,8 +1109,6 @@ class SessionTabsInterface(QWidget):
                 name = getval(filenames[0], "OBJECT", 0)
             except:
                 name = f"Untitled-{self.tabCount}"
-                
-            
             
             # load the file, parse a name from it.        
             widget = SessionInterface(session, self)
@@ -1136,17 +1116,13 @@ class SessionTabsInterface(QWidget):
             self.addMySubInterface(widget, name, name)        
             self.tabCount += 1
             
-            # now set the new sub interface widget as the current one
-            #print(self.tabBar.setCurrentTab(widget.objectName()))
-            #print(self.tabBar.setCurrentIndex(self.tabCount - 1))
-            self.stackedWidget.setCurrentIndex(self.tabCount - 1)
-            
-            
-            
-            
-            #self.tabBar.setCurrentTab(widget.objectName())
-            #qrouter.push(self.stackedWidget, widget.objectName())
-            #self.onCurrentIndexChanged(self.tabBar.currentIndex())
+            # Set the current session to the newest one
+            self.stackedWidget.setCurrentWidget(widget)
+            self.tabBar.setCurrentTab(widget.objectName())
+
+            # Make sure the analysis tab is in view
+            interface, = self.parent.parent.findChildren(AnalysisInterface)
+            self.parent.parent.stackedWidget.setCurrentWidget(interface, False)
             
 
 
@@ -1171,6 +1147,7 @@ class AnalysisInterface(ScrollArea):
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.view = SessionTabsInterface(self)        
+        self.parent = parent
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setViewportMargins(0, 0, 0, 0)
         self.setWidget(self.view)
