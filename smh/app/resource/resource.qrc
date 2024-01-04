@@ -98,6 +98,9 @@
         <file>images/controls/Viewbox.png</file>
         <file>images/controls/WebView.png</file>
         <file>images/controls/XamlUICommand.png</file>
+        <file>images/korg.jpg</file>
+        <file>images/icons/Korg_white.svg</file>
+        <file>images/icons/Korg_black.svg</file>
         <file>images/icons/EmojiTabSymbols_black.svg</file>
         <file>images/icons/EmojiTabSymbols_white.svg</file>
         <file>images/icons/Grid_black.svg</file>
@@ -128,6 +131,7 @@
         <file>images/Shoko4.jpg</file>
 
         <file>qss/dark/gallery_interface.qss</file>
+        <file>qss/dark/analysis_interface.qss</file>
         <file>qss/dark/home_interface.qss</file>
         <file>qss/dark/icon_interface.qss</file>
         <file>qss/dark/link_card.qss</file>

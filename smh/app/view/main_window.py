@@ -22,7 +22,7 @@ class KeyPressFilter(QObject):
 
     def eventFilter(self, widget, event):
         try:
-            print(f"{widget} {event.type()} {event.key()} {event.text()}")
+            print(f"__debug: {widget} {event.type()} {event.key()} {event.text()}")
         except:
             None
         '''

@@ -17,9 +17,13 @@ AnalysisWidget {
     color: white;
 }
 
-TitleLabel,
+TitleLabel {
+    color: white;
+}
+
 StrongBodyLabel {
     color: white;
+    font-size: 16px;
 }
 
 AnalysisWidget>#card {
@@ -36,6 +40,7 @@ AnalysisWidget>#card QLabel {
 AnalysisWidget>#card InfoBadge {
     font-size: 11px;
 }
+
 
 
 #sourceWidget {

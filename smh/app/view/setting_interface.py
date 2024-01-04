@@ -48,6 +48,16 @@ class SettingInterface(ScrollArea):
         self.personalGroup = SettingCardGroup(
             self.tr('Personalization'), self.scrollWidget)
         
+        # initial stellar params
+        self.initialStellarParametersGroup = SettingCardGroup("Initial Stellar Parameters", self.scrollWidget)
+        #self.initialTeffCard = SettingCard(
+        #    FIF.TRANSPARENT,
+        #    "Initial effective temperature",
+        #    "Used for fitting",
+        #    cfg.get(cfg.initial_teff),
+        #    self.initialStellarParametersGroup
+        #)
+        
         '''
         self.userName = SettingCard(
             FIF.PEOPLE,

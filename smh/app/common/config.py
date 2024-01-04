@@ -59,6 +59,8 @@ class Config(QConfig):
     # Radial velocity
     RVWavelengthRange = ConfigItem("Radial velocity", "Wavelength range", "8000 - 9000")
     
+    initial_teff = ConfigItem("Initial Stellar Parameters", "Initial effective temperature", 5777, RangeValidator(2500, 10_000))
+    
 
 
 YEAR = 2023
