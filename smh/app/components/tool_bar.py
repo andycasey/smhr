@@ -6,16 +6,30 @@ from qfluentwidgets import CaptionLabel, FluentIcon, PushButton, TitleLabel
 from ..common.config import EXAMPLE_URL, HELP_URL
 from ..view.gallery_interface import SeparatorWidget
 
+from astropy.io.fits import getval
 
 class ToolBar(QWidget):
     """ Tool bar """
 
-    def __init__(self, title, subtitle, parent=None):
+    def __init__(self, title=None, subtitle=None, parent=None):
         super().__init__(parent=parent)
+        
+        if title is None:
+            try:
+                title = getval(parent.session.input_paths[0], "OBJECT", 0)
+            except:
+                title = "Untitled"
+                        
         self.titleLabel = TitleLabel(title, self)
-        #self.titleLabel = LineEdit(self)
-        #self.titleLabel.setText(title)
     
+        if subtitle is None:        
+            try:
+                ra = getval(parent.session.input_paths[0], "RA", 0)
+                dec = getval(parent.session.input_paths[0], "DEC", 0)
+            except:
+                subtitle = ""
+            else:
+                subtitle = f"{ra} {dec}"
 
         self.subtitleLabel = CaptionLabel(subtitle, self)
 

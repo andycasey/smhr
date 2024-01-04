@@ -34,6 +34,10 @@ from ..view.gallery_interface import SeparatorWidget
 from qfluentwidgets import RoundMenu, setTheme, Theme, Action, MenuAnimationType, MenuItemDelegate, CheckableMenu, MenuIndicatorType
 from qfluentwidgets import FluentIcon as FIF
 
+
+from session import Session
+from astropy.io.fits import getval
+
 class ExampleCard2(QWidget):
     """ Example card """
 
@@ -346,16 +350,6 @@ class ContinuumRectificationWidget(AnalysisWidget):
         layout = QVBoxLayout(self.widget)
         layout.setContentsMargins(0, 0, 0, 0)  
 
-        import os
-        
-        def expand_path(path):
-            return os.path.abspath(os.path.expanduser(path))
-
-
-        from specutils import Spectrum1D
-
-        wavelength, flux, ivar, meta = Spectrum1D.read_fits_multispec(expand_path("~/Downloads/j174239-133332red_multi.fits"), flux_ext=6, ivar_ext=3)
-        
         from continuum import load_basis_vectors, BaseContinuumModel
         
         '''
@@ -384,17 +378,20 @@ class ContinuumRectificationWidget(AnalysisWidget):
         
         line, = figure.ax.plot([], [])
         
+        S = len(session.spectra)
+        
         def update_canvas(index):
             nonlocal current_index
-            if index < 0 or index > (len(wavelength) - 1):
+            if index < 0 or index > (S - 1):
                 return
-            line.set_data(wavelength[index], flux[index] / np.nanmedian(flux[index]))
-            figure.ax.set_xlim(wavelength[index][[0, -1]])
+            wavelength, flux, ivar, meta = session.spectra[index]
+            line.set_data(wavelength, flux / np.nanmedian(flux))
+            figure.ax.set_xlim(wavelength[[0, -1]])
             figure.ax.set_ylim(0, 1.2)
             figure.canvas.draw()
             current_index = index
             figure.page_left.setEnabled(current_index > 0)
-            figure.page_right.setEnabled(current_index < (len(wavelength) - 1))
+            figure.page_right.setEnabled(current_index < (S - 1))
             figure.canvas.setFocus()
             
         
@@ -804,6 +801,7 @@ class RadialVelocityWidget(AnalysisWidget):
         
         # Add buttons to bottom layout
         super().__init__(parent=parent, session=session, title="Radial Velocity")
+        self.session = session
         self.callback = callback
         '''
         layout = QVBoxLayout(self.widget)
@@ -816,28 +814,23 @@ class RadialVelocityWidget(AnalysisWidget):
         self.bottomLayout.addStretch(1)
         self.bottomLayout.addWidget(self.button_rectify)
         '''
-            
-        from specutils import Spectrum1D
         
-        import os
+        # Get the order closest to the wavelength range.
+        index = session._get_closest_spectrum_index(8500)                
+        wavelength, flux, *_ = session.spectra[index]
         
-        def expand_path(path):
-            return os.path.abspath(os.path.expanduser(path))
-
-        wavelength, flux, ivar, meta = Spectrum1D.read_fits_multispec(expand_path("~/Downloads/hd122563red_multi.fits"), flux_ext=6, ivar_ext=3)
         
         layout = QVBoxLayout(self.widget)
         layout.setContentsMargins(0, 0, 0, 0)  
-        index = np.random.choice(len(wavelength))
         
         #index = 28
         plot = SinglePlotWidget(
-            x=wavelength[index],
-            y=flux[index] / np.nanmedian(flux[index]),            
+            x=wavelength,
+            y=flux / np.nanmedian(flux),            
             xlabel=r"Wavelength [$\mathrm{\AA}$]",
             ylabel="Rectified flux",
             figsize=(100, 2), toolbar=False, toolbar_left_right=False)
-        plot.ax.set_xlim(wavelength[index][[0, -1]])
+        plot.ax.set_xlim(wavelength[[0, -1]])
         
         layout.addWidget(plot)
 
@@ -900,6 +893,7 @@ class RadialVelocityWidget(AnalysisWidget):
         layout.addLayout(rv_opt_layout)
                 
         self.button_no_shift = PushButton("Spectrum is already at rest")
+        self.button_no_shift.clicked.connect(self.on_no_shift_button_pushed)
         self.button_measure = PushButton("Measure")
         self.button_measure.clicked.connect(self.on_shift_button_clicked)
         self.button_measure_and_shift = PrimaryPushButton("Measure and shift")
@@ -960,10 +954,13 @@ class RadialVelocityWidget(AnalysisWidget):
 class SessionInterface(ScrollArea):
     """ Dialog interface """
 
-    def __init__(self, text, parent=None):
+    def __init__(self, session, parent=None):
         super().__init__(parent=parent)
+        
+        self.session = session
+        
         self.view = QWidget(self)
-        self.toolBar = ToolBar(text, "15:43:03 -10:56:01", self)
+        self.toolBar = ToolBar(parent=self)
         self.vBoxLayout = QVBoxLayout(self.view)
 
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -985,28 +982,27 @@ class SessionInterface(ScrollArea):
 
         initial_visibility = False
 
-        self.cog_eqw = StellarParametersWidget(None, self)
-        self.cog_eqw.setVisible(initial_visibility)
-        
         def continuum_callback():
-            self.cog_eqw.setVisible(True)
+            self.cog_eqw = StellarParametersWidget(session, self)
+            self.vBoxLayout.addWidget(self.cog_eqw, 0, Qt.AlignTop)
+            
 
         # Radial velocity stuff
-        self.continuum = ContinuumRectificationWidget(None, callback=continuum_callback, parent=self)
+        self.continuum = ContinuumRectificationWidget(session, callback=continuum_callback, parent=self)
         self.continuum.setVisible(initial_visibility)
         
         
         def rv_callback():
             self.continuum.setVisible(True)
         
-        card = RadialVelocityWidget(None, callback=rv_callback, parent=self)
+        card = RadialVelocityWidget(session, callback=rv_callback, parent=self)
         self.vBoxLayout.addWidget(card, 0, Qt.AlignTop)
         
         # Continuum normalization
 
         self.vBoxLayout.addWidget(self.continuum, 0, Qt.AlignTop)
         
-        self.vBoxLayout.addWidget(self.cog_eqw, 0, Qt.AlignTop)
+        
         # add stellar parameter analysis? --> differential, etc.
         
         
@@ -1061,8 +1057,13 @@ class SessionTabsInterface(QWidget):
 
         self.tabBar.setCloseButtonDisplayMode(TabCloseButtonDisplayMode.ON_HOVER)
 
-        self.myInterface = SessionInterface("HD 140283", self)        
-        self.addMySubInterface(self.myInterface, 'myInterface', 'HD140283')
+        session = Session([
+            "/Users/andycasey/Downloads/hd122563blue_multi.fits",
+            "/Users/andycasey/Downloads/hd122563red_multi.fits"
+        ])
+
+        self.myInterface = SessionInterface(session, self)        
+        self.addMySubInterface(self.myInterface, 'myInterface', 'HD 122563')
 
         qrouter.setDefaultRouteKey(
             self.stackedWidget, self.myInterface.objectName())
@@ -1119,11 +1120,20 @@ class SessionTabsInterface(QWidget):
         )
         if filenames:            
             
+            session = Session(filenames)
+            
+            # Get a suggested name.
+            try:
+                name = getval(filenames[0], "OBJECT", 0)
+            except:
+                name = f"Untitled-{self.tabCount}"
+                
+            
+            
             # load the file, parse a name from it.        
-            text = f"Untitled-{self.tabCount}"
-            widget = SessionInterface(text, self)
+            widget = SessionInterface(session, self)
 
-            self.addMySubInterface(widget, text, text)        
+            self.addMySubInterface(widget, name, name)        
             self.tabCount += 1
             
             # now set the new sub interface widget as the current one

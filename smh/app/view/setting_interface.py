@@ -14,6 +14,78 @@ from ..common.config import cfg, HELP_URL, FEEDBACK_URL, AUTHOR, VERSION, YEAR, 
 from ..common.signal_bus import signalBus
 from ..common.style_sheet import StyleSheet
 
+# import what we need
+from typing import Union
+
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QColor, QIcon, QPainter
+from PyQt5.QtWidgets import (QFrame, QHBoxLayout, QLabel, QToolButton,
+                             QVBoxLayout, QPushButton)
+
+from qfluentwidgets import LineEdit
+
+from ..common.config import qconfig, ConfigItem
+from ..common.icon import FluentIconBase
+
+class TextSettingCard(SettingCard):
+    
+    textEdited = pyqtSignal(str)
+    
+    def __init__(self, icon: Union[str, QIcon, FluentIconBase], title, content=None,
+                 configItem: ConfigItem = None, parent=None):
+        """
+        Parameters
+        ----------
+        icon: str | QIcon | FluentIconBase
+            the icon to be drawn
+
+        title: str
+            the title of card
+
+        content: str
+            the content of card
+
+        configItem: ConfigItem
+            configuration item operated by the card
+
+        parent: QWidget
+            parent widget
+        """
+        super().__init__(icon, title, content, parent)
+        self.configItem = configItem
+        self.lineEdit = LineEdit(self)
+        
+        if configItem:
+            self.setValue(qconfig.get(configItem))
+            configItem.valueChanged.connect(self.setValue)
+
+        # add switch button to layout
+        self.hBoxLayout.addWidget(self.lineEdit, 0, Qt.AlignRight)
+        self.hBoxLayout.addSpacing(16)
+
+        self.lineEdit.textEdited.connect(self.__onTextEdited)
+
+    def __onTextEdited(self):
+        """ switch button checked state changed slot """
+        value = self.lineEdit.text()
+        print(f"onTextEdited: {value}")
+        self.setValue(value)
+        self.textEdited.emit(value)
+
+
+    def setValue(self, value, **kwargs):
+        print(f"setValue: {value} {kwargs}")
+        if self.configItem:
+            try:            
+                qconfig.set(self.configItem, int(value)) # HACK
+            except:
+                # TODO
+                None
+
+        self.lineEdit.setText(str(value))
+        
+
+
 
 class SettingInterface(ScrollArea):
     """ Setting interface """
@@ -49,14 +121,14 @@ class SettingInterface(ScrollArea):
             self.tr('Personalization'), self.scrollWidget)
         
         # initial stellar params
-        self.initialStellarParametersGroup = SettingCardGroup("Initial Stellar Parameters", self.scrollWidget)
-        #self.initialTeffCard = SettingCard(
-        #    FIF.TRANSPARENT,
-        #    "Initial effective temperature",
-        #    "Used for fitting",
-        #    cfg.get(cfg.initial_teff),
-        #    self.initialStellarParametersGroup
-        #)
+        self.initialStellarParametersGroup = SettingCardGroup("Curve of growth analysis", self.scrollWidget)
+        self.initialTeffCard = TextSettingCard(
+            FIF.TRANSPARENT,
+            "Initial effective temperature",
+            content="Used for fitting",
+            configItem=cfg.initial_teff,
+            parent=self.initialStellarParametersGroup
+        )
         
         '''
         self.userName = SettingCard(
@@ -191,6 +263,8 @@ class SettingInterface(ScrollArea):
         self.musicInThisPCGroup.addSettingCard(self.musicFolderCard)
         self.musicInThisPCGroup.addSettingCard(self.downloadFolderCard)
 
+        self.initialStellarParametersGroup.addSettingCard(self.initialTeffCard)
+
         self.personalGroup.addSettingCard(self.micaCard)
         self.personalGroup.addSettingCard(self.themeCard)
         self.personalGroup.addSettingCard(self.themeColorCard)
@@ -209,6 +283,7 @@ class SettingInterface(ScrollArea):
         self.expandLayout.setSpacing(28)
         self.expandLayout.setContentsMargins(36, 10, 36, 0)
         self.expandLayout.addWidget(self.musicInThisPCGroup)
+        self.expandLayout.addWidget(self.initialStellarParametersGroup)
         self.expandLayout.addWidget(self.personalGroup)
         self.expandLayout.addWidget(self.materialGroup)
         self.expandLayout.addWidget(self.updateSoftwareGroup)

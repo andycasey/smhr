@@ -324,7 +324,7 @@ class BaseContinuumModel(object):
             v_rel, e_v_rel, chi2, corr, lags = measure_relative_velocity(
                 wavelength,
                 flux / initial_continuum,
-                model.wavelength[si:ei],
+                self.wavelength[si:ei],
                 1 - basis_vector/np.max(basis_vector)
             )
             chi2s[i] = chi2
@@ -369,7 +369,9 @@ class BaseContinuumModel(object):
 
         rectified_model_flux = 1 - p_opt[:C] @ basis_vectors_slice
         # compute the continuum using the original design matrix
-        continuum = p_opt[C:] @ A_obs
+        # TODO: this is not quite right... change it all to use design matrices in one reference frame!!
+        continuum = np.interp(wavelength * (1 - initial_v_rel/3e5), interp_wavelength, p_opt[C:] @ A.T, left=0, right=0)
+        
         
         # measure the radial velocity again
         v_rel, e_v_rel, chi2, corr, lags = measure_relative_velocity(
@@ -398,25 +400,6 @@ def overlap(A, B):
 
 
 
-def _check_and_reshape_flux_ivar(wavelength, flux, ivar):
-    P = wavelength.size
-    if ivar is None:
-        ivar = np.ones_like(flux)
-    flux, ivar = (np.atleast_2d(flux), np.atleast_2d(ivar))
-    N1, P1 = flux.shape
-    N2, P2 = ivar.shape
-
-    assert (N1 == N2) and (P1 == P2), "`flux` and `ivar` do not have the same shape"
-    assert (P == P1), f"Number of pixels in flux does not match wavelength array ({P} != {P1})"
-
-    bad_pixel = (
-        (~np.isfinite(flux))
-    |   (~np.isfinite(ivar))
-    |   (flux <= 0)
-    )
-    flux[bad_pixel] = 0
-    ivar[bad_pixel] = 0
-    return (flux, ivar)
 
 
 def _check_wavelength_basis_vectors_shape(wavelength, basis_vectors):
@@ -463,7 +446,7 @@ if __name__ == "__main__":
     from specutils import Spectrum1D
     
     #wavelength, flux, ivar, meta = Spectrum1D.read_fits_multispec("j174239-133332blue_multi.fits")
-    wavelength, flux, ivar, meta = Spectrum1D.read_fits_multispec(expand_path("~/Downloads/hd122563blue_multi.fits"), flux_ext=6, ivar_ext=3)
+    wavelength, flux, ivar, meta = Spectrum1D.read_fits_multispec(expand_path("~/Downloads/hd122563red_multi.fits"), flux_ext=6, ivar_ext=3)
     
     index = 14
     model_wavelength = 10 * (10**(2.57671464 + np.arange(167283) * 2.25855074e-06))
@@ -520,102 +503,4 @@ if __name__ == "__main__":
     ax.set_ylim(0, 5)
     
     # Now fit with the continuum model.
-    
-    
-    raise a
-    
-
-    def cross_correlate_spectra(
-        wavelength, flux, template_flux,
-    ):
-
-        # Perform the cross-correlation
-        padding = flux.size + template_flux.size
-        # Is this necessary?: # TODO
-        x_norm = flux - np.mean(flux[np.isfinite(flux)])
-        y_norm = template_flux - np.mean(template_flux[np.isfinite(template_flux)])
-
-        Fx = np.fft.fft(x_norm, padding, )
-        Fy = np.fft.fft(y_norm, padding, )
-        iFxy = np.fft.ifft(Fx.conj() * Fy).real
-        varxy = np.sqrt(np.inner(x_norm, x_norm) * np.inner(y_norm, y_norm))
-
-        fft_result = iFxy/varxy
-
-        # Put around symmetry axis.
-        num = len(fft_result) - 1 if len(fft_result) % 2 else len(fft_result)
-
-        fft_y = np.zeros(num)
-        fft_y[:num//2] = fft_result[num//2:num]
-        fft_y[num//2:] = fft_result[:num//2]
-
-        fft_x = np.arange(num) - num/2
-
-        # Get initial guess of peak.
-        p0 = np.array([fft_x[np.argmax(fft_y)], np.max(fft_y), 10])
-
-        gaussian = lambda p, x: p[1] * np.exp(-(x - p[0])**2 / (2.0 * p[2]**2))
-        errfunc = lambda p, x, y: y - gaussian(p, x)
-
-        try:
-            p1, ier = leastsq(errfunc, p0.copy(), args=(fft_x, fft_y))
-
-        except:
-            raise 
-
-
-        # Create functions for interpolating back onto the wavelength map
-        fft_points = (0, p1[0], p1[2])
-        interp_x = np.arange(num/2) - num/4
-
-        wl_points = []
-        for point in fft_points:
-            idx = np.searchsorted(interp_x, point)
-            try:
-                f = interpolate.interp1d(interp_x[idx-3:idx+3], wavelength[idx-3:idx+3],
-                    bounds_error=True, kind='cubic')
-            except ValueError as e:
-                raise
-                print("Interpolation error! Probably bad template? Returning nans with raw CCF")
-                print(e)
-                print(fft_points, point)
-                return np.nan, np.nan, np.array([fft_x, fft_y])
-            wl_points.append(f(point))
-
-        # Calculate velocity 
-        c = 299792458e-3 # km/s
-        f, g, h = wl_points
-        rv = c * (1 - g/f)
-
-        # Create a CCF spectrum.
-        ccf = np.array([fft_x * (rv/p1[0]), fft_y])
-
-        # Calculate uncertainty
-
-            # Approx Uncertainty based on simple gaussian
-        # This is not a real uncertainty as it doesn't take into account data errors
-        rv_uncertainty = np.abs(c * (h-f)/g)
-
-        return (rv, rv_uncertainty, ccf)    
-    
-    
-    si, ei = np.searchsorted(model.wavelength, wavelength[index][[0, -1]])
-    
-    wl = model.wavelength[si:ei]
-    template_flux = continuum_meta["rectified_model_flux"][si:ei]
-    
-    rv, *_ = cross_correlate_spectra(wl, flux_interp[0][si:ei], template_flux)
-    
-    si, ei = np.searchsorted(model.wavelength, wavelength[index][[0, -1]])
-    wl = model.wavelength[si:ei]
-    
-    for i in range(32):
-
-        vr, *_ = cross_correlate_spectra(wl, flux_interp[0][si:ei], 1 - model.basis_vectors[i][si:ei])
-        print(vr)
-        
-    fig, ax = plt.subplots()
-    ax.plot(model.wavelength[si:ei], flux_interp[0][si:ei], c='k')
-    ax.plot(model.wavelength[si:ei], (1 - model.basis_vectors[4][si:ei]) * 500)
-    ax.plot(model.wavelength[si:ei] * (1 + 50/3e5), flux_interp[0][si:ei], c='tab:red')
     
