@@ -19,14 +19,14 @@ Installation
 * Create a new environment and install required libraries:
 For M1 macs, note that pyside2 has to be run in Rosetta. Thus, you can install it in this way:
 ```
-conda create -c conda-forge/osx-64 --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app requests pyside2=5.13.2 yaml
+conda create -c conda-forge/osx-64 --name smhr-py3 python=3.8 scipy numpy=1.22.4 matplotlib=3.1.3 six astropy ipython python.app requests pyside2=5.13.2 yaml
 ```
 Currently (as of May 2022) anaconda on M1/ARM chips by default includes channels that search through `osx-arm64` and `noarch` but not `osx-64`.
 Also, newer versions of pyside2 appear to have changed some syntax on dialog boxes. We will update this eventually but for now you can install the older pyside2 version.
 
 For older Macs or other computers, this worked fine:
 ```
-conda create -c conda-forge --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app requests
+conda create -c conda-forge --name smhr-py3 python=3.8 scipy numpy=1.22.4 matplotlib=3.1.3 six astropy ipython python.app requests
 conda activate smhr-py3
 conda install -c conda-forge pyside2=5.13.2
 conda install -c conda-forge yaml
@@ -57,7 +57,7 @@ Details: https://stackoverflow.com/questions/48738805/mac-pyqt5-menubar-not-acti
 Install Python 3.7 from anaconda
 
 create a new environment for smhr-py3:
-> conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython requests
+> conda create --name smhr-py3 python=3.8 scipy numpy=1.22.4 matplotlib=3.1.3 six astropy ipython requests
 
 Activate environment:
 > conda activate smhr-py3
