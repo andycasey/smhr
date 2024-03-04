@@ -1817,12 +1817,13 @@ class Session(BaseSession):
                 expot = spectral_model.expot
                 loggf = spectral_model.loggf
                 EW = np.nan
-                e_EW = np.nan
+                e_EW = 0.
                 logeps = spectral_model.abundances[0]
                 try:
                     logeps_err = spectral_model.metadata["2_sigma_abundance_error"]/2.0
                 except:
                     logeps_err = np.nan
+                print("exporting synth",wavelength,species)
             elif isinstance(spectral_model, ProfileFittingModel):
                 line = spectral_model.transitions[0]
                 wavelength = line['wavelength']

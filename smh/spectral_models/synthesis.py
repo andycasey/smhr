@@ -662,7 +662,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
             ## remove the continuum from model and data
             modeldisp = model_output["wl"]
             datadisp  = data_output["wl"]
-            parameters = self.metadata["fitted_result"][0].values()
+            parameters = list(self.metadata["fitted_result"][0].values())
 
             names = self.parameter_names
             O = self.metadata["continuum_order"]

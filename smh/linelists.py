@@ -33,14 +33,14 @@ class LineList(Table):
     full_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments',
                      'numelems','elem1','isotope1','elem2','isotope2','ion',
                      'E_hi','lande_hi','lande_lo','damp_stark','damp_rad','references','element']
-    full_dtypes = [np.float,np.float,np.float,np.float,np.float,np.float,str,
-                   np.int,str,np.int,str,np.int,np.int,
-                   np.float,np.float,np.float,np.float,np.float,str,str]
+    full_dtypes = [float,float,float,float,float,float,str,
+                   int,str,int,str,int,int,
+                   float,float,float,float,float,str,str]
     moog_colnames = ['wavelength','species','expot','loggf','damp_vdw','dissoc_E','comments',
                      'numelems','elem1','isotope1','elem2','isotope2','ion',
                      'references','element']
-    moog_dtypes = [np.float,np.float,np.float,np.float,np.float,np.float,str,
-                   np.int,str,np.int,str,np.int,np.int,
+    moog_dtypes = [float,float,float,float,float,float,str,
+                   int,str,int,str,int,int,
                    str,str]
 
     def __init__(self,*args,**kwargs):
@@ -499,7 +499,7 @@ class LineList(Table):
         data = [wavelength, species, expot, loggf, nans, nans, empty,
                 numelems, elem1, isotope1, elem2, isotope2, ion, empty, elements, nans]
         columns = cls.moog_colnames + ['equivalent_width']
-        dtypes = cls.moog_dtypes + [np.float]
+        dtypes = cls.moog_dtypes + [float]
 
         return cls(Table(data, names=columns, dtype=dtypes), moog_columns=True, **kwargs)
 
@@ -628,7 +628,7 @@ class LineList(Table):
         #if not np.all(np.isnan(ew)):
         #    print("Read {} EWs out of {} lines".format(np.sum(~np.isnan(ew)),len(ew)))
         colnames = colnames + ['equivalent_width']
-        dtypes = dtypes + [np.float]
+        dtypes = dtypes + [float]
         data = data + [ew]
         
         return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns,**kwargs)
