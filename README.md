@@ -96,6 +96,7 @@ Note that by default right now, we require you to have an executable called `MOO
 VERSION HISTORY:
 ----------------
 - The current master branch is python 3.
+- March 5, 2024: starting from 4b7732ceaff1ba1bff9e5c36b891b2c0a8ab03a3, Alex has updated the mean abundances. Two important changes: (1) on the stellar parameters tab the average [Fe I,II/H] was previously reported as the median abundance. It now shows the mean abundance in parentheses. (2) on the review tab and in previous abundance summaries, I had mistakenly applied a weight based on the statistical uncertainty instead of using the straight mean abundance. It now uses no weights to calculate the mean.
 - Alex has ported SMHR to python 3 in branch `py38-mpl313`. It now uses pyside2 and updated libraries for matplotlib. It is also way easier to install, not relying on some obscure libraries that were no longer maintained.
 - The branch `refactor-scatterplot` has an updated and improved GUI (as of Jan 2020). These have not been merged into master yet but should be soon.
 - Until Aug 2021, the `master` branch was frozen to a version from about July 2019.
@@ -109,3 +110,4 @@ There is not a way to convert files from the old SMH to new SMHR.
 TO DOs
 ------
 -[ ] Fix GUI layout in Linux
+
