@@ -36,6 +36,8 @@ conda install -c conda-forge yaml
 ```
 git clone https://github.com/andycasey/smhr.git 
 cd smhr
+git checkout -b py38-mpl313
+git pull origin py38-mpl313
 python setup.py develop
 ```
 Due to data not being copied, it is best to do `develop` instead of install. Someday we will fix this.
