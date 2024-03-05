@@ -344,7 +344,6 @@ class Spectrum1D(object):
         is_apo_product = (image[0].header.get("OBSERVAT", None) == "APO")
         is_dupont_product = (md5_hash == "2ab648afed96dcff5ccd10e5b45730c1")
         is_iraf_1band_product = (md5_hash == "148aa0c459c8085f7461a519b1a060e5") # McD old reductions
-
         if is_carpy_mike_product or is_carpy_mage_product or is_carpy_mike_product_old or is_dupont_product:
             # CarPy gives a 'noise' spectrum, which we must convert to an
             # inverse variance array
@@ -361,6 +360,7 @@ class Spectrum1D(object):
         elif is_iraf_3band_product:
             flux_ext = flux_ext or 0
             noise_ext = ivar_ext or 2
+            if len(image[0].data) == 2: noise_ext =1
             
             logger.info(
                 "Recognized IRAF 3band product. Using zero-indexed flux/noise "
@@ -888,8 +888,6 @@ class Spectrum1D(object):
 
         exclusions = []
         continuum_indices = range(len(self.flux))
-        #import pdb
-        #pdb.set_trace()
 
         # Snip left and right
         finite_positive_flux = np.isfinite(self.flux) * self.flux > 0

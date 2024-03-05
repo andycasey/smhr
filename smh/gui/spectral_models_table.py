@@ -95,6 +95,12 @@ class SpectralModelsTableViewBase(QtGui.QTableView):
         set_lorentzian = menu_profile_type.addAction("Lorentzian")
         set_voigt = menu_profile_type.addAction("Voigt")
 
+        # E. Holmbeck added
+        menu_damping_type = menu.addMenu("Set damping type")
+        set_unsold = menu_damping_type.addAction("Unsold")
+        set_barklem = menu_damping_type.addAction("Barklem")
+        set_blackwell = menu_damping_type.addAction("Unsold x Blackwell")
+
         menu.addSeparator()
         enable_central_weighting = menu.addAction("Enable central weighting")
         disable_central_weighting = menu.addAction("Disable central weighting")
@@ -133,6 +139,14 @@ class SpectralModelsTableViewBase(QtGui.QTableView):
                 set_voigt: "voigt"
             }[action]
             self.set_profile(proxy_indices, kind)
+        # E. Holmbeck added
+        elif action in (set_unsold, set_barklem, set_blackwell):
+            kind = {
+                set_unsold: "0",
+                set_barklem: "1",
+                set_blackwell: "2"
+            }[action]
+            self.set_damping(kind)
         elif action in (enable_central_weighting, disable_central_weighting):
             toggle = action==enable_central_weighting
             self.set_central_weighting(proxy_indices, toggle)
@@ -163,6 +177,33 @@ class SpectralModelsTableViewBase(QtGui.QTableView):
         and keep the GUI up to date.
         """
         raise NotImplementedError("Base must be subclassed")
+    # E. Holmbeck added
+    def set_moog_option(self, key, value):
+        rows, spectral_models = self.get_selected_models(getrows=True)
+        num_fit = 0
+        num_unacceptable = 0
+        num_profile_models = 0
+        num_synthesis_models = 0
+        num_error = 0
+        for row, spectral_model in zip(rows, spectral_models):
+            if not spectral_model.is_acceptable:
+                num_unacceptable += 1
+                continue
+            if 'moog_opts' not in spectral_model.metadata:
+                spectral_model.metadata['moog_opts'] = {key: value}
+            else:
+	            spectral_model.metadata['moog_opts'][key] = value
+            if "fitted_result" in spectral_model.metadata:
+                num_fit += 1
+                try:
+                    spectral_model.fit(spectrum=None)
+                except:
+                    num_error += 1
+                    logger.exception("Error fitting row {} after modifying {} to {}".format(row, key, value))
+                self.update_row(row)
+        logger.info("Changed {0}={1}, fit {2} out of {3} models ({4} profile, {5} synth, {6} unacceptable, {7} fit fail)".format(\
+                key, value, num_fit, len(spectral_models), num_profile_models, num_synthesis_models, num_unacceptable, num_error))
+        return None
     def set_fitting_window(self, proxy_indices):
         window, is_ok = QtGui.QInputDialog.getDouble(
             None, "Set fitting window", u"Fitting window (Å):", 
@@ -190,6 +231,10 @@ class SpectralModelsTableViewBase(QtGui.QTableView):
                                       "profile", kind,
                                       valid_for_profile=True,
                                       valid_for_synth=False)
+        return None
+    # E. Holmbeck added
+    def set_damping(self, proxy_indices, kind):
+        self.set_moog_option(proxy_indices, "damping", kind)
         return None
     def set_central_weighting(self, proxy_indices, toggle):
         self.set_fitting_option_value(proxy_indices, 
