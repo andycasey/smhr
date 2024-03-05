@@ -1638,7 +1638,7 @@ class Session(BaseSession):
     
     
     def summarize_spectral_models(self, spectral_models=None, organize_by_element=False,
-                                  use_weights = None, use_finite = True, what_fe = 1,
+                                  use_weights = False, use_finite = True, what_fe = 1,
                                   default_error = 0.1):
         """
         Loop through all spectral_models and return a summary dict
@@ -1652,9 +1652,8 @@ class Session(BaseSession):
             If False (default), key is species (without isotopes)
             If True, key is element (sum all species together)
         :param use_weights:
-            If True, use line-by-line weights
-            If False, weight all lines equally
-            Defaults to session settings
+            If True, use line-by-line weights (was default before to 2023-03-05 but was hard for people to understand so changed)
+            If False (default), weight all lines equally
         :param use_finite:
             If True (default), only use finite abundances
             If False, use any acceptable abundances
