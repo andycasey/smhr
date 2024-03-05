@@ -273,12 +273,14 @@ class StellarParametersTab(QtGui.QWidget):
         ## Update table
         XH1 = med1 - solar_composition(26.0)
         XH2 = med2 - solar_composition(26.1)
+        meanXH1 = np.mean(eps1) - solar_composition(26.0)
+        meanXH2 = np.mean(eps2) - solar_composition(26.1)
         self.state_fe1_N.setText(u"Fe I ({})".format(N1))
-        self.state_fe1_XH.setText(u"{:.2f} ± {:.2f}".format(XH1,eXH1))
+        self.state_fe1_XH.setText(u"{:.2f} ± {:.2f} ({:.2f})".format(XH1,eXH1,meanXH1))
         self.state_fe1_dAdchi.setText(u"{:.3f} ± {:.3f}".format(mchi1, emchi1))
         self.state_fe1_dAdREW.setText(u"{:.3f} ± {:.3f}".format(mREW1, emREW1))
         self.state_fe2_N.setText(u"Fe II ({})".format(N2))
-        self.state_fe2_XH.setText(u"{:.2f} ± {:.2f}".format(XH2,eXH2))
+        self.state_fe2_XH.setText(u"{:.2f} ± {:.2f} ({:.2f})".format(XH2,eXH2,meanXH2))
         self.state_fe2_dAdchi.setText(u"{:.3f} ± {:.3f}".format(mchi2, emchi2))
         self.state_fe2_dAdREW.setText(u"{:.3f} ± {:.3f}".format(mREW2, emREW2))
         return None

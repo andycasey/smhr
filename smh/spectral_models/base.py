@@ -68,8 +68,8 @@ class BaseSpectralModel(object):
         """
 
         if len(self.transitions) == 1: return float(self.transitions["wavelength"])
-        if hasattr(self,"_wavelength"):
-            return self._wavelength
+        if "wavelength" in self.metadata:
+            return self.metadata["wavelength"]
         wavelength = np.mean(self.transitions["wavelength"])
         return int(wavelength)
 

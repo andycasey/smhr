@@ -1638,7 +1638,7 @@ class Session(BaseSession):
     
     
     def summarize_spectral_models(self, spectral_models=None, organize_by_element=False,
-                                  use_weights = None, use_finite = True, what_fe = 1,
+                                  use_weights = False, use_finite = True, what_fe = 1,
                                   default_error = 0.1):
         """
         Loop through all spectral_models and return a summary dict
@@ -1652,9 +1652,8 @@ class Session(BaseSession):
             If False (default), key is species (without isotopes)
             If True, key is element (sum all species together)
         :param use_weights:
-            If True, use line-by-line weights
-            If False, weight all lines equally
-            Defaults to session settings
+            If True, use line-by-line weights (was default before to 2023-03-05 but was hard for people to understand so changed)
+            If False (default), weight all lines equally
         :param use_finite:
             If True (default), only use finite abundances
             If False, use any acceptable abundances
@@ -1817,12 +1816,13 @@ class Session(BaseSession):
                 expot = spectral_model.expot
                 loggf = spectral_model.loggf
                 EW = np.nan
-                e_EW = np.nan
+                e_EW = 0.
                 logeps = spectral_model.abundances[0]
                 try:
                     logeps_err = spectral_model.metadata["2_sigma_abundance_error"]/2.0
                 except:
                     logeps_err = np.nan
+                print("exporting synth",wavelength,species)
             elif isinstance(spectral_model, ProfileFittingModel):
                 line = spectral_model.transitions[0]
                 wavelength = line['wavelength']
@@ -2084,6 +2084,9 @@ class Session(BaseSession):
                 if elem1 == "H" and elem2 == "N":
                     element = ["N"]
                     logger.debug("Hardcoded element: NH->N")
+                if elem1 == "H" and elem2 == "O":
+                    element = ["O"]
+                    logger.debug("Hardcoded element: OH->O")
             _filename = row["filename"]
             what_wavelength = row['wavelength']
             what_species = [row['species']]

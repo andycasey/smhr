@@ -900,6 +900,7 @@ def process_session_uncertainties_abundancesummary(tab, rhomat):
             data[col].append(x)
     summary_tab = astropy.table.Table(data)
     
+
     ## Add in [X/Fe]
     var_X, cov_XY = process_session_uncertainties_covariance(summary_tab, rhomat)
     feh1, efe1, feh2, efe2 = process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY)
@@ -923,6 +924,7 @@ def process_session_uncertainties_abundancesummary(tab, rhomat):
                     "e_XFe","e_XFe1","e_XFe2"]:
             summary_tab.add_column(astropy.table.Column(np.zeros(0),col))
             #summary_tab[col] = np.nan #.add_column(col)
+
     return summary_tab
 def process_session_uncertainties_abundancesummary_totweight(tab, rhomat):
     """
@@ -1180,3 +1182,312 @@ def get_synth_eqw(model, window=1.0, wavelength=None,
     if get_spec:
         return eqw, eqw_all, blank_eqw, blank_eqw_all, synth_dispersion, intensities
     return eqw, eqw_all, blank_eqw, blank_eqw_all
+
+
+def process_session_uncertainties_lines_oldweight(session, minerr=0.001):
+    """
+    This uses the estimator from Ji+2020a, which Alex has decided is better than Ji+2020b
+    The estimator from Sergey in Ji+2020b does not work because abundances are not linear in stellar parameters
+    This is adapted from code written by Guilherme Limberg
+    """
+    from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
+    from .photospheres.abundances import asplund_2009 as solar_composition
+    cols = ["index","wavelength","species","expot","loggf",
+            "logeps","e_stat","eqw","e_eqw","fwhm",
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
+            "e_tot","weight"]
+    data = OrderedDict(zip(cols, [[] for col in cols]))
+    for i, model in enumerate(session.spectral_models):
+        if not model.is_acceptable: continue
+        if model.is_upper_limit: continue
+        
+        wavelength = model.wavelength
+        species = np.ravel(model.species)[0]
+        expot = model.expot
+        loggf = model.loggf
+        if np.isnan(expot) or np.isnan(loggf):
+            print(i, species, model.expot, model.loggf)
+        try:
+            logeps = model.abundances[0]
+            staterr = model.metadata["1_sigma_abundance_error"]
+            if isinstance(model, SpectralSynthesisModel):
+                (named_p_opt, cov, meta) = model.metadata["fitted_result"]
+                if np.isfinite(cov[0,0]**0.5):
+                    staterr = max(staterr, cov[0,0]**0.5)
+                assert ~np.isnan(staterr)
+            # apply minimum
+            staterr = np.sqrt(staterr**2 + minerr**2)
+            sperrdict = model.metadata["systematic_stellar_parameter_abundance_error"]
+            e_Teff = sperrdict["effective_temperature"]
+            e_logg = sperrdict["surface_gravity"]
+            e_vt = sperrdict["microturbulence"]
+            e_MH = sperrdict["metallicity"]
+            e_all = np.array([e_Teff, e_logg, e_vt, e_MH])
+            syserr = np.nan # will be computed later
+            fwhm = model.fwhm
+        except Exception as e:
+            print("ERROR!!!")
+            print(i, species, model.wavelength)
+            print("Exception:",e)
+            logeps, staterr, e_Teff, e_logg, e_vt, e_MH, syserr = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
+            fwhm = np.nan
+
+        if isinstance(model, ProfileFittingModel):
+            eqw = model.equivalent_width or np.nan
+            e_eqw = model.equivalent_width_uncertainty or np.nan
+        else:
+            eqw = -999
+            e_eqw = -999
+        #toterr = np.sqrt(staterr**2 + syserr**2)
+        input_data = [i, wavelength, species, expot, loggf,
+                      logeps, staterr, eqw, e_eqw, fwhm,
+                      e_Teff, e_logg, e_vt, e_MH, syserr,
+                      np.nan, np.nan]
+        for col, x in zip(cols, input_data):
+            data[col].append(x)
+    tab = astropy.table.Table(data)
+
+    # we agreed we were going to recompute the final total error per line (which goes into the weighting) as:
+    # e_tot**2 = e_stat**2 + e_sp**2 + e_sys**2
+    # where e_sp is the total stellar parameter uncertainty: e_sp**2 = e_teff**2 + e_logg**2 + e_mh**2 + e_vt**2 >>> Eq.1 Ji+2020 (MagLiteS paper)
+    # and e_sys is = 0.1 most of the time
+    tab["e_sys"] = 0.1 # syst. unc. floor added to all lines.
+    # for those elements with hyperfine splitting where the abundance might depend on the smoothing kernel, we add extra error. (Ji+2020 S5 paper)
+    tab["e_sys"][tab["species"]==21.1] = 0.2 # Sc II
+    tab["e_sys"][tab["species"]==25.0] = 0.2 # Mn I
+    tab["e_sys"][tab["species"]==56.1] = 0.2 # Ba II
+    # for CN and Al I, we add even larger extra error. (for reasons discussed also in Ji+2020 S5 paper)
+    tab["e_sys"][tab["species"]==607.0] = 0.3 # C-N
+    tab["e_sys"][tab["species"]==13.0] = 0.3  # Al I
+    
+    e_T = tab["e_Teff"]
+    e_G = tab["e_logg"]
+    e_V = tab["e_vt"]
+    e_M = tab["e_MH"]
+    tab["e_sp"] = np.sqrt(e_T**2 + e_G**2 + e_V**2 + e_M**2)
+
+    tab["e_tot"] = np.sqrt(tab["e_stat"]**2. + tab["e_sp"]**2. + tab["e_sys"]**2.)
+
+    #  Now, as in Ji+2020 (MagLiteS paper), weight = 1/e_tot**2. >>> their Eq.4
+    tab["weight"] = tab["e_tot"]**(-2.)
+    
+    for col in tab.colnames:
+        if col in ["index", "wavelength", "species", "loggf", "star"]: continue
+        tab[col].format = ".3f"
+    
+    return tab
+def process_session_uncertainties_abundancesummary_oldweight(tab, rhomat=None):
+    """
+    Take a table of lines and turn them into standard abundance table
+    
+    This uses the estimator from Ji+2020a, which Alex has decided is better than Ji+2020b
+    The estimator from Sergey in Ji+2020b does not work because abundances are not linear in stellar parameters
+    This is adapted from code written by Guilherme Limberg
+
+    rhomat is the stellar parameter covariance matrix (T, g, v, M), set to no covariance by default.
+    """
+    from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
+    from .photospheres.abundances import asplund_2009 as solar_composition
+    
+    if rhomat is None:
+        # use the identity matrix, i.e. no correlations between stellar parameters
+        rhomat = _make_rhomat(rho_Tg=0.0, rho_Tv=0.0, rho_TM=0.0, rho_gv=0.0, rho_gM=0.0, rho_vM=0.0)
+
+    unique_species = np.unique(tab["species"])
+    cols = ["species","elem","N",
+            "logeps","sigma","stderr",
+            "logeps_w","sigma_w","stderr_w",
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
+            "e_Teff_w","e_logg_w","e_vt_w","e_MH_w","e_sys_w",
+            "[X/H]","e_XH","s_X"]
+    data = OrderedDict(zip(cols, [[] for col in cols]))
+    for species in unique_species:
+        ttab = tab[tab["species"]==species]
+        elem = species_to_element(species)
+        N = len(ttab)
+        logeps = np.mean(ttab["logeps"])
+        stdev = np.std(ttab["logeps"])
+        stderr = stdev/np.sqrt(N)
+        
+        w = ttab["weight"]
+        finite = np.isfinite(w)
+        if finite.sum() != N:
+            print("WARNING: species {:.1f} N={} != finite weights {}".format(species, N, finite.sum()))
+        x = ttab["logeps"]
+        logeps_w = np.sum(w*x)/np.sum(w)
+        stdev_w = np.sqrt(np.sum(w*(x-logeps_w)**2)/np.sum(w))
+        stderr_w = np.sqrt(1/np.sum(w))
+        
+        sperrs = []
+        sperrs_w = []
+        for spcol in ["Teff","logg","vt","MH"]:
+            x_new = x + ttab["e_"+spcol]
+            e_sp = np.mean(x_new) - logeps
+            sperrs.append(e_sp)
+            #e_sp_w = np.sum(w*x_new)/np.sum(w) - logeps_w
+            e_sp_w = np.sum(w*ttab["e_"+spcol])/np.sum(w)
+            sperrs_w.append(e_sp_w)
+        sperrs = np.array(sperrs)
+        sperrs_w = np.array(sperrs_w)
+        sperrtot = np.sqrt(sperrs.T.dot(rhomat.dot(sperrs)))
+        sperrtot_w = np.sqrt(sperrs_w.T.dot(rhomat.dot(sperrs_w)))
+        
+        XH = logeps_w - solar_composition(species)
+        #e_XH = np.sqrt(stderr_w**2 + sperrtot_w**2)
+        #e_XH = stderr_w
+        e_XH = -9999 # this will be replaced later
+        s_X = ttab["e_sys"][0]
+        assert np.allclose(ttab["e_sys"], s_X), s_X
+        input_data = [species, elem, N,
+                      logeps, stdev, stderr,
+                      logeps_w, stdev_w, stderr_w,
+                      sperrs[0], sperrs[1], sperrs[2], sperrs[3], sperrtot,
+                      sperrs_w[0], sperrs_w[1], sperrs_w[2], sperrs_w[3], sperrtot_w,
+                      XH, e_XH, s_X
+        ]
+        assert len(cols) == len(input_data)
+        for col, x in zip(cols, input_data):
+            data[col].append(x)
+    summary_tab = astropy.table.Table(data)
+    
+    ### Gui's edit ###
+    # Here we want to default to the Ji+2020 MagLiteS formalism, where sigma(X)^2 = sigma_stat^2 + Sum(delta_sp)^2  
+    # where this sigma_stat is the weighted statistical error (eq.6 in the appendix of the paper). I checked that this value is correct in the output
+    # also, Sum(delta_sp)^2 ends up being = sigma_sp^2 = delta_t^2 + delta_g^2 + delta_m^2 + delta_v^2 which is also correct in the output
+    summary_tab["e_XH"] = np.sqrt(summary_tab["e_stat_w"]**2. + summary_tab["e_sp_w"]**2.)
+    ### Gui's edit ###
+    
+
+    ## Add in [X/Fe]
+    var_X, cov_XY = process_session_uncertainties_covariance(summary_tab, rhomat)
+    feh1, efe1, feh2, efe2 = process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY)
+    
+    if len(summary_tab["[X/H]"]) > 0:
+        summary_tab["[X/Fe1]"] = summary_tab["[X/H]"] - feh1
+        summary_tab["e_XFe1"] = efe1
+        summary_tab["[X/Fe2]"] = summary_tab["[X/H]"] - feh2
+        summary_tab["e_XFe2"] = efe2
+    
+        ixion = np.array([x - int(x) > .01 for x in summary_tab["species"]])
+        summary_tab["[X/Fe]"] = summary_tab["[X/Fe1]"]
+        summary_tab["e_XFe"] = summary_tab["e_XFe1"]
+        summary_tab["[X/Fe]"][ixion] = summary_tab["[X/Fe2]"][ixion]
+        summary_tab["e_XFe"][ixion] = summary_tab["e_XFe2"][ixion]
+        for col in summary_tab.colnames:
+            if col=="N" or col=="species" or col=="elem": continue
+            summary_tab[col].format = ".3f"
+    else:
+        for col in ["[X/Fe]","[X/Fe1]","[X/Fe2]",
+                    "e_XFe","e_XFe1","e_XFe2"]:
+            summary_tab.add_column(astropy.table.Column(np.zeros(0),col))
+            #summary_tab[col] = np.nan #.add_column(col)
+
+    ### Gui's edit ### 
+    # here are a few things that we decided we want different for the final ratios as well as things I found need fixing
+    # first, in the columns e_XFe1 and e_XFe2, the reported unc. for Fe I and Fe II, respectively, are not zero (but this is ok for the final [X/Fe])
+    summary_tab["e_XFe1"][summary_tab["species"]==26.0] = 0.0
+    summary_tab["e_XFe2"][summary_tab["species"]==26.1] = 0.0
+
+    # now, most important: we decided to keep [Fe/H] = [Fe I/H] as the default. So: 
+    summary_tab["[X/Fe]"] = summary_tab["[X/Fe1]"]
+    summary_tab["e_XFe"] = summary_tab["e_XFe1"] 
+    # note that I just didn't mess with the things above, just overwrite everything here
+    # also, I will keep all columns for the final output files just because I feel this could be useful 
+    ### Gui's edit ### 
+
+    return summary_tab
+def process_session_uncertainties_limits_oldweight(session, tab, summary_tab, rhomat):
+    from .spectral_models import ProfileFittingModel, SpectralSynthesisModel
+    from .photospheres.abundances import asplund_2009 as solar_composition
+    ## Add in upper limits to line data
+    cols = ["index","wavelength","species","expot","loggf",
+            "logeps","e_stat","eqw","e_eqw","fwhm",
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
+            "e_tot","weight"]
+    var_X, cov_XY = process_session_uncertainties_covariance(summary_tab, rhomat)
+    feh1, efe1, feh2, efe2 = process_session_uncertainties_calc_xfe_errors(summary_tab, var_X, cov_XY)
+
+    assert len(cols)==len(tab.colnames)
+    data = OrderedDict(zip(cols, [[] for col in cols]))
+    for i, model in enumerate(session.spectral_models):
+        if not model.is_upper_limit: continue
+        if not model.is_acceptable: continue
+        
+        wavelength = model.wavelength
+        species = np.ravel(model.species)[0]
+        expot = model.expot or np.nan
+        loggf = model.loggf or np.nan
+        try:
+            logeps = model.abundances[0]
+        except:
+            logeps = np.nan
+
+        input_data = [i, wavelength, species, expot, loggf,
+                      logeps, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan,
+                      np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]
+        for col, x in zip(cols, input_data):
+            data[col].append(x)
+    tab_ul = astropy.table.Table(data)
+    tab_ul["logeps"].format = ".3f"
+    tab = astropy.table.vstack([tab, tab_ul])
+    
+    ## Add in upper limits to summary table
+    ul_species = np.unique(tab_ul["species"])
+    cols = ["species","elem","N",
+            "logeps","sigma","stderr",
+            "logeps_w","sigma_w","stderr_w",
+            "e_Teff","e_logg","e_vt","e_MH","e_sys",
+            "e_Teff_w","e_logg_w","e_vt_w","e_MH_w","e_sys_w",
+            "[X/H]","e_XH","s_X"] + ["[X/Fe1]","e_XFe1","[X/Fe2]","e_XFe2","[X/Fe]","e_XFe"]
+    assert len(cols)==len(summary_tab.colnames)
+    data = OrderedDict(zip(cols, [[] for col in cols]))
+    for species in ul_species:
+        if species in summary_tab["species"]: continue
+        ttab_ul = tab_ul[tab_ul["species"]==species]
+        elem = species_to_element(species)
+        N = len(ttab_ul)
+        limit_logeps = np.min(ttab_ul["logeps"])
+        limit_XH = limit_logeps - solar_composition(species)
+        limit_XFe1 = limit_XH - feh1
+        limit_XFe2 = limit_XH - feh2
+        limit_XFe = limit_XFe1
+        input_data = [species, elem, N,
+                      limit_logeps, np.nan, np.nan,
+                      limit_logeps, np.nan, np.nan,
+                      np.nan, np.nan, np.nan, np.nan, np.nan,
+                      np.nan, np.nan, np.nan, np.nan, np.nan,
+                      limit_XH, np.nan, np.nan, limit_XFe1, np.nan, limit_XFe2, np.nan,
+                      limit_XFe, np.nan
+        ]
+        for col, x in zip(cols, input_data):
+            data[col].append(x)
+    summary_tab_ul = astropy.table.Table(data)
+    if len(summary_tab_ul) > 0:
+        if len(summary_tab) > 0:
+            summary_tab = astropy.table.vstack([summary_tab, summary_tab_ul])
+        else:
+            summary_tab = summary_tab_ul
+    
+    return tab, summary_tab
+def process_session_uncertainties_oldweight(session,
+                                  rho_Tg=0.0, rho_Tv=0.0, rho_TM=0.0, rho_gv=0.0, rho_gM=0.0, rho_vM=0.0):
+    """
+    After you have run session.compute_all_abundance_uncertainties(),
+    this pulls out a big array of line data
+    and computes the final abundance table and errors
+    
+    By default assumes no correlations in stellar parameters. If you specify rho_XY
+    it will include that correlated error.
+    (X,Y) in [T, g, v, M]
+    """
+    ## Correlation matrix. This is multiplied by the errors to get the covariance matrix.
+    # rho order = [T, g, v, M]
+    rhomat = _make_rhomat(rho_Tg, rho_Tv, rho_TM, rho_gv, rho_gM, rho_vM)
+    ## Make line measurement table (no upper limits yet)
+    tab = process_session_uncertainties_lines_oldweight(session)
+    ## Summarize measurements
+    summary_tab = process_session_uncertainties_abundancesummary_oldweight(tab, rhomat)
+    ## Add upper limits
+    tab, summary_tab = process_session_uncertainties_limits_oldweight(session, tab, summary_tab, rhomat)
+    return tab, summary_tab
+

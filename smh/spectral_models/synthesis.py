@@ -186,23 +186,23 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
         ## Set some display variables
         if what_wavelength is not None:
-            self._wavelength = what_wavelength
+            self.metadata["wavelength"] = what_wavelength
         if what_expot is None: what_expot = np.nan
         if what_loggf is None: what_loggf = np.nan
-        self._expot = what_expot
-        self._loggf = what_loggf
+        self.metadata["expot"] = what_expot
+        self.metadata["loggf"] = what_loggf
 
         return None
 
     @property
     def expot(self):
         ## TODO for most syntheses this is well-defined
-        return self._expot
+        return self.metadata.get("expot", np.nan)
     
     @property
     def loggf(self):
         ## TODO for most syntheses the combined loggf is well-defined
-        return self._loggf
+        return self.metadata.get("loggf", np.nan)
 
     @property
     def measurement_type(self):
@@ -662,7 +662,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
             ## remove the continuum from model and data
             modeldisp = model_output["wl"]
             datadisp  = data_output["wl"]
-            parameters = self.metadata["fitted_result"][0].values()
+            parameters = list(self.metadata["fitted_result"][0].values())
 
             names = self.parameter_names
             O = self.metadata["continuum_order"]

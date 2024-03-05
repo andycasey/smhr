@@ -71,6 +71,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.figure.add_callback_after_fit(self.refresh_current_model)
         self.figure.add_callback_after_fit(self.summarize_current_table)
         self.figure.mpl_connect("key_press_event", self.key_press_selectcheck)
+        self.figure.mpl_connect("key_press_event", self.key_press_automask_sigma)
         ## Stuff for extra synthesis
         self.extra_spec_1 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#cea2fd', lw=1.5, zorder=9999)[0]
         self.extra_spec_2 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#ffb07c', lw=1.5, zorder=9999)[0]
@@ -1523,6 +1524,16 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         if event.key in ["down", "k", "K"]: proxy_index_row += 1
         self.measurement_view.selectRow(proxy_index_row)
         return None
+    
+    def key_press_automask_sigma(self, event):
+        if event.key in ["9","0"]:
+            selected_model, proxy_index, index = self._get_selected_model(True)
+            if not isinstance(selected_model, ProfileFittingModel): return None
+            if event.key == "0":
+                selected_model.metadata["detection_sigma"] += 0.5
+            elif event.key == "9":
+                selected_model.metadata["detection_sigma"] -= 0.5
+            self.fit_one()
 
 class SynthesisAbundanceTableView(QtGui.QTableView):
     """
