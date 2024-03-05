@@ -2084,6 +2084,9 @@ class Session(BaseSession):
                 if elem1 == "H" and elem2 == "N":
                     element = ["N"]
                     logger.debug("Hardcoded element: NH->N")
+                if elem1 == "H" and elem2 == "O":
+                    element = ["O"]
+                    logger.debug("Hardcoded element: OH->O")
             _filename = row["filename"]
             what_wavelength = row['wavelength']
             what_species = [row['species']]
