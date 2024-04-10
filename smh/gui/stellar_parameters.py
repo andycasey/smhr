@@ -446,7 +446,8 @@ class StellarParametersTab(QtGui.QWidget):
         label = QtGui.QLabel(self)
         label.setText("nu-max")
         label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
-
+        
+        '''
         grid_layout.addWidget(label, 4, 0, 1, 1)
         self.edit_numax = QtGui.QLineEdit(self)
         self.edit_numax.setMinimumSize(QtCore.QSize(40, 0))
@@ -460,6 +461,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.use_nu.setChecked(False)
         self.use_nu.stateChanged.connect(lambda:self.nu_max(self.use_nu,1))
         grid_layout.addWidget(self.use_nu, 4, 2)
+        '''
 
         # Alpha-enhancement.
         label = QtGui.QLabel(self)
@@ -481,7 +483,7 @@ class StellarParametersTab(QtGui.QWidget):
         self.edit_logg.returnPressed.connect(self.measure_abundances)
         self.edit_metallicity.returnPressed.connect(self.measure_abundances)
         self.edit_xi.returnPressed.connect(self.measure_abundances)
-        self.edit_numax.returnPressed.connect(self.measure_abundances)
+        #self.edit_numax.returnPressed.connect(self.measure_abundances)
         self.edit_alpha.returnPressed.connect(self.measure_abundances)
 
         return grid_layout
@@ -697,7 +699,7 @@ class StellarParametersTab(QtGui.QWidget):
         else:
             self.params_to_optimize[param_index] = True
 
-    # E. Holmbeck added this function
+    # E. Holmbeck added this function; WIP
     def nu_max(self,param_selected,param_index):
         teff = float(self.edit_teff.text())
         gsol = 4.438
