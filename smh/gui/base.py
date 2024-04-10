@@ -126,6 +126,11 @@ class SMHSpecDisplay(mpl.MPLWidget):
         self.label_ymin = label_ymin
         self.label_ymax = label_ymax
         
+        # E. Holmbeck changed colors:
+        self.acceptable_color = "#d92653"
+        self.unacceptable_color = "#37ae91"
+
+        
         self.comparison_spectrum = comparison_spectrum
 
         self.setMinimumSize(QtCore.QSize(100,100))
@@ -191,7 +196,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
                 np.nan, np.nan, np.nan, color="blue", linestyle=':', lw=1),
             "model_masks": [],
             "nearby_lines": [],
-            "model_fit": self.ax_spectrum.plot([np.nan], [np.nan], c="r")[0],
+            "model_fit": self.ax_spectrum.plot([np.nan], [np.nan], c=self.acceptable_color)[0],
             "model_residual": self.ax_residual.plot(
                 [np.nan], [np.nan], c="k", drawstyle="steps-mid")[0],
             "interactive_mask": [
@@ -652,7 +657,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
 
             self._lines["model_fit"].set_data(meta[plotxkey], meta[plotykey])
             self._lines["model_fit"].set_linestyle("-" if self.selected_model.is_acceptable else "--")
-            self._lines["model_fit"].set_color("r" if self.selected_model.is_acceptable else "b")
+            self._lines["model_fit"].set_color(self.acceptable_color if self.selected_model.is_acceptable else self.unacceptable_color)
             self._lines["model_residual"].set_data(meta["model_x"], meta["residual"])
 
             # Model yerr.
@@ -661,7 +666,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
                     meta["model_x"],
                     meta["model_y"] + meta["model_yerr"],
                     meta["model_y"] - meta["model_yerr"],
-                    facecolor="r" if self.selected_model.is_acceptable else "b",
+                    facecolor=self.acceptable_color if self.selected_model.is_acceptable else self.unacceptable_color,
                     edgecolor="none", alpha=0.5)
 
             # Model masks due to nearby lines.
@@ -673,9 +678,9 @@ class SMHSpecDisplay(mpl.MPLWidget):
                     except IndexError:
                         self._lines["nearby_lines"].append([
                             self.ax_spectrum.axvspan(np.nan, np.nan,
-                                facecolor="b", edgecolor="none", alpha=0.25),
+                                facecolor=self.unacceptable_color, edgecolor="none", alpha=0.25),
                             self.ax_residual.axvspan(np.nan, np.nan,
-                                facecolor="b", edgecolor="none", alpha=0.25)
+                                facecolor=self.unacceptable_color, edgecolor="none", alpha=0.25)
                         ])
                         patches = self._lines["nearby_lines"][-1]
 

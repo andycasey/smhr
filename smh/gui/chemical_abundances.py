@@ -73,8 +73,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.figure.mpl_connect("key_press_event", self.key_press_selectcheck)
         self.figure.mpl_connect("key_press_event", self.key_press_automask_sigma)
         ## Stuff for extra synthesis
-        self.extra_spec_1 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#cea2fd', lw=1.5, zorder=9999)[0]
-        self.extra_spec_2 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#ffb07c', lw=1.5, zorder=9999)[0]
+        self.extra_spec_1 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#ff531a', lw=1.5, zorder=9998)[0]
+        self.extra_spec_2 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#ffc34b', lw=1.5, zorder=9998)[0]
+        self.extra_spec_none = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='teal', lw=1.2, zorder=9999)[0]
         
         ################
         # BOTTOM
@@ -185,7 +186,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.btn_fit_all.setText("Fit all EW")
         self.btn_fit_all.setSizePolicy(sp)
         self.btn_measure_all = QtGui.QPushButton(self)
-        self.btn_measure_all.setText("Measure all acceptable EW")
+        self.btn_measure_all.setText("Abundances from EW")
         self.btn_measure_all.setSizePolicy(sp)
         hbox.addWidget(self.btn_fit_all)
         hbox.addWidget(self.btn_measure_all)
@@ -299,7 +300,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         vbox_lhs.addLayout(hbox)
 
         hbox, label, line = _create_line_in_hbox(self.tab_profile, "Fit window",
-                                                 0, 1000, 1)
+                                                 -4, 1000, 1)
         self.edit_fit_window = line
         vbox_lhs.addLayout(hbox)
 
@@ -394,7 +395,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         vbox_lhs.addLayout(hbox)
 
         hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "Fit window",
-                                                 0, 1000, 1)
+                                                 -4, 1000, 1)
         self.edit_fit_window_2 = line
         vbox_lhs.addLayout(hbox)
 
@@ -503,7 +504,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         
         # E. Holmbeck added
         self.btn_fit_all_synth = QtGui.QPushButton(self.tab_synthesis)
-        self.btn_fit_all_synth.setText("Update + Fit All Synth")
+        self.btn_fit_all_synth.setText("Update + ReFit All Synth")
         vbox_rhs.addWidget(self.btn_fit_all_synth)
         
         hbox = QtGui.QHBoxLayout()
@@ -922,8 +923,19 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # When we get selected model, it erases the extra_abundances.
         # So let's cache it then put it back in...
         extra_abundances = self.synth_abund_table_model.get_extra_abundances()
-        
         spectral_model, proxy_index, index = self._get_selected_model(True)
+        
+        # E. Holmbeck added a "none" line
+        if extra_abundances is None:
+            for i, elem in enumerate(spectral_model.elements):
+                abundances_none = deepcopy(spectral_model.metadata["rt_abundances"])
+                for i, elem in enumerate(spectral_model.elements):
+                    abundances_none[elem] = -8.0
+
+                x, y = spectral_model.get_synth(abundances_none)
+                self.extra_spec_none.set_data([x,y])
+                #self.synth_abund_table_model.extra_abundances[elem][2] = abunddiff
+                
         if spectral_model is None: return None
         spectral_model.update_fit_after_parameter_change()
         self.measurement_view.update_row(proxy_index.row())

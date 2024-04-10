@@ -446,8 +446,11 @@ def corrections_from_headers(headers):
     # Try to get the mid-point directly.
     try:
         mjd = Time("{0}T{1}".format(headers["UTMID"], headers["UT-MID"])).mjd
-
-    except (IndexError, KeyError):
+    except KeyError:
+    	mjd = Time("{0}T{1}".format(headers["DATE-OBS"], headers["UT-MID"])).mjd
+        
+    #except (IndexError, KeyError):
+    if mjd is None:
         # Try and calculate it from UT-START/UT-DATE keys
         #raise
 

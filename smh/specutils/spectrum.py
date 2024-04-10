@@ -119,6 +119,7 @@ class Spectrum1D(object):
             cls.read_alex_spectrum,
             cls.read_ceres,
             cls.read_multispec,
+            cls.read_neid #E. Holmbeck added
         )
 
         failure_exceptions = []
@@ -470,7 +471,53 @@ class Spectrum1D(object):
 
         return (dispersion, flux, ivar, metadata)
 
+    # E. Holmbeck added NEID capabilities
+    @classmethod
+    def read_neid(cls, path, **kwargs):
+        image = fits.open(path)
+        metadata = OrderedDict()
+        if 'SCIWAVE' not in image:
+        	image = image[0]
+        
+        for key, value in image['SCIWAVE'].header.items():
+            if key in metadata:
+                metadata[key] += value
+            else:
+                metadata[key] = value
+        metadata["smh_read_path"] = path
+    
+        dispersion = -np.ones((metadata['NAXIS2'], metadata['NAXIS1']))
+        for order in range(1,metadata['NAXIS2']+1):
+            crval = metadata[f'CRVAL{order:.0f}']
+            cdelt = metadata[f'CDELT{order:.0f}']
+            poly_type = metadata[f'PS{order:.0f}_0']
+            poly_param_order = metadata[f'PS{order:.0f}_1']
+            #pixels = np.arange(*eval(metadata[f'PS{order:.0f}_2']))
+            echelle_order = metadata[f'PS{order:.0f}_3']
+            leg_range = eval(metadata[f'PS{order:.0f}_4'])
+            #poly_params = [metadata[f'PV{order:.0f}_{param:.0f}'] for param in range(poly_param_order)]
+            poly_params = []
+            for param in range(poly_param_order):
+                value = metadata[f'PV{order:.0f}_{param:.0f}']
+                if value is None: poly_params.append(np.nan)
+                else: poly_params.append(value)
+            
+            x = np.linspace(leg_range[0], leg_range[1], metadata['NAXIS1'])
+            if poly_type=='Legendre' or 'legendre' in poly_type:
+                from scipy.special import legendre
+                for li in range(poly_param_order):
+                    dispersion[order-1] += poly_params[li]*legendre(li)(x)
+            
+            else: print(poly_type)
+    
+        flux = np.array(image['SCIFLUX'].data)
+        var = np.array(image['SCIVAR'].data)
 
+        dispersion = np.atleast_2d(dispersion)
+        flux = np.atleast_2d(flux)
+        ivar = np.atleast_2d(var**-1)
+        return (dispersion, flux, ivar, metadata)
+    
     @classmethod
     def read_fits_spectrum1d(cls, path, **kwargs):
         """
@@ -626,7 +673,7 @@ class Spectrum1D(object):
         
         if not filename.endswith('fits'):
             a = np.array([self.dispersion, self.flux, self.ivar]).T
-            np.savetxt(filename, a, fmt="%.4f".encode('ascii'))
+            np.savetxt(filename, a, fmt="%.6f".encode('ascii'))
             return
         
         else:
@@ -1607,7 +1654,7 @@ def stitch(spectra, new_dispersion=None, full_output=False):
     finite = np.isfinite(common_flux * common_ivar)
     common_flux[~finite] = 0
     common_ivar[~finite] = 0
-
+    
     numerator = np.sum(common_flux * common_ivar, axis=0)
     denominator = np.sum(common_ivar, axis=0)
     flux, ivar = (numerator/denominator, denominator)
