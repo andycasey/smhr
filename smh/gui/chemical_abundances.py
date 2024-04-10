@@ -890,6 +890,18 @@ class ChemicalAbundancesTab(QtGui.QWidget):
 
     def fit_one(self):
         spectral_model, proxy_index, index = self._get_selected_model(True)
+        # E. Holmbeck added a "none" line
+        extra_abundances = self.synth_abund_table_model.get_extra_abundances()
+        if extra_abundances is None:
+            for i, elem in enumerate(spectral_model.elements):
+                abundances_none = deepcopy(spectral_model.metadata["rt_abundances"])
+                for i, elem in enumerate(spectral_model.elements):
+                    abundances_none[elem] = -10.0
+
+                x, y = spectral_model.get_synth(abundances_none)
+                self.extra_spec_none.set_data([x,y])
+                #self.synth_abund_table_model.extra_abundances[elem][2] = abunddiff
+
         if spectral_model is None: return None
         try:
             res = spectral_model.fit()
@@ -930,7 +942,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             for i, elem in enumerate(spectral_model.elements):
                 abundances_none = deepcopy(spectral_model.metadata["rt_abundances"])
                 for i, elem in enumerate(spectral_model.elements):
-                    abundances_none[elem] = -8.0
+                    abundances_none[elem] = -10.0
 
                 x, y = spectral_model.get_synth(abundances_none)
                 self.extra_spec_none.set_data([x,y])
