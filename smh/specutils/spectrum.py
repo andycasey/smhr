@@ -119,7 +119,8 @@ class Spectrum1D(object):
             cls.read_alex_spectrum,
             cls.read_ceres,
             cls.read_multispec,
-            cls.read_neid #E. Holmbeck added
+            cls.read_neid, #E. Holmbeck added
+            cls.read_galah
         )
 
         failure_exceptions = []
@@ -146,6 +147,37 @@ class Spectrum1D(object):
         orders = orders if len(orders) > 1 else orders[0]
         return orders
 
+    @classmethod
+    def read_galah(cls, path):
+        with fits.open(path) as image:
+            
+            wave = image[1].data["wave"]
+            flux = image[1].data["sob"]
+            ivar = image[1].data["uob"]**-2
+            
+            bad_pixels = ~np.isfinite(flux) | ~np.isfinite(ivar) | (ivar == 0)
+            flux[bad_pixels] = np.nan
+            ivar[bad_pixels] = 0
+            
+            metadata = dict(
+                smh_read_path=path
+            )
+            # split up into ccds:
+            split_indices = np.where(np.diff(wave) > 10)[0]
+            indices = np.sort(np.hstack([
+                0, 
+                split_indices + 1,
+                split_indices + 1,
+                wave.size
+            ])).reshape((-1, 2))
+            
+            waves, fluxs, ivars = ([], [], [])
+            for si, ei in indices:
+                waves.append(wave[si:ei])
+                fluxs.append(flux[si:ei])
+                ivars.append(ivar[si:ei])
+                        
+        return (waves, fluxs, ivars, metadata)
 
     @classmethod
     def read_alex_spectrum(cls, path):
@@ -326,7 +358,7 @@ class Spectrum1D(object):
         # Parse the order mapping into dispersion values.
         # Do it this way to ensure ragged arrays work
         num_pixels, num_orders = metadata["NAXIS1"], metadata["NAXIS2"]
-        dispersion = np.zeros((num_orders, num_pixels), dtype=np.float) + np.nan
+        dispersion = np.zeros((num_orders, num_pixels), dtype=float) + np.nan
         for j in range(num_orders):
             _dispersion = compute_dispersion(*order_mapping[j])
             dispersion[j,0:len(_dispersion)] = _dispersion
@@ -1705,3 +1737,4 @@ def coadd(spectra, new_dispersion=None, full_output=False):
     else:
         return newspec
     
+

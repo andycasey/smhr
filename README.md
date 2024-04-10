@@ -19,14 +19,14 @@ Installation
 * Create a new environment and install required libraries:
 For M1 macs, note that pyside2 has to be run in Rosetta. Thus, you can install it in this way:
 ```
-conda create -c conda-forge/osx-64 --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app requests pyside2=5.13.2 yaml
+conda create -c conda-forge/osx-64 --name smhr-py3 python=3.8 scipy numpy=1.22.4 matplotlib=3.1.3 six astropy ipython python.app requests pyside2=5.13.2 yaml
 ```
 Currently (as of May 2022) anaconda on M1/ARM chips by default includes channels that search through `osx-arm64` and `noarch` but not `osx-64`.
 Also, newer versions of pyside2 appear to have changed some syntax on dialog boxes. We will update this eventually but for now you can install the older pyside2 version.
 
 For older Macs or other computers, this worked fine:
 ```
-conda create -c conda-forge --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython python.app requests
+conda create -c conda-forge --name smhr-py3 python=3.8 scipy numpy=1.22.4 matplotlib=3.1.3 six astropy ipython python.app requests
 conda activate smhr-py3
 conda install -c conda-forge pyside2=5.13.2
 conda install -c conda-forge yaml
@@ -52,13 +52,12 @@ Details: https://stackoverflow.com/questions/48738805/mac-pyqt5-menubar-not-acti
 
 * Install moog17scat (see below) and add it to your path.
 
-
 * Some installation notes for Linux/Debian. It takes a very long time to install pyside2 (hours?) so be patient. Thanks to Shivani Shah and Terese Hansen for this information.
 ```
 Install Python 3.7 from anaconda
 
 create a new environment for smhr-py3:
-> conda create --name smhr-py3 python=3.8 scipy numpy matplotlib=3.1.3 six astropy ipython requests
+> conda create --name smhr-py3 python=3.8 scipy numpy=1.22.4 matplotlib=3.1.3 six astropy ipython requests
 
 Activate environment:
 > conda activate smhr-py3
@@ -98,7 +97,8 @@ See the README for `moog17scat` if you have concerns.
 VERSION HISTORY:
 ----------------
 - The current master branch is python 3.
-- Alex has ported SMHR to python 3 in branch `py38-mpl313`. It now uses pyside2 and updated libraries for matplotlib. It is also way easier to install, not relying on some obscure libraries that were no longer maintained.
+- March 5, 2024: starting from 4b7732ceaff1ba1bff9e5c36b891b2c0a8ab03a3, Alex has updated the mean abundances. Two important changes: (1) on the stellar parameters tab the average [Fe I,II/H] was previously reported as the median abundance. It now shows the mean abundance in parentheses. (2) on the review tab and in previous abundance summaries, I had mistakenly applied a weight based on the statistical uncertainty instead of using the straight mean abundance. It now uses no weights to calculate the mean.
+- Alex has ported SMHR to python 3 in branch `py38-mpl313`. It now uses pyside2 and updated libraries for matplotlib. It is also way easier to install, not relying on some obscure libraries that were no longer maintained. Also added damping selection.
 - The branch `refactor-scatterplot` has an updated and improved GUI (as of Jan 2020). These have not been merged into master yet but should be soon.
 - Until Feb 2022, the `master` branch was frozen to a version from about July 2019.
 - v0.22 (formerly branch `better-errors`) is a frozen version that is the result of a big update on May 30, 2019. It is considered a stable version.
@@ -107,7 +107,3 @@ VERSION HISTORY:
 
 Note v0.1 and v0.2 files are not compatible, but there is a script to convert old save files into new save files.
 There is not a way to convert files from the old SMH to new SMHR.
-
-TO DOs
-------
--[ ] Fix GUI layout in Linux
