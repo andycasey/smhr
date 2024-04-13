@@ -112,6 +112,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._currently_plotted_element = "All"
         self.new_session_loaded()
         
+        # E. Holmbeck: don't mind me...
+        self.acceptables_only = True
 
     def init_tab(self):
         """
@@ -494,22 +496,26 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         #vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
         #                                   QtGui.QSizePolicy.Minimum))
 
+        # E. Holmbeck edited
+        hbox = QtGui.QHBoxLayout()
+        self.btn_update_abund_table = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_update_abund_table.setText("Update Ab. Table")
+        #vbox_rhs.addWidget(self.btn_update_abund_table)
+        hbox.addWidget(self.btn_update_abund_table)
         self.btn_fit_synth = QtGui.QPushButton(self.tab_synthesis)
         self.btn_fit_synth.setText("Fit Model")
-        vbox_rhs.addWidget(self.btn_fit_synth)
-        
-        self.btn_update_abund_table = QtGui.QPushButton(self.tab_synthesis)
-        self.btn_update_abund_table.setText("Update Abundance Table")
-        vbox_rhs.addWidget(self.btn_update_abund_table)
+        #vbox_rhs.addWidget(self.btn_fit_synth)
+        hbox.addWidget(self.btn_fit_synth)
+        vbox_rhs.addLayout(hbox)
         
         # E. Holmbeck added
         hbox = QtGui.QHBoxLayout()
         self.btn_fit_all_synth = QtGui.QPushButton(self.tab_synthesis)
-        self.btn_fit_all_synth.setText("Refit synth")
+        self.btn_fit_all_synth.setText("Resynth")
         hbox.addWidget(self.btn_fit_all_synth)
         # E. Holmbeck added
         self.btn_fit_rest_synth = QtGui.QPushButton(self.tab_synthesis)
-        self.btn_fit_rest_synth.setText("Fit rest synth")
+        self.btn_fit_rest_synth.setText("Synth Rest")
         hbox.addWidget(self.btn_fit_rest_synth)
         vbox_rhs.addLayout(hbox)
 
@@ -820,8 +826,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.calculate_FeH()
         return None
 
-    def refresh_plots(self):
-        self.update_spectrum_figure(True)
+    def refresh_plots(self, row=None):
+        self.update_spectrum_figure(True, row=row)
         return None
 
     def fit_all_profiles(self):
@@ -908,12 +914,14 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             for i, elem in enumerate(spectral_model.elements):
                 abundances_none = deepcopy(spectral_model.metadata["rt_abundances"])
                 for i, elem in enumerate(spectral_model.elements):
-                    abundances_none[elem] = -10.0
+                    abundances_none[elem] = -50.0
 
                 x, y = spectral_model.get_synth(abundances_none)
                 self.extra_spec_none.set_data([x,y])
+                spectral_model.metadata["zero_abundance"] = [x,y]
                 #self.synth_abund_table_model.extra_abundances[elem][2] = abunddiff
     
+
     def fit_one(self):
         spectral_model, proxy_index, index = self._get_selected_model(True)
         if spectral_model is None: return None
@@ -926,13 +934,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.measurement_view.update_row(proxy_index.row())
         self.summarize_current_table()
         self.update_fitting_options()
-        self.fit_none(spectral_model)
         self.refresh_plots()
+        
         if self.parent.session.setting("bring_to_top_after_fit", False):
             self.parent.raise_()
             self.parent.activateWindow()
             self.parent.showNormal()
 
+        self.fit_none(spectral_model)
+        self.figure.draw()
         return None
 
     def measure_one(self):
@@ -1029,14 +1039,17 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.update_spectrum_figure(True)
         return None
 
-    def update_spectrum_figure(self, redraw=False, reset_limits=True):
+    def update_spectrum_figure(self, redraw=False, reset_limits=True, row=None):
         ## If synthesis, label selected lines
         self.extra_spec_1.set_data([[np.nan], [np.nan]])
         self.extra_spec_2.set_data([[np.nan], [np.nan]])
-        #self.extra_spec_none.set_data([[np.nan], [np.nan]])
+        self.extra_spec_none.set_data([[np.nan], [np.nan]])
         
         try:
-            selected_model = self._get_selected_model()
+            if row==None:
+                selected_model = self._get_selected_model()
+            else:
+                selected_model = self.parent.session.metadata["spectral_models"][row]
         except IndexError:
             selected_transitions = None
             label_rv = None
@@ -1061,6 +1074,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             else:
                 selected_transitions = None
                 label_rv = None
+        
         # Update figure
         self.figure.update_spectrum_figure(redraw=redraw,
                                            reset_limits=reset_limits,
@@ -1485,8 +1499,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.update_fitting_options()
         self.refresh_plots()
         return None
-    def clicked_btn_update_abund_table(self):
-        selected_model = self._get_selected_model()
+    def clicked_btn_update_abund_table(self,row=None):
+        if row is None:
+            selected_model = self._get_selected_model()
+        else:
+            selected_model = self.parent.session.metadata["spectral_models"][row]
+        
         if selected_model is None: return None
         assert isinstance(selected_model, SpectralSynthesisModel), selected_model
         summary_dict = self.parent.session.summarize_spectral_models(organize_by_element=True)
@@ -1551,32 +1569,37 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return
     
     # E. Holmbeck added
-    def clicked_fit_all_synth(self, acceptable=True):
+    def clicked_fit_all_synth(self):
         logger.info("Re-fitting all synth lines. This might take a while!")
+        # HACKY!
+        row_count = -1
         for sm in self.parent.session.metadata.get("spectral_models", []):
+            row_count+=1
             if sm.measurement_type != 'syn': continue
-            if sm.is_acceptable is acceptable: continue
+            if sm.is_acceptable!=self.acceptables_only: continue
+            #self.update_spectrum_figure(redraw=True)
             logger.info("Re-fitting {:} at {:.1f}.".format(sm.elements[0], sm.wavelength))
-            self.clicked_btn_update_abund_table()
+            self.clicked_btn_update_abund_table(row=row_count)
             try:
                 res = sm.fit()
             except (ValueError, RuntimeError) as e:
-                logger.info("Fitting error",sm)
+                logger.info("Fitting error")
                 logger.info(e)
-                import pdb
-                pdb.set_trace()
+                self.acceptables_only = True
                 return None
+            self.measurement_view.update_row(row_count)
             self.summarize_current_table()
             self.update_fitting_options()
-            self.refresh_plots()
-            if self.parent.session.setting("bring_to_top_after_fit", False):
-                self.parent.raise_()
-                self.parent.activateWindow()
-                self.parent.showNormal()
+            self.refresh_plots(row_count)
+            self.fit_none(sm)
+            #self.figure.draw()
+        
+        self.acceptables_only = True
         return None
 
     def clicked_fit_rest_synth(self):
-        self.clicked_fit_all_synth(acceptable=False)
+        self.acceptables_only = False
+        self.clicked_fit_all_synth()
     
     def refresh_current_model(self):
         spectral_model, proxy_index, index = self._get_selected_model(True)

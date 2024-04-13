@@ -197,6 +197,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
             "model_masks": [],
             "nearby_lines": [],
             "model_fit": self.ax_spectrum.plot([np.nan], [np.nan], c=self.acceptable_color)[0],
+            "model_none": self.ax_spectrum.plot([np.nan], [np.nan], c='teal')[0],
             "model_residual": self.ax_residual.plot(
                 [np.nan], [np.nan], c="k", drawstyle="steps-mid")[0],
             "interactive_mask": [
@@ -230,7 +231,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
             self._lines["spectrum"].set_drawstyle(drawstyle)
             self._lines["comparison_spectrum"].set_drawstyle(drawstyle)
         for key in ["spectrum", "transitions_center_main", "transitions_center_residual",
-                    "model_fit", "model_residual"]:
+                    "model_fit", "model_none", "model_residual"]:
             self._lines[key].set_data([np.nan],[np.nan])
         self.label_lines(None)
     def new_session(self, session):
@@ -632,6 +633,9 @@ class SMHSpecDisplay(mpl.MPLWidget):
             pass
         
         selected_model = self.selected_model
+        try: none_x,none_y = selected_model.metadata["zero_abundance"]
+        except: none_x = none_y = np.nan
+
         try:
             (named_p_opt, cov, meta) = selected_model.metadata["fitted_result"]
 
@@ -648,6 +652,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
         except KeyError:
             meta = {}
             self._lines["model_fit"].set_data([np.nan], [np.nan])
+            self._lines["model_none"].set_data([np.nan], [np.nan])
             self._lines["model_residual"].set_data([np.nan], [np.nan])
 
         else:
@@ -658,6 +663,7 @@ class SMHSpecDisplay(mpl.MPLWidget):
             self._lines["model_fit"].set_data(meta[plotxkey], meta[plotykey])
             self._lines["model_fit"].set_linestyle("-" if self.selected_model.is_acceptable else "--")
             self._lines["model_fit"].set_color(self.acceptable_color if self.selected_model.is_acceptable else self.unacceptable_color)
+            self._lines["model_none"].set_data(none_x, none_y)
             self._lines["model_residual"].set_data(meta["model_x"], meta["residual"])
 
             # Model yerr.
