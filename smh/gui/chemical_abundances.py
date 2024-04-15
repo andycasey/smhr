@@ -1500,7 +1500,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.refresh_plots()
         return None
     def clicked_btn_update_abund_table(self,row=None):
-        if row is None:
+        if row is None or not row:
             selected_model = self._get_selected_model()
         else:
             selected_model = self.parent.session.metadata["spectral_models"][row]
