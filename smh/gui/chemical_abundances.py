@@ -75,7 +75,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         ## Stuff for extra synthesis
         self.extra_spec_1 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#ff531a', lw=1.5, zorder=9998)[0]
         self.extra_spec_2 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#ffc34b', lw=1.5, zorder=9998)[0]
-        self.extra_spec_none = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='teal', lw=1.2, zorder=9999)[0]
+        #self.extra_spec_none = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='teal', lw=1.2, zorder=9999)[0]
         
         ################
         # BOTTOM
@@ -917,9 +917,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                     abundances_none[elem] = -50.0
 
                 x, y = spectral_model.get_synth(abundances_none)
-                self.extra_spec_none.set_data([x,y])
+                #self.extra_spec_none.set_data([x,y])
                 spectral_model.metadata["zero_abundance"] = [x,y]
-                #self.synth_abund_table_model.extra_abundances[elem][2] = abunddiff
     
 
     def fit_one(self):
@@ -1043,7 +1042,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         ## If synthesis, label selected lines
         self.extra_spec_1.set_data([[np.nan], [np.nan]])
         self.extra_spec_2.set_data([[np.nan], [np.nan]])
-        self.extra_spec_none.set_data([[np.nan], [np.nan]])
+        #self.extra_spec_none.set_data([[np.nan], [np.nan]])
         
         try:
             if row==None:
