@@ -9,7 +9,7 @@ Authors
 -------
  - Andrew R. Casey (Monash)
  - Alex Ji (University of Chicago)
- - Erika Holmbeck (Carnegie Observatories)
+ - Erika Holmbeck (Lawrence Livermore National Laboratory)
 
 Installation
 ------------
