@@ -908,6 +908,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         return None
 
     def fit_none(self, spectral_model):
+        if spectral_model.measurement_type != 'syn': return
         # E. Holmbeck added a "none" line
         extra_abundances = self.synth_abund_table_model.get_extra_abundances()
         if extra_abundances is None:
