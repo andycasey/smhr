@@ -934,6 +934,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.measurement_view.update_row(proxy_index.row())
         self.summarize_current_table()
         self.update_fitting_options()
+        self.fit_none(spectral_model)
         self.refresh_plots()
         
         if self.parent.session.setting("bring_to_top_after_fit", False):
@@ -941,7 +942,6 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.parent.activateWindow()
             self.parent.showNormal()
 
-        self.fit_none(spectral_model)
         self.figure.draw()
         return None
 
