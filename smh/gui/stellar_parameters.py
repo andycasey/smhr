@@ -189,6 +189,7 @@ class StellarParametersTab(QtGui.QWidget):
             "surface_gravity": float(self.edit_logg.text()),
             "metallicity": float(self.edit_metallicity.text()),
             "microturbulence": float(self.edit_xi.text()),
+            #"numax": float(self.edit_numax.text()),
             "alpha": float(self.edit_alpha.text())
         })
         return True
@@ -202,6 +203,7 @@ class StellarParametersTab(QtGui.QWidget):
             (self.edit_logg, "{0:.2f}", "surface_gravity"),
             (self.edit_metallicity, "{0:+.2f}", "metallicity"),
             (self.edit_xi, "{0:.2f}", "microturbulence"),
+            #(self.edit_numax, "{0:.2f}", "numax"),
             (self.edit_alpha, "{0:.2f}", "alpha")
         ]
         for widget, fmt, key in widget_info:
@@ -442,12 +444,33 @@ class StellarParametersTab(QtGui.QWidget):
         #grid_layout.addWidget(self.vt_const, 3, 2, -1)
         grid_layout.addWidget(self.vt_const, 3, 2)
 
+        # Nu-max.
+        label = QtGui.QLabel(self)
+        label.setText("nu-max")
+        label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
+        
+        '''
+        grid_layout.addWidget(label, 4, 0, 1, 1)
+        self.edit_numax = QtGui.QLineEdit(self)
+        self.edit_numax.setMinimumSize(QtCore.QSize(40, 0))
+        self.edit_numax.setMaximumSize(QtCore.QSize(50, 16777215))
+        self.edit_numax.setAlignment(QtCore.Qt.AlignCenter)
+        self.edit_numax.setValidator(QtGui2.QDoubleValidator(0, 5, 3, self.edit_numax))
+        self.edit_numax.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
+        self.edit_numax.textChanged.connect(self._check_lineedit_state)
+        grid_layout.addWidget(self.edit_numax, 4, 1)
+        self.use_nu = QtGui.QCheckBox("Use numax")
+        self.use_nu.setChecked(False)
+        self.use_nu.stateChanged.connect(lambda:self.nu_max(self.use_nu,1))
+        grid_layout.addWidget(self.use_nu, 4, 2)
+        '''
+
         # Alpha-enhancement.
         label = QtGui.QLabel(self)
         label.setText("alpha")
         label.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         
-        grid_layout.addWidget(label, 4, 0, 1, 1)
+        grid_layout.addWidget(label, 5, 0, 1, 1)
         self.edit_alpha = QtGui.QLineEdit(self)
         self.edit_alpha.setMinimumSize(QtCore.QSize(40, 0))
         self.edit_alpha.setMaximumSize(QtCore.QSize(50, 16777215))
@@ -456,12 +479,13 @@ class StellarParametersTab(QtGui.QWidget):
         #self.edit_alpha.setValidator(QtGui.QDoubleValidator(0, 0.4, 3, self.edit_alpha))
         self.edit_alpha.setSizePolicy(QtGui.QSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.Minimum))
         self.edit_alpha.textChanged.connect(self._check_lineedit_state)
-        grid_layout.addWidget(self.edit_alpha, 4, 1)
+        grid_layout.addWidget(self.edit_alpha, 5, 1)
 
         self.edit_teff.returnPressed.connect(self.measure_abundances)
         self.edit_logg.returnPressed.connect(self.measure_abundances)
         self.edit_metallicity.returnPressed.connect(self.measure_abundances)
         self.edit_xi.returnPressed.connect(self.measure_abundances)
+        #self.edit_numax.returnPressed.connect(self.measure_abundances)
         self.edit_alpha.returnPressed.connect(self.measure_abundances)
 
         return grid_layout
@@ -676,6 +700,17 @@ class StellarParametersTab(QtGui.QWidget):
             self.params_to_optimize[param_index] = False
         else:
             self.params_to_optimize[param_index] = True
+
+    # E. Holmbeck added this function; WIP
+    def nu_max(self,param_selected,param_index):
+        teff = float(self.edit_teff.text())
+        gsol = 4.438
+        Tsol = 10.**3.7617
+        nusol = 10**3.484
+        nustar = float(self.edit_numax.text())
+        newlogg = gsol + np.log10(data['numax']*np.sqrt(teff/Tsol)/nusol)
+        self.edit_logg.setText(newlogg)
+        self.parent.session.metadata["stellar_parameters"]["surface gravity"] = newlogg
 
 
 class StellarParameterUncertaintiesDialog(QtGui.QDialog):

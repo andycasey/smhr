@@ -528,7 +528,7 @@ class NormalizationTab(QtGui.QWidget):
 
 
         # undo/remove the last mask
-        if event.key in ("u", "U"):
+        if event.key in "uU":
             if "exclude" in self._cache["input"]:
                 exclude_regions = self._cache["input"]["exclude"]
                 if len(exclude_regions) > 0:

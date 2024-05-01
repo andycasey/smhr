@@ -73,8 +73,9 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.figure.mpl_connect("key_press_event", self.key_press_selectcheck)
         self.figure.mpl_connect("key_press_event", self.key_press_automask_sigma)
         ## Stuff for extra synthesis
-        self.extra_spec_1 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#cea2fd', lw=1.5, zorder=9999)[0]
-        self.extra_spec_2 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#ffb07c', lw=1.5, zorder=9999)[0]
+        self.extra_spec_1 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#ff531a', lw=1.5, zorder=9998)[0]
+        self.extra_spec_2 = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='#ffc34b', lw=1.5, zorder=9998)[0]
+        #self.extra_spec_none = self.ax_spectrum.plot([np.nan],[np.nan], ls='-', color='teal', lw=1.2, zorder=9999)[0]
         
         ################
         # BOTTOM
@@ -111,6 +112,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self._currently_plotted_element = "All"
         self.new_session_loaded()
         
+        # E. Holmbeck: don't mind me...
+        self.acceptables_only = True
 
     def init_tab(self):
         """
@@ -185,7 +188,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.btn_fit_all.setText("Fit all EW")
         self.btn_fit_all.setSizePolicy(sp)
         self.btn_measure_all = QtGui.QPushButton(self)
-        self.btn_measure_all.setText("Measure all acceptable EW")
+        self.btn_measure_all.setText("Abundances from EW")
         self.btn_measure_all.setSizePolicy(sp)
         hbox.addWidget(self.btn_fit_all)
         hbox.addWidget(self.btn_measure_all)
@@ -299,7 +302,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         vbox_lhs.addLayout(hbox)
 
         hbox, label, line = _create_line_in_hbox(self.tab_profile, "Fit window",
-                                                 0, 1000, 1)
+                                                 -4, 1000, 1)
         self.edit_fit_window = line
         vbox_lhs.addLayout(hbox)
 
@@ -394,7 +397,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         vbox_lhs.addLayout(hbox)
 
         hbox, label, line = _create_line_in_hbox(self.tab_synthesis, "Fit window",
-                                                 0, 1000, 1)
+                                                 -4, 1000, 1)
         self.edit_fit_window_2 = line
         vbox_lhs.addLayout(hbox)
 
@@ -493,15 +496,29 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         #vbox_rhs.addItem(QtGui.QSpacerItem(20,20,QtGui.QSizePolicy.Minimum,
         #                                   QtGui.QSizePolicy.Minimum))
 
+        # E. Holmbeck edited
+        hbox = QtGui.QHBoxLayout()
+        self.btn_update_abund_table = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_update_abund_table.setText("Update Ab. Table")
+        #vbox_rhs.addWidget(self.btn_update_abund_table)
+        hbox.addWidget(self.btn_update_abund_table)
         self.btn_fit_synth = QtGui.QPushButton(self.tab_synthesis)
         self.btn_fit_synth.setText("Fit Model")
-        vbox_rhs.addWidget(self.btn_fit_synth)
+        #vbox_rhs.addWidget(self.btn_fit_synth)
+        hbox.addWidget(self.btn_fit_synth)
+        vbox_rhs.addLayout(hbox)
         
-        self.btn_update_abund_table = QtGui.QPushButton(self.tab_synthesis)
-        self.btn_update_abund_table.setText("Update Abundance Table")
-        vbox_rhs.addWidget(self.btn_update_abund_table)
-        
-        
+        # E. Holmbeck added
+        hbox = QtGui.QHBoxLayout()
+        self.btn_fit_all_synth = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_fit_all_synth.setText("Resynth")
+        hbox.addWidget(self.btn_fit_all_synth)
+        # E. Holmbeck added
+        self.btn_fit_rest_synth = QtGui.QPushButton(self.tab_synthesis)
+        self.btn_fit_rest_synth.setText("Synth Rest")
+        hbox.addWidget(self.btn_fit_rest_synth)
+        vbox_rhs.addLayout(hbox)
+
         hbox = QtGui.QHBoxLayout()
         self.btn_clear_masks_2 = QtGui.QPushButton(self.tab_synthesis)
         self.btn_clear_masks_2.setText("Clear Masks")
@@ -586,6 +603,10 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.clicked_checkbox_upper_limit)
         self.btn_fit_one.clicked.connect(
             self.fit_one)
+        self.btn_fit_all_synth.clicked.connect(
+            self.clicked_fit_all_synth)
+        self.btn_fit_rest_synth.clicked.connect(
+            self.clicked_fit_rest_synth)
         self.btn_clear_masks.clicked.connect(
             self.clicked_btn_clear_masks)
         self._profile_signals = [
@@ -615,6 +636,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             (self.edit_wavelength_tolerance.returnPressed,self.fit_one),
             (self.checkbox_upper_limit.stateChanged,self.clicked_checkbox_upper_limit),
             (self.btn_fit_one.clicked,self.fit_one),
+            (self.btn_fit_all_synth.clicked,self.clicked_fit_all_synth),
+            (self.btn_fit_rest_synth.clicked,self.clicked_fit_rest_synth),
             (self.btn_clear_masks.clicked,self.clicked_btn_clear_masks)
             ]
 
@@ -674,6 +697,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             self.clicked_btn_clear_masks)
         self.btn_export_synth.clicked.connect(
             self.clicked_export_synthesis)
+        
+        self.btn_fit_all_synth.clicked.connect(
+            self.clicked_fit_all_synth)
+
+        self.btn_fit_rest_synth.clicked.connect(
+            self.clicked_fit_rest_synth)
 
         self._synth_signals = [
             (self.edit_view_window_2.textChanged,self.update_edit_view_window_2),
@@ -700,6 +729,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             (self.checkbox_upper_limit_2.stateChanged,self.clicked_checkbox_upper_limit_2),
             (self.btn_find_upper_limit.clicked,self.clicked_btn_find_upper_limit),
             (self.btn_fit_synth.clicked,self.fit_one),
+            (self.btn_fit_all_synth.clicked,self.clicked_fit_all_synth),
+            (self.btn_fit_rest_synth.clicked,self.clicked_fit_rest_synth),
             (self.btn_update_abund_table.clicked,self.clicked_btn_update_abund_table),
             (self.btn_clear_masks_2.clicked,self.clicked_btn_clear_masks),
             (self.btn_export_synth.clicked,self.clicked_export_synthesis)
@@ -795,8 +826,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.calculate_FeH()
         return None
 
-    def refresh_plots(self):
-        self.update_spectrum_figure(True)
+    def refresh_plots(self, row=None):
+        self.update_spectrum_figure(True, row=row)
         return None
 
     def fit_all_profiles(self):
@@ -876,6 +907,21 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 pass
         return None
 
+    def fit_none(self, spectral_model):
+        if spectral_model.measurement_type != 'syn': return
+        # E. Holmbeck added a "none" line
+        extra_abundances = self.synth_abund_table_model.get_extra_abundances()
+        if extra_abundances is None:
+            for i, elem in enumerate(spectral_model.elements):
+                abundances_none = deepcopy(spectral_model.metadata["rt_abundances"])
+                for i, elem in enumerate(spectral_model.elements):
+                    abundances_none[elem] = -50.0
+
+                x, y = spectral_model.get_synth(abundances_none)
+                #self.extra_spec_none.set_data([x,y])
+                spectral_model.metadata["zero_abundance"] = [x,y]
+    
+
     def fit_one(self):
         spectral_model, proxy_index, index = self._get_selected_model(True)
         if spectral_model is None: return None
@@ -888,11 +934,15 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.measurement_view.update_row(proxy_index.row())
         self.summarize_current_table()
         self.update_fitting_options()
+        self.fit_none(spectral_model)
         self.refresh_plots()
+        
         if self.parent.session.setting("bring_to_top_after_fit", False):
             self.parent.raise_()
             self.parent.activateWindow()
             self.parent.showNormal()
+
+        self.figure.draw()
         return None
 
     def measure_one(self):
@@ -911,8 +961,8 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         # When we get selected model, it erases the extra_abundances.
         # So let's cache it then put it back in...
         extra_abundances = self.synth_abund_table_model.get_extra_abundances()
-        
         spectral_model, proxy_index, index = self._get_selected_model(True)
+        
         if spectral_model is None: return None
         spectral_model.update_fit_after_parameter_change()
         self.measurement_view.update_row(proxy_index.row())
@@ -942,7 +992,11 @@ class ChemicalAbundancesTab(QtGui.QWidget):
                 self.extra_spec_1.set_data([x,y])
                 x, y = spectral_model.get_synth(abundances2)
                 self.extra_spec_2.set_data([x,y])
+            # E. Holmbeck added a "none" line
+            self.fit_none(spectral_model)
             self.figure.draw()
+
+                
         return None
         
     def _check_for_spectral_models(self):
@@ -985,12 +1039,17 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.update_spectrum_figure(True)
         return None
 
-    def update_spectrum_figure(self, redraw=False, reset_limits=True):
+    def update_spectrum_figure(self, redraw=False, reset_limits=True, row=None):
         ## If synthesis, label selected lines
         self.extra_spec_1.set_data([[np.nan], [np.nan]])
         self.extra_spec_2.set_data([[np.nan], [np.nan]])
+        #self.extra_spec_none.set_data([[np.nan], [np.nan]])
+        
         try:
-            selected_model = self._get_selected_model()
+            if row==None:
+                selected_model = self._get_selected_model()
+            else:
+                selected_model = self.parent.session.metadata["spectral_models"][row]
         except IndexError:
             selected_transitions = None
             label_rv = None
@@ -1015,6 +1074,7 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             else:
                 selected_transitions = None
                 label_rv = None
+        
         # Update figure
         self.figure.update_spectrum_figure(redraw=redraw,
                                            reset_limits=reset_limits,
@@ -1197,6 +1257,13 @@ class ChemicalAbundancesTab(QtGui.QWidget):
             return None
         else:
             model.metadata["window"] = window
+        transitions = self._get_selected_model().transitions
+        xlim = (transitions["wavelength"][0] - window,
+                transitions["wavelength"][-1] + window)
+        self.ax_spectrum.set_xlim(xlim)
+        self.ax_residual.set_xlim(xlim)
+        self.figure.reset_zoom_limits()
+        self.figure.draw()
         return None
     def clicked_checkbox_continuum(self):
         """ The checkbox for modeling the continuum was clicked. """
@@ -1432,8 +1499,12 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         self.update_fitting_options()
         self.refresh_plots()
         return None
-    def clicked_btn_update_abund_table(self):
-        selected_model = self._get_selected_model()
+    def clicked_btn_update_abund_table(self,row=None):
+        if row is None or not row:
+            selected_model = self._get_selected_model()
+        else:
+            selected_model = self.parent.session.metadata["spectral_models"][row]
+        
         if selected_model is None: return None
         assert isinstance(selected_model, SpectralSynthesisModel), selected_model
         summary_dict = self.parent.session.summarize_spectral_models(organize_by_element=True)
@@ -1496,7 +1567,40 @@ class ChemicalAbundancesTab(QtGui.QWidget):
         spectral_model.export_line_list(linelist_path)
         logger.info("Exported to {}, {}, {}, {}".format(synth_path, data_path, param_path, linelist_path))
         return
+    
+    # E. Holmbeck added
+    def clicked_fit_all_synth(self):
+        logger.info("Re-fitting all synth lines. This might take a while!")
+        # HACKY!
+        row_count = -1
+        for sm in self.parent.session.metadata.get("spectral_models", []):
+            row_count+=1
+            if sm.measurement_type != 'syn': continue
+            if sm.is_acceptable!=self.acceptables_only: continue
+            #self.update_spectrum_figure(redraw=True)
+            logger.info("Re-fitting {:} at {:.1f}.".format(sm.elements[0], sm.wavelength))
+            self.clicked_btn_update_abund_table(row=row_count)
+            try:
+                res = sm.fit()
+            except (ValueError, RuntimeError) as e:
+                logger.info("Fitting error")
+                logger.info(e)
+                self.acceptables_only = True
+                return None
+            self.measurement_view.update_row(row_count)
+            self.summarize_current_table()
+            self.update_fitting_options()
+            self.refresh_plots(row_count)
+            self.fit_none(sm)
+            #self.figure.draw()
+        
+        self.acceptables_only = True
+        return None
 
+    def clicked_fit_rest_synth(self):
+        self.acceptables_only = False
+        self.clicked_fit_all_synth()
+    
     def refresh_current_model(self):
         spectral_model, proxy_index, index = self._get_selected_model(True)
         if spectral_model is None: return None

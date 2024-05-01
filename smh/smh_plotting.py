@@ -47,7 +47,7 @@ def make_summary_plot(summary_figure, normalized_spectrum,
                   (0.33999999999999997, 0.82879999999999987, 0.86),
                   (0.37119999999999997, 0.33999999999999997, 0.86),
                   (0.86, 0.33999999999999997, 0.82879999999999987)]
-    
+    hls_colors = ['426b81', '7dac9f', 'd18076', '903d6f']
     # Load spectra
     spectra_objects = {}
     spectra_colors = {}

@@ -55,7 +55,7 @@ def twd_path(twd=None,**kwargs):
         #kwds.setdefault("dir", "/tmp/")
         #kwds.setdefault("prefix", "smh-")
         twd = mkdtemp(**kwds)
-    if len(twd) > 30:
+    if len(twd) > 35:
         logger.warn(
             "Temporary working directory should be as short as possible to "\
             "prevent MOOG(SILENT) from falling over. Current length ({0}): "\

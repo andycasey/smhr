@@ -847,6 +847,7 @@ class Session(BaseSession):
     def stitch_and_stack(self, **kwargs):
 
         normalized_orders = []
+        
         for i, (spectrum, continuum) \
         in enumerate(zip(self.input_spectra,
         self.metadata["normalization"]["continuum"])):

@@ -628,11 +628,9 @@ class LineList(Table):
         #if not np.all(np.isnan(ew)):
         #    print("Read {} EWs out of {} lines".format(np.sum(~np.isnan(ew)),len(ew)))
         colnames = colnames + ['equivalent_width']
-<<<<<<< HEAD
+        # E. Holmbeck removed the second float thing; why was this here..?
         dtypes = dtypes + [np.float32]
-=======
-        dtypes = dtypes + [float]
->>>>>>> py38-mpl313
+        #dtypes = dtypes + [float]
         data = data + [ew]
         
         return cls(Table(data,names=colnames,dtype=dtypes),moog_columns=moog_columns,**kwargs)
