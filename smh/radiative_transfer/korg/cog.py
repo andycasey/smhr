@@ -60,7 +60,7 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
     MH = TODO
     linelist = Korg.read_linelist(lines_in, format="moog")
     # The first argument specifies the default [X/H] abundance, the second lets you specify the default [alpha/H] abundance, and the third lets you specify individual abundances.
-    A_X = Korg.format_A_X(MH) # the need for this should go away
+    A_X = Korg.format_A_X(MH) # the need for this should go away after including the new code, which shouldn't need an initialization?
     measured_EWs = transition["equivalent_width"]
     logeps = Korg.Fit.ews_to_abundances(atm, linelist, A_X, measured_EWs)
     # return logeps
