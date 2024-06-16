@@ -160,8 +160,12 @@ def abundance_cog(photosphere, transitions, full_output=False, verbose=False,
     #raise NotImplementedError
 
 def strip_control_characters(out):
-    for x in np.unique(re.findall(r"\x1b\[K|\x1b\[\d+;1H",out)):
-        out = out.replace(x,'')
+    try:
+        for x in np.unique(re.findall(r"\x1b\[K|\x1b\[\d+;1H",out)):
+            out = out.replace(x,'')
+    except TypeError:
+        for x in np.unique(re.findall(r"\x1b\[K|\x1b\[\d+;1H", out.decode("ascii"))):
+            out = out.replace(x, '')
     return out
 
 def _parse_abfind_summary(summary_out_path):
