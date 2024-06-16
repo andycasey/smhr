@@ -359,11 +359,21 @@ class SMHSpecDisplay(mpl.MPLWidget):
         return None
         
     def key_press_zoom(self, event):
-        if event.key not in "1234": return None
+        if event.key not in ["1","2","3","4","left","right"]: return None
         if self.session is None: return None
-        ylim = self.session.setting(["zoom_shortcuts",int(event.key)],
-                                    default_return_value=[0.0,1.2])
-        self.ax_spectrum.set_ylim(ylim)
+        if event.key in "1234":
+            ylim = self.session.setting(["zoom_shortcuts",int(event.key)],
+                                        default_return_value=[0.0,1.2])
+            self.ax_spectrum.set_ylim(ylim)
+        elif event.key in ["left","right"]:
+            xmin, xmax = self.ax_spectrum.get_xlim()
+            if event.key == "left": dwindow = -2.5
+            else: dwindow = +2.5
+            new_xmin, new_xmax = xmin-dwindow, xmax+dwindow
+            if new_xmin < new_xmax:
+                self._set_xlimits([new_xmin, new_xmax])
+                ## don't do this, it changes the fit window
+                #self.selected_model.metadata["window"] += dwindow
         self.draw()
         return None
 	    
