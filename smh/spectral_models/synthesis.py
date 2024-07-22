@@ -66,12 +66,14 @@ def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={},
         # Include explicitly specified abundances.
         abundances.update(rt_abundances)
         #logger.debug(abundances)
-
+		
+        if 'moog_opts' not in model.metadata:
+            model.metadata['moog_opts'] = {}
         spectra = model.session.rt.synthesize(
             model.session.stellar_photosphere, 
             model.transitions, abundances=abundances,
             isotopes=isotopes,
-            twd=model.session.twd) # TODO other kwargs?
+            twd=model.session.twd, **model.metadata['moog_opts']) # TODO other kwargs?
 
         dispersion = spectra[0][0]
         if fluxes is None:
@@ -92,7 +94,7 @@ def approximate_spectral_synthesis(model, centroids, bounds, rt_abundances={},
 
     # Make sure the function works, otherwise fail early so we can debug.
     assert np.isfinite(call(*centroids)[1]).all()
-
+    
     return call
 
 
@@ -384,7 +386,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # have different input arguments.
         for key in set(self.metadata).intersection(kwargs):
             self.metadata[key] = kwargs.pop(key)
-
+        
         # Update the parameter names in case they have been updated due to the
         # input kwargs.
         self._update_parameter_names()
@@ -405,7 +407,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # approximation is good.
         tolerance_metric = kwargs.pop("tolerance_metric",
             lambda t, a, y, yerr, abs_sigma: np.nansum(np.abs(t - a)) < 0.05)
-
+            
         # Here we set a hard bound limit where linear interpolation must be OK.
         while bounds > 0.01: # dex
             central = p0[:len(self.metadata["elements"])]
@@ -662,7 +664,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
             ## remove the continuum from model and data
             modeldisp = model_output["wl"]
             datadisp  = data_output["wl"]
-            parameters = self.metadata["fitted_result"][0].values()
+            parameters = list(self.metadata["fitted_result"][0].values())
 
             names = self.parameter_names
             O = self.metadata["continuum_order"]
@@ -753,12 +755,14 @@ class SpectralSynthesisModel(BaseSpectralModel):
         except KeyError:
             logger.info("Please run a fit first!")
             return None
+        if 'moog_opts' not in self.metadata:
+            self.metadata['moog_opts'] = {}
         abundances = _fix_rt_abundances(abundances)
         synth_dispersion, intensities, meta = self.session.rt.synthesize(
             self.session.stellar_photosphere, self.transitions,
             abundances=abundances, 
             isotopes=self.session.metadata["isotopes"],
-            twd=self.session.twd)[0] # TODO: Other RT kwargs......
+            twd=self.session.twd, **self.metadata['moog_opts'])[0] # TODO: Other RT kwargs......
         return synth_dispersion, self._nuisance_methods(
             synth_dispersion, synth_dispersion, intensities, *named_p_opt.values())
 
@@ -776,6 +780,11 @@ class SpectralSynthesisModel(BaseSpectralModel):
         # Parse the elemental abundances, because they need to be passed to
         # the synthesis routine.
         abundances = {}
+        
+        # E. Holmbeck; this should be robust, no matter what function calls this, but still.
+        if 'moog_opts' not in self.metadata:
+            self.metadata['moog_opts'] = {}
+        
         names =  self.parameter_names
         for name, parameter in zip(names, parameters):
             if name.startswith("log_eps"):
@@ -791,7 +800,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
             self.session.stellar_photosphere, self.transitions,
             abundances=abundances, 
             isotopes=self.session.metadata["isotopes"],
-            twd=self.session.twd)[0] # TODO: Other RT kwargs......
+            twd=self.session.twd, **self.metadata['moog_opts'])[0] # TODO: Other RT kwargs......
 
         # Save raw synthetic spectrum
         self.metadata["raw_synthetic_dispersion"] = synth_dispersion

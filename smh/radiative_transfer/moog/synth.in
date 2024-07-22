@@ -17,7 +17,8 @@ obspectrum 0
 plot 0
 opacit 0
 freeform 0
-strong 0
+strong {strong:.0f}
+stronglines_in '{stronglines_in}'
 scat {scat:.0f}
 abundances {abundances_formatted}
 isotopes {isotopes_formatted}
