@@ -852,7 +852,11 @@ class Session(BaseSession):
         self.metadata["normalization"]["continuum"])):
             normalized_orders.append(specutils.Spectrum1D(spectrum.dispersion,
                 spectrum.flux / continuum,
-                continuum * spectrum.ivar * continuum))
+                spectrum.flux * spectrum.ivar * spectrum.flux))
+                ## APJ 2024-07-22: switched this over for the final RPA run.
+                ## APJ 2024-07-22: not sure why I decided to do it this way
+                ## APJ 2024-07-22: in the first place...
+                #continuum * spectrum.ivar * continuum))
 
         self.normalized_spectrum = specutils.spectrum.stitch(normalized_orders)
 
