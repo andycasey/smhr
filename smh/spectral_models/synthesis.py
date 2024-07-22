@@ -18,6 +18,7 @@ from collections import OrderedDict
 from six import string_types, iteritems
 from scipy.ndimage import gaussian_filter
 from scipy import stats
+import os
 
 from .base import BaseSpectralModel, penalized_curve_fit_lm
 from smh import utils
@@ -102,6 +103,7 @@ class SpectralSynthesisModel(BaseSpectralModel):
 
     def __init__(self, session, transitions, elements,
                  what_species=None, what_wavelength=None, what_expot=None, what_loggf=None,
+                 filename="",
                  **kwargs):
         """
         Initialize a class for modelling spectra with synthesis.
@@ -141,7 +143,8 @@ class SpectralSynthesisModel(BaseSpectralModel):
             "rt_abundances": {},
             "manual_continuum": 1.0,
             "manual_sigma_smooth":0.15,
-            "manual_rv":0.0
+            "manual_rv":0.0,
+            "filename":os.path.abspath(filename),
         })
 
         # Set the model parameter names based on the current metadata.

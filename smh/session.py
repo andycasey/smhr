@@ -2000,7 +2000,7 @@ class Session(BaseSession):
         logger.debug("Time to load linelist {:.1f}".format(time.time()-start))
         
         start = time.time()
-        spectral_model = SpectralSynthesisModel(self, line_list, elements, **kwargs)
+        spectral_model = SpectralSynthesisModel(self, line_list, elements, filename=filename, **kwargs)
         self.metadata["spectral_models"].append(spectral_model)
         logger.debug("Created synthesis model with {} lines in {:.1f}s".format(len(line_list),
                                                                                time.time()-start))
